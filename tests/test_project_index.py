@@ -1,0 +1,71 @@
+from pathlib import Path
+
+import pytest
+
+from lorewrite.core.index import Index
+from lorewrite.core.project import Project
+
+
+@pytest.fixture
+def project(tmp_path: Path) -> Project:
+    proj = Project.create(tmp_path / "novel", title="Test Novel")
+    proj.create_entity("Elara Vance")
+    entity, _ = proj.create_entity("Thornwick", "place")
+    # give Elara an alias
+    elara_path = proj.entities_dir / "characters" / "elara-vance.md"
+    elara_path.write_text(
+        "---\nname: Elara Vance\ntype: character\naliases: [the captain]\n---\n\nGreen eyes.\n",
+        encoding="utf-8",
+    )
+    scene = proj.manuscript_dir / "02-tavern.md"
+    scene.write_text(
+        "# The Tavern\n\n[[Elara Vance]] entered. The captain ordered ale.\n"
+        "[[Thornwick]] was far away. [[Nobody]] does not exist.\n",
+        encoding="utf-8",
+    )
+    return proj
+
+
+def test_create_and_open(tmp_path: Path):
+    proj = Project.create(tmp_path / "n", title="My Book")
+    assert (proj.root / "project.toml").is_file()
+    assert (proj.root / "manuscript" / "01-opening.md").is_file()
+    reopened = Project.open(proj.root)
+    assert reopened.title == "My Book"
+
+
+def test_open_non_project_fails(tmp_path: Path):
+    with pytest.raises(FileNotFoundError):
+        Project.open(tmp_path)
+
+
+def test_scene_title_and_order(project: Project):
+    scenes = project.list_scenes()
+    assert [s.name for s in scenes] == ["01-opening.md", "02-tavern.md"]
+    assert project.scene_title(scenes[1]) == "The Tavern"
+
+
+def test_next_scene_path(project: Project):
+    path = project.next_scene_path("The Road North")
+    assert path.name == "03-the-road-north.md"
+
+
+def test_create_entity_lands_in_type_subdir(project: Project):
+    _, path = project.create_entity("The Ashen Guild", "faction")
+    assert path.parent.name == "factions"
+    assert path.name == "the-ashen-guild.md"
+
+
+def test_index_backlinks(project: Project):
+    index = Index(project.index_path)
+    index.rebuild(project)
+    entities = project.load_entities()
+    elara = next(e for e in entities if e.name == "Elara Vance")
+    backlinks = index.backlinks(elara)
+    # one explicit [[Elara Vance]] link in 02-tavern.md; "The captain" is plain
+    # text (backlinks track explicit links only)
+    assert len(backlinks) == 1
+    assert backlinks[0].source.endswith("02-tavern.md")
+    assert backlinks[0].row == 2
+    assert "Elara Vance" in backlinks[0].line
+    index.close()

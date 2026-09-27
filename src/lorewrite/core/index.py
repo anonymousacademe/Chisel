@@ -1,0 +1,112 @@
+"""SQLite index over a project. A rebuildable cache, never the truth (SPEC §2).
+
+Stores: entities, and every wiki-link occurrence (for backlinks).
+Rebuild with index.rebuild(project) at any time.
+"""
+
+from __future__ import annotations
+
+import sqlite3
+from dataclasses import dataclass
+from pathlib import Path
+
+from . import entities as ent
+from .links import find_links, offset_to_rowcol
+
+SCHEMA = """\
+CREATE TABLE IF NOT EXISTS entities (
+    name TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    path TEXT NOT NULL,
+    aliases TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS links (
+    source TEXT NOT NULL,   -- project-relative path of the file containing the link
+    target TEXT NOT NULL,   -- raw link target text
+    row INTEGER NOT NULL,
+    line TEXT NOT NULL      -- full source line, for context display
+);
+CREATE INDEX IF NOT EXISTS idx_links_target ON links(target);
+CREATE INDEX IF NOT EXISTS idx_links_source ON links(source);
+"""
+
+
+@dataclass(frozen=True)
+class Backlink:
+    source: str
+    row: int  # 0-based
+    line: str
+
+
+class Index:
+    def __init__(self, db_path: Path):
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._conn = sqlite3.connect(db_path)
+        self._conn.executescript(SCHEMA)
+        self._closed = False
+
+    def close(self) -> None:
+        self._closed = True
+        self._conn.close()
+
+    # -- writing ----------------------------------------------------------
+
+    def update_file(self, rel_path: str, text: str) -> None:
+        """Re-index one file's links. No-op after close (teardown races)."""
+        if self._closed:
+            return
+        cur = self._conn.cursor()
+        cur.execute("DELETE FROM links WHERE source = ?", (rel_path,))
+        for link in find_links(text):
+            row, _ = offset_to_rowcol(text, link.start)
+            line = text.splitlines()[row] if text.splitlines() else ""
+            cur.execute(
+                "INSERT INTO links (source, target, row, line) VALUES (?, ?, ?, ?)",
+                (rel_path, link.target, row, line),
+            )
+        self._conn.commit()
+
+    def remove_file(self, rel_path: str) -> None:
+        if self._closed:
+            return
+        self._conn.execute("DELETE FROM links WHERE source = ?", (rel_path,))
+        self._conn.commit()
+
+    def upsert_entity(self, entity: ent.Entity, rel_path: str) -> None:
+        if self._closed:
+            return
+        self._conn.execute(
+            "INSERT OR REPLACE INTO entities (name, type, path, aliases)"
+            " VALUES (?, ?, ?, ?)",
+            (entity.name, entity.type, rel_path, "\n".join(entity.aliases)),
+        )
+        self._conn.commit()
+
+    # -- reading ----------------------------------------------------------
+
+    def backlinks(self, entity: ent.Entity) -> list[Backlink]:
+        """Every link occurrence pointing at *entity* (by name or alias)."""
+        if self._closed:
+            return []
+        names = entity.names
+        placeholders = ",".join("?" for _ in names)
+        rows = self._conn.execute(
+            f"SELECT source, row, line FROM links"
+            f" WHERE target COLLATE NOCASE IN ({placeholders})"
+            f" ORDER BY source, row",
+            names,
+        ).fetchall()
+        return [Backlink(source=r[0], row=r[1], line=r[2]) for r in rows]
+
+    def rebuild(self, project) -> None:
+        """Drop everything and re-index from disk. `project` is core.Project."""
+        cur = self._conn.cursor()
+        cur.execute("DELETE FROM links")
+        cur.execute("DELETE FROM entities")
+        self._conn.commit()
+        for path in project.list_entity_files():
+            entity = ent.load_entity(path)
+            self.upsert_entity(entity, str(path.relative_to(project.root)))
+        for path in project.all_markdown_files():
+            rel = str(path.relative_to(project.root))
+            self.update_file(rel, path.read_text(encoding="utf-8"))

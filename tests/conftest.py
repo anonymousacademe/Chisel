@@ -1,0 +1,11 @@
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def isolated_state_dir(tmp_path, monkeypatch):
+    """Keep app state out of the real home dir; pre-mark the tour as seen
+    (tour tests reset it explicitly)."""
+    state_dir = tmp_path / "state"
+    monkeypatch.setenv("LOREWRITE_STATE_DIR", str(state_dir))
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "settings.json").write_text('{"tour_seen": true}')

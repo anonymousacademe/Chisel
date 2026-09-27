@@ -1,0 +1,854 @@
+"""The lorewrite TUI application."""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import time
+from pathlib import Path
+
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.containers import Horizontal
+from textual.screen import ModalScreen
+from textual.widgets import Button, Footer, Header, Input, Label, Static
+from textual import work
+
+from .. import __version__
+from ..ai.client import DEFAULT_FAST_MODEL, set_api_key
+from ..ai.links import Suggestion, apply_suggestions, suggest_links
+from ..core import entities as ent
+from ..core import settings as user_settings
+from ..core.index import Index
+from ..core.links import link_at, rowcol_to_offset
+from ..core.project import Project, retitle_text
+from ..core.recents import add_recent
+from .commands import ActionProvider, EntityProvider, InsertLinkProvider, SceneProvider
+from .editor import LinkedTextArea
+from .launch import LaunchScreen
+from .linkreview import LinkReviewScreen
+from .panels import BacklinkSelected, EntityPanel
+from .sidebar import OpenFile, Sidebar
+from .theme import load_omarchy_colors, omarchy_textual_theme
+from .tour import TourScreen
+
+AUTOSAVE_DELAY = 0.6
+
+HELP_TEXT = """\
+# Keybindings
+
+  ctrl+n          new scene
+  alt+left/right  previous / next scene
+  ctrl+p          command palette — everything else lives here
+  ctrl+j          jump to the [[link]] under the cursor (creates the note if missing)
+  ctrl+l          AI: propose [[links]] for unlinked mentions in this scene
+  ctrl+s          save now (autosave is always on)
+  ctrl+b          hide/show the sidebar
+  f11             writer mode — hide everything but the editor
+  f9              rebuild the index from disk
+  ?               this help
+  ctrl+q          quit
+
+# Links
+
+  [[Name]]          link to a character or place note
+  [[Name|alias]]    link showing different text
+
+  cyan  = the note exists    orange = no note yet (ctrl+j to create)
+
+Everything is saved as plain Markdown in your project folder.
+Press escape or ? to close this help.
+"""
+
+
+class HelpScreen(ModalScreen[None]):
+    BINDINGS = [Binding("escape", "close"), Binding("question_mark", "close")]
+
+    def compose(self) -> ComposeResult:
+        from textual.widgets import Markdown
+
+        yield Markdown(HELP_TEXT, id="help")
+
+    def action_close(self) -> None:
+        self.dismiss(None)
+
+    def on_click(self) -> None:
+        self.dismiss(None)
+
+
+class NamePrompt(ModalScreen[str | None]):
+    """Single-line input modal. Dismisses with the entered text or None."""
+
+    def __init__(self, prompt: str) -> None:
+        super().__init__()
+        self._prompt = prompt
+
+    def compose(self) -> ComposeResult:
+        yield Label(self._prompt)
+        yield Input(id="name-input")
+
+    def on_mount(self) -> None:
+        self.query_one(Input).focus()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        value = event.value.strip()
+        self.dismiss(value or None)
+
+    def key_escape(self) -> None:
+        self.dismiss(None)
+
+
+class ConfirmScreen(ModalScreen[bool]):
+    """Yes/no confirmation. Dismisses True only on explicit confirm."""
+
+    BINDINGS = [
+        Binding("y", "confirm", "Yes"),
+        Binding("n", "cancel", "No"),
+        Binding("escape", "cancel", "Cancel"),
+    ]
+
+    def __init__(self, message: str, confirm_label: str = "Delete") -> None:
+        super().__init__()
+        self._message = message
+        self._confirm_label = confirm_label
+
+    def compose(self) -> ComposeResult:
+        yield Label(self._message)
+        yield Button(self._confirm_label, id="ok", variant="error")
+        yield Button("Cancel", id="cancel")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(event.button.id == "ok")
+
+    def action_confirm(self) -> None:
+        self.dismiss(True)
+
+    def action_cancel(self) -> None:
+        self.dismiss(False)
+
+
+class EntityTypePrompt(ModalScreen[str | None]):
+    """Pick a type for a new entity note."""
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+    def __init__(self, name: str) -> None:
+        super().__init__()
+        self._name = name
+
+    def compose(self) -> ComposeResult:
+        yield Label(f"Create note for [[{self._name}]] as:")
+        yield Button("Character", id="character", variant="primary")
+        yield Button("Place", id="place")
+        yield Button("Cancel", id="cancel")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        bid = event.button.id
+        self.dismiss(None if bid == "cancel" else bid)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class LorewriteApp(App):
+    TITLE = "lorewrite"
+
+    COMMANDS = App.COMMANDS | {SceneProvider, EntityProvider, InsertLinkProvider,
+                               ActionProvider}
+
+    BINDINGS = [
+        Binding("ctrl+j", "jump", "Jump to link"),
+        Binding("ctrl+n", "new_scene", "New scene"),
+        Binding("ctrl+l", "link_mentions", "Link mentions"),
+        Binding("alt+left", "previous_scene", "Prev scene"),
+        Binding("alt+right", "next_scene", "Next scene"),
+        Binding("ctrl+s", "save", "Save"),
+        Binding("ctrl+b", "toggle_sidebar", "Sidebar"),
+        Binding("f11", "writer_mode", "Writer mode"),
+        Binding("f9", "rebuild_index", "Reindex"),
+        Binding("question_mark", "help", "Help"),
+        Binding("ctrl+q", "quit", "Quit"),
+    ]
+
+    CSS = """
+    Horizontal { height: 1fr; }
+    #sidebar { width: 28; border-right: solid $primary; }
+    #panel { width: 38; border-left: solid $primary; }
+    .sidebar-heading, .panel-heading {
+        text-style: bold; padding: 0 1; background: $boost;
+    }
+    LinkedTextArea { width: 1fr; }
+    #entity-body { height: 1fr; padding: 0 1; }
+    #backlinks { height: 40%; }
+    #status {
+        height: 1; padding: 0 1;
+        background: $boost; color: $text;
+    }
+    /* Writer mode: everything but the editor and status bar disappears */
+    Screen.writer-mode #sidebar, Screen.writer-mode #panel,
+    Screen.writer-mode Header, Screen.writer-mode Footer {
+        display: none;
+    }
+    #filter { height: 1; border: none; padding: 0 1; }
+    TourScreen { align: center middle; }
+    #tour-page {
+        width: 76; height: auto; max-height: 90%;
+        padding: 1 2; background: $surface; border: solid $primary;
+    }
+    #tour-hint { width: 76; padding: 0 2; color: $text-muted; }
+    HelpScreen { align: center middle; }
+    HelpScreen #help {
+        width: 72; height: auto; max-height: 90%;
+        padding: 1 2; background: $surface; border: solid $primary;
+    }
+    NamePrompt, EntityTypePrompt { align: center middle; }
+    NamePrompt > *, EntityTypePrompt > * { width: 60; }
+    EntityTypePrompt Button { width: 100%; margin-top: 1; }
+    NamePrompt Label, EntityTypePrompt Label {
+        padding: 1; background: $surface; border: solid $primary; width: 62;
+    }
+    NamePrompt Input { border: solid $primary; }
+    EntityTypePrompt Button { border: solid $primary; }
+    ConfirmScreen { align: center middle; }
+    ConfirmScreen > * { width: 60; }
+    ConfirmScreen Label {
+        padding: 1; background: $surface; border: solid $primary; width: 62;
+    }
+    ConfirmScreen Button { width: 100%; margin-top: 1; border: solid $primary; }
+    LaunchScreen { align: center middle; }
+    #launch {
+        width: 76; height: auto; max-height: 90%;
+        background: $surface; border: solid $primary; padding: 1 2;
+    }
+    #launch-title { text-style: bold; text-align: center; padding: 1 0; }
+    .launch-heading { text-style: bold; padding: 1 0 0 0; }
+    #recents { height: auto; max-height: 12; }
+    #launch-hint { padding: 1 0 0 0; color: $text-muted; }
+    PathPrompt, NewProjectPrompt { align: center middle; }
+    PathPrompt > *, NewProjectPrompt > * { width: 64; }
+    PathPrompt Label, NewProjectPrompt Label {
+        padding: 1; background: $surface; border: solid $primary;
+    }
+    PathPrompt Input, NewProjectPrompt Input {
+        border: solid $primary; margin-top: 1;
+    }
+    LinkReviewScreen { align: center middle; }
+    #review-header {
+        width: 76; padding: 1 2; background: $surface; border: solid $primary;
+    }
+    #suggestions {
+        width: 76; height: auto; max-height: 60%;
+        background: $surface; border: solid $primary; padding: 0 1;
+    }
+    #review-hint { width: 76; padding: 0 2; color: $text-muted; }
+    """
+
+    def __init__(self, project: Project | None = None) -> None:
+        super().__init__()
+        self.project = project
+        self.index: Index | None = None
+        self.entities: list[ent.Entity] = []
+        self.current_path: Path | None = None
+        self._dirty = False
+        self._save_timer = None
+        self._save_token = 0
+        self._status_text = ""
+        self._writer_mode = False
+        self._last_save: float | None = None
+        self._project_words = 0
+        self._editor_padding = 0
+        # direct widget refs, set in compose(); safe to use during teardown
+        self._editor: LinkedTextArea | None = None
+        self._sidebar: Sidebar | None = None
+        self._panel: EntityPanel | None = None
+        self._status: Static | None = None
+
+    # -- layout ---------------------------------------------------------------
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        self._sidebar = Sidebar()
+        self._editor = LinkedTextArea(id="editor")
+        self._panel = EntityPanel()
+        with Horizontal():
+            yield self._sidebar
+            yield self._editor
+            yield self._panel
+        self._status = Static("", id="status")
+        yield self._status
+        yield Footer()
+
+    @property
+    def editor(self) -> LinkedTextArea:
+        assert self._editor is not None
+        return self._editor
+
+    @property
+    def sidebar(self) -> Sidebar:
+        assert self._sidebar is not None
+        return self._sidebar
+
+    @property
+    def panel(self) -> EntityPanel:
+        assert self._panel is not None
+        return self._panel
+
+    @property
+    def idx(self) -> Index:
+        """The index; only valid after a project is loaded."""
+        assert self.index is not None, "no project loaded"
+        return self.index
+
+    # -- startup / shutdown -----------------------------------------------------
+
+    def on_mount(self) -> None:
+        omarchy_theme = omarchy_textual_theme()
+        if omarchy_theme is not None:
+            self.register_theme(omarchy_theme)
+            self.theme = omarchy_theme.name
+            colors = load_omarchy_colors() or {}
+            from rich.style import Style
+
+            if colors.get("cyan"):
+                self.editor.resolved_style = Style(
+                    color=colors["cyan"], bold=True, underline=True
+                )
+            if colors.get("orange"):
+                self.editor.unresolved_style = Style(
+                    color=colors["orange"], bold=True, underline=True
+                )
+        if self.project is not None:
+            self.initialize_project(self.project)
+        else:
+            self.push_screen(LaunchScreen(), self._launch_result)
+        self.update_status()
+
+    def _launch_result(self, project: Project | None) -> None:
+        if project is None:
+            self.exit()
+            return
+        self.initialize_project(project)
+
+    def initialize_project(self, project: Project) -> None:
+        """Load a project into the UI: index, entities, sidebar, first scene."""
+        self.project = project
+        self.index = Index(project.index_path)
+        self.title = f"lorewrite v{__version__}"
+        self.sub_title = project.title
+        add_recent(project.root, project.title)
+        self.idx.rebuild(project)
+        self.reload_entities()
+        self.refresh_sidebar()
+        self.editor.link_resolver = self.is_resolved
+        editor_prefs = project.editor_settings()
+        self.editor.show_line_numbers = editor_prefs["line_numbers"]
+        self._editor_padding = editor_prefs["padding"]
+        self._apply_editor_padding()
+        self._recount_project_words()
+        scenes = project.list_scenes()
+        if scenes:
+            self.open_file(scenes[0])
+        self.editor.focus()
+        self.update_status()
+        if not user_settings.get("tour_seen", False):
+            user_settings.set("tour_seen", True)
+            self.push_screen(TourScreen())
+
+    def _apply_editor_padding(self) -> None:
+        if not self._writer_mode:
+            self.editor.styles.padding = (0, getattr(self, "_editor_padding", 0))
+
+    def _recount_project_words(self) -> None:
+        if self.project is None:
+            self._project_words = 0
+            return
+        total = 0
+        for path in self.project.list_scenes():
+            try:
+                total += len(path.read_text(encoding="utf-8").split())
+            except OSError:
+                continue
+        self._project_words = total
+
+    def on_unmount(self) -> None:
+        if self._save_timer is not None:
+            self._save_timer.stop()
+        try:
+            self._write_to_disk()  # final flush; UI updates skipped on teardown
+        except Exception:
+            pass
+        if self.index is not None:
+            self.index.close()
+
+    # -- files --------------------------------------------------------------------
+
+    def reload_entities(self) -> None:
+        self.entities = self.project.load_entities()
+
+    def refresh_sidebar(self) -> None:
+        self.sidebar.set_scenes(
+            [(self.project.scene_title(p), p) for p in self.project.list_scenes()]
+        )
+        self.sidebar.set_entities(
+            [(f"{e.name} [{e.type}]", e.path) for e in self.entities if e.path]
+        )
+
+    def open_file(self, path: Path) -> None:
+        self.save_current()
+        self.current_path = path
+        self._dirty = False
+        self.editor.load_text(path.read_text(encoding="utf-8"))
+        self.editor.refresh_links()
+        self.editor.focus()
+        self.update_status()
+
+    def _write_to_disk(self) -> None:
+        if self.current_path is None or self._editor is None:
+            return
+        text = self._editor.text
+        tmp = self.current_path.with_suffix(self.current_path.suffix + ".tmp")
+        tmp.write_text(text, encoding="utf-8")
+        tmp.replace(self.current_path)
+        rel = str(self.current_path.relative_to(self.project.root))
+        self.idx.update_file(rel, text)
+
+    def save_current(self, explicit: bool = False) -> None:
+        """Write the current buffer to disk and refresh derived state."""
+        if self.current_path is None or self._editor is None:
+            return
+        self._write_to_disk()
+        self.reload_entities()
+        self._dirty = False
+        self._last_save = time.time()
+        self._recount_project_words()
+        self.update_panel_for_cursor()
+        self.update_status()
+        if explicit:
+            self.notify("Saved", timeout=1)
+
+    def on_text_area_changed(self) -> None:
+        self._dirty = True
+        self.editor.refresh_links()
+        self.update_status()
+        self._save_token += 1
+        token = self._save_token
+        if self._save_timer is not None:
+            self._save_timer.stop()
+        self._save_timer = self.set_timer(
+            AUTOSAVE_DELAY, lambda: self._autosave(token)
+        )
+
+    def _autosave(self, token: int) -> None:
+        if token == self._save_token and self._editor is not None:
+            self.save_current()
+
+    def on_open_file(self, message: OpenFile) -> None:
+        self.open_file(message.path)
+
+    # -- status bar ------------------------------------------------------------------
+
+    def update_status(self) -> None:
+        if self._status is None:
+            return
+        if self.current_path is None:
+            self._status_text = "no file open — ctrl+p to open a scene"
+            self._status.update(self._status_text)
+            return
+        rel = self.current_path.relative_to(self.project.root)
+        if self._dirty:
+            state = "● modified"
+        elif self._last_save:
+            state = f"saved {time.strftime('%H:%M', time.localtime(self._last_save))}"
+        else:
+            state = "saved"
+        words = len(self._editor.text.split()) if self._editor else 0
+        if self._editor is not None:
+            row, col = self._editor.cursor_location
+            hint = self._link_hint()
+            cursor = f"Ln {row + 1}, Col {col + 1}"
+        else:
+            hint, cursor = "", ""
+        parts = [
+            str(rel), state,
+            f"{words} words ({self._project_words} project)",
+            cursor,
+        ]
+        if hint:
+            parts.append(hint)
+        self._status_text = "  |  ".join(parts)
+        self._status.update(self._status_text)
+
+    def _link_hint(self) -> str:
+        text = self._editor.text
+        offset = rowcol_to_offset(text, *self._editor.cursor_location)
+        link = link_at(text, offset)
+        if link is None:
+            return ""
+        if self.is_resolved(link.target):
+            return f"[[{link.target}]] — ctrl+j to open"
+        return f"[[{link.target}]] — no note, ctrl+j to create"
+
+    # -- entity panel / backlinks --------------------------------------------------
+
+    def is_resolved(self, target: str) -> bool:
+        return ent.resolve(target, self.entities) is not None
+
+    def on_text_area_selection_changed(self) -> None:
+        self.update_panel_for_cursor()
+        self.update_status()
+
+    def update_panel_for_cursor(self) -> None:
+        text = self.editor.text
+        offset = rowcol_to_offset(text, *self.editor.cursor_location)
+        link = link_at(text, offset)
+        if link is None:
+            return
+        entity = ent.resolve(link.target, self.entities)
+        if entity is None:
+            self.panel.show_entity(f"[[{link.target}]] — no note yet", "")
+            self.panel.set_backlinks([])
+        else:
+            self.panel.show_entity(f"{entity.name} [{entity.type}]", entity.body)
+            self.panel.set_backlinks(self.idx.backlinks(entity))
+
+    def on_backlink_selected(self, message: BacklinkSelected) -> None:
+        path = self.project.root / message.source
+        if path.is_file():
+            self.open_file(path)
+            self.editor.move_cursor((message.row, 0))
+
+    # -- actions ---------------------------------------------------------------------
+
+    def action_save(self) -> None:
+        self.save_current(explicit=True)
+
+    def action_toggle_sidebar(self) -> None:
+        self.sidebar.display = not self.sidebar.display
+
+    def writer_mode(self) -> None:
+        """Toggle writer mode: hide chrome, pad the editor, keep status."""
+        self._writer_mode = not self._writer_mode
+        if self._writer_mode:
+            self.screen.add_class("writer-mode")
+            self.editor.styles.padding = (0, max(4, self._editor_padding))
+        else:
+            self.screen.remove_class("writer-mode")
+            self._apply_editor_padding()
+        self.editor.focus()
+
+    action_writer_mode = writer_mode
+
+    def _scene_neighbor(self, delta: int) -> None:
+        if self.project is None:
+            return
+        scenes = self.project.list_scenes()
+        if not scenes:
+            self.notify("No scenes yet — ctrl+n to create one", severity="warning")
+            return
+        path = self._current_scene_path()
+        if path is None:
+            self.open_file(scenes[0])  # on an entity note: jump to the text
+            return
+        try:
+            i = scenes.index(path)
+        except ValueError:
+            i = 0
+        j = i + delta
+        if not (0 <= j < len(scenes)):
+            self.notify("No more scenes this way", severity="warning")
+            return
+        self.open_file(scenes[j])
+        self.notify(self.project.scene_title(scenes[j]), timeout=1)
+
+    def action_previous_scene(self) -> None:
+        self._scene_neighbor(-1)
+
+    def action_next_scene(self) -> None:
+        self._scene_neighbor(1)
+
+    previous_scene = action_previous_scene
+    next_scene = action_next_scene
+
+    def action_help(self) -> None:
+        self.push_screen(HelpScreen())
+
+    # -- AI: link mentions ----------------------------------------------------
+
+    def _ai_fast_model(self) -> str:
+        if self.project is not None:
+            raw = (self.project.meta.get("ai") or {}).get("fast_model")
+            if raw:
+                return str(raw)
+        return DEFAULT_FAST_MODEL
+
+    def action_link_mentions(self) -> None:
+        """AI: propose [[links]] for unlinked entity mentions in this scene."""
+        if self.project is None or self.current_path is None:
+            self.notify("Open a scene first", severity="warning")
+            return
+        if not self.entities:
+            self.notify("No entities yet — create some notes first",
+                        severity="warning")
+            return
+        self.notify("Finding mentions…", timeout=2)
+        self._fetch_suggestions()
+
+    link_mentions = action_link_mentions
+
+    @work(exclusive=True)
+    async def _fetch_suggestions(self) -> None:
+        scene_text = self.editor.text
+        entities = list(self.entities)
+        try:
+            suggestions = await asyncio.to_thread(
+                suggest_links, scene_text, entities, self._ai_fast_model()
+            )
+        except Exception as exc:
+            self.notify(f"Link suggestions failed: {exc}", severity="error",
+                        timeout=6)
+            return
+        if not suggestions:
+            self.notify("No unlinked mentions found", timeout=2)
+            return
+        self.push_screen(
+            LinkReviewScreen(suggestions, scene_text),
+            self._apply_link_suggestions,
+        )
+
+    def _apply_link_suggestions(self, accepted: list[Suggestion] | None) -> None:
+        if not accepted:
+            return
+        self.editor.load_text(apply_suggestions(self.editor.text, accepted))
+        self.save_current()
+        self.notify(f"Linked {len(accepted)} mention(s)", timeout=2)
+
+        # Alias learning: surfaces that aren't known names/aliases yet
+        offers: dict[str, set[str]] = {}
+        for s in accepted:
+            entity = ent.resolve(s.entity, self.entities)
+            if entity is None:
+                continue
+            if all(s.surface.casefold() != n.casefold() for n in entity.names):
+                offers.setdefault(entity.name, set()).add(s.surface)
+        if not offers:
+            return
+        lines = [f"'{surface}' → {name}"
+                 for name, surfaces in sorted(offers.items())
+                 for surface in sorted(surfaces)]
+
+        def _learn(ok: bool) -> None:
+            if not ok:
+                return
+            for name, surfaces in offers.items():
+                entity = ent.resolve(name, self.entities)
+                for surface in surfaces:
+                    if entity is not None:
+                        ent.add_alias(entity, surface)
+            self.reload_entities()
+            self.refresh_sidebar()
+            self.editor.refresh_links()
+            self.notify("Aliases saved to entity notes", timeout=2)
+
+        self.push_screen(
+            ConfirmScreen(
+                "Learn these as aliases in the entity notes?\n" + "\n".join(lines),
+                confirm_label="Add aliases",
+            ),
+            _learn,
+        )
+
+    def set_api_key(self) -> None:
+        def _store(key: str | None) -> None:
+            if not key:
+                return
+            try:
+                set_api_key(key)
+                self.notify("API key stored in the system keyring", timeout=3)
+            except Exception as exc:
+                self.notify(
+                    f"Keyring unavailable ({exc}). Set the OPENROUTER_API_KEY"
+                    " environment variable instead.",
+                    severity="error", timeout=8,
+                )
+
+        self.push_screen(NamePrompt("OpenRouter API key:"), _store)
+
+    def action_jump(self) -> None:
+        """Open the note for the link under the cursor, creating it if needed."""
+        text = self.editor.text
+        offset = rowcol_to_offset(text, *self.editor.cursor_location)
+        link = link_at(text, offset)
+        if link is None:
+            self.notify("Cursor is not on a [[link]]", severity="warning")
+            return
+        entity = ent.resolve(link.target, self.entities)
+        if entity is not None and entity.path is not None:
+            self.open_file(entity.path)
+            return
+        self.save_current()
+
+        def _created(etype: str | None) -> None:
+            if etype is None:
+                return
+            entity, path = self.project.create_entity(link.target, etype)
+            self.idx.upsert_entity(
+                entity, str(path.relative_to(self.project.root))
+            )
+            self.reload_entities()
+            self.refresh_sidebar()
+            self.editor.refresh_links()
+            self.open_file(path)
+
+        self.push_screen(EntityTypePrompt(link.target), _created)
+
+    def insert_link(self, name: str) -> None:
+        self.editor.insert(f"[[{name}]]")
+        self.editor.refresh_links()
+        self.editor.focus()
+        self.save_current()
+
+    def action_new_scene(self) -> None:
+        self.create_scene_prompt()
+
+    def create_scene_prompt(self) -> None:
+        def _create(title: str | None) -> None:
+            if not title:
+                return
+            path = self.project.next_scene_path(title)
+            path.write_text(f"# {title}\n\n", encoding="utf-8")
+            self.refresh_sidebar()
+            self.open_file(path)
+
+        self.push_screen(NamePrompt("New scene title:"), _create)
+
+    # -- scene organization -----------------------------------------------------
+
+    def _current_scene_path(self) -> Path | None:
+        """The open file, if it's a manuscript scene (not an entity note)."""
+        if self.project is None or self.current_path is None:
+            return None
+        if self.current_path.parent == self.project.manuscript_dir:
+            return self.current_path
+        return None
+
+    def rename_scene_prompt(self) -> None:
+        path = self._current_scene_path()
+        if path is None:
+            self.notify("Open a scene first", severity="warning")
+            return
+        current = self.project.scene_title(path)
+
+        def _rename(title: str | None) -> None:
+            if not title or title == current:
+                return
+            # retitle the editor buffer, then save — a disk-side rename would
+            # be clobbered by the next autosave of the stale buffer
+            self.editor.load_text(retitle_text(self.editor.text, title))
+            self.save_current()
+            self.refresh_sidebar()
+            self.notify(f"Renamed to '{title}'", timeout=1)
+
+        self.push_screen(NamePrompt(f"Rename '{current}' to:"), _rename)
+
+    def delete_scene_confirm(self) -> None:
+        path = self._current_scene_path()
+        if path is None:
+            self.notify("Open a scene first", severity="warning")
+            return
+        title = self.project.scene_title(path)
+
+        def _delete(ok: bool) -> None:
+            if not ok:
+                return
+            rel = str(path.relative_to(self.project.root))
+            self.project.delete_scene(path)
+            self.idx.remove_file(rel)
+            # detach BEFORE open_file, whose save step would otherwise
+            # resurrect the deleted file from the editor buffer
+            self.current_path = None
+            self.editor.load_text("")
+            self.refresh_sidebar()
+            scenes = self.project.list_scenes()
+            if scenes:
+                self.open_file(scenes[0])
+            else:
+                self.update_status()
+            self.notify(f"Deleted '{title}'", timeout=2)
+
+        self.push_screen(
+            ConfirmScreen(
+                f"Delete scene '{title}'?\nThis deletes {path.name} from disk."
+            ),
+            _delete,
+        )
+
+    def _move_scene(self, delta: int) -> None:
+        path = self._current_scene_path()
+        if path is None:
+            self.notify("Open a scene first", severity="warning")
+            return
+        new_path = self.project.move_scene(path, delta)
+        if new_path is None:
+            self.notify("Scene is already at the edge", severity="warning")
+            return
+        self.current_path = new_path  # content unchanged; only the name moved
+        self.refresh_sidebar()
+        self.update_status()
+        self.notify(f"Moved to {new_path.name}", timeout=1)
+
+    def move_scene_up(self) -> None:
+        self._move_scene(-1)
+
+    def move_scene_down(self) -> None:
+        self._move_scene(1)
+
+    def _make_entity_prompt(self, etype: str) -> None:
+        def _create(name: str | None) -> None:
+            if not name:
+                return
+            entity, path = self.project.create_entity(name, etype)
+            self.idx.upsert_entity(entity, str(path.relative_to(self.project.root)))
+            self.reload_entities()
+            self.refresh_sidebar()
+            self.editor.refresh_links()
+            self.open_file(path)
+
+        self.push_screen(NamePrompt(f"New {etype} name:"), _create)
+
+    def create_entity_prompt_character(self) -> None:
+        self._make_entity_prompt("character")
+
+    def create_entity_prompt_place(self) -> None:
+        self._make_entity_prompt("place")
+
+    def rebuild_index(self) -> None:
+        self.save_current()
+        self.idx.rebuild(self.project)
+        self.reload_entities()
+        self.refresh_sidebar()
+        self.editor.refresh_links()
+        self.notify("Index rebuilt")
+
+    action_rebuild_index = rebuild_index
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(prog="lorewrite")
+    parser.add_argument("--project", type=Path, default=None,
+                        help="Open this project directly (default: launch screen)")
+    parser.add_argument("--new", metavar="TITLE",
+                        help="Create a new project with this title"
+                             " (at --project, or cwd)")
+    args = parser.parse_args()
+
+    project: Project | None = None
+    if args.new:
+        project = Project.create(args.project or Path.cwd(), title=args.new)
+    elif args.project is not None and Project.is_project(args.project):
+        project = Project.open(args.project)
+    app = LorewriteApp(project)
+    app.run()
+
+
+if __name__ == "__main__":
+    main()
