@@ -33,6 +33,8 @@ src/lorewrite/
     sidebar.py panels.py launch.py commands.py linkreview.py tour.py theme.py
 tests/                  # pytest; asyncio_mode=auto; Pilot for TUI tests
 docs/ux-review-glm.md   # independent UX review (source of the M1.5 polish)
+docs/specification-guide.md  # M3–M8 implementation guide for parallel agent
+                             # execution (contracts, workstreams, ownership)
 ```
 
 ## Commands
