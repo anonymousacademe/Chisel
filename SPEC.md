@@ -133,18 +133,17 @@ lorewrite/
 - Alias learning: accepted surfaces that aren't known names → "add as alias?" confirm, written into the entity note
 - Deferred: previewable entity-rename link rewrite
 
-### M3 — Lore/continuity checking + the Contextual Tracker
+### M3 — Lore/continuity checking + the Contextual Tracker ✅ (implemented)
 
 *Expanded from vault notes ("The AI Integration.md"): the Contextual Tracker is
-the distinguishing mechanic — entity notes become a living story bible.*
+the distinguishing mechanic — entity notes become a living story bible.
+Implemented via parallel agents per docs/specification-guide.md.*
 
-- "Check scene" / "Check manuscript": strong model (`anthropic/claude-sonnet-4.5` / `gpt-5` class)
-- Context: all entity notes (small) + target scene; manuscript stuffing is fine up to ~500k words with 1M-context models; retrieval layer deferred until needed
-- Structured report `[{type, severity, evidence, suggested_fix}]` rendered in a panel; click → jump to the offending line
-- Targets the error classes writers actually ask for: physical-attribute drift, name-spelling drift, timeline/travel-time errors, object custody, premature character knowledge, dead/absent characters acting — including **cross-scene contradictions** (the vault's example: "no memory of her childhood" in scene 3 vs. "remembered this room as a child" in scene 7)
-- **Note accumulation**: after a scene's mentions are reviewed, the AI may append/update a short "canon" summary in each involved entity's note (what the text has established about them). Author-reviewable diff; never silent.
-- **Waivable flags**: each flagged conflict can be accepted ("intentional") and is remembered as waived, so it isn't re-reported.
-- **Jev for quality control** (vault idea, apt): use `~/.config/jev/jev.py` as a cheap pre-screen — filter candidate contradictions before spending strong-model tokens on full adjudication, and as the judge in eval runs when tuning the lore-check prompts.
+- "Check scene for continuity issues" (palette): strong model (default `anthropic/claude-sonnet-4.5`, override `[ai] strong_model`), **Jev pre-screen gate** (`core/jev_interface.py`, fail-open) so only canon-bearing entities flagged as plausible get the expensive call
+- Structured report (type/severity/entity/evidence/fix) validated app-side; evidence located to a line; **ContinuityScreen**: `space` waives (persisted in `.lorewrite/waivers.json` by stable content key, never re-reported), `enter` jumps to the offending line
+- **Note accumulation**: "Update story bible from scene" (palette) → AI proposes canon updates → review modal → accepted updates written into a managed `## Canon (auto)` section of each entity note (author text never touched)
+- Error classes: physical attributes, timeline, character knowledge, object custody, present/absent, spelling drift
+- Deferred: whole-manuscript check, cross-scene retrieval layer
 
 ### M4 — Placeholder expansion + the Style Tracker
 

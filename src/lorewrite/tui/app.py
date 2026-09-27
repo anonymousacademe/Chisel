@@ -19,11 +19,20 @@ from ..ai.client import DEFAULT_FAST_MODEL, set_api_key
 from ..ai.links import Suggestion, apply_suggestions, suggest_links
 from ..core import entities as ent
 from ..core import settings as user_settings
+from ..core.continuity import (
+    apply_canon_update,
+    filter_waived,
+    get_canon,
+    load_waivers,
+    remove_waiver,
+    save_waiver,
+)
 from ..core.index import Index
 from ..core.links import link_at, rowcol_to_offset
 from ..core.project import Project, retitle_text
 from ..core.recents import add_recent
 from .commands import ActionProvider, EntityProvider, InsertLinkProvider, SceneProvider
+from .continuityscreen import ContinuityScreen, JumpToContradiction, WaiveToggled
 from .editor import LinkedTextArea
 from .launch import LaunchScreen
 from .linkreview import LinkReviewScreen
@@ -241,6 +250,17 @@ class LorewriteApp(App):
         background: $surface; border: solid $primary; padding: 0 1;
     }
     #review-hint { width: 76; padding: 0 2; color: $text-muted; }
+    ContinuityScreen, NoteUpdateScreen { align: center middle; }
+    #continuity-header, #noteupdate-header {
+        width: 76; padding: 1 2; background: $surface; border: solid $primary;
+    }
+    #contradictions, #updates {
+        width: 76; height: auto; max-height: 60%;
+        background: $surface; border: solid $primary; padding: 0 1;
+    }
+    #continuity-hint, #noteupdate-hint {
+        width: 76; padding: 0 2; color: $text-muted;
+    }
     """
 
     def __init__(self, project: Project | None = None) -> None:
@@ -672,6 +692,134 @@ class LorewriteApp(App):
                 )
 
         self.push_screen(NamePrompt("OpenRouter API key:"), _store)
+
+    # -- AI: continuity checking (M3) -----------------------------------------
+
+    def _ai_strong_model(self) -> str:
+        if self.project is not None:
+            raw = (self.project.meta.get("ai") or {}).get("strong_model")
+            if raw:
+                return str(raw)
+        from ..ai.client import DEFAULT_STRONG_MODEL
+
+        return DEFAULT_STRONG_MODEL
+
+    def _canon_map(self) -> dict[str, str]:
+        """Established canon per entity: the managed section, else the body."""
+        canon = {}
+        for e in self.entities:
+            managed = get_canon(e.body)
+            canon[e.name] = managed if managed else e.body[:1500]
+        return canon
+
+    def action_check_continuity(self) -> None:
+        """AI: check the current scene against the story bible."""
+        if self.project is None or self.current_path is None:
+            self.notify("Open a scene first", severity="warning")
+            return
+        if not self.entities:
+            self.notify("No entities yet — nothing to check against",
+                        severity="warning")
+            return
+        self.notify("Checking continuity…", timeout=2)
+        self._check_continuity_worker()
+
+    check_continuity = action_check_continuity
+
+    @work(exclusive=True)
+    async def _check_continuity_worker(self) -> None:
+        from dataclasses import replace
+
+        from ..ai.continuity import check_scene
+
+        scene_text = self.editor.text
+        entities = list(self.entities)
+        canon = self._canon_map()
+        scene_rel = str(self.current_path.relative_to(self.project.root))
+        try:
+            results = await asyncio.to_thread(
+                check_scene, scene_text, entities, canon,
+                self._ai_strong_model(),
+            )
+        except Exception as exc:
+            self.notify(f"Continuity check failed: {exc}", severity="error",
+                        timeout=6)
+            return
+        # check_scene leaves scene blank; the jump action needs it
+        results = [replace(c, scene=scene_rel) for c in results]
+        results = filter_waived(results, load_waivers(self.project.root))
+        if not results:
+            self.notify("No continuity issues found", timeout=3)
+            return
+        self.push_screen(ContinuityScreen(results))
+
+    def on_waive_toggled(self, message: WaiveToggled) -> None:
+        if self.project is None:
+            return
+        if message.waived:
+            save_waiver(self.project.root, message.waiver_key)
+        else:
+            remove_waiver(self.project.root, message.waiver_key)
+
+    def on_jump_to_contradiction(self, message: JumpToContradiction) -> None:
+        c = message.contradiction
+        if self.project is None or not c.scene:
+            return
+        path = self.project.root / c.scene
+        if not path.is_file():
+            return
+        self.open_file(path)
+        if c.row is not None:
+            self.editor.move_cursor((c.row, 0))
+
+    def action_update_bible(self) -> None:
+        """AI: propose canon updates to entity notes from this scene."""
+        if self.project is None or self.current_path is None:
+            self.notify("Open a scene first", severity="warning")
+            return
+        if not self.entities:
+            self.notify("No entities yet — create some notes first",
+                        severity="warning")
+            return
+        self.notify("Reading the scene for new canon…", timeout=2)
+        self._update_bible_worker()
+
+    update_bible = action_update_bible
+
+    @work(exclusive=True)
+    async def _update_bible_worker(self) -> None:
+        from ..ai.continuity import propose_canon_updates
+        from .noteupdates import NoteUpdateScreen
+
+        scene_text = self.editor.text
+        entities = list(self.entities)
+        try:
+            updates = await asyncio.to_thread(
+                propose_canon_updates, scene_text, entities,
+                self._ai_strong_model(),
+            )
+        except Exception as exc:
+            self.notify(f"Story-bible update failed: {exc}", severity="error",
+                        timeout=6)
+            return
+        if not updates:
+            self.notify("No new canon found in this scene", timeout=2)
+            return
+        self.push_screen(NoteUpdateScreen(updates), self._apply_canon_updates)
+
+    def _apply_canon_updates(self, accepted) -> None:
+        if not accepted:
+            return
+        applied = 0
+        for update in accepted:
+            entity = ent.resolve(update.entity, self.entities)
+            if entity is not None:
+                apply_canon_update(entity, update.new_canon)
+                applied += 1
+        self.reload_entities()
+        self.refresh_sidebar()
+        self.editor.refresh_links()
+        self.notify(f"Updated {applied} entity note(s)", timeout=2)
 
     def action_jump(self) -> None:
         """Open the note for the link under the cursor, creating it if needed."""
