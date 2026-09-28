@@ -109,6 +109,39 @@ class Project:
             "line_numbers": bool(raw.get("line_numbers", True)),
         }
 
+    def update_editor_settings(
+        self, padding: int | None = None, line_numbers: bool | None = None
+    ) -> None:
+        """Write [editor] prefs into project.toml, preserving everything else.
+
+        Textual section replacement (tomllib is read-only); safe for the
+        simple project.toml files lorewrite writes.
+        """
+        current = self.editor_settings()
+        new_padding = current["padding"] if padding is None else max(0, min(8, int(padding)))
+        new_ln = current["line_numbers"] if line_numbers is None else bool(line_numbers)
+        section = (
+            "[editor]\n"
+            f"padding = {new_padding}\n"
+            f"line_numbers = {'true' if new_ln else 'false'}\n"
+        )
+        path = self.root / PROJECT_FILE
+        text = path.read_text(encoding="utf-8")
+        if re.search(r"(?m)^\[editor\]\s*$", text):
+            text = re.sub(
+                r"(?ms)^\[editor\]\s*\n.*?(?=^\[|\Z)",
+                section + "\n",
+                text,
+            )
+        else:
+            text = text.rstrip("\n") + "\n\n" + section
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(text, encoding="utf-8")
+        tmp.replace(path)
+        # refresh in-memory meta
+        with path.open("rb") as f:
+            self.meta = tomllib.load(f)
+
     @classmethod
     def is_project(cls, root: Path) -> bool:
         return (root.expanduser() / PROJECT_FILE).is_file()

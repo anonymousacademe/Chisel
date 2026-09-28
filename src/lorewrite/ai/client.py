@@ -40,6 +40,16 @@ def set_api_key(key: str) -> None:
     keyring.set_password(KEYRING_SERVICE, KEYRING_USER, key)
 
 
+def clear_api_key() -> None:
+    """Remove the key from the OS keyring. Tolerates it being absent."""
+    try:
+        import keyring
+
+        keyring.delete_password(KEYRING_SERVICE, KEYRING_USER)
+    except Exception:
+        pass
+
+
 def make_client():
     """Build an OpenAI client pointed at OpenRouter. Raises if no key."""
     from openai import OpenAI

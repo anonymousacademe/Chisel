@@ -1,0 +1,138 @@
+"""Settings screen + return-to-main-menu tests."""
+
+from pathlib import Path
+
+from textual.widgets import Checkbox, Input, ListView
+
+import lorewrite.tui.settingscreen as settingscreen_mod
+from lorewrite.core import settings as user_settings
+from lorewrite.core.project import Project
+from lorewrite.tui.app import LorewriteApp
+from lorewrite.tui.launch import LaunchScreen
+from lorewrite.tui.settingscreen import SettingsScreen
+
+
+def _project(tmp_path: Path, name: str, title: str) -> Project:
+    return Project.create(tmp_path / name, title=title)
+
+
+# -- core: editor settings write -------------------------------------------------
+
+
+def test_update_editor_settings_writes_toml(tmp_path: Path):
+    proj = _project(tmp_path, "n", "T")
+    proj.update_editor_settings(padding=4, line_numbers=False)
+    text = (proj.root / "project.toml").read_text()
+    assert "[editor]" in text and "padding = 4" in text
+    assert "line_numbers = false" in text
+    assert 'title = "T"' in text  # other content preserved
+    # round-trips through open()
+    assert Project.open(proj.root).editor_settings() == {
+        "padding": 4, "line_numbers": False,
+    }
+    # update again: replaces the section, doesn't duplicate it
+    proj2 = Project.open(proj.root)
+    proj2.update_editor_settings(padding=1)
+    text = (proj.root / "project.toml").read_text()
+    assert text.count("[editor]") == 1
+    assert "padding = 1" in text and "line_numbers = false" in text
+
+
+# -- settings screen ----------------------------------------------------------------
+
+
+async def test_settings_screen_shows_key_status(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(settingscreen_mod, "get_api_key", lambda: "sk-or-xyz1234abcd")
+    proj = _project(tmp_path, "n", "T")
+    app = LorewriteApp(proj)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.action_settings()
+        await pilot.pause()
+        assert isinstance(app.screen, SettingsScreen)
+        from textual.widgets import Label
+        status = str(app.screen.query_one("#key-status", Label).render())
+        assert "abcd" in status  # masked to last 4
+        assert "sk-or-xyz" not in status  # never the full key
+
+
+async def test_settings_save_models_and_editor_prefs(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(settingscreen_mod, "get_api_key", lambda: None)
+    proj = _project(tmp_path, "n", "T")
+    app = LorewriteApp(proj)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.action_settings()
+        await pilot.pause()
+        screen = app.screen
+        screen.query_one("#fast-model", Input).value = "openai/gpt-5-nano"
+        screen.query_one("#strong-model", Input).value = "openai/gpt-5"
+        screen.query_one("#padding", Input).value = "3"
+        screen.query_one("#line-numbers", Checkbox).value = False
+        await pilot.click("#save")
+        await pilot.pause()
+        assert user_settings.get("fast_model") == "openai/gpt-5-nano"
+        assert user_settings.get("strong_model") == "openai/gpt-5"
+        assert app._ai_fast_model() == "openai/gpt-5-nano"
+        assert app._ai_strong_model() == "openai/gpt-5"
+        # editor prefs applied live
+        assert app.editor.show_line_numbers is False
+        assert app.editor.styles.padding.right == 3
+
+
+async def test_settings_without_project(tmp_path: Path, monkeypatch):
+    """From the launch screen: AI section only, no editor section."""
+    monkeypatch.setattr(settingscreen_mod, "get_api_key", lambda: None)
+    app = LorewriteApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        assert isinstance(app.screen, LaunchScreen)
+        await pilot.press("s")
+        await pilot.pause()
+        assert isinstance(app.screen, SettingsScreen)
+        assert not app.screen.query("#padding")
+
+
+# -- return to main menu -------------------------------------------------------------
+
+
+async def test_main_menu_switch_projects(tmp_path: Path):
+    from lorewrite.core.recents import add_recent
+
+    proj_a = _project(tmp_path, "a", "Book A")
+    proj_b = _project(tmp_path, "b", "Book B")
+    add_recent(proj_b.root, proj_b.title)  # B is an older recent
+    app = LorewriteApp(proj_a)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        assert app.project.title == "Book A"
+        # write something, then go to the main menu
+        app.editor.move_cursor((0, 0))
+        await pilot.press("X")
+        await pilot.pause()
+        app.action_main_menu()
+        await pilot.pause()
+        assert isinstance(app.screen, LaunchScreen)
+        # the edit was saved before leaving
+        assert "X" in (proj_a.manuscript_dir / "01-opening.md").read_text()
+        # recents list has both; pick Book B (most recent first = A)
+        lv = app.screen.query_one("#recents", ListView)
+        lv.index = 1
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.project.title == "Book B"
+        assert "Welcome to lorewrite" in app.editor.text
+
+
+async def test_main_menu_cancel_stays(tmp_path: Path):
+    proj = _project(tmp_path, "a", "Book A")
+    app = LorewriteApp(proj)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.action_main_menu()
+        await pilot.pause()
+        assert isinstance(app.screen, LaunchScreen)
+        await pilot.press("q")  # dismiss without choosing
+        await pilot.pause()
+        assert app.project is not None
+        assert app.project.title == "Book A"

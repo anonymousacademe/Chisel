@@ -119,6 +119,10 @@ class ActionProvider(_Provider):
          "AI: propose canon updates to entity notes from this scene"),
         ("Set OpenRouter API key", "set_api_key",
          "Store the key for AI features in the system keyring"),
+        ("Settings", "open_settings",
+         "API key, models, and editor preferences"),
+        ("Return to main menu", "main_menu",
+         "Save and go back to the launch screen (switch projects)"),
         ("Rebuild index", "rebuild_index", "Rebuild the link/entity index from disk"),
     ]
 

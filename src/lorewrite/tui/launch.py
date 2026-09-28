@@ -90,6 +90,7 @@ class LaunchScreen(ModalScreen[Project | None]):
     BINDINGS = [
         Binding("o", "open_folder", "Open…"),
         Binding("n", "new_project", "New…"),
+        Binding("s", "settings", "Settings"),
         Binding("q", "quit_app", "Quit"),
     ]
 
@@ -103,7 +104,8 @@ class LaunchScreen(ModalScreen[Project | None]):
             yield Label("Recent projects", classes="launch-heading")
             yield ListView(id="recents")
             yield Label(
-                "enter: resume   o: open folder…   n: new project…   q: quit",
+                "enter: resume   o: open folder…   n: new project…"
+                "   s: settings   q: quit",
                 id="launch-hint",
             )
 
@@ -164,3 +166,8 @@ class LaunchScreen(ModalScreen[Project | None]):
 
     def action_quit_app(self) -> None:
         self.dismiss(None)
+
+    def action_settings(self) -> None:
+        from .settingscreen import SettingsScreen
+
+        self.app.push_screen(SettingsScreen(None))

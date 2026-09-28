@@ -58,6 +58,11 @@ HELP_TEXT = """\
   ?               this help
   ctrl+q          quit
 
+# Also in the palette (ctrl+p)
+
+  Settings — API key, models, editor preferences
+  Return to main menu — save and switch projects
+
 # Links
 
   [[Name]]          link to a character or place note
@@ -261,6 +266,15 @@ class LorewriteApp(App):
     #continuity-hint, #noteupdate-hint {
         width: 76; padding: 0 2; color: $text-muted;
     }
+    SettingsScreen { align: center middle; }
+    #settings {
+        width: 64; height: auto; max-height: 90%;
+        background: $surface; border: solid $primary; padding: 1 2;
+    }
+    #settings-title { text-style: bold; text-align: center; }
+    .settings-heading { text-style: bold; padding: 1 0 0 0; }
+    #settings Button { width: 100%; margin-top: 1; }
+    #settings-hint { padding: 1 0 0 0; color: $text-muted; }
     """
 
     def __init__(self, project: Project | None = None) -> None:
@@ -592,14 +606,54 @@ class LorewriteApp(App):
     def action_help(self) -> None:
         self.push_screen(HelpScreen())
 
+    # -- main menu & settings ---------------------------------------------------
+
+    def action_main_menu(self) -> None:
+        """Save, then return to the launch screen (switch projects)."""
+        if self.project is None:
+            return
+        self.save_current()
+        self.push_screen(LaunchScreen(), self._main_menu_result)
+
+    main_menu = action_main_menu
+
+    def _main_menu_result(self, project: Project | None) -> None:
+        if project is None:
+            return  # cancelled — stay in the current project
+        if self.index is not None:
+            self.index.close()
+            self.index = None
+        self.current_path = None
+        self._dirty = False
+        if self._writer_mode:
+            self.writer_mode()  # toggle chrome back on for the switch
+        self.editor.load_text("")
+        self.initialize_project(project)
+
+    def action_settings(self) -> None:
+        from .settingscreen import SettingsScreen
+
+        self.push_screen(SettingsScreen(self.project), self._settings_closed)
+
+    open_settings = action_settings
+
+    def _settings_closed(self, _) -> None:
+        """Re-apply anything the settings screen may have changed."""
+        if self.project is not None:
+            prefs = self.project.editor_settings()
+            self.editor.show_line_numbers = prefs["line_numbers"]
+            self._editor_padding = prefs["padding"]
+            self._apply_editor_padding()
+
     # -- AI: link mentions ----------------------------------------------------
 
     def _ai_fast_model(self) -> str:
+        """Precedence: project.toml [ai] > global settings > built-in default."""
         if self.project is not None:
             raw = (self.project.meta.get("ai") or {}).get("fast_model")
             if raw:
                 return str(raw)
-        return DEFAULT_FAST_MODEL
+        return user_settings.get("fast_model") or DEFAULT_FAST_MODEL
 
     def action_link_mentions(self) -> None:
         """AI: propose [[links]] for unlinked entity mentions in this scene."""
@@ -696,13 +750,14 @@ class LorewriteApp(App):
     # -- AI: continuity checking (M3) -----------------------------------------
 
     def _ai_strong_model(self) -> str:
+        """Precedence: project.toml [ai] > global settings > built-in default."""
         if self.project is not None:
             raw = (self.project.meta.get("ai") or {}).get("strong_model")
             if raw:
                 return str(raw)
         from ..ai.client import DEFAULT_STRONG_MODEL
 
-        return DEFAULT_STRONG_MODEL
+        return user_settings.get("strong_model") or DEFAULT_STRONG_MODEL
 
     def _canon_map(self) -> dict[str, str]:
         """Established canon per entity: the managed section, else the body."""

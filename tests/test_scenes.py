@@ -121,7 +121,8 @@ async def test_palette_search_still_filters(tmp_path: Path):
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         hits = [h async for h in ActionProvider(app.screen).search("rename")]
-    assert len(hits) == 1
+    assert len(hits) >= 1
+    assert any("Rename current scene" in str(h.match_display) for h in hits)
 
 
 # -- app flows ------------------------------------------------------------------
