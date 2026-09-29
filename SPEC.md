@@ -258,6 +258,8 @@ could later use a `theme-set` hook or file watch).
 creates a desktop launcher; `omarchy launch or focus tui --app-id=lorewrite ...`
 gives launch-or-focus behavior.
 
-**Top bar:** a small user shell plugin in `~/.config/omarchy/plugins/<user>.lorewrite/`
-with a button that runs the launch-or-focus command. To be set up with the
-user's confirmation since it edits live bar config.
+**Top bar ✅ (2026-09):** user shell plugin `~/.config/omarchy/plugins/<user>.lorewrite/`
+(manifest + Panel.qml — a `BarWidget` with one pencil button) registered in the
+right section of `~/.config/omarchy/shell.json`. Click runs
+`omarchy launch or focus tui --app-id=lorewrite <repo>/.venv/bin/lorewrite` —
+launch-or-focus, so a running window gets focused instead of duplicated.
