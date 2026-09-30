@@ -79,3 +79,10 @@ def test_mentions_skip_explicit_links_and_one_letter_names():
 
 def test_find_all_links_without_names_is_explicit_only():
     assert [l.target for l in find_all_links("Borin and [[Borin]]")] == ["Borin"]
+
+
+def test_overlapping_mentions_prefer_the_longest():
+    names = ["Hollow Market", "the Hollow", "the Meridian", "Meridian"]
+    text = "Rain in the Hollow Market. Back at the Hollow, the Meridian slept."
+    got = [m.target for m in find_mentions(text, names)]
+    assert got == ["Hollow Market", "the Hollow", "the Meridian"]

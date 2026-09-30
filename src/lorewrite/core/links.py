@@ -60,10 +60,11 @@ def _mention_re(names: tuple[str, ...]) -> re.Pattern | None:
         variants.add(name[0].upper() + name[1:])  # "the captain" at sentence start
     if not variants:
         return None
-    # Longest first so "Elara Vance" wins over "Elara".
+    # Longest first so "Elara Vance" wins over "Elara" at the same start.
+    # Zero-width lookahead so overlapping candidates are all reported.
     alternation = "|".join(
         re.escape(v) for v in sorted(variants, key=len, reverse=True))
-    return re.compile(rf"(?<!\w)(?:{alternation})(?!\w)")
+    return re.compile(rf"(?=(?<!\w)({alternation})(?!\w))")
 
 
 def find_mentions(text: str, names: list[str]) -> list[Link]:
@@ -71,18 +72,25 @@ def find_mentions(text: str, names: list[str]) -> list[Link]:
 
     Case-sensitive as written in the note (so the name "Will" doesn't match
     "will"), except that a leading capital is allowed for sentence starts.
+    Overlapping candidates resolve to the longest ("the Hollow Market" with
+    names "the Hollow" and "Hollow Market" yields "Hollow Market").
     """
     pattern = _mention_re(tuple(sorted(set(names))))
     if pattern is None:
         return []
-    explicit = [(l.start, l.end) for l in find_links(text)]
-    mentions = []
-    for m in pattern.finditer(text):
-        if any(s < m.end() and m.start() < e for s, e in explicit):
+    taken = [(l.start, l.end) for l in find_links(text)]
+    candidates = sorted(
+        ((m.start(1), m.end(1)) for m in pattern.finditer(text)),
+        key=lambda span: (span[0] - span[1], span[0]),  # longest, then leftmost
+    )
+    chosen = []
+    for start, end in candidates:
+        if any(s < end and start < e for s, e in taken):
             continue
-        mentions.append(Link(target=m.group(0), display=None,
-                             start=m.start(), end=m.end(), explicit=False))
-    return mentions
+        taken.append((start, end))
+        chosen.append((start, end))
+    return [Link(target=text[start:end], display=None, start=start, end=end,
+                 explicit=False) for start, end in sorted(chosen)]
 
 
 def find_all_links(text: str, names: list[str] | None = None) -> list[Link]:
