@@ -218,6 +218,18 @@ def strip_pending(text: str, originals: dict[str, str] | None = None) -> str:
     return reject_all(text, originals)
 
 
+def blank_pending(text: str) -> str:
+    """Replace every pending draft (markers and body) with same-length
+    whitespace, keeping newlines: unaccepted AI text disappears from any scan
+    while offsets, rows and columns of everything else stay valid."""
+    chars = list(text)
+    for p in find_pending(text):
+        for i in range(p.start, p.end):
+            if chars[i] != "\n":
+                chars[i] = " "
+    return "".join(chars)
+
+
 def find_expand_markers(text: str) -> list[ExpandMarker]:
     """``{{expand: instruction}}`` markers, in document order."""
     return [ExpandMarker(m.start(), m.end(), m.group(1))

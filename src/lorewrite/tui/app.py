@@ -812,8 +812,8 @@ class LorewriteApp(App):
 
     @work(exclusive=True)
     async def _fetch_suggestions(self) -> None:
-        scene_text = drafts.strip_pending(  # AI text isn't canon
-            self.editor.text, self._originals(self.editor.text))
+        # AI text isn't canon; blanking (not stripping) keeps line numbers
+        scene_text = drafts.blank_pending(self.editor.text)
         entities = list(self.entities)
         calls = LEDGER.count()
         try:

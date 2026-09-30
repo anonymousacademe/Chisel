@@ -370,3 +370,65 @@ async def test_teardown_with_pending_draft_does_not_crash(project):
         app.editor.move_cursor((2, 4))
         await pilot.press("x")  # dirty buffer -> pending autosave at teardown
     assert "<!--ai-->draft<!--/ai-->" in scene.read_text()
+
+
+# -- pending drafts are not mentions (index + alias finder line numbers) --------------
+
+
+def test_blank_pending_keeps_length_newlines_and_offsets():
+    text = "Borin sat.\n" + drafts.wrap("Elara\nspoke", "abc123") + " Borin left.\n"
+    blanked = drafts.blank_pending(text)
+    assert len(blanked) == len(text)
+    assert [i for i, c in enumerate(blanked) if c == "\n"] == [
+        i for i, c in enumerate(text) if c == "\n"]
+    assert "Elara" not in blanked and "<!--" not in blanked
+    assert blanked.index("Borin left") == text.index("Borin left")
+    assert drafts.blank_pending("no drafts here") == "no drafts here"
+
+
+def test_index_ignores_names_inside_pending_but_keeps_real_rows(tmp_path):
+    from lorewrite.core import entities as ent
+    from lorewrite.core.index import Index
+
+    proj = Project.create(tmp_path / "n", title="N")
+    proj.create_entity("Borin")
+    proj.create_entity("Elara")
+    scene = proj.manuscript_dir / "02-s.md"
+    text = ("# S\n\nOpening line.\n\nElara "
+            + drafts.wrap("Borin sneered.\nBorin again.", "abc123")
+            + " walked.\n\nFinally Borin left.\n")
+    scene.write_text(text)
+    idx = Index(proj.index_path)
+    idx.rebuild(proj)
+    entities = {e.name: e for e in proj.load_entities()}
+    borin = idx.backlinks(entities["Borin"])
+    assert [(b.source, b.row) for b in borin
+            if b.source.endswith("02-s.md")] == [("manuscript/02-s.md", 7)]
+    assert text.split("\n")[7].startswith("Finally Borin")   # row is the real line
+    elara = [b for b in idx.backlinks(entities["Elara"]) if b.source.endswith("02-s.md")]
+    assert [b.row for b in elara] == [4]
+    assert "<!--" not in elara[0].line and "Borin" not in elara[0].line
+    idx.close()
+
+
+async def test_alias_finder_line_numbers_match_the_file_with_drafts(project, monkeypatch):
+    import lorewrite.tui.app as app_mod
+    from lorewrite.ai.links import Suggestion
+
+    def fake(text, entities, model):
+        i = text.index("the old smith")
+        return [Suggestion("Borin", i, i + 13, "the old smith")]
+
+    monkeypatch.setattr(app_mod, "suggest_links", fake)
+    body = ("# S\n\nFirst.\n" + drafts.wrap("a\nb\nc\nd", "abc123") + "\n\n"
+            "Then the old smith spoke.\n")
+    scene = _scene(project, body, {"abc123": "orig"})
+    real_line = body.split("\n").index("Then the old smith spoke.") + 1
+    app = LorewriteApp(project)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.open_file(scene)
+        app.action_find_aliases()
+        await pilot.pause(1.0)
+        row = app.screen._row_text(0).plain
+        assert f"line {real_line}:" in row, row

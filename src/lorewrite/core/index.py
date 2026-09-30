@@ -11,6 +11,7 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import drafts
 from . import entities as ent
 from .links import find_all_links, offset_to_rowcol
 
@@ -59,12 +60,17 @@ class Index:
 
         *names*: entity names/aliases whose plain mentions also count
         (passed for scenes, not for entity notes).
+
+        Pending AI drafts are blanked before scanning (same-length
+        whitespace, newlines kept), so unaccepted text creates no backlinks
+        while rows still point at the real file lines.
         """
         if self._closed:
             return
         cur = self._conn.cursor()
         cur.execute("DELETE FROM links WHERE source = ?", (rel_path,))
-        lines = text.splitlines()
+        text = drafts.blank_pending(text)
+        lines = [ln.rstrip() for ln in text.splitlines()]
         for link in find_all_links(text, names):
             row, _ = offset_to_rowcol(text, link.start)
             line = lines[row] if row < len(lines) else ""
