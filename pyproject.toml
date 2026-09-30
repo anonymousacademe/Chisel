@@ -20,9 +20,13 @@ dev = [
     "pytest-asyncio>=0.23",
     "textual-dev>=1.5",
 ]
+gui = [
+    "pywebview>=6",
+]
 
 [project.scripts]
 lorewrite = "lorewrite.tui.app:main"
+lorewrite-gui = "lorewrite.gui.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

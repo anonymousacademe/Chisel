@@ -44,7 +44,7 @@ export function Assistant(props: {
     if (!t || props.busy) return;
     props.onSend(t); setDraft(""); if (inputRef.current) inputRef.current.style.height = "15px";
   };
-  const useTool = (prompt: string) => { setDraft(prompt); setTab("assistant"); requestAnimationFrame(() => inputRef.current?.focus()); };
+  const applyTool = (prompt: string) => { setDraft(prompt); setTab("assistant"); requestAnimationFrame(() => inputRef.current?.focus()); };
 
   return (
     <aside className="lw-assistant" aria-label="AI writing assistant">
@@ -78,7 +78,7 @@ export function Assistant(props: {
               </div>
               <div className="lw-quick__grid">
                 {tools.map((t) => (
-                  <button key={t.title} className="lw-tool" onClick={() => useTool(t.prompt)}>
+                  <button key={t.title} className="lw-tool" onClick={() => applyTool(t.prompt)}>
                     <span className="lw-row lw-gap-6">
                       <Icon icon={t.icon} size={13} stroke={1.7} color="var(--lw-accent-text)" />
                       <span className="lw-tool__title">{t.title}</span>
