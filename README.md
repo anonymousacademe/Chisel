@@ -65,6 +65,13 @@ python3 -m venv .venv
 .venv/bin/lorewrite --project ~/novels/my-book   # open directly
 ```
 
+To try everything on a sample story, open a copy of the bundled example
+project (see [examples/README.md](examples/README.md)):
+
+```bash
+cp -r examples/residual /tmp/residual && .venv/bin/lorewrite --project /tmp/residual
+```
+
 First launch shows a 4-page tour. Core keys:
 
 | Key | Action |
