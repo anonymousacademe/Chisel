@@ -150,9 +150,8 @@ lorewrite/
 ### M2 — AI auto-linking ✅ (implemented)
 
 - OpenRouter client (`openai` SDK, key via `keyring` with `OPENROUTER_API_KEY` env override; "Set OpenRouter API key" palette action stores in keyring)
-- "Link mentions in this scene" (`ctrl+l` / palette): fast model (default `google/gemini-2.5-flash`, override per-project via `[ai] fast_model` in project.toml), JSON-schema structured output with `provider.require_parameters`, **offsets validated app-side** (`text[start:end]` must match surface exactly; drift dropped, never guessed; already-linked spans and overlaps skipped)
-- Review modal: all suggestions pre-checked, `space` toggle, `a` all, `enter` apply, `esc` cancel; **nothing applied without enter**
-- Alias learning: accepted surfaces that aren't known names → "add as alias?" confirm, written into the entity note
+- **Find aliases in this scene** (`ctrl+l` / palette; was "Link mentions" until 2026-09 — the author dislikes `[[brackets]]`, and plain names/aliases are recognized without AI, §5): fast model (default `google/gemini-2.5-flash`, override per-project via `[ai] fast_model` in project.toml), JSON-schema structured output with `provider.require_parameters`. The AI finds only *other* ways the prose refers to known entities ("the old smith" → Borin). **Offsets validated app-side** (`text[start:end]` must match surface exactly; drift dropped, never guessed) and suggestions are dropped when they are pronouns, < 2 or > 40 chars, already a name/alias, inside an existing link/mention, or duplicates
+- Review modal: each row `"the old smith" → Borin (line 12: …context…)`, all pre-checked, `space` toggle, `a` all, `enter` apply, `esc` cancel; **nothing applied without enter**. Accepting only **adds aliases** to entity notes (a leading capitalized article is stored lowercase) and rebuilds the index so every scene picks them up; scene text is never modified
 - Deferred: previewable entity-rename link rewrite
 
 ### M3 — Lore/continuity checking + the Contextual Tracker ✅ (implemented)

@@ -31,9 +31,10 @@ polish), and M2 (AI auto-linking) are implemented and tested. See
   (`ctrl+p`); scene organization (new / rename / reorder / delete)
 - Writer mode (`f11`), first-run tour, sidebar filter, focus-friendly
   keybindings (`alt+←/→` to flip scenes)
-- **AI auto-linking** (`ctrl+l`): proposes `[[links]]` for unlinked mentions —
-  including aliases like "the old smith" — with an accept/reject review and
-  alias learning (OpenRouter, BYOK)
+- **AI alias finder** (`ctrl+l`): finds other ways your prose refers to known
+  characters and places ("the old smith" for Borin) and offers them as aliases
+  after an accept/reject review — your scene text is never touched, no
+  brackets (OpenRouter, BYOK)
 - Follows the Omarchy system theme automatically (falls back gracefully
   elsewhere)
 
@@ -62,13 +63,13 @@ First launch shows a 4-page tour. Core keys:
 | `ctrl+n` | new scene |
 | `ctrl+p` | command palette — everything lives here |
 | `ctrl+j` | open the note for the name under the cursor; with a name selected (or on an unresolved link), create it |
-| `ctrl+l` | AI: propose links for unlinked mentions in this scene |
+| `ctrl+l` | AI: find aliases ("the old smith") for your characters/places in this scene |
 | `alt+←/→` | previous / next scene |
 | `f11` | writer mode |
 | `ctrl+s` | save (autosave is always on) |
 | `?` | all keybindings |
 
-## AI setup (optional, for `ctrl+l` and future features)
+## AI setup (optional, for `ctrl+l` and the other AI features)
 
 Uses [OpenRouter](https://openrouter.ai) (bring your own key). Either:
 

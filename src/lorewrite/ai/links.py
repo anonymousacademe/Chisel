@@ -1,9 +1,10 @@
-"""AI-assisted linking: find entity mentions in a scene that should be [[links]].
+"""AI alias finder: descriptive references to known entities ("the old smith").
 
-The LLM proposes mentions with character offsets; every offset is validated
-app-side before anything is shown to the author (SPEC §M2). Nothing here ever
-modifies text by itself — apply_suggestions is only called with accepted
-suggestions.
+Plain names and aliases are already recognized without AI (core.links). The
+LLM's job is the rest: other ways the prose refers to known entities. It
+proposes spans with character offsets; every offset is validated app-side
+before anything is shown (SPEC §7 M2). This module never touches scene text —
+accepted suggestions become aliases in entity notes, nothing more.
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ import json
 from dataclasses import dataclass
 
 from ..core.entities import Entity
-from ..core.links import find_links
+from ..core.links import find_links, find_mentions
 from .client import usage_extra_body
 from .usage import record_response
 
@@ -39,19 +40,31 @@ SCHEMA = {
 }
 
 SYSTEM_PROMPT = """\
-You find mentions of known fictional characters and places in prose.
-You are given a list of known entities (with aliases) and a scene.
+You find alternative ways a piece of prose refers to known fictional characters
+and places — descriptive references such as "the old smith" for Borin or
+"the captain's daughter" for Elara.
+You are given a list of known entities (with their names and aliases) and a
+scene.
 
-Return EVERY mention of those entities that is NOT already wrapped in
-[[double brackets]] — including alias and pronoun-free descriptive mentions
-(e.g. "the old smith" if that is a listed alias). Do not invent entities.
-Do not mention pronouns (he/she/they) unless unambiguous and the author
-would plausibly want them linked.
+Return every descriptive reference in the scene that clearly points at one of
+the known entities and is NOT already one of that entity's names or aliases.
+Skip exact names and aliases (the app already recognizes those), skip
+pronouns (he, she, they, him, her, it, ...), and never invent entities.
+Only include references the author would plausibly want to teach the app as
+a new alias: short noun phrases, not whole clauses.
 
 Offsets are 0-based character offsets into the scene: start inclusive,
 end exclusive. The surface must EXACTLY match the scene text at
 [start, end). Do not include surrounding whitespace or punctuation.
 """
+
+PRONOUNS = frozenset({
+    "he", "she", "they", "him", "her", "them", "his", "hers", "their",
+    "theirs", "it", "its", "i", "me", "you",
+})
+MIN_SURFACE = 2
+MAX_SURFACE = 40
+_LEADING_WORDS = ("the", "a", "an", "his", "her", "their", "that", "this")
 
 
 @dataclass(frozen=True)
@@ -88,19 +101,23 @@ def validate_suggestions(
     scene_text: str, raw_mentions: list[dict], entities: list[Entity]
 ) -> list[Suggestion]:
     """Drop anything that doesn't check out: bad offsets, surface mismatch,
-    already-linked spans, unknown entities, overlapping existing links."""
+    unknown entities, spans that are already links or known names/aliases,
+    pronouns, absurd lengths, duplicates and overlaps."""
     by_name = {e.name.casefold(): e for e in entities}
     for e in entities:
         for alias in e.aliases:
             by_name.setdefault(alias.casefold(), e)
-    existing_links = find_links(scene_text)
+    known = [n for e in entities for n in e.names]
+    links = [(l.start, l.end) for l in find_links(scene_text)]
+    mentions = [(m.start, m.end) for m in find_mentions(scene_text, known)]
 
-    def inside_existing(start: int, end: int) -> bool:
-        return any(
-            start < link.end and end > link.start for link in existing_links
-        )
+    def already_recognized(start: int, end: int) -> bool:
+        """Touches an explicit link, or lies within a known name/alias."""
+        return (any(start < e and end > s for s, e in links)
+                or any(s <= start and end <= e for s, e in mentions))
 
     valid: list[Suggestion] = []
+    seen: set[tuple[str, str]] = set()
     for m in raw_mentions:
         try:
             start, end = int(m["start"]), int(m["end"])
@@ -112,16 +129,24 @@ def validate_suggestions(
             continue
         if scene_text[start:end] != surface:
             continue  # offset drift — drop, never guess
+        if not (MIN_SURFACE <= len(surface) <= MAX_SURFACE):
+            continue
+        if surface.strip().casefold() in PRONOUNS:
+            continue
         entity = by_name.get(entity_name.casefold())
         if entity is None:
             continue
-        if scene_text[max(0, start - 2):start] == "[[":
+        if surface.casefold() in by_name:
+            continue  # already a name/alias of some entity
+        if already_recognized(start, end):
             continue
-        if inside_existing(start, end):
+        key = (surface.casefold(), entity.name)
+        if key in seen:
             continue
+        seen.add(key)
         valid.append(Suggestion(entity.name, start, end, surface))
     valid.sort(key=lambda s: s.start)
-    # drop overlaps between accepted suggestions (keep the earlier one)
+    # drop overlaps between suggestions (keep the earlier one)
     deduped: list[Suggestion] = []
     last_end = -1
     for s in valid:
@@ -131,12 +156,18 @@ def validate_suggestions(
     return deduped
 
 
-def apply_suggestions(scene_text: str, suggestions: list[Suggestion]) -> str:
-    """Wrap accepted spans in [[...]]. Applied back-to-front so offsets hold."""
-    text = scene_text
-    for s in sorted(suggestions, key=lambda s: s.start, reverse=True):
-        text = text[:s.start] + "[[" + s.surface + "]]" + text[s.end:]
-    return text
+def alias_form(surface: str) -> str:
+    """The alias to store for an accepted surface.
+
+    A capitalized article/determiner at a sentence start ("The old smith") is
+    stored lowercase so the alias also matches mid-sentence; mention matching
+    already tolerates a capital at sentence starts.
+    """
+    surface = surface.strip()
+    first, _, rest = surface.partition(" ")
+    if rest and first.casefold() in _LEADING_WORDS and first[:1].isupper():
+        return first[0].lower() + first[1:] + " " + rest
+    return surface
 
 
 def suggest_links(

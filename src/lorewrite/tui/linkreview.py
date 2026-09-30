@@ -1,4 +1,4 @@
-"""Review modal for AI link suggestions: accept/reject before anything changes."""
+"""Review modal for AI alias suggestions: accept/reject before anything changes."""
 
 from __future__ import annotations
 
@@ -12,8 +12,23 @@ from ..ai.links import Suggestion
 from ..core.links import offset_to_rowcol
 
 
-class LinkReviewScreen(ModalScreen[list[Suggestion] | None]):
-    """Lists AI-proposed links. Nothing is applied until enter.
+CONTEXT_CHARS = 28
+
+
+def context_snippet(text: str, start: int, end: int) -> str:
+    """The line around [start, end) trimmed to a short one-line excerpt."""
+    line_start = text.rfind("\n", 0, start) + 1
+    line_end = text.find("\n", end)
+    if line_end == -1:
+        line_end = len(text)
+    lo = max(line_start, start - CONTEXT_CHARS)
+    hi = min(line_end, end + CONTEXT_CHARS)
+    return ("…" if lo > line_start else "") + text[lo:hi].strip() + (
+        "…" if hi < line_end else "")
+
+
+class AliasReviewScreen(ModalScreen[list[Suggestion] | None]):
+    """Lists AI-found aliases. Nothing is applied until enter.
 
     space: toggle current · a: accept all · enter: apply accepted · esc: cancel
     """
@@ -33,8 +48,8 @@ class LinkReviewScreen(ModalScreen[list[Suggestion] | None]):
 
     def compose(self) -> ComposeResult:
         yield Label(
-            f"Link {len(self._suggestions)} mention(s)? Nothing changes"
-            " until you press enter.",
+            f"Add {len(self._suggestions)} alias(es) to entity notes? Your"
+            " scene text is never changed; nothing happens until you press enter.",
             id="review-header",
         )
         yield ListView(id="suggestions")
@@ -56,7 +71,9 @@ class LinkReviewScreen(ModalScreen[list[Suggestion] | None]):
         s = self._suggestions[i]
         row, _ = offset_to_rowcol(self._scene_text, s.start)
         mark = "x" if i in self._accepted else " "
-        return Text(f"[{mark}] {s.surface} → {s.entity}   (line {row + 1})")
+        context = context_snippet(self._scene_text, s.start, s.end)
+        return Text(f'[{mark}] "{s.surface}" → {s.entity}'
+                    f"  (line {row + 1}: {context})")
 
     def _refresh_row(self, i: int) -> None:
         lv = self.query_one("#suggestions", ListView)
@@ -90,3 +107,6 @@ class LinkReviewScreen(ModalScreen[list[Suggestion] | None]):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+
+LinkReviewScreen = AliasReviewScreen  # pre-M4 name

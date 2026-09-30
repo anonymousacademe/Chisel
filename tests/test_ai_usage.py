@@ -106,7 +106,7 @@ async def test_status_bar_shows_session_total(tmp_path, monkeypatch):
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         assert "AI $" not in app._status_text
-        app.action_link_mentions()
+        app.action_find_aliases()
         await pilot.pause(1.0)
         assert "AI $0.0123" in app._status_text
         assert any("(AI $0.0123)" in m for m in notified), notified

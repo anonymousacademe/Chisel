@@ -22,7 +22,7 @@ from ..ai.client import (
     DEFAULT_WRITING_MODEL,
     set_api_key,
 )
-from ..ai.links import Suggestion, apply_suggestions, suggest_links
+from ..ai.links import Suggestion, alias_form, suggest_links
 from ..ai.usage import LEDGER, format_cost
 from ..core import entities as ent
 from ..core import settings as user_settings
@@ -42,7 +42,7 @@ from .commands import ActionProvider, EntityProvider, InsertLinkProvider, SceneP
 from .continuityscreen import ContinuityScreen, JumpToContradiction, WaiveToggled
 from .editor import LinkedTextArea
 from .launch import LaunchScreen
-from .linkreview import LinkReviewScreen
+from .linkreview import AliasReviewScreen
 from .panels import BacklinkSelected, EntityPanel
 from .settingscreen import KeyPrompt
 from .sidebar import OpenFile, Sidebar
@@ -58,7 +58,8 @@ HELP_TEXT = """\
   alt+left/right  previous / next scene
   ctrl+p          command palette — everything else lives here
   ctrl+j          jump to the [[link]] under the cursor (creates the note if missing)
-  ctrl+l          AI: propose [[links]] for unlinked mentions in this scene
+  ctrl+l          AI: find other ways this scene refers to your characters/places
+                  ('the old smith' -> Borin) and add them as aliases
   ctrl+s          save now (autosave is always on)
   ctrl+b          hide/show the sidebar
   f11             writer mode — hide everything but the editor
@@ -183,7 +184,7 @@ class LorewriteApp(App):
     BINDINGS = [
         Binding("ctrl+j", "jump", "Jump to link"),
         Binding("ctrl+n", "new_scene", "New scene"),
-        Binding("ctrl+l", "link_mentions", "Link mentions"),
+        Binding("ctrl+l", "find_aliases", "Find aliases"),
         Binding("alt+left", "previous_scene", "Prev scene"),
         Binding("alt+right", "next_scene", "Next scene"),
         Binding("ctrl+s", "save", "Save"),
@@ -256,7 +257,7 @@ class LorewriteApp(App):
     PathPrompt Input, NewProjectPrompt Input {
         border: solid $primary; margin-top: 1;
     }
-    LinkReviewScreen { align: center middle; }
+    AliasReviewScreen { align: center middle; }
     #review-header {
         width: 76; padding: 1 2; background: $surface; border: solid $primary;
     }
@@ -704,7 +705,7 @@ class LorewriteApp(App):
             self._editor_padding = prefs["padding"]
             self._apply_editor_padding()
 
-    # -- AI: link mentions ----------------------------------------------------
+    # -- AI: alias finder ----------------------------------------------------
 
     _MODEL_DEFAULTS = {
         "fast": DEFAULT_FAST_MODEL,
@@ -728,8 +729,8 @@ class LorewriteApp(App):
     def _ai_fast_model(self) -> str:
         return self._ai_model("fast")
 
-    def action_link_mentions(self) -> None:
-        """AI: propose [[links]] for unlinked entity mentions in this scene."""
+    def action_find_aliases(self) -> None:
+        """AI: find descriptive references to known entities; offer as aliases."""
         if self.project is None or self.current_path is None:
             self.notify("Open a scene first", severity="warning")
             return
@@ -737,10 +738,12 @@ class LorewriteApp(App):
             self.notify("No entities yet — create some notes first",
                         severity="warning")
             return
-        self.notify("Finding mentions…", timeout=2)
+        self.notify("Looking for aliases…", timeout=2)
         self._fetch_suggestions()
 
-    link_mentions = action_link_mentions
+    find_aliases = action_find_aliases
+    action_link_mentions = action_find_aliases  # pre-M4 name
+    link_mentions = action_find_aliases
 
     @work(exclusive=True)
     async def _fetch_suggestions(self) -> None:
@@ -752,57 +755,36 @@ class LorewriteApp(App):
                 suggest_links, scene_text, entities, self._ai_fast_model()
             )
         except Exception as exc:
-            self.notify(f"Link suggestions failed: {exc}", severity="error",
+            self.notify(f"Alias search failed: {exc}", severity="error",
                         timeout=6)
             return
         cost = self._cost_note(calls)
         if not suggestions:
-            self.notify("No unlinked mentions found" + cost, timeout=2)
+            self.notify("No new aliases found" + cost, timeout=2)
             return
+        if cost:
+            self.notify(f"Found {len(suggestions)} possible alias(es){cost}",
+                        timeout=3)
         self.push_screen(
-            LinkReviewScreen(suggestions, scene_text),
-            self._apply_link_suggestions,
+            AliasReviewScreen(suggestions, scene_text),
+            self._apply_alias_suggestions,
         )
 
-    def _apply_link_suggestions(self, accepted: list[Suggestion] | None) -> None:
+    def _apply_alias_suggestions(self, accepted: list[Suggestion] | None) -> None:
+        """Accepted suggestions become aliases; scene text is never modified."""
         if not accepted:
             return
-        self.editor.load_text(apply_suggestions(self.editor.text, accepted))
-        self.save_current()
-        self.notify(f"Linked {len(accepted)} mention(s)", timeout=2)
-
-        # Alias learning: surfaces that aren't known names/aliases yet
-        offers: dict[str, set[str]] = {}
+        added = 0
         for s in accepted:
             entity = ent.resolve(s.entity, self.entities)
             if entity is None:
                 continue
-            if all(s.surface.casefold() != n.casefold() for n in entity.names):
-                offers.setdefault(entity.name, set()).add(s.surface)
-        if not offers:
-            return
-        lines = [f"'{surface}' → {name}"
-                 for name, surfaces in sorted(offers.items())
-                 for surface in sorted(surfaces)]
-
-        def _learn(ok: bool) -> None:
-            if not ok:
-                return
-            for name, surfaces in offers.items():
-                entity = ent.resolve(name, self.entities)
-                for surface in surfaces:
-                    if entity is not None:
-                        ent.add_alias(entity, surface)
-            self._entities_changed()
-            self.notify("Aliases saved to entity notes", timeout=2)
-
-        self.push_screen(
-            ConfirmScreen(
-                "Learn these as aliases in the entity notes?\n" + "\n".join(lines),
-                confirm_label="Add aliases",
-            ),
-            _learn,
-        )
+            alias = alias_form(s.surface)
+            if all(alias.casefold() != n.casefold() for n in entity.names):
+                ent.add_alias(entity, alias)
+                added += 1
+        self._entities_changed()
+        self.notify(f"Added {added} alias(es) to entity notes", timeout=2)
 
     def set_api_key(self) -> None:
         def _store(key: str | None) -> None:
