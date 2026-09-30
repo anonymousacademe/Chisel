@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import shutil
+import subprocess
+
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
@@ -67,7 +70,7 @@ class SettingsScreen(ModalScreen[None]):
         bid = event.button.id
         if bid == "set-key":
             self.app.push_screen(
-                _KeyPrompt(),
+                KeyPrompt(),
                 lambda key: self._store_key(key),
             )
         elif bid == "clear-key":
@@ -111,19 +114,53 @@ class SettingsScreen(ModalScreen[None]):
         self.dismiss(None)
 
 
-class _KeyPrompt(ModalScreen[str | None]):
+def read_system_clipboard() -> str | None:
+    """System clipboard text via wl-paste/xclip/xsel, or None if unavailable."""
+    for cmd in (["wl-paste", "--no-newline"],
+                ["xclip", "-selection", "clipboard", "-o"],
+                ["xsel", "--clipboard", "--output"]):
+        if not shutil.which(cmd[0]):
+            continue
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if result.returncode == 0:
+            return result.stdout
+    return None
+
+
+class _ClipboardInput(Input):
+    """Input whose ctrl+v reads the system clipboard.
+
+    Textual's Input binds ctrl+v to its app-local clipboard, which is empty
+    unless something was copied inside lorewrite; terminal paste
+    (ctrl+shift+v) already works via bracketed paste.
+    """
+
+    def action_paste(self) -> None:
+        text = read_system_clipboard()
+        if text is None:
+            super().action_paste()
+            return
+        lines = text.splitlines()
+        start, end = self.selection
+        self.replace(lines[0].strip() if lines else "", start, end)
+
+
+class KeyPrompt(ModalScreen[str | None]):
     """Password-style single input for the API key."""
 
     CSS = """
-    _KeyPrompt { align: center middle; }
-    _KeyPrompt > * { width: 60; }
-    _KeyPrompt Label { padding: 1; background: $surface; border: solid $primary; }
-    _KeyPrompt Input { border: solid $primary; }
+    KeyPrompt { align: center middle; }
+    KeyPrompt > * { width: 60; }
+    KeyPrompt Label { padding: 1; background: $surface; border: solid $primary; }
+    KeyPrompt Input { border: solid $primary; }
     """
 
     def compose(self) -> ComposeResult:
-        yield Label("OpenRouter API key:")
-        yield Input(password=True, id="key-input")
+        yield Label("OpenRouter API key (paste with ctrl+v), then enter:")
+        yield _ClipboardInput(password=True, id="key-input")
 
     def on_mount(self) -> None:
         self.query_one(Input).focus()

@@ -37,6 +37,7 @@ from .editor import LinkedTextArea
 from .launch import LaunchScreen
 from .linkreview import LinkReviewScreen
 from .panels import BacklinkSelected, EntityPanel
+from .settingscreen import KeyPrompt
 from .sidebar import OpenFile, Sidebar
 from .theme import load_omarchy_colors, omarchy_textual_theme
 from .tour import TourScreen
@@ -745,7 +746,7 @@ class LorewriteApp(App):
                     severity="error", timeout=8,
                 )
 
-        self.push_screen(NamePrompt("OpenRouter API key:"), _store)
+        self.push_screen(KeyPrompt(), _store)
 
     # -- AI: continuity checking (M3) -----------------------------------------
 

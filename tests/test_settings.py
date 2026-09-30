@@ -136,3 +136,26 @@ async def test_main_menu_cancel_stays(tmp_path: Path):
         await pilot.pause()
         assert app.project is not None
         assert app.project.title == "Book A"
+
+
+# -- API key prompt: ctrl+v reads the system clipboard ------------------------------
+
+
+async def test_key_prompt_ctrl_v_pastes_system_clipboard(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(settingscreen_mod, "read_system_clipboard",
+                        lambda: "sk-or-v1-secret\n")
+    stored = []
+    monkeypatch.setattr("lorewrite.tui.app.set_api_key", stored.append)
+    app = LorewriteApp(_project(tmp_path, "k", "K"))
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.set_api_key()
+        await pilot.pause()
+        key_input = app.screen.query_one("#key-input", Input)
+        assert key_input.password  # masked, never shown in clear
+        await pilot.press("ctrl+v")
+        await pilot.pause()
+        assert key_input.value == "sk-or-v1-secret"
+        await pilot.press("enter")
+        await pilot.pause()
+    assert stored == ["sk-or-v1-secret"]
