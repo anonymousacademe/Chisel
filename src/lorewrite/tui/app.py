@@ -311,6 +311,8 @@ class LorewriteApp(App):
         width: 76; height: auto; max-height: 60%;
         background: $surface; border: solid $primary; padding: 0 1;
     }
+    /* long canon facts wrap instead of running off the modal */
+    #updates ListItem Label { width: 100%; height: auto; }
     #continuity-hint, #noteupdate-hint {
         width: 76; padding: 0 2; color: $text-muted;
     }

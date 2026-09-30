@@ -161,6 +161,10 @@ async def test_bible_review_shows_long_facts_untruncated_and_toggles(
         assert "END-MARK" in first and "..." not in first
         assert "- Old fact one" in first and first.startswith("Elara Vance")
         assert screen._row_text(1).plain == "[x] Short fact"
+        # rendered: the long fact wraps over several lines inside the modal
+        label = screen.query("#updates ListItem Label").first()
+        assert label.size.height > 4 + 1                 # header lines + wrapped fact
+        assert label.region.right <= screen.query_one("#updates").region.right
         await pilot.press("space")            # untick the long fact
         await pilot.pause()
         assert screen._row_text(0).plain.rstrip().endswith("END-MARK") is True
