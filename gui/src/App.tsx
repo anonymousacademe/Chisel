@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./backend/api";
-import type { BinderNode, DocumentPayload, EntityInfo, EntityType, SceneMention, Workspace } from "./data/types";
+import type {
+  AliasSuggestion, BinderNode, CanonProposal, ChatMessage, DocumentPayload, EntityInfo, EntityType, Issue, SceneMention, Workspace,
+} from "./data/types";
+import type { BridgeResult } from "./backend/transport";
+import { anchorDraft } from "./editor/drafts";
 import { collectExpanded, isOpenable } from "./data/tree";
 import { SaveController, type SaveState } from "./editor/saveController";
 import type { Card, CursorInfo } from "./editor/cm";
@@ -10,7 +14,8 @@ import { ActivityRail, type RailView } from "./components/ActivityRail";
 import { Binder } from "./components/Binder";
 import { Editor, type ViewMode } from "./components/Editor";
 import type { EditorHandle } from "./components/EditorPane";
-import { Assistant, type AssistantTab } from "./components/Assistant";
+import { Assistant, type AssistantTab, type QuickAction } from "./components/Assistant";
+import { AliasReviewDialog, CanonReviewDialog, StyleReviewDialog } from "./components/ReviewDialogs";
 import { StatusBar } from "./components/StatusBar";
 import { Launch } from "./components/Launch";
 import { QuickSwitcher } from "./components/QuickSwitcher";
@@ -25,7 +30,13 @@ type Dialog =
   | { kind: "rename" }
   | { kind: "delete" }
   | { kind: "new-note"; name: string; openAfter: boolean }
+  | { kind: "generate"; mode: "draft" | "rewrite"; from: number; to: number; title: string; label: string; initial: string }
+  | { kind: "aliases"; items: AliasSuggestion[] }
+  | { kind: "canon"; items: CanonProposal[] }
+  | { kind: "style"; markdown: string; replacing: boolean }
   | null;
+
+const uid = () => crypto.randomUUID();
 
 const NOTE_TYPES: EntityType[] = ["character", "place", "object", "faction"];
 
@@ -55,10 +66,17 @@ export default function App() {
   const [noteVersion, setNoteVersion] = useState(0);
   const [missingTarget, setMissingTarget] = useState<string | null>(null);
   const [noteType, setNoteType] = useState<EntityType>("character");
+  const [aiReady, setAiReady] = useState(false);
+  const [aiBusy, setAiBusy] = useState<string | null>(null);
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [scope, setScope] = useState<"scene" | "project">("scene");
   const noticeId = useRef(0);
   const editorRef = useRef<EditorHandle>(null);
   const focusAfterOpen = useRef(false);
   const gotoRow = useRef<number | null>(null);
+  const docRef = useRef<DocumentPayload | null>(null);
+  useEffect(() => { docRef.current = doc; });
 
   const notify = useCallback((text: string, tone: Notice["tone"] = "info") => {
     const id = ++noticeId.current;
@@ -97,6 +115,7 @@ export default function App() {
     if (!r.ok) { notify(r.error, "error"); return; }
     saver.open(r.id, r.text, r.mtime);
     setDoc(r);
+    setIssues([]);
     setMentions(r.mentions);
     setWords(r.words);
     setDocRev((n) => n + 1);
@@ -105,6 +124,7 @@ export default function App() {
   }, [saver, notify]);
 
   const boot = useCallback(async () => {
+    void api.aiStatus().then((r) => setAiReady(r.ok && r.hasKey));
     const w = await refresh();
     if (!w) return;
     setExpanded(collectExpanded(w.binder));
@@ -252,6 +272,202 @@ export default function App() {
     await openDoc(sourceId);
   };
 
+  // -- AI ------------------------------------------------------------------------
+  // Everything the model returns is a suggestion: chat text, a review list, or a
+  // pending <!--ai--> draft with Accept / Reject. Nothing edits prose on its own.
+  const requireAi = () => {
+    if (!aiReady) { notify("Set your OpenRouter API key first (Settings). AI features are off until then.", "error"); return false; }
+    return true;
+  };
+  async function aiCall<X>(label: string, fn: () => Promise<BridgeResult<X>>): Promise<(X & { ok: true }) | null> {
+    if (!requireAi()) return null;
+    if (aiBusy) { notify("Wait for the current AI request to finish."); return null; }
+    setAiBusy(label);
+    try {
+      const r = await fn();
+      if (!r.ok) { notify(r.error, "error"); return null; }
+      return r as X & { ok: true };
+    } finally { setAiBusy(null); void refresh(); } // refresh: the status bar's AI spend
+  }
+  const cost = (c: number | null | undefined) => (c != null ? ` (AI $${c.toFixed(4)})` : "");
+  const liveText = () => editorRef.current?.getText() ?? "";
+
+  const quickContinuity = async () => {
+    const d = docRef.current;
+    if (!d || d.kind !== "scene") return notify("Open a scene first.");
+    const r = await aiCall("Checking continuity…", () => api.checkContinuity(d.id, liveText()));
+    if (!r || docRef.current?.id !== d.id) return;
+    setIssues(r.issues); setTab("assistant"); setAssistantOpen(true);
+    const waived = r.waived ? ` (${r.waived} waived)` : "";
+    notify((r.issues.length ? `${r.issues.length} possible conflict${r.issues.length === 1 ? "" : "s"}` : "No continuity issues found") + waived + cost(r.cost));
+  };
+  const reviewIssue = (it: Issue) => {
+    if (it.row === null) notify("Could not locate that passage; the quote on the card is what the assistant flagged.");
+    else editorRef.current?.gotoLine(it.row);
+  };
+  const dismissIssue = async (it: Issue) => {
+    const d = docRef.current;
+    if (!d) return;
+    const r = await api.waive(it.key, d.id);
+    if (!r.ok) return notify(r.error, "error");
+    setIssues((list) => list.filter((x) => x.key !== it.key));
+    notify("Dismissed. It will not be reported again (Restore waived issues brings it back).");
+  };
+  const restoreWaived = async () => {
+    const d = docRef.current;
+    if (!d || d.kind !== "scene") return notify("Open a scene first.");
+    const r = await api.restoreWaivers(d.id);
+    if (!r.ok) return notify(r.error, "error");
+    notify(r.restored ? `Restored ${r.restored} waived issue${r.restored === 1 ? "" : "s"}; the next check reports them again.` : "No waived issues are recorded for this scene.");
+  };
+
+  const findAliases = async () => {
+    const d = docRef.current;
+    if (!d || d.kind !== "scene") return notify("Open a scene first.");
+    const r = await aiCall("Looking for aliases…", () => api.findAliases(d.id, liveText()));
+    if (!r) return;
+    if (!r.suggestions.length) return notify("No new aliases found" + cost(r.cost));
+    setDialog({ kind: "aliases", items: r.suggestions });
+  };
+  const applyAliases = async (picked: AliasSuggestion[]) => {
+    setDialog(null);
+    const r = await api.applyAliases(picked.map((p) => ({ entity: p.entity, surface: p.surface })));
+    if (!r.ok) return notify(r.error, "error");
+    notify(`Added ${r.added} alias${r.added === 1 ? "" : "es"} to your notes.`);
+    await refresh(); setSpansVersion((v) => v + 1); setNoteVersion((v) => v + 1);
+    const d = docRef.current;
+    if (d?.kind === "scene") { const c = await api.sceneContext(d.id, liveText()); if (c.ok) setMentions(c.mentions); }
+  };
+
+  const updateBible = async () => {
+    const d = docRef.current;
+    if (!d || d.kind !== "scene") return notify("Open a scene first.");
+    const r = await aiCall("Reading the scene for new canon…", () => api.proposeCanon(d.id, liveText()));
+    if (!r) return;
+    if (!r.updates.length) return notify("No new canon found in this scene" + cost(r.cost));
+    setDialog({ kind: "canon", items: r.updates });
+  };
+  const applyCanon = async (picked: { entity: string; facts: string[] }[]) => {
+    setDialog(null);
+    const r = await api.applyCanon(picked);
+    if (!r.ok) return notify(r.error, "error");
+    notify(`Added canon to ${r.applied} note${r.applied === 1 ? "" : "s"}.`);
+    setNoteVersion((v) => v + 1); void refresh();
+  };
+
+  const learnStyle = async () => {
+    if (!(await saver.flush())) return notify("Could not save the current document first.", "error");
+    const r = await aiCall("Learning your style…", () => api.learnStyle());
+    if (r) setDialog({ kind: "style", markdown: r.markdown, replacing: r.replacing });
+  };
+  const saveStyle = async (text: string) => {
+    setDialog(null);
+    const r = await api.saveStyle(text);
+    if (!r.ok) return notify(r.error, "error");
+    await refresh();
+    if (docRef.current?.id === "style.md") await openDoc("style.md", { force: true });
+    notify("Saved style.md");
+  };
+
+  /** Draft at the cursor, expand a {{expand: }} marker, or rewrite the selection. */
+  const runGenerate = async (mode: "draft" | "expand" | "rewrite", instruction: string, from: number, to: number) => {
+    const d = docRef.current, ed = editorRef.current;
+    if (!d || !ed) return;
+    const snapshot = ed.getText();
+    const r = await aiCall("Drafting…", () => api.generate(mode, instruction, d.id, snapshot, from, to));
+    if (!r) return;
+    if (docRef.current?.id !== d.id || !editorRef.current) return notify("Scene changed while drafting; draft discarded.", "error");
+    const at = anchorDraft(editorRef.current.getText(), snapshot, r, editorRef.current.head());
+    if (!at) return notify("The text changed while drafting; draft discarded.", "error");
+    if (r.draftId && r.original !== null) { // the marker must never exist without its original
+      const reg = await api.registerDraft(d.id, r.draftId, r.original);
+      if (!reg.ok) return notify(reg.error, "error");
+    }
+    editorRef.current.insertDraft(at.from, at.to, r.insert);
+    notify(`AI draft ready: F7 accept, F8 reject${cost(r.cost)}`);
+    if (r.noStyle) notify("Tip: learn a style guide first (AI menu, Learn style guide).");
+  };
+  const startGenerate = (): boolean => {
+    const ed = editorRef.current;
+    if (!ed || docRef.current?.kind !== "scene") { notify("Open a scene first."); return true; }
+    if (!requireAi()) return true;
+    const sel = ed.selection();
+    if (sel.text.trim()) {
+      setDialog({ kind: "generate", mode: "rewrite", from: sel.from, to: sel.to, title: "Rewrite the selection",
+        label: "Edit the instruction", initial: "Rewrite this in my style." });
+      return true;
+    }
+    const head = ed.head();
+    const marker = ed.spans().find((sp) => sp.kind === "expand" && head >= sp.start && head <= sp.end);
+    if (marker) {
+      if (!marker.instruction?.trim()) notify("Empty {{expand: }} marker: say what to write.", "error");
+      else void runGenerate("expand", marker.instruction, marker.start, marker.end);
+      return true;
+    }
+    setDialog({ kind: "generate", mode: "draft", from: head, to: head, title: "Draft new prose here",
+      label: "What should the AI write?", initial: "" });
+    return true;
+  };
+  const rewriteSelection = () => {
+    const ed = editorRef.current;
+    if (!ed || !ed.selection().text.trim()) return notify("Select a passage in the text first, then choose Rewrite.");
+    startGenerate();
+  };
+
+  const resolveDraft = async (index: number | null, accept: boolean) => {
+    const d = docRef.current, ed = editorRef.current;
+    if (!d || !ed) return;
+    const text = ed.getText();
+    const r = await api.resolveDrafts(d.id, text, accept, index);
+    if (!r.ok) return notify(r.error, "error");
+    if (r.found === 0) return notify("No AI drafts in this scene.");
+    if (ed.getText() !== text) return notify("The text changed; try again.", "error");
+    ed.applyEdits(r.edits);
+    if (r.skipped) notify(`${r.skipped} draft${r.skipped === 1 ? "" : "s"} left: the original text is missing. Accept ${r.skipped === 1 ? "it" : "them"} or edit by hand.`, "error");
+    else notify(r.found > 1 ? `${r.found} AI drafts ${accept ? "accepted" : "rejected"}.` : `AI draft ${accept ? "accepted" : "rejected"}.`);
+  };
+  const resolveAtCursor = (accept: boolean): boolean => {
+    const i = editorRef.current?.pendingIndexAtCursor() ?? -1;
+    if (i < 0) notify("No AI draft under the cursor.");
+    else void resolveDraft(i, accept);
+    return true;
+  };
+
+  const sendChat = async (text: string, replaceId?: string) => {
+    const ed = editorRef.current, d = docRef.current;
+    let base = messages.filter((m) => !(m.role === "assistant" && m.error));
+    if (replaceId) base = base.slice(0, Math.max(0, base.findIndex((m) => m.id === replaceId)) - 1); // up to, not including, the prompt being retried
+    const history = base.map((m) => ({ role: m.role, text: m.text }));
+    if (!requireAi()) return;
+    if (!replaceId) setMessages((m) => [...m, { id: uid(), role: "user", text }]);
+    else setMessages((m) => m.filter((x) => x.id !== replaceId));
+    const r = await aiCall("Thinking…", () => api.ask(text, scope, d?.kind === "scene" ? d.id : null, ed ? ed.getText() : null, ed?.head() ?? 0, history));
+    setMessages((m) => [...m, r ? { id: uid(), role: "assistant", text: r.reply } : { id: uid(), role: "assistant", text: "That request failed. Nothing was changed.", error: true }]);
+  };
+  const regenerate = (id: string) => {
+    const i = messages.findIndex((m) => m.id === id);
+    const prompt = messages.slice(0, i).reverse().find((m) => m.role === "user");
+    if (prompt) void sendChat(prompt.text, id);
+  };
+  const insertReplyAsDraft = async (id: string) => {
+    const d = docRef.current, ed = editorRef.current, msg = messages.find((m) => m.id === id);
+    if (!d || d.kind !== "scene" || !ed || !msg) return notify("Open a scene to insert into.");
+    const r = await api.draftFromReply(d.id, ed.getText(), msg.text, ed.head());
+    if (!r.ok) return notify(r.error, "error");
+    ed.insertDraft(r.from, r.to, r.insert);
+    notify("Inserted as an AI draft: F7 accept, F8 reject.");
+  };
+  const onQuick = (a: QuickAction) => { if (a === "rewrite") rewriteSelection(); else void quickContinuity(); };
+  const openAiMenu = (anchor: HTMLElement) => setMenu({ anchor, items: [
+    { label: "Draft at the cursor…", disabled: doc?.kind !== "scene", onSelect: () => { const ed = editorRef.current; const h = ed?.head() ?? 0; if (requireAi()) setDialog({ kind: "generate", mode: "draft", from: h, to: h, title: "Draft new prose here", label: "What should the AI write?", initial: "" }); } },
+    { label: "Find aliases", disabled: doc?.kind !== "scene", onSelect: () => void findAliases() },
+    { label: "Update story bible", disabled: doc?.kind !== "scene", onSelect: () => void updateBible() },
+    { label: "Learn style guide", onSelect: () => void learnStyle() },
+    { label: "Accept all drafts", disabled: doc?.kind !== "scene", onSelect: () => void resolveDraft(null, true) },
+    { label: "Reject all drafts", disabled: doc?.kind !== "scene", onSelect: () => void resolveDraft(null, false) },
+    { label: "Restore waived issues", disabled: doc?.kind !== "scene", onSelect: () => void restoreWaived() },
+  ] });
+
   const saveNow = async () => { const ok = await saver.flush(); if (ok) notify("Saved"); };
   const closeWindow = async () => { await saver.flush(); await api.close(); };
 
@@ -332,14 +548,21 @@ export default function App() {
           onChange={(t) => saver.edit(t)} onCursor={onCursor} onBlur={() => void saver.flush()}
           onSaveNow={() => void saveNow()} onReload={() => void reloadFromDisk()} onKeepMine={() => void keepMine()}
           onMakeNote={() => makeNote(false)} getCard={getCard} onOpenEntity={openEntitySpan}
-          extraKeys={[{ key: "Mod-j", run: () => makeNote(true) }]} />
+          onResolveDraft={(i, a) => void resolveDraft(i, a)}
+          extraKeys={[
+            { key: "Mod-j", run: () => makeNote(true) },
+            { key: "F7", run: () => resolveAtCursor(true) },
+            { key: "F8", run: () => resolveAtCursor(false) },
+            { key: "Mod-g", run: startGenerate },
+          ]} />
         {showAssistant && (
           <Assistant tab={tab} onTab={setTab} mentions={mentions} onPickEntity={showNote}
             note={note} missingTarget={missingTarget} onOpenNote={(id) => void openDoc(id)} onAddAlias={(n, a) => void addAlias(n, a)}
             onCreateNote={(t) => setDialog({ kind: "new-note", name: t, openAfter: false })} onOpenBacklink={(id, row) => void openBacklink(id, row)}
-            messages={[]} busy={false} aiReady={false}
-            onSend={() => {}} onClose={() => setAssistantOpen(false)} onRegenerate={() => {}}
-            onReviewInsight={() => {}} onDismissInsight={() => {}} />
+            issues={issues} onReviewIssue={reviewIssue} onDismissIssue={(i) => void dismissIssue(i)}
+            messages={messages} busy={aiBusy} aiReady={aiReady} scope={scope} onScope={() => setScope((c) => (c === "scene" ? "project" : "scene"))}
+            onSend={(t) => void sendChat(t)} onRegenerate={regenerate} onInsertDraft={(id) => void insertReplyAsDraft(id)}
+            onQuick={onQuick} onMenu={openAiMenu} canInsert={doc?.kind === "scene"} onClose={() => setAssistantOpen(false)} />
         )}
       </div>
       <StatusBar sessionWords={ws.status.sessionWords} projectWords={ws.status.projectWords} aiCost={ws.status.aiCost}
@@ -361,6 +584,13 @@ export default function App() {
           </div>
         </PromptDialog>
       )}
+      {dialog?.kind === "generate" && (
+        <PromptDialog title={dialog.title} label={dialog.label} initial={dialog.initial} confirm="Generate"
+          onSubmit={(t) => { const g = dialog; setDialog(null); void runGenerate(g.mode, t, g.from, g.to); }} onClose={() => setDialog(null)} />
+      )}
+      {dialog?.kind === "aliases" && <AliasReviewDialog suggestions={dialog.items} onApply={(p) => void applyAliases(p)} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "canon" && <CanonReviewDialog proposals={dialog.items} onApply={(p) => void applyCanon(p)} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "style" && <StyleReviewDialog markdown={dialog.markdown} replacing={dialog.replacing} onSave={(t) => void saveStyle(t)} onClose={() => setDialog(null)} />}
       {dialog?.kind === "rename" && doc && (
         <PromptDialog title="Rename scene" label="Title" initial={doc.title} confirm="Rename" onSubmit={(t) => void renameScene(t)} onClose={() => setDialog(null)} />
       )}

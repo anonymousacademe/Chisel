@@ -30,6 +30,35 @@ class MetaWidget extends WidgetType {
   ignoreEvent() { return true; }
 }
 
+/** Called by the inline Accept / Reject buttons: (index of the draft in document order, accept?). */
+export const draftFacet = Facet.define<(index: number, accept: boolean) => void, (index: number, accept: boolean) => void>({
+  combine: (v) => v[v.length - 1] ?? (() => {}),
+});
+
+class DraftBar extends WidgetType {
+  readonly index: number;
+  readonly run: (index: number, accept: boolean) => void;
+  constructor(index: number, run: (index: number, accept: boolean) => void) { super(); this.index = index; this.run = run; }
+  eq(o: DraftBar) { return o.index === this.index; }
+  toDOM() {
+    const bar = document.createElement("span");
+    bar.className = "lw-draftbar";
+    bar.contentEditable = "false";
+    for (const [label, accept, key] of [["Accept", true, "F7"], ["Reject", false, "F8"]] as const) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = accept ? "lw-draftbar__btn is-accept" : "lw-draftbar__btn is-reject";
+      b.textContent = label;
+      b.title = `${label} this AI draft (${key})`;
+      b.addEventListener("mousedown", (e) => e.preventDefault()); // keep the editor's selection
+      b.addEventListener("click", () => this.run(this.index, accept));
+      bar.append(b);
+    }
+    return bar;
+  }
+  ignoreEvent() { return true; }
+}
+
 class SpaceWidget extends WidgetType {
   eq() { return true; }
   toDOM() { const el = document.createElement("span"); el.textContent = " "; return el; }
@@ -70,6 +99,15 @@ function build(state: EditorState): Built {
     if (sp.from === sp.to) continue;
     if (sp.type === "hide") { ranges.push(hide.range(sp.from, sp.to)); atomic.push(hide.range(sp.from, sp.to)); }
     else ranges.push(Decoration.mark({ class: sp.cls, attributes: sp.attrs }).range(sp.from, sp.to));
+  }
+
+  // inline Accept / Reject after every pending AI draft
+  const act = state.facet(draftFacet);
+  let pendingIndex = 0;
+  for (const sp of state.field(spansField)) {
+    if (sp.kind !== "pending") continue;
+    const index = pendingIndex++;
+    if (sp.end <= doc.length && sp.start < sp.end) ranges.push(Decoration.widget({ widget: new DraftBar(index, act), side: 1 }).range(sp.end));
   }
 
   // title block: the first "# " line, styled big; its "# " prefix hidden; meta line under it
@@ -164,6 +202,8 @@ export interface Hooks {
   onCursor(info: CursorInfo): void;
   onBlur(): void;
   onSaveNow(): void;
+  /** Accept/Reject buttons of a pending draft (index in document order). */
+  onResolveDraft(index: number, accept: boolean): void;
   /** Extra key bindings (e.g. f7/f8) supplied by the host. */
   extraKeys?: { key: string; run: () => boolean }[];
 }
@@ -171,6 +211,7 @@ export interface Hooks {
 export function editorExtensions(kind: string, meta: string, hooks: Hooks, undoDepth: (s: EditorState) => number, redoDepth: (s: EditorState) => number): Extension[] {
   return [
     kindFacet.of(kind),
+    draftFacet.of((i, a) => hooks.onResolveDraft(i, a)),
     metaCompartment.of(metaFacet.of(meta)),
     history(),
     drawSelection(),

@@ -32,6 +32,7 @@ export function Editor(props: {
   onChange: (text: string) => void; onCursor: (c: CursorInfo) => void; onBlur: () => void; onSaveNow: () => void;
   onReload: () => void; onKeepMine: () => void; onMakeNote: () => void;
   getCard: (span: Span) => Promise<Card | null>; onOpenEntity: (span: Span) => void;
+  onResolveDraft: (index: number, accept: boolean) => void;
   extraKeys?: { key: string; run: () => boolean }[];
 }) {
   const { doc } = props;
@@ -108,7 +109,7 @@ export function Editor(props: {
                 <EditorPane key={`${doc.id}:${props.docRev}`} ref={props.editorRef} docId={doc.id} kind={doc.kind}
                   initialText={doc.text} meta={meta} spansVersion={props.spansVersion}
                   onChange={props.onChange} onCursor={props.onCursor} onBlur={props.onBlur} onSaveNow={props.onSaveNow}
-                  getCard={props.getCard} onOpenEntity={props.onOpenEntity} extraKeys={props.extraKeys} />
+                  getCard={props.getCard} onOpenEntity={props.onOpenEntity} onResolveDraft={props.onResolveDraft} extraKeys={props.extraKeys} />
               </article>
             ) : <p className="lw-empty lw-empty--page">Open a scene from the binder to start writing.</p>}
           </div>

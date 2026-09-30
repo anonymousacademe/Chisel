@@ -363,7 +363,7 @@ button.lw-status__item:hover { color: var(--lw-text); }
 .lw-switcher__detail { font-size: 10px; color: var(--lw-text-faint); white-space: nowrap; }
 
 /* ---------- toasts ---------- */
-.lw-toasts { position: fixed; right: 16px; bottom: 44px; z-index: 60; display: flex; flex-direction: column; gap: 8px; max-width: 420px; }
+.lw-toasts { position: fixed; left: 50%; transform: translateX(-50%); bottom: 44px; align-items: center; z-index: 60; display: flex; flex-direction: column; gap: 8px; max-width: 420px; }
 .lw-toast {
   padding: 10px 12px; border-radius: var(--lw-radius-md); display: flex; align-items: flex-start; gap: 10px; font-size: 12px; line-height: 1.4;
   background: var(--lw-bg-raised); border: 1px solid var(--lw-border-strong); color: var(--lw-text); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); user-select: text;
@@ -422,3 +422,29 @@ button.lw-status__item:hover { color: var(--lw-text); }
 .lw-dialog__types { display: flex; gap: 8px; flex-wrap: wrap; }
 .lw-chip--pick { height: 28px; padding: 0 12px; }
 .lw-chip--pick.is-on { background: var(--lw-accent-muted); border-color: var(--lw-accent); color: var(--lw-accent-text); }
+
+/* ---------- AI: issues, chat errors, scope chip ---------- */
+.lw-insight__kind { font-size: 10px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase; color: var(--lw-text-muted); }
+.lw-insight__quote { font-family: var(--lw-font-prose); font-style: italic; color: var(--lw-text) !important; }
+.lw-msg-ai__text.is-error { color: var(--lw-traffic-close); }
+.lw-tag--button { cursor: pointer; border: 0; }
+.lw-tag--button:hover { filter: brightness(1.15); }
+
+/* ---------- review dialogs ---------- */
+.lw-dialog--wide { width: 640px; max-height: 80vh; }
+.lw-dialog__buttons--split { justify-content: space-between; align-items: center; }
+.lw-review { overflow-y: auto; display: flex; flex-direction: column; gap: 8px; min-height: 0; max-height: 46vh; }
+.lw-review__row { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: var(--lw-radius-sm); background: var(--lw-bg-raised); border: 1px solid var(--lw-border); cursor: pointer; }
+.lw-review__row input { margin-top: 2px; accent-color: var(--lw-accent); }
+.lw-review__text { display: flex; flex-direction: column; gap: 4px; font-size: 12px; line-height: 1.45; color: var(--lw-text); user-select: text; }
+.lw-review__context { font-size: 11px; line-height: 1.45; color: var(--lw-text-muted); user-select: text; }
+.lw-review__context mark { background: var(--lw-accent-muted); color: var(--lw-accent-text); border-radius: 3px; padding: 0 2px; }
+.lw-review__target { font-size: 11px; font-weight: 600; color: var(--lw-text-strong); }
+.lw-review__group { display: flex; flex-direction: column; gap: 6px; }
+.lw-review__group strong { font-size: 12px; color: var(--lw-text-strong); }
+.lw-review__existing { margin: 4px 0 0; font-size: 11px; line-height: 1.5; color: var(--lw-text-muted); white-space: pre-wrap; user-select: text; }
+.lw-review__editor {
+  min-height: 300px; max-height: 50vh; padding: 12px; border-radius: var(--lw-radius-md); overflow-y: auto; user-select: text; resize: none;
+  background: var(--lw-bg-raised); border: 1px solid var(--lw-border-strong); font-family: var(--lw-font-mono); font-size: 11px; line-height: 1.55; color: var(--lw-text);
+}
+.lw-composer textarea:focus-visible { outline: none; }

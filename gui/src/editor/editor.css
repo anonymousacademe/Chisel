@@ -55,3 +55,13 @@
 .lw-hovercard__head strong { font-size: 12px; color: var(--lw-text-strong); }
 .lw-hovercard__head span { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--lw-accent-text); }
 .lw-hovercard p { margin: 0; }
+
+/* inline Accept / Reject after a pending AI draft */
+.lw-cm .lw-draftbar { display: inline-flex; gap: 4px; margin-left: 8px; vertical-align: 2px; font-family: var(--lw-font-ui); font-style: normal; letter-spacing: 0; }
+.lw-cm .lw-draftbar__btn {
+  height: 20px; padding: 0 8px; border-radius: 999px; font-size: 10px; font-weight: 600; line-height: 18px; cursor: pointer;
+  background: var(--lw-bg-raised); border: 1px solid var(--lw-border-strong); color: var(--lw-text);
+}
+.lw-cm .lw-draftbar__btn.is-accept { border-color: var(--lw-success); color: var(--lw-success); }
+.lw-cm .lw-draftbar__btn.is-accept:hover { background: var(--lw-success-soft); }
+.lw-cm .lw-draftbar__btn.is-reject:hover { background: var(--lw-bg-surface); }

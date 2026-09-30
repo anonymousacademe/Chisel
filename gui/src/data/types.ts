@@ -86,10 +86,35 @@ export interface Workspace {
 
 export interface RecentProject { path: string; title: string; openedAt: number; exists: boolean }
 
-export interface ContinuityInsight { title: string; conflicts: number; body: string }
+/** One continuity problem the AI reported for a scene. */
+export interface Issue {
+  key: string;            // stable id, used to waive it
+  type: string;           // physical_attribute, timeline, ...
+  severity: "error" | "warning" | "note";
+  entity: string;
+  evidence: string;       // quoted from the scene
+  fix: string;
+  row: number | null;     // 0-based line of the evidence in the editor text, if found
+}
 
-export interface RetrievedSource { id: string; kind: "character" | "document"; title: string; meta: string }
+export interface AliasSuggestion { entity: string; surface: string; alias: string; before: string; after: string }
+
+export interface CanonProposal { entity: string; facts: string[]; evidence: string; existing: string }
+
+export interface GenerateResult {
+  mode: "draft" | "expand" | "rewrite";
+  insert: string;         // the wrapped <!--ai--> text to put in the editor
+  draftId: string | null;
+  original: string | null;
+  from: number;           // range of the editor text that `insert` replaces (UTF-16)
+  to: number;
+  noStyle: boolean;
+  model: string;
+  cost: number | null;
+}
+
+export interface DraftEdit { from: number; to: number; insert: string }
 
 export type ChatMessage =
   | { id: string; role: "user"; text: string }
-  | { id: string; role: "assistant"; intro?: string; text: string };
+  | { id: string; role: "assistant"; text: string; error?: boolean };

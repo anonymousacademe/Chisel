@@ -1,24 +1,30 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Sparkles, History, PanelRightClose, Lightbulb, WandSparkles, ScanSearch, BookSearch,
-  LocateFixed, Copy, RefreshCw, ThumbsUp, UserRound, FileText, ArrowUpRight, Paperclip, ArrowUp,
+  Sparkles, History, PanelRightClose, Lightbulb, WandSparkles, ScanSearch, BookSearch, LocateFixed, Copy,
+  RefreshCw, ThumbsUp, UserRound, FileText, ArrowUpRight, Paperclip, ArrowUp, Ellipsis, TextCursorInput,
   type LucideIcon,
 } from "lucide-react";
-import type { ChatMessage, ContinuityInsight, EntityInfo, SceneMention } from "../data/types";
+import type { ChatMessage, EntityInfo, Issue, SceneMention } from "../data/types";
 import { NotesPanel } from "./NotesPanel";
 import { Icon, IconButton, SectionLabel, Tag } from "./primitives";
 import { placeholderProps } from "./placeholder";
 
 export type AssistantTab = "assistant" | "context" | "notes";
+export type QuickAction = "rewrite" | "continuity";
 type Tab = AssistantTab;
 const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 
-const tools: { icon: LucideIcon; title: string; detail: string; prompt: string; placeholder?: boolean }[] = [
-  { icon: Lightbulb, title: "Brainstorm", detail: "Plot, character, image", prompt: "", placeholder: true },
-  { icon: WandSparkles, title: "Rewrite", detail: "Tone, clarity, rhythm", prompt: "Rewrite the selected passage to " },
-  { icon: ScanSearch, title: "Continuity", detail: "Facts, timeline, logic", prompt: "Check this scene for continuity issues." },
-  { icon: BookSearch, title: "Research", detail: "Project + web library", prompt: "", placeholder: true },
+const tools: { icon: LucideIcon; title: string; detail: string; action?: QuickAction }[] = [
+  { icon: Lightbulb, title: "Brainstorm", detail: "Plot, character, image" },
+  { icon: WandSparkles, title: "Rewrite", detail: "Tone, clarity, rhythm", action: "rewrite" },
+  { icon: ScanSearch, title: "Continuity", detail: "Facts, timeline, logic", action: "continuity" },
+  { icon: BookSearch, title: "Research", detail: "Project + web library" },
 ];
+
+const TYPE_LABEL: Record<string, string> = {
+  physical_attribute: "Physical attribute", timeline: "Timeline", character_knowledge: "Character knowledge",
+  object_custody: "Object custody", present_absent: "Present / absent", spelling_drift: "Spelling drift",
+};
 
 export function Assistant(props: {
   tab: AssistantTab; onTab: (t: AssistantTab) => void;
@@ -26,33 +32,35 @@ export function Assistant(props: {
   note: EntityInfo | null; missingTarget: string | null;
   onOpenNote: (id: string) => void; onAddAlias: (name: string, alias: string) => void;
   onCreateNote: (target: string) => void; onOpenBacklink: (sourceId: string, row: number) => void;
-  insight?: ContinuityInsight; messages: ChatMessage[];
-  busy: boolean; aiReady: boolean; onSend: (text: string) => void; onClose: () => void;
-  onReviewInsight: () => void; onDismissInsight: () => void; onRegenerate: (id: string) => void;
+  issues: Issue[]; onReviewIssue: (i: Issue) => void; onDismissIssue: (i: Issue) => void;
+  messages: ChatMessage[]; busy: string | null; aiReady: boolean;
+  scope: "scene" | "project"; onScope: () => void;
+  onSend: (text: string) => void; onRegenerate: (id: string) => void; onInsertDraft: (id: string) => void;
+  onQuick: (a: QuickAction) => void; onMenu: (anchor: HTMLElement) => void; onClose: () => void;
+  canInsert: boolean;
 }) {
   const { tab, onTab: setTab } = props;
   const [draft, setDraft] = useState("");
-  const [liked, setLiked] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
+  const busy = props.busy !== null;
 
-  // ⌘J / Ctrl+J focuses the composer.
+  // Ctrl/⌘ J focuses the composer (unless the editor used it to open a note).
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
-      if (e.defaultPrevented) return; // the editor took it (make / open a note)
+      if (e.defaultPrevented) return;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "j") { e.preventDefault(); setTab("assistant"); inputRef.current?.focus(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [setTab]);
   useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: "smooth" }); }, [props.messages.length]);
 
   const send = () => {
     const t = draft.trim();
-    if (!t || props.busy) return;
+    if (!t || busy) return;
     props.onSend(t); setDraft(""); if (inputRef.current) inputRef.current.style.height = "15px";
   };
-  const applyTool = (prompt: string) => { setDraft(prompt); setTab("assistant"); requestAnimationFrame(() => inputRef.current?.focus()); };
 
   return (
     <aside className="lw-assistant" aria-label="AI writing assistant">
@@ -63,6 +71,7 @@ export function Assistant(props: {
           <Tag tone="success">Project aware</Tag>
         </div>
         <div className="lw-row lw-gap-4">
+          <IconButton icon={Ellipsis} label="More AI actions" onClick={(e) => props.onMenu(e.currentTarget)} />
           <IconButton icon={History} label="Conversation history" placeholder />
           <IconButton icon={PanelRightClose} label="Close panel" onClick={props.onClose} />
         </div>
@@ -86,8 +95,8 @@ export function Assistant(props: {
               </div>
               <div className="lw-quick__grid">
                 {tools.map((t) => (
-                  <button key={t.title} className="lw-tool" disabled={!t.placeholder && !props.aiReady}
-                    {...(t.placeholder ? placeholderProps : { onClick: () => applyTool(t.prompt) })}>
+                  <button key={t.title} className="lw-tool" disabled={!!t.action && (busy || !props.aiReady)}
+                    {...(t.action ? { onClick: () => props.onQuick(t.action!) } : placeholderProps)}>
                     <span className="lw-row lw-gap-6">
                       <Icon icon={t.icon} size={13} stroke={1.7} color="var(--lw-accent-text)" />
                       <span className="lw-tool__title">{t.title}</span>
@@ -96,27 +105,31 @@ export function Assistant(props: {
                   </button>
                 ))}
               </div>
+              {!props.aiReady && <p className="lw-empty">AI features are off until an OpenRouter API key is set (Settings).</p>}
             </section>
             <div className="lw-divider" />
 
-            {props.insight && (
-              <section className="lw-insight">
+            {props.issues.length > 1 && <SectionLabel>{props.issues.length} issues in this scene</SectionLabel>}
+            {props.issues.map((it) => (
+              <section key={it.key} className="lw-insight">
                 <div className="lw-insight__heading">
                   <span className="lw-row lw-gap-6">
                     <Icon icon={ScanSearch} size={14} stroke={1.7} color="var(--lw-accent-text)" />
-                    <strong>{props.insight.title}</strong>
+                    <strong>Continuity check</strong>
                   </span>
-                  <Tag>{props.insight.conflicts} conflict{props.insight.conflicts === 1 ? "" : "s"}</Tag>
+                  <Tag>1 conflict</Tag>
                 </div>
-                <p>{props.insight.body}</p>
+                <p className="lw-insight__kind">{TYPE_LABEL[it.type] ?? it.type} · {it.entity}</p>
+                <p className="lw-insight__quote">“{it.evidence}”</p>
+                {it.fix && <p>{it.fix}</p>}
                 <div className="lw-row lw-gap-8">
-                  <button className="lw-btn lw-btn--grow" onClick={props.onReviewInsight}>
+                  <button className="lw-btn lw-btn--grow" onClick={() => props.onReviewIssue(it)}>
                     <Icon icon={LocateFixed} size={14} stroke={1.8} /> Review passage
                   </button>
-                  <button className="lw-btn" onClick={props.onDismissInsight}>Dismiss</button>
+                  <button className="lw-btn" onClick={() => props.onDismissIssue(it)} title="Waive this issue: it will not be reported again">Dismiss</button>
                 </div>
               </section>
-            )}
+            ))}
 
             {props.messages.map((m) => m.role === "user" ? (
               <div key={m.id} className="lw-msg-user"><div className="lw-bubble">{m.text}</div></div>
@@ -124,18 +137,19 @@ export function Assistant(props: {
               <div key={m.id} className="lw-msg-ai">
                 <span className="lw-mark"><Icon icon={Sparkles} size={12} stroke={1.7} /></span>
                 <div className="lw-msg-ai__body">
-                  {m.intro && <p className="lw-msg-ai__intro">{m.intro}</p>}
-                  <p className="lw-msg-ai__text">{m.text}</p>
-                  <div className="lw-row lw-gap-4">
-                    <IconButton icon={Copy} label="Copy" onClick={() => navigator.clipboard?.writeText([m.intro, m.text].filter(Boolean).join("\n"))} />
-                    <IconButton icon={RefreshCw} label="Regenerate" onClick={() => props.onRegenerate(m.id)} />
-                    <IconButton icon={ThumbsUp} label="Helpful" active={liked.has(m.id)}
-                      onClick={() => setLiked((s) => { const n = new Set(s); if (n.has(m.id)) n.delete(m.id); else n.add(m.id); return n; })} />
-                  </div>
+                  <p className={`lw-msg-ai__text${m.error ? " is-error" : ""}`}>{m.text}</p>
+                  {!m.error && (
+                    <div className="lw-row lw-gap-4">
+                      <IconButton icon={Copy} label="Copy" onClick={() => navigator.clipboard?.writeText(m.text)} />
+                      <IconButton icon={RefreshCw} label="Regenerate" disabled={busy} onClick={() => props.onRegenerate(m.id)} />
+                      <IconButton icon={TextCursorInput} label="Insert as a draft at the cursor" disabled={!props.canInsert || busy} onClick={() => props.onInsertDraft(m.id)} />
+                      <IconButton icon={ThumbsUp} label="Helpful" placeholder />
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
-            {props.busy && <div className="lw-msg-ai"><span className="lw-mark"><Icon icon={Sparkles} size={12} stroke={1.7} /></span><p className="lw-msg-ai__intro lw-pulse">Thinking…</p></div>}
+            {busy && <div className="lw-msg-ai"><span className="lw-mark"><Icon icon={Sparkles} size={12} stroke={1.7} /></span><p className="lw-msg-ai__intro lw-pulse">{props.busy}</p></div>}
 
             <Sources mentions={props.mentions} onPick={props.onPickEntity} />
           </>
@@ -155,9 +169,12 @@ export function Assistant(props: {
           <div className="lw-composer__controls">
             <div className="lw-row lw-gap-4">
               <IconButton icon={Paperclip} label="Attach context" small placeholder />
-              <Tag>Current scene</Tag>
+              <button className="lw-tag lw-tag--accent lw-tag--button" onClick={props.onScope}
+                title="What the assistant reads: this scene, or scene titles and notes for the whole project">
+                {props.scope === "scene" ? "Current scene" : "Project"}
+              </button>
             </div>
-            <button className="lw-send" aria-label="Send" onClick={send} disabled={!draft.trim() || props.busy || !props.aiReady}>
+            <button className="lw-send" aria-label="Send" onClick={send} disabled={!draft.trim() || busy || !props.aiReady}>
               <Icon icon={ArrowUp} size={14} stroke={2} />
             </button>
           </div>

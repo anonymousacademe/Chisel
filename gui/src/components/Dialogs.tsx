@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
   return (
     <div className="lw-overlay lw-overlay--center" onMouseDown={onClose}>
-      <div className="lw-dialog" role="dialog" aria-label={title} onMouseDown={(e) => e.stopPropagation()}
+      <div className={`lw-dialog${wide ? " lw-dialog--wide" : ""}`} role="dialog" aria-label={title} onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } }}>
         <h2 className="lw-dialog__title">{title}</h2>
         {children}

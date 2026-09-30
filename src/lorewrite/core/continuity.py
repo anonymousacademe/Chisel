@@ -213,11 +213,20 @@ def canon_map(entities: list[ent.Entity]) -> dict[str, str]:
 
 
 def locate_evidence(scene_text: str, evidence: str) -> int | None:
-    """Best-effort row (0-based) of an evidence snippet in the scene."""
+    """Best-effort row (0-based) of an evidence snippet in the scene.
+
+    Tries single lines first; then the whole text with any whitespace (so a
+    quote that spans hard-wrapped lines is still found)."""
     snippet = " ".join(evidence.split())[:80]
     if not snippet:
         return None
     for i, line in enumerate(scene_text.splitlines()):
         if snippet[:40] in " ".join(line.split()):
             return i
+    words = snippet[:40].split()
+    if words:
+        pattern = r"\s+".join(re.escape(w) for w in words)
+        m = re.search(pattern, scene_text)
+        if m:
+            return scene_text.count("\n", 0, m.start())
     return None

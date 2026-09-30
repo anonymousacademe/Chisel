@@ -32,4 +32,5 @@ const isBoldWrap = (s: string) => s.startsWith("**") && s.endsWith("**");
 /** Replace [from,to) with *insert* as one undoable step, cursor at the end of the new text. */
 export function replaceRange(view: EditorView, from: number, to: number, insert: string) {
   view.dispatch({ changes: { from, to, insert }, selection: { anchor: from + insert.length }, scrollIntoView: true });
+  view.focus(); // dialogs steal focus; F7/F8 and typing must land in the editor afterwards
 }

@@ -212,3 +212,12 @@ def test_legacy_waivers_file_without_scenes_still_loads(tmp_path: Path):
     assert load_waivers(tmp_path) == {"old1"}
     save_waiver(tmp_path, "new1", "manuscript/01.md")
     assert load_waivers(tmp_path) == {"old1", "new1"}
+
+
+def test_locate_evidence_across_hard_wrapped_lines():
+    from lorewrite.core.continuity import locate_evidence
+
+    text = "First line.\nShe stood in the kitchen with one hand\naround a cup gone cold.\n"
+    assert locate_evidence(text, "She stood in the kitchen with one hand around a cup") == 1
+    assert locate_evidence(text, "First line.") == 0
+    assert locate_evidence(text, "not there at all") is None

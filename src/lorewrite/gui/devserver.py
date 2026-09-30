@@ -78,7 +78,14 @@ def serve(api: Api, dist: Path = DIST, port: int = 0) -> ThreadingHTTPServer:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="lorewrite-devserver")
     parser.add_argument("--project", type=Path, default=None)
+    parser.add_argument("--mock-ai", action="store_true",
+                        help="answer AI calls with canned results (no network)")
     args = parser.parse_args(argv)
+    if args.mock_ai:
+        from . import api as api_module
+        from . import mockai
+
+        mockai.install(api_module)
     api = Api()
     if args.project is not None and hasattr(api, "open_project"):
         api.open_project(str(args.project))

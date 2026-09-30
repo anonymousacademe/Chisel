@@ -111,6 +111,7 @@ export function mockCall(method: string, args: unknown[]): object {
     }
     case "list_entities": return { ok: true, entities: ENTITIES.map(({ body: _b, ...e }) => e) };
     case "get_entity": return { ok: true, ...getEntity(String(args[0])) };
+    case "ai_status": return { ok: true, hasKey: false, models: { fast: "", strong: "", writing: "" } };
     case "recent_projects": return { ok: true, recents: [] };
     case "open_project": case "new_project": workspace = buildWorkspace(); return { ok: true };
     case "choose_folder": return { ok: true, path: null };

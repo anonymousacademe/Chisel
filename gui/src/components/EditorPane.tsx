@@ -17,6 +17,13 @@ export interface EditorHandle {
   /** Move the cursor to the start of a 0-based line and scroll it into view. */
   gotoLine(row: number): void;
   spans(): Span[];
+  /** Apply several edits (original coordinates, non-overlapping) as one undoable step. */
+  applyEdits(edits: { from: number; to: number; insert: string }[]): void;
+  /** Put generated text in place of [from, to) and leave the cursor after it. */
+  insertDraft(from: number, to: number, insert: string): void;
+  head(): number;
+  /** Index (document order) of the pending draft containing the cursor, or -1. */
+  pendingIndexAtCursor(): number;
   /** Span of a link/mention/unresolved link containing the cursor. */
   spanAtCursor(): Span | undefined;
 }
@@ -34,6 +41,7 @@ interface Props {
   onSaveNow(): void;
   getCard(span: Span): Promise<Card | null>;
   onOpenEntity(span: Span): void;
+  onResolveDraft(index: number, accept: boolean): void;
   extraKeys?: { key: string; run: () => boolean }[];
 }
 
@@ -73,6 +81,18 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
       v.focus();
     },
     spans: () => view.current?.state.field(spansField) ?? [],
+    applyEdits: (edits) => {
+      const v = view.current;
+      if (v && edits.length) { v.dispatch({ changes: edits, scrollIntoView: true }); v.focus(); }
+    },
+    insertDraft: (from, to, insert) => view.current && replaceRange(view.current, from, to, insert),
+    head: () => view.current?.state.selection.main.head ?? 0,
+    pendingIndexAtCursor: () => {
+      const v = view.current;
+      if (!v) return -1;
+      const head = v.state.selection.main.head;
+      return v.state.field(spansField).filter((s) => s.kind === "pending").findIndex((s) => head >= s.start && head <= s.end);
+    },
     spanAtCursor: () => {
       const v = view.current;
       if (!v) return undefined;
@@ -107,6 +127,7 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
           onSaveNow: () => hooks.current.onSaveNow(),
           getCard: (sp) => hooks.current.getCard(sp),
           onOpenEntity: (sp) => hooks.current.onOpenEntity(sp),
+          onResolveDraft: (i, a) => hooks.current.onResolveDraft(i, a),
           // keys are fixed at mount; their handlers always come from the latest render
           extraKeys: hooks.current.extraKeys?.map((k) => ({
             key: k.key, run: () => hooks.current.extraKeys?.find((x) => x.key === k.key)?.run() ?? false,
