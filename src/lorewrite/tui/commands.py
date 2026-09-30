@@ -115,6 +115,8 @@ class ActionProvider(_Provider):
          "AI: find other ways the prose refers to your entities (ctrl+l)"),
         ("Check scene for continuity issues", "check_continuity",
          "AI: flag contradictions with the story bible"),
+        ("Restore waived continuity issues (this scene)", "restore_waived",
+         "Un-waive this scene's continuity flags so the next check reports them"),
         ("Update story bible from scene", "update_bible",
          "AI: propose canon updates to entity notes from this scene"),
         ("AI: learn style guide from manuscript", "learn_style_guide",

@@ -190,3 +190,25 @@ def test_second_update_never_removes_first_facts(tmp_path: Path):
     apply_canon_update(ent.load_entity(path), ["Scar on left hand"])
     lines = get_canon(ent.load_entity(path).body).splitlines()
     assert lines == ["- Has blue eyes", "- Scar on left hand"]
+
+
+def test_waivers_record_scene_and_clear_by_scene(tmp_path: Path):
+    from lorewrite.core.continuity import clear_scene_waivers, remove_waiver
+
+    save_waiver(tmp_path, "k1", "manuscript/01.md")
+    save_waiver(tmp_path, "k2", "manuscript/01.md")
+    save_waiver(tmp_path, "k3", "manuscript/02.md")
+    assert clear_scene_waivers(tmp_path, "manuscript/01.md") == 2
+    assert load_waivers(tmp_path) == {"k3"}
+    assert clear_scene_waivers(tmp_path, "manuscript/01.md") == 0
+    remove_waiver(tmp_path, "k3")
+    assert load_waivers(tmp_path) == set()
+
+
+def test_legacy_waivers_file_without_scenes_still_loads(tmp_path: Path):
+    wpath = tmp_path / ".lorewrite" / "waivers.json"
+    wpath.parent.mkdir(parents=True)
+    wpath.write_text('{"waived": ["old1"]}')
+    assert load_waivers(tmp_path) == {"old1"}
+    save_waiver(tmp_path, "new1", "manuscript/01.md")
+    assert load_waivers(tmp_path) == {"old1", "new1"}

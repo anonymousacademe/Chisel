@@ -104,8 +104,8 @@ class LaunchScreen(ModalScreen[Project | None]):
             yield Label("Recent projects", classes="launch-heading")
             yield ListView(id="recents")
             yield Label(
-                "enter: resume   o: open folder…   n: new project…"
-                "   s: settings   q: quit",
+                "enter: resume   o: open folder…   n: new project…\n"
+                "s: settings   q: quit",
                 id="launch-hint",
             )
 

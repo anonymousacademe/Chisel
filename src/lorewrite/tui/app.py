@@ -31,6 +31,7 @@ from ..core import entities as ent
 from ..core import settings as user_settings
 from ..core.continuity import (
     apply_canon_update,
+    clear_scene_waivers,
     filter_waived,
     get_canon,
     load_waivers,
@@ -88,7 +89,7 @@ HELP_TEXT = """\
   ctrl+b          hide/show the sidebar
   f11             writer mode — hide everything but the editor
   f9              rebuild the index from disk
-  ?               this help
+  f1              this help (also ? when not typing in the editor)
   ctrl+q          quit
 
 # Also in the palette (ctrl+p)
@@ -106,7 +107,7 @@ HELP_TEXT = """\
   [[Name]] still works; its brackets are faded. orange = no note yet
 
 Everything is saved as plain Markdown in your project folder.
-Press escape or ? to close this help.
+Press escape, f1 or ? to close this help.
 """
 
 
@@ -116,7 +117,8 @@ def _word_count(text: str, originals: dict[str, str] | None = None) -> int:
 
 
 class HelpScreen(ModalScreen[None]):
-    BINDINGS = [Binding("escape", "close"), Binding("question_mark", "close")]
+    BINDINGS = [Binding("escape", "close"), Binding("question_mark", "close"),
+                Binding("f1", "close")]
 
     def compose(self) -> ComposeResult:
         from textual.widgets import Markdown
@@ -223,7 +225,8 @@ class LorewriteApp(App):
         Binding("ctrl+b", "toggle_sidebar", "Sidebar"),
         Binding("f11", "writer_mode", "Writer mode"),
         Binding("f9", "rebuild_index", "Reindex"),
-        Binding("question_mark", "help", "Help"),
+        Binding("f1", "help", "Help"),
+        Binding("question_mark", "help", "Help", show=False),
         Binding("ctrl+q", "quit", "Quit"),
     ]
 
@@ -282,7 +285,7 @@ class LorewriteApp(App):
     #launch-title { text-style: bold; text-align: center; padding: 1 0; }
     .launch-heading { text-style: bold; padding: 1 0 0 0; }
     #recents { height: auto; max-height: 12; }
-    #launch-hint { padding: 1 0 0 0; color: $text-muted; }
+    #launch-hint { width: 100%; height: auto; padding: 1 0 0 0; color: $text-muted; }
     PathPrompt, NewProjectPrompt { align: center middle; }
     PathPrompt > *, NewProjectPrompt > * { width: 64; }
     PathPrompt Label, NewProjectPrompt Label {
@@ -1173,18 +1176,41 @@ class LorewriteApp(App):
             return
         if cost:
             self.notify(f"Continuity check done{cost}", timeout=3)
-        self.push_screen(ContinuityScreen(results))
+        self.push_screen(ContinuityScreen(results), self._continuity_closed)
 
     def on_waive_toggled(self, message: WaiveToggled) -> None:
         if self.project is None:
             return
         if message.waived:
-            save_waiver(self.project.root, message.waiver_key)
+            save_waiver(self.project.root, message.waiver_key, message.scene)
         else:
             remove_waiver(self.project.root, message.waiver_key)
 
+    def _continuity_closed(self, contradiction) -> None:
+        """Enter in the report jumps to the evidence line (report closes)."""
+        if contradiction is not None:
+            self._jump_to(contradiction)
+
     def on_jump_to_contradiction(self, message: JumpToContradiction) -> None:
-        c = message.contradiction
+        self._jump_to(message.contradiction)
+
+    def restore_waived(self) -> None:
+        """Palette: un-waive this scene's continuity issues."""
+        if self.project is None or not self._is_scene(self.current_path):
+            self.notify("Open a scene first", severity="warning")
+            return
+        rel = str(self.current_path.relative_to(self.project.root))
+        n = clear_scene_waivers(self.project.root, rel)
+        if n:
+            self.notify(f"Restored {n} waived continuity issue(s) — they will"
+                        " be reported again by the next check", timeout=4)
+        else:
+            self.notify("No waived continuity issues recorded for this scene",
+                        timeout=3)
+
+    restore_waived_issues = restore_waived
+
+    def _jump_to(self, c) -> None:
         if self.project is None or not c.scene:
             return
         path = self.project.root / c.scene

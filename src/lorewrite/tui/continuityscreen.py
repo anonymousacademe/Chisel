@@ -17,10 +17,11 @@ SEVERITY_MARKS = {"error": "!", "warning": "?", "note": "-"}
 class WaiveToggled(Message):
     """A contradiction was (un)waived. The app persists immediately."""
 
-    def __init__(self, waiver_key: str, waived: bool) -> None:
+    def __init__(self, waiver_key: str, waived: bool, scene: str = "") -> None:
         super().__init__()
         self.waiver_key = waiver_key
         self.waived = waived
+        self.scene = scene
 
 
 class JumpToContradiction(Message):
@@ -31,8 +32,9 @@ class JumpToContradiction(Message):
         self.contradiction = contradiction
 
 
-class ContinuityScreen(ModalScreen[None]):
-    """Review continuity flags. space: waive · enter: jump to line · esc: done"""
+class ContinuityScreen(ModalScreen[Contradiction | None]):
+    """Review continuity flags. space: waive · enter: jump to line (closes the
+    report) · esc: done. Dismisses with the contradiction to jump to, or None."""
 
     BINDINGS = [
         Binding("space", "toggle_waive", "Waive"),
@@ -89,21 +91,20 @@ class ContinuityScreen(ModalScreen[None]):
         index = self.query_one("#contradictions", ListView).index
         if index is None:
             return
-        key = self._contradictions[index].waiver_key()
+        c = self._contradictions[index]
+        key = c.waiver_key()
         if key in self._waived:
             self._waived.discard(key)
-            self.post_message(WaiveToggled(key, False))
+            self.post_message(WaiveToggled(key, False, c.scene))
         else:
             self._waived.add(key)
-            self.post_message(WaiveToggled(key, True))
+            self.post_message(WaiveToggled(key, True, c.scene))
         self._refresh_row(index)
 
     def action_jump(self) -> None:
         index = self.query_one("#contradictions", ListView).index
         if index is not None:
-            self.post_message(
-                JumpToContradiction(self._contradictions[index])
-            )
+            self.dismiss(self._contradictions[index])
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         if event.list_view.id == "contradictions":

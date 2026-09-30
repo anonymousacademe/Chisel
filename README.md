@@ -78,7 +78,7 @@ First launch shows a 4-page tour. Core keys:
 | `alt+←/→` | previous / next scene |
 | `f11` | writer mode |
 | `ctrl+s` | save (autosave is always on) |
-| `?` | all keybindings |
+| `f1` | all keybindings (`?` also works outside the editor) |
 
 ## AI setup (optional, for `ctrl+l` and the other AI features)
 

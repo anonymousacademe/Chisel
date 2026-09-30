@@ -30,7 +30,7 @@ Your work autosaves constantly. The bottom status bar shows
 the file, saved/modified state, word count, and cursor position.
 
   ctrl+n   new scene        f11   writer mode (hide everything else)
-  ctrl+s   save now         ?     all keybindings
+  ctrl+s   save now         f1    all keybindings
 """,
     """\
 # 3/5 — Links: the heart of lorewrite

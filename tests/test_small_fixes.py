@@ -1,0 +1,63 @@
+"""Follow-up fixes: help from the editor, launch hint width, version."""
+
+import tomllib
+from pathlib import Path
+
+import lorewrite
+from lorewrite.core.project import Project
+from lorewrite.tui.app import HelpScreen, LorewriteApp
+from lorewrite.tui.launch import LaunchScreen
+
+
+async def test_f1_opens_help_while_editor_is_focused(tmp_path: Path):
+    proj = Project.create(tmp_path / "n", title="N")
+    app = LorewriteApp(proj)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        assert app.focused is app.editor
+        before = app.editor.text
+        await pilot.press("f1")
+        await pilot.pause()
+        assert isinstance(app.screen, HelpScreen)
+        await pilot.press("f1")               # f1 closes it again
+        await pilot.pause()
+        assert not isinstance(app.screen, HelpScreen)
+        assert app.editor.text == before
+        # ? still types a character in the editor (it is prose)
+        await pilot.press("question_mark")
+        await pilot.pause()
+        assert not isinstance(app.screen, HelpScreen)
+        assert "?" in app.editor.text
+
+
+async def test_help_text_and_footer_mention_f1(tmp_path: Path):
+    from lorewrite.tui.app import HELP_TEXT
+    from lorewrite.tui.tour import PAGES
+
+    assert "f1" in HELP_TEXT and any("f1" in p for p in PAGES)
+    proj = Project.create(tmp_path / "n", title="N")
+    app = LorewriteApp(proj)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        keys = {b.key: b for b in app.BINDINGS}
+        assert keys["f1"].show
+
+
+async def test_launch_hint_fits_at_80_and_100_columns(tmp_path: Path):
+    for width in (80, 100):
+        app = LorewriteApp(None)
+        async with app.run_test(size=(width, 30)) as pilot:
+            await pilot.pause(0.5)
+            assert isinstance(app.screen, LaunchScreen)
+            hint = app.screen.query_one("#launch-hint")
+            text = str(hint.render())
+            assert "q: quit" in text
+            # every line of the hint is fully inside its box, none clipped
+            assert all(len(line) <= hint.size.width for line in text.splitlines())
+            assert hint.size.height >= len(text.splitlines())
+
+
+def test_pyproject_version_matches_package():
+    root = Path(lorewrite.__file__).resolve().parents[2]
+    data = tomllib.loads((root / "pyproject.toml").read_text())
+    assert data["project"]["version"] == lorewrite.__version__

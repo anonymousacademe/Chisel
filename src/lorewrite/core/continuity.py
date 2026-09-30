@@ -77,31 +77,66 @@ def _waivers_path(project_root: Path) -> Path:
     return project_root / ".lorewrite" / WAIVERS_FILE
 
 
-def load_waivers(project_root: Path) -> set[str]:
+def _read_waivers(project_root: Path) -> dict:
     try:
         data = json.loads(_waivers_path(project_root).read_text(encoding="utf-8"))
-        return set(data.get("waived", []))
-    except (OSError, json.JSONDecodeError, AttributeError):
-        return set()
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
-def save_waiver(project_root: Path, waiver_key: str) -> None:
+def load_waivers(project_root: Path) -> set[str]:
+    waived = _read_waivers(project_root).get("waived", [])
+    return set(waived) if isinstance(waived, list) else set()
+
+
+def _load_scenes(project_root: Path) -> dict[str, str]:
+    scenes = _read_waivers(project_root).get("scenes", {})
+    return dict(scenes) if isinstance(scenes, dict) else {}
+
+
+def save_waiver(project_root: Path, waiver_key: str,
+                scene: str | None = None) -> None:
+    """Waive *waiver_key*; *scene* (project-relative path) records where, so
+    the scene's waivers can be restored later."""
     waived = load_waivers(project_root)
     waived.add(waiver_key)
-    _write_waivers(project_root, waived)
+    scenes = _load_scenes(project_root)
+    if scene:
+        scenes[waiver_key] = scene
+    _write_waivers(project_root, waived, scenes)
 
 
 def remove_waiver(project_root: Path, waiver_key: str) -> None:
     waived = load_waivers(project_root)
     waived.discard(waiver_key)
-    _write_waivers(project_root, waived)
+    scenes = _load_scenes(project_root)
+    scenes.pop(waiver_key, None)
+    _write_waivers(project_root, waived, scenes)
 
 
-def _write_waivers(project_root: Path, waived: set[str]) -> None:
+def clear_scene_waivers(project_root: Path, scene: str) -> int:
+    """Un-waive every issue waived in *scene*; returns how many. (Waivers
+    made before scenes were recorded can't be attributed and stay.)"""
+    scenes = _load_scenes(project_root)
+    keys = {k for k, s in scenes.items() if s == scene}
+    if not keys:
+        return 0
+    waived = load_waivers(project_root) - keys
+    for k in keys:
+        scenes.pop(k)
+    _write_waivers(project_root, waived, scenes)
+    return len(keys)
+
+
+def _write_waivers(project_root: Path, waived: set[str],
+                   scenes: dict[str, str] | None = None) -> None:
     path = _waivers_path(project_root)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"waived": sorted(waived)}, indent=2),
-                    encoding="utf-8")
+    data = {"waived": sorted(waived)}
+    if scenes:
+        data["scenes"] = {k: v for k, v in sorted(scenes.items()) if k in waived}
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
 def filter_waived(

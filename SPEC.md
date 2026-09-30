@@ -144,7 +144,7 @@ lorewrite/
 - Command palette opens as a menu (`discover()` populated; empty query matches all): open scene/entity, insert link, **scene organization** (new / rename / move up / move down / delete-with-confirm), new entity, rebuild index
 - Scene files renamed by numeric prefix swap on move; delete detaches the buffer before opening the next scene (avoids autosave resurrecting the deleted file)
 - Index in SQLite, updated on save, full rebuild command (`f9`)
-- `?` help screen, `ctrl+b` sidebar toggle
+- `f1` help screen (`?` too when not typing in the editor), `ctrl+b` sidebar toggle
 - Headless smoke tests with Textual `Pilot`
 
 ### M2 — AI auto-linking ✅ (implemented)
@@ -161,7 +161,7 @@ the distinguishing mechanic — entity notes become a living story bible.
 Implemented via parallel agents per docs/specification-guide.md.*
 
 - "Check scene for continuity issues" (palette): strong model (default `anthropic/claude-sonnet-4.5`, override `[ai] strong_model`), **Jev pre-screen gate** (`core/jev_interface.py`, fail-open) so only canon-bearing entities flagged as plausible get the expensive call
-- Structured report (type/severity/entity/evidence/fix) validated app-side; evidence located to a line; **ContinuityScreen**: `space` waives (persisted in `.lorewrite/waivers.json` by stable content key, never re-reported), `enter` jumps to the offending line
+- Structured report (type/severity/entity/evidence/fix) validated app-side; evidence located to a line; **ContinuityScreen**: `space` waives (persisted in `.lorewrite/waivers.json` by stable content key, with the scene it was waived in; never re-reported unless restored via the palette action "Restore waived continuity issues (this scene)"), `enter` jumps to the offending line and closes the report
 - **Note accumulation (additions only)**: "Update story bible from scene" (palette) → the AI is sent each entity's existing canon (capped 1500 chars) and proposes only NEW facts (`{entity, new_facts[], evidence}`); unknown entities, empty facts and facts already in the canon (case-insensitive) are dropped app-side → review modal shows every fact in full, grouped by entity with existing canon dimmed, each fact toggleable with `space` → accepted facts are appended as `- fact` bullets to the managed `## Canon (auto)` section (created if missing). Existing lines are never removed or rewritten; author text outside the section is never touched
 - Error classes: physical attributes, timeline, character knowledge, object custody, present/absent, spelling drift
 - Deferred: whole-manuscript check, cross-scene retrieval layer
