@@ -25,6 +25,7 @@ from ..ai.client import (
 from ..ai.links import Suggestion, alias_form, suggest_links
 from ..ai.style import learn_style
 from ..ai.usage import LEDGER, format_cost
+from ..ai.writing import build_context, generate
 from ..core import drafts
 from ..core import entities as ent
 from ..core import settings as user_settings
@@ -53,6 +54,7 @@ from .editor import LinkedTextArea
 from .launch import LaunchScreen
 from .linkreview import AliasReviewScreen
 from .panels import BacklinkSelected, EntityPanel
+from .promptscreen import PromptScreen
 from .settingscreen import KeyPrompt
 from .sidebar import OpenFile, Sidebar
 from .stylereview import StyleReviewScreen
@@ -70,6 +72,9 @@ HELP_TEXT = """\
   ctrl+j          jump to the [[link]] under the cursor (creates the note if missing)
   ctrl+l          AI: find other ways this scene refers to your characters/places
                   ('the old smith' -> Borin) and add them as aliases
+  ctrl+g          AI write: draft at the cursor (prompt window) - or, on a
+                  {{expand: note}} marker, expand it - or, with text
+                  selected, rewrite the selection in your style
   f7 / f8         accept / reject the AI draft under the cursor
                   (drafts are marked in color until you accept them)
   f5              select all (f7 is accept)
@@ -203,6 +208,7 @@ class LorewriteApp(App):
         Binding("ctrl+j", "jump", "Jump to link"),
         Binding("ctrl+n", "new_scene", "New scene"),
         Binding("ctrl+l", "find_aliases", "Find aliases"),
+        Binding("ctrl+g", "generate", "AI write"),
         Binding("f7", "accept_draft", "Accept AI draft", show=False),
         Binding("f8", "reject_draft", "Reject AI draft", show=False),
         Binding("alt+left", "previous_scene", "Prev scene"),
@@ -297,6 +303,14 @@ class LorewriteApp(App):
     #continuity-hint, #noteupdate-hint {
         width: 76; padding: 0 2; color: $text-muted;
     }
+    PromptScreen { align: center middle; }
+    #prompt-title {
+        width: 76; padding: 1 2; background: $surface; border: solid $primary;
+    }
+    #prompt-input {
+        width: 76; height: 8; border: solid $primary; background: $surface;
+    }
+    #prompt-hint { width: 76; padding: 0 2; color: $text-muted; }
     StyleReviewScreen { align: center middle; }
     #style-header {
         width: 84; padding: 1 2; background: $surface; border: solid $primary;
@@ -342,6 +356,7 @@ class LorewriteApp(App):
         self._sidebar: Sidebar | None = None
         self._panel: EntityPanel | None = None
         self._status: Static | None = None
+        self._style_tip_shown = False
 
     # -- layout ---------------------------------------------------------------
 
@@ -870,6 +885,105 @@ class LorewriteApp(App):
 
     def reject_all_drafts(self) -> None:
         self._resolve_all_drafts(False)
+
+    # -- AI: generate — draft, expand, rewrite (M4) ---------------------------------
+
+    def action_generate(self) -> None:
+        """ctrl+g: rewrite the selection, expand the {{expand:}} marker under
+        the cursor, or draft new prose at the cursor (prompt window)."""
+        if self.project is None or not self._is_scene(self.current_path):
+            self.notify("Open a scene first", severity="warning")
+            return
+        text = self.editor.text
+        selected = self.editor.selected_text
+        if selected.strip():
+            start, end = self.editor.selection
+            lo = min(rowcol_to_offset(text, *start), rowcol_to_offset(text, *end))
+            hi = max(rowcol_to_offset(text, *start), rowcol_to_offset(text, *end))
+            self.push_screen(
+                PromptScreen("Rewrite the selection — edit the instruction:",
+                             "Rewrite this in my style."),
+                lambda instruction: self._start_generate(
+                    "rewrite", instruction, lo, hi),
+            )
+            return
+        offset = self._cursor_offset()
+        marker = drafts.expand_marker_at(text, offset)
+        if marker is not None:
+            if not marker.instruction.strip():
+                self.notify("Empty {{expand: }} marker — say what to write",
+                            severity="warning")
+                return
+            self._start_generate("expand", marker.instruction, marker.start,
+                                 marker.end)
+            return
+        self.push_screen(
+            PromptScreen("What should the AI write here? (e.g. \"one paragraph"
+                         " describing the busy street, stressed mood\")"),
+            lambda instruction: self._start_generate(
+                "draft", instruction, offset, offset),
+        )
+
+    generate_text = action_generate
+
+    def _start_generate(self, mode: str, instruction: str | None,
+                        start: int, end: int) -> None:
+        if not instruction:
+            return
+        text = self.editor.text
+        selection = text[start:end] if end > start else None
+        span = (start, end) if end > start else None
+        context = build_context(text, start, self.entities, self._canon_map(),
+                                load_style(self.project), span=span)
+        if load_style(self.project) is None and not self._style_tip_shown:
+            self._style_tip_shown = True
+            self.notify("Tip: learn a style guide first (ctrl+p → learn style)",
+                        timeout=5)
+        model = self._ai_model("writing")
+        self.notify(f"Drafting… ({model})", timeout=3)
+        self._generate_worker(mode, instruction, context, model, selection,
+                              start, end, self.current_path, text)
+
+    @work(exclusive=True, group="generate")
+    async def _generate_worker(self, mode, instruction, context, model,
+                               selection, start, end, path, snapshot) -> None:
+        calls = LEDGER.count()
+        try:
+            body = await asyncio.to_thread(
+                generate, mode, instruction, context, model,
+                selection=selection)
+        except Exception as exc:
+            self.notify(f"AI writing failed: {exc}", severity="error",
+                        timeout=6)
+            return
+        cost = self._cost_note(calls)
+        if self.current_path != path:
+            self.notify("Scene changed while drafting — draft discarded" + cost,
+                        severity="warning", timeout=5)
+            return
+        self._insert_draft(mode, body, start, end, selection, snapshot)
+        self.notify(f"AI draft ready — f7 accept · f8 reject{cost}", timeout=5)
+
+    def _insert_draft(self, mode: str, body: str, start: int, end: int,
+                      original: str | None, snapshot: str) -> None:
+        """Put *body* into the scene as a pending draft. The buffer may have
+        changed while the model worked: re-find what is being replaced, else
+        fall back to the current cursor (insertions) or give up (rewrites)."""
+        text = self.editor.text
+        if mode == "draft":
+            pos = start if text == snapshot else self._cursor_offset()
+            if pos > 0 and not text[pos - 1].isspace() and not body[0].isspace():
+                body = " " + body  # inside the draft: accept keeps the spacing
+            self.editor.replace_offsets(pos, pos, drafts.wrap(body))
+            return
+        if text[start:end] != original:
+            first = text.find(original)
+            if first == -1 or text.find(original, first + 1) != -1:
+                self.notify("The text changed while drafting — draft discarded",
+                            severity="warning", timeout=5)
+                return
+            start, end = first, first + len(original)
+        self.editor.replace_offsets(start, end, drafts.wrap(body, original))
 
     # -- AI: style guide (M4) ---------------------------------------------------
 

@@ -24,13 +24,19 @@ src/lorewrite/
     index.py            # SQLite backlink index; no-ops after close()
     recents.py          # recent projects; LOREWRITE_STATE_DIR env override
     settings.py         # user settings (tour_seen, ...)
+    style.py            # style.md (project root): load/save/backup, manuscript sampling
+    drafts.py           # pending AI text markers (<!--ai-->), expand markers
   ai/
     client.py           # OpenRouter via openai SDK; keyring/env key resolution
-    links.py            # M2 link suggestions: prompt, schema, validate, apply
+    links.py            # alias finder (ctrl+l): prompt, schema, validate (never edits text)
+    usage.py            # AI spend ledger (usage.cost) -> status bar
+    style.py            # learn a style guide from sampled prose
+    writing.py          # draft / expand / rewrite: context builder + plain-text generate
   tui/                  # everything Textual
     app.py              # LorewriteApp: layout, save, status, actions, AI wiring
     editor.py           # LinkedTextArea — see "fragile spots" below
-    sidebar.py panels.py launch.py commands.py linkreview.py tour.py theme.py
+    sidebar.py panels.py launch.py commands.py linkreview.py (alias review)
+    stylereview.py promptscreen.py tour.py theme.py
 tests/                  # pytest; asyncio_mode=auto; Pilot for TUI tests
 docs/ux-review-glm.md   # independent UX review (source of the M1.5 polish)
 docs/specification-guide.md  # M3–M8 implementation guide for parallel agent
@@ -74,7 +80,18 @@ docs/specification-guide.md  # M3–M8 implementation guide for parallel agent
 - **Deleting the open scene**: detach `current_path` BEFORE calling
   `open_file`, or autosave resurrects the deleted file (regression-tested).
 - **ListView swallows Enter** — modal screens with a ListView must handle
-  `on_list_view_selected` if Enter should confirm (see LinkReviewScreen).
+  `on_list_view_selected` if Enter should confirm (see AliasReviewScreen).
+- **Pending AI drafts live in the scene file** as `<!--ai-->…<!--/ai-->`
+  comments (`core/drafts.py`). Anything that sends scene text to an AI or
+  counts words must go through `drafts.strip_pending` (unaccepted AI text is
+  not canon). Generated text is only ever inserted wrapped, never bare.
+- **`f7` is TextArea's select-all**: `LinkedTextArea.BINDINGS` overrides it
+  (f7/f8 accept/reject a draft, `f5` select-all). Focused-widget bindings beat
+  App bindings, so a new App key that collides with a TextArea binding must be
+  re-bound on the editor too. `ctrl+g` (generate) is free in TextArea and is
+  also the submit key of `PromptScreen`.
+- The writing model may lack structured outputs: `ai/writing.py` and
+  `ai/style.py` never send `provider.require_parameters`.
 - **Terminal key limits**: `ctrl+[` IS Escape; `ctrl+enter` doesn't reach most
   terminals. Scene nav is `alt+←/→`, writer mode is `f11`.
 - **Command palette**: providers must implement `discover()` (else the palette
@@ -108,9 +125,11 @@ docs/specification-guide.md  # M3–M8 implementation guide for parallel agent
 
 ## Current state & what's next (2026-09-29)
 
-Done: M1 (editor+links), M1.5 (UX polish from the GLM review), M2 (AI
-auto-linking), M3 (continuity + Contextual Tracker), settings screen, model
-picker, bracket-free implicit mentions (SPEC §5). **Next: M4** (style-aware
-drafting, AI text visually marked until accepted).
+Done: M1 (editor+links), M1.5 (UX polish from the GLM review), M2 (alias
+finder — `ctrl+l` no longer inserts brackets), M3 (continuity + Contextual
+Tracker), settings screen (fast/strong/writing model pickers), bracket-free
+implicit mentions (SPEC §5), AI spend tracking, **M4** (style guide, `ctrl+g`
+draft/expand/rewrite, pending AI drafts with `f7`/`f8`). See
+docs/plan-m4-ai-writing.md for the implementation plan and its deviations.
 Known concern: user is unconvinced by the command palette as primary UI
 (SPEC §11b).

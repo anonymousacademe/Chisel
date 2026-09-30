@@ -1,4 +1,4 @@
-"""First-run tour: four pages, one concept each. Shown once (settings.tour_seen)."""
+"""First-run tour: five pages, one concept each. Shown once (settings.tour_seen)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from textual.widgets import Label, Markdown
 
 PAGES = [
     """\
-# 1/4 — Your project is just files
+# 1/5 — Your project is just files
 
 A lorewrite project is a plain folder:
 
@@ -21,7 +21,7 @@ Everything is Markdown. You can read, edit, git-commit, or back up
 the folder with any tool — lorewrite never locks you in.
 """,
     """\
-# 2/4 — Writing
+# 2/5 — Writing
 
 The center pane is your editor. It understands Markdown:
 # headings, *italic*, **bold** all render as you type.
@@ -33,7 +33,7 @@ the file, saved/modified state, word count, and cursor position.
   ctrl+s   save now         ?     all keybindings
 """,
     """\
-# 3/4 — Links: the heart of lorewrite
+# 3/5 — Links: the heart of lorewrite
 
 No brackets needed. Select a character or place name the first
 time you write it and press ctrl+j to make a note for it. From
@@ -44,7 +44,21 @@ The right panel previews the note under your cursor and lists
 every scene that mentions it (backlinks).
 """,
     """\
-# 4/4 — Finding things
+# 4/5 — AI writing help (optional)
+
+Bring an OpenRouter key (ctrl+p -> Settings) and the AI can write
+for you - but never on its own. Everything it writes is shown in
+color and stays a draft until you accept it.
+
+  ctrl+g   draft at the cursor - or expand {{expand: a note}} -
+           or, with text selected, rewrite it in your style
+  f7 / f8  accept / reject the draft under the cursor
+  ctrl+l   find other names your prose uses for your characters
+
+ctrl+p -> "learn style guide" teaches it your voice first.
+""",
+    """\
+# 5/5 — Finding things
 
   ctrl+p            the palette: scenes, entities, actions — just type
   alt+left/right    previous / next scene

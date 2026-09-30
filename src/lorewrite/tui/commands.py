@@ -121,6 +121,8 @@ class ActionProvider(_Provider):
          "Describe your voice from your own prose; review before saving style.md"),
         ("Open style guide", "open_style_guide",
          "Edit style.md, the style guide the AI writing features follow"),
+        ("AI write at cursor / expand / rewrite selection", "generate_text",
+         "Draft prose (prompt window), expand a {{expand: …}} marker, or rewrite the selection (ctrl+g)"),
         ("Accept all AI drafts in this scene", "accept_all_drafts",
          "Keep every pending AI draft as normal text (f7 does one)"),
         ("Reject all AI drafts in this scene", "reject_all_drafts",

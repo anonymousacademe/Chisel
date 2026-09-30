@@ -6,8 +6,9 @@ graph and the story's internal consistency up to date — without ever touching
 your prose uninvited.
 
 **Status:** early but usable. Milestones M1 (editor + wiki-links), M1.5 (UX
-polish), and M2 (AI auto-linking) are implemented and tested. See
-[SPEC.md](SPEC.md) for the full design and roadmap (M3 lore-checking is next).
+polish), M2 (alias finder), M3 (continuity + story bible) and M4 (style-aware
+AI drafting) are implemented and tested. See [SPEC.md](SPEC.md) for the full
+design and roadmap.
 
 ## Why
 
@@ -35,6 +36,13 @@ polish), and M2 (AI auto-linking) are implemented and tested. See
   characters and places ("the old smith" for Borin) and offers them as aliases
   after an accept/reject review — your scene text is never touched, no
   brackets (OpenRouter, BYOK)
+- **AI writing, always review-gated**: learn a **style guide** from your own
+  prose (`style.md`, plain Markdown you can edit), then `ctrl+g` to draft at the
+  cursor (prompt window), expand a `{{expand: note}}` marker, or rewrite the
+  selection in your style. Generated text shows in color and stays a draft
+  until you accept it (`f7`) or reject it (`f8`, original restored exactly).
+  Drafts live in the scene file as `<!--ai-->…<!--/ai-->` comments.
+- AI spend for the session in the status bar
 - Follows the Omarchy system theme automatically (falls back gracefully
   elsewhere)
 
@@ -64,6 +72,8 @@ First launch shows a 4-page tour. Core keys:
 | `ctrl+p` | command palette — everything lives here |
 | `ctrl+j` | open the note for the name under the cursor; with a name selected (or on an unresolved link), create it |
 | `ctrl+l` | AI: find aliases ("the old smith") for your characters/places in this scene |
+| `ctrl+g` | AI write: draft at cursor / expand `{{expand: …}}` / rewrite selection |
+| `f7` / `f8` | accept / reject the AI draft under the cursor (`f5` = select all) |
 | `alt+←/→` | previous / next scene |
 | `f11` | writer mode |
 | `ctrl+s` | save (autosave is always on) |
@@ -95,6 +105,20 @@ writing_model = "anthropic/claude-sonnet-4.5"
 
 AI spend for the session is shown in the status bar (`AI $0.0123`).
 
+### AI writing
+
+1. `ctrl+p` → *Action · AI: learn style guide from manuscript* — reviews a
+   proposed `style.md` (voice, rhythm, diction, dialogue, avoid, verbatim
+   exemplars) before saving; *Open style guide* lets you edit it by hand.
+2. `ctrl+g` in a scene: with text selected it rewrites it; on a
+   `{{expand: describe the rain}}` marker it expands it; otherwise it opens a
+   prompt window (submit with `ctrl+g`, cancel with `esc`) and inserts the
+   result at the cursor.
+3. The result is a **pending draft** (colored italics, faded
+   `<!--ai-->` marker comments). `f7` accepts, `f8` rejects; the palette has
+   *Accept/Reject all AI drafts in this scene*. Word counts, continuity checks
+   and the alias finder ignore pending text.
+
 ## Your project on disk
 
 ```
@@ -118,7 +142,7 @@ stats) → M7 LaTeX export → M8 beyond-novels modes. Details in
 ## Development
 
 ```bash
-.venv/bin/python -m pytest    # 75 tests: pure core units + headless TUI (Pilot)
+.venv/bin/python -m pytest    # pure core units + headless TUI (Pilot)
 ```
 
 Design document: [SPEC.md](SPEC.md). Agent/contributor guide:
