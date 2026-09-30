@@ -47,6 +47,27 @@ design and roadmap.
 - Follows the Omarchy system theme automatically (falls back gracefully
   elsewhere)
 
+## Desktop GUI
+
+The same projects open in a desktop app ("LoreWriter"): a live-preview Markdown
+editor (link brackets and AI markers hidden, mentions coloured), binder, scene
+corkboard and outline, notes with backlinks, and the AI assistant panel. Every AI
+result is still suggest-and-confirm. Parts of the design that do not exist yet
+are shown dimmed with the tooltip "Not in LoreWriter yet".
+
+```bash
+# a venv that can see the system PyGObject / WebKitGTK 4.1 bindings
+python3 -m venv --system-site-packages .venv-gui
+.venv-gui/bin/pip install -e ".[dev,gui]"
+(cd gui && npm install && npm run build)       # builds gui/dist (Node 20+)
+.venv-gui/bin/lorewrite-gui                     # launch screen
+.venv-gui/bin/lorewrite-gui --project ~/novels/my-book
+```
+
+Details (architecture, dev server, tests): [gui/README.md](gui/README.md) and the
+"Desktop GUI" section of [SPEC.md](SPEC.md). The terminal app below is unchanged
+and can run on the same project.
+
 ## Install
 
 Requires Python 3.11+.

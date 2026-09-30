@@ -32,11 +32,18 @@ src/lorewrite/
     usage.py            # AI spend ledger (usage.cost) -> status bar
     style.py            # learn a style guide from sampled prose
     writing.py          # draft / expand / rewrite: context builder + plain-text generate
+  gui/                  # desktop GUI backend (pywebview); no Textual
+    api.py              # Api: JSON bridge (every method -> {ok,...}); facade() = js_api
+    workspace.py        # Project -> Workspace JSON for the React UI
+    devserver.py        # headless: gui/dist + POST /api/<method> (+ --mock-ai)
+    mockai.py           # canned AI for screenshots/demos (never the real app)
+    app.py              # lorewrite-gui: pywebview window
   tui/                  # everything Textual
     app.py              # LorewriteApp: layout, save, status, actions, AI wiring
     editor.py           # LinkedTextArea — see "fragile spots" below
     sidebar.py panels.py launch.py commands.py linkreview.py (alias review)
     stylereview.py promptscreen.py tour.py theme.py
+gui/                    # React/TS front end (see gui/README.md); src-tauri/ is unused
 tests/                  # pytest; asyncio_mode=auto; Pilot for TUI tests
 docs/ux-review-glm.md   # independent UX review (source of the M1.5 polish)
 docs/specification-guide.md  # M3–M8 implementation guide for parallel agent
@@ -49,6 +56,15 @@ docs/specification-guide.md  # M3–M8 implementation guide for parallel agent
 .venv/bin/pip install -e ".[dev]"   # after pulling
 .venv/bin/python -m pytest          # full suite (must stay green)
 .venv/bin/lorewrite                 # run the app
+```
+
+GUI (branch `gui`; plan: docs/plan-gui.md, spec: SPEC "Desktop GUI"):
+
+```bash
+python3 -m venv --system-site-packages .venv-gui && .venv-gui/bin/pip install -e ".[dev,gui]"
+(cd gui && npm install && npm run build && npm run lint && npm test)
+.venv-gui/bin/lorewrite-gui [--project PATH]
+PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --mock-ai   # headless
 ```
 
 ## Non-negotiable principles (from SPEC §2)
@@ -101,6 +117,40 @@ docs/specification-guide.md  # M3–M8 implementation guide for parallel agent
   raises). Wrap entry generation in try/except so one bad provider can't blank
   the palette (`_Provider._safe_entries`).
 
+## GUI fragile spots — read before touching
+
+- **The GUI never re-implements project logic in TypeScript.** Matching, parsing,
+  drafts, canon, waivers, models, cost: add it to `core/`/`ai/` (with tests, usable
+  by the TUI) and expose it through `gui/api.py`. `tui/app.py` and `gui/api.py`
+  share helpers — change both callers when you change one.
+- **pywebview recurses into every public attribute of `js_api`.** Hand it
+  `Api.facade()` (bridge methods only), never the `Api` (it holds `project`/`index`).
+  Every bridge method must be `@bridge` (returns `{ok,...}`, never raises) and every
+  method that touches the project takes `self._lock` — but **release it before any
+  AI network call** (a held lock freezes saves).
+- **Offsets crossing the bridge are UTF-16** (CodeMirror); Python slices are code
+  points. Use `core.spans.to_utf16/from_utf16/index_to_utf16`; astral characters
+  are tested.
+- **Draft markers**: `register_draft` (sidecar) must succeed **before** the editor
+  writes `<!--ai id="…"-->`; reject with a missing original is skipped, never a
+  delete. Saves never recreate a deleted scene (`save_document` needs the file);
+  the client `detach()`es the `SaveController` before deleting.
+- **Autosave vs the TUI**: saves carry the file's `mtime` (ns, as a string);
+  a mismatch with different text is a conflict, never a silent overwrite.
+- **CodeMirror decorations live in one `StateField`** (`editor/cm.ts`): block
+  widgets and line-break-spanning replaces cannot come from a `ViewPlugin`.
+  Hard-wrapped lines are joined by replacing the `\n` with a space widget (display
+  only); never edit the file to "fix" wrapping.
+- **Placeholders** use `components/placeholder.ts` only. Do not invent a second
+  treatment, and do not show fake data in them.
+- **Dev-only fakes**: `mockai.py` and `backend/mock.ts` must never be reachable in
+  the real app; tests booby-trap `make_client`. Screenshots/interaction tests run
+  headless Chromium against `devserver` on a *copy* of `examples/residual` with
+  `LOREWRITE_STATE_DIR` pointed at a temp dir and the keyring backend nulled.
+- Key map differences from the TUI: `ctrl+j` in the GUI editor opens/makes a note
+  (elsewhere it focuses the composer, as designed); `ctrl+k` quick switcher; `f11`
+  focus mode.
+
 ## Testing conventions
 
 - `tests/conftest.py` isolates app state per test via `LOREWRITE_STATE_DIR`
@@ -109,7 +159,12 @@ docs/specification-guide.md  # M3–M8 implementation guide for parallel agent
 - TUI tests use `app.run_test(size=(120, 40))` + `pilot`; call
   `await pilot.pause()` after actions before asserting.
 - Mock AI at the function boundary: monkeypatch `lorewrite.tui.app.<ai_fn>`
-  (see `tests/test_ai_links.py`). Never hit the network in tests.
+  (see `tests/test_ai_links.py`) or, for the GUI, `lorewrite.gui.api.<fn>`
+  (see `tests/test_gui_ai.py`). Never hit the network in tests.
+- GUI: `tests/test_gui_*.py` + `tests/test_spans.py` (plain pytest, temp projects via
+  `tests/gui_helpers.py`); `gui/src/**/*.test.ts` (vitest). The workspace JSON
+  fixture `gui/src/data/fixtures/workspace.json` is regenerated with
+  `LOREWRITE_REGEN_FIXTURE=1 pytest tests/test_gui_workspace.py`.
 
 ## Workflow requirements
 
@@ -125,13 +180,14 @@ docs/specification-guide.md  # M3–M8 implementation guide for parallel agent
   `Scene · / Entity · / Link · / Action ·` text.
 - Commits only when the user asks. Match existing style; minimal diffs.
 
-## Current state & what's next (2026-09-29)
+## Current state & what's next (2026-09-30)
 
 Done: M1 (editor+links), M1.5 (UX polish from the GLM review), M2 (alias
-finder — `ctrl+l` no longer inserts brackets), M3 (continuity + Contextual
-Tracker), settings screen (fast/strong/writing model pickers), bracket-free
+finder), M3 (continuity + Contextual Tracker), settings screen, bracket-free
 implicit mentions (SPEC §5), AI spend tracking, **M4** (style guide, `ctrl+g`
-draft/expand/rewrite, pending AI drafts with `f7`/`f8`). See
-docs/plan-m4-ai-writing.md for the implementation plan and its deviations.
+draft/expand/rewrite, pending AI drafts with `f7`/`f8`; see
+docs/plan-m4-ai-writing.md). **Desktop GUI** (branch `gui`, docs/plan-gui.md):
+pywebview shell, real binder/editor/notes/AI over the same core, placeholders for
+the parts of the design LoreWriter does not do yet.
 Known concern: user is unconvinced by the command palette as primary UI
-(SPEC §11b).
+(SPEC §11b) — the GUI is the answer being tried.

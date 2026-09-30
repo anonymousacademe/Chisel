@@ -209,14 +209,64 @@ fiction workflow is solid.*
 - **Technical documents/textbooks**: figures, tables, captions, and LaTeX equations become the "entities" (first-class linkable, checked for consistency); AI format-consistency checking; figure generation from a figure/table design guide
 - **Screenplay mode**: screenplay formatting rules in the editor, same AI toolset, LaTeX screenplay export
 
-### Future direction — Obsidian-like GUI
+### Desktop GUI (pywebview + the React design) ✅ (implemented, branch `gui`)
 
-*From vault "Updated GUI.md":* long-term, an Obsidian-style GUI (markdown that
-auto-renders as you type) may be a better writing experience than the TUI.
-Noted as a possibility, not a commitment. The `core/` (pure Python) / `tui/`
-split exists precisely so a second frontend could reuse project handling,
-links, entities, index, and AI features unchanged. Revisit after M4/M7; the
-TUI remains the supported interface until then.
+An Obsidian-style desktop front end over the same `core/` and `ai/`: a native
+window (pywebview, WebKitGTK) showing a React/TypeScript UI built from the
+"LoreWriter" Figma design (`gui/`). The TUI stays fully supported and unchanged;
+both edit the same plain-Markdown projects.
+
+- **Shell.** `lorewrite-gui` (`src/lorewrite/gui/app.py`) opens a frameless
+  1600×1000 window on `gui/dist` and hands it a bridge object. The UI calls the
+  Python core **in-process** through pywebview's `js_api`; there is no server in
+  the real app. Tauri is not used (`gui/src-tauri/` is kept untouched for a
+  possible later packaging path).
+- **Bridge.** `gui/api.py::Api` — every public method takes JSON and returns
+  `{ok: true, …}` or `{ok: false, error}`; it never raises across the bridge.
+  One `RLock` guards project writes and is **not** held during AI network calls
+  (saves stay responsive). `workspace.py` builds the binder/status JSON the UI
+  renders (`gui/src/data/types.ts` mirrors it; one JSON fixture is checked by
+  pytest and vitest). `devserver.py` serves `gui/dist` plus `POST /api/<method>`
+  on localhost for headless-browser screenshots; `--mock-ai` answers AI calls
+  with canned results (no network).
+- **Nothing is re-implemented in TypeScript.** Matching of names, `[[links]]`,
+  pending drafts and `{{expand:}}` markers is computed by `core/spans.py` (offsets
+  converted to UTF-16 for the editor); saving, index updates, drafts, canon,
+  waivers, models and cost all call the existing `core/`/`ai/` modules. Logic the
+  TUI and GUI share was factored out of `tui/app.py` (`write_atomic`,
+  `count_words`, `canon_map`, `resolve_model`, `prepare_draft`, `fresh_id`,
+  `locate_evidence`, `ai.writing.ask`).
+- **Editor.** CodeMirror 6 on the plain Markdown file. The first `# heading` is
+  the scene title (kicker "SCENE NN" from the filename prefix); mentions are
+  coloured, `[[` `]]` and `Name|` are hidden unless the cursor is inside the link,
+  pending AI drafts hide their `<!--ai-->` markers and show inline Accept/Reject
+  (`f7`/`f8`), hard-wrapped source lines are shown as flowing paragraphs (display
+  only, a setting). Autosave after 1.5 s of idle, on blur and on `ctrl+s`; if the
+  file changed on disk since it was opened (the TUI may be running) nothing is
+  overwritten and a banner offers *Reload from disk* / *Keep my version*.
+- **AI stays suggest-and-confirm.** Continuity issues are cards (Review passage /
+  Dismiss = waive); alias finder and story-bible updates are review dialogs with
+  opt-in rows; the style guide is an editable proposal saved only on confirm;
+  draft/expand/rewrite text only ever arrives as a pending `<!--ai-->` draft
+  whose replaced original is stored in `.drafts/` **before** the marker is written;
+  chat (`ask`) answers in the panel only, with *Insert as draft*.
+- **Placeholders.** Parts of the design that LoreWriter does not do yet are drawn
+  as designed but dimmed, non-interactive, tooltip "Not in LoreWriter yet"
+  (`gui/src/components/placeholder.ts`): the "Draft" badge and status-bar Draft /
+  Snapshots / Sync / Streak items, the history rail button, Front Matter / Parts /
+  Research / Unplaced Scenes / Trash rows, Collections, the comment button, the
+  status tag and word target, the Status / POV / Scene-purpose inspector fields,
+  the Brainstorm and Research quick actions, conversation history, attach-context
+  and the reply "Helpful" button. No fake data is shown for them.
+- **Keys.** `ctrl+k` quick switcher, `ctrl+s` save, `ctrl+n` new scene, `f11`
+  focus mode, `ctrl+j` in the editor: open the note under the cursor / make a note
+  for the selected name (elsewhere it focuses the assistant composer, as in the
+  design), `ctrl+g` draft / expand / rewrite, `f7`/`f8` accept/reject the draft
+  under the cursor, ctrl-click a name to open its note in the Notes tab.
+- **Known limits.** Closing the window from the window manager (not the in-app
+  button) relies on the 1.5 s autosave and the blur/pagehide flush rather than a
+  synchronous final save. Window resizing on a frameless GTK window depends on the
+  compositor. Tauri packaging is untested.
 
 ## 8. Cost & key management
 
@@ -230,6 +280,7 @@ TUI remains the supported interface until then.
 
 - `core/` is pure Python: full unit tests, no TUI needed (parsing, index, backlinks, entity resolution)
 - TUI: `pytest` + `pytest-asyncio` + Textual `Pilot` headless tests (open project, type a link, jump, create note, backlinks update)
+- GUI: the `Api`/`workspace`/`spans` layers are plain pytest (temp projects, AI mocked at `lorewrite.gui.api.<fn>`, `make_client` booby-trapped); the React side uses `vitest` for pure logic (decoration mapping, save state machine, transports, draft anchoring) and headless Chromium against `devserver --mock-ai` for screenshots and interaction checks
 - AI: responses mocked at the `openai` client boundary; golden-file tests for prompt assembly and offset validation
 
 ## 10. Risks
@@ -240,6 +291,7 @@ TUI remains the supported interface until then.
 | Structured-output compliance varies per OpenRouter endpoint | `provider.require_parameters: true`; app-side offset validation; retry path |
 | Large-scene editor performance (tree-sitter reparse) | Debounced handlers; benchmark at 50k-word scenes in M1 |
 | Index staleness after external edits | Index is rebuildable (`f9`); mtime check on project open |
+| pywebview/WebKitGTK quirks (frameless window, key events, tooltips) | Everything user-visible is also exercised in headless Chromium against the same bridge; one manual smoke launch per release; `src-tauri/` kept as a fallback shell |
 | AI scope creep into prose | Hard rule: no AI feature mutates text without explicit per-instance author confirmation |
 
 ## 11. Decisions (resolved)

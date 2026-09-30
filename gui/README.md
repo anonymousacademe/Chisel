@@ -1,72 +1,67 @@
-# LoreWriter — desktop GUI (v0.2.0)
+# LoreWriter — desktop GUI
 
-A Tauri 2 + React/TypeScript front end for LoreWriter, built from `LoreWriter_1.fig`
-("The Meridian Archive workspace"). It replaces the TUI's presentation layer. The
-existing LoreWriter logic plugs in behind three backend calls.
+A React/TypeScript UI (from the `LoreWriter_1.fig` design, "The Meridian Archive
+workspace") shown in a native **pywebview** window. The UI talks to the Python core
+in-process through pywebview's `js_api`; all project logic lives in `core/` and `ai/`
+(see the "Desktop GUI" section of [SPEC.md](../SPEC.md)).
 
 ## Run
 
 ```bash
-# Linux build deps (Ubuntu/Debian)
-sudo apt install libwebkit2gtk-4.1-dev libxdo-dev libssl-dev librsvg2-dev build-essential
-# plus Rust (https://rustup.rs) and Node 20+
-
-npm install
-npm run dev          # UI only, in a browser at http://localhost:5173 (mock data)
-npm run tauri dev    # native window
-npm run tauri build  # release bundles (.deb/.rpm/.AppImage) in src-tauri/target/release/bundle
+python3 -m venv --system-site-packages .venv-gui     # needs system PyGObject + WebKit2 4.1
+.venv-gui/bin/pip install -e ".[dev,gui]"
+cd gui && npm install && npm run build               # writes gui/dist (git-ignored)
+.venv-gui/bin/lorewrite-gui [--project PATH]         # --dev URL loads `npm run dev` instead
 ```
 
-A prebuilt `LoreWriter_0.2.0_amd64.deb` comes with this handoff: `sudo apt install ./LoreWriter_0.2.0_amd64.deb`.
+`lorewrite-gui` exits with a clear message when `gui/dist/index.html` is missing.
+
+## Develop
+
+```bash
+npm run dev      # the UI alone in a browser (http://localhost:5173) on an in-memory mock core
+npm run build    # tsc -b && vite build
+npm run lint     # oxlint
+npm test         # vitest: decoration mapping, save state machine, transports, ...
+
+# the real core, headless (for screenshots / debugging), on a *copy* of a project:
+PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project /tmp/residual [--mock-ai]
+# prints http://127.0.0.1:<port>/ ; open it in Chromium. --mock-ai = canned AI, no network.
+```
 
 ## Layout
 
 ```
 src/
-  styles/tokens.css      colors, fonts and radii taken from the Figma file
-  data/types.ts          the Workspace model the UI renders
-  data/mock.ts           sample project (the design's content, verbatim)
-  backend/index.ts       Backend interface: mock in the browser, Tauri invoke() in the app
-  components/            TitleBar, ActivityRail, Binder, Editor, Assistant, StatusBar
-  App.tsx                state and wiring
-src-tauri/
-  src/lib.rs             command stubs: get_workspace, save_document, ask_assistant
-  tauri.conf.json        frameless 1600×1000 window (min 1280×760); custom title bar
+  backend/transport.ts   pywebview | http (devserver) | in-memory mock, picked at startup
+  backend/api.ts         typed wrappers; method names match lorewrite.gui.api.Api
+  backend/mock.ts        the mock core used by `npm run dev`
+  data/types.ts          Workspace / document / AI result shapes (mirror workspace.py)
+  data/tree.ts switcher.ts noteBlocks.ts   pure helpers (vitest)
+  editor/cm.ts           CodeMirror setup: decorations, title block, draft widgets, hover cards
+  editor/spans.ts        span -> decoration mapping, soft breaks (pure)
+  editor/saveController.ts   autosave + conflict state machine (pure)
+  editor/drafts.ts       where generated text lands if the buffer changed meanwhile
+  components/            TitleBar ActivityRail Binder Editor EditorPane Assistant NotesPanel
+                         StatusBar Launch QuickSwitcher SettingsDialog ReviewDialogs Dialogs Toast
+  components/placeholder.ts   the one "Not in LoreWriter yet" treatment
+  styles/tokens.css      colours, fonts, radii from the Figma file
+src-tauri/               the original Tauri shell from the handoff: kept, unused, not built
+design/figma-reference.png
 ```
 
-## Connecting the existing LoreWriter core
+## Placeholders
 
-The UI only needs these calls (see `src/backend/index.ts`):
-
-| Command          | Args                         | Returns                                  |
-|------------------|------------------------------|------------------------------------------|
-| `get_workspace`  | —                            | `Workspace` JSON (see `data/types.ts`)   |
-| `save_document`  | `id`, `paragraphs: string[]` | —                                        |
-| `ask_assistant`  | `prompt`, `scope`            | reply text                               |
-
-Each stub in `lib.rs` returns an error right now, and the UI then falls back to mock data.
-If the TUI is Python, the simplest route is to package its core as a
-[Tauri sidecar](https://v2.tauri.app/develop/sidecar/) that reads and writes JSON on
-stdin/stdout, and have the three commands forward to it.
-
-## Interactive now (mock backend)
-
-- Binder: expand and collapse items, select a document, arrow and Enter keys. The Search rail icon filters the tree
-- Editor: Manuscript, Corkboard and Outline views. Paragraphs are editable, and "Continue the scene…" appends a new one. Undo, redo, bold and italic work
-- Live word counts: the target, session and project totals update as you type
-- Focus mode hides both side panels
-- Assistant: the quick actions pre-fill the composer, and Ctrl/⌘+J focuses it. Send, regenerate, copy and like work. The Context and Notes tabs work. Review passage scrolls to the flagged paragraph and Dismiss clears the insight
-- Custom title bar: the window controls work and the bar drags the window
-- The zoom control in the status bar changes the prose size
-
-## Not wired yet
-
-- Bold and italic change how text looks, but only plain text is saved
-- These controls are placeholders: link, new document, conversation history, settings, snapshots and collections
+Anything the design shows that LoreWriter does not do yet is rendered as designed but
+dimmed, with `aria-disabled` and the tooltip "Not in LoreWriter yet", via
+`placeholderProps` / `<Placeholder>` / `IconButton placeholder` / `Tag placeholder`.
+Never fake data; never a silent button. Search the source for `placeholder` to list them.
 
 ## Notes from the design
 
-- Two navigation slots on the activity rail are empty in the Figma file, so they are left empty here too.
-- The assistant disclaimer says "Muse can be wrong…" while the panel is titled "LoreWriter". This is kept as designed, but you probably want to fix it.
-- In Figma the active tab's label sits at the top of the tab, and the other labels are centered. Here all tab labels are centered.
-- Icons come from Lucide (lucide-react), matching the Lucide icon names the design uses.
+- The two empty navigation slots on the activity rail are left empty, as in Figma.
+- The assistant disclaimer reads "LoreWriter can be wrong. Review changes before applying."
+  (the handoff said "Muse").
+- The design's marker icons in the right gutter of the page were mock annotations and
+  are not drawn; comments are a placeholder button in the toolbar.
+- Icons come from Lucide (`lucide-react`).
