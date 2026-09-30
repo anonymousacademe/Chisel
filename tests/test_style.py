@@ -293,3 +293,17 @@ async def test_style_actions_in_palette(proj):
     titles = [t for t, _, _ in ActionProvider.ACTIONS]
     assert "AI: learn style guide from manuscript" in titles
     assert "Open style guide" in titles
+
+
+async def test_style_review_renders_bullet_lists_at_natural_height(proj):
+    # a bare `Horizontal { height: 1fr }` app rule once inflated Markdown list
+    # items so only the first bullet of the preview was visible
+    md = "# Style guide\n\n## Voice\n\n- one\n- two\n- three\n\n## Diction\n\n- four\n"
+    app = LorewriteApp(proj)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.push_screen(StyleReviewScreen(md, False))
+        await pilot.pause(1.0)
+        lists = list(app.screen.query("MarkdownBulletList"))
+        assert len(lists) == 2
+        assert [lst.size.height for lst in lists] == [3, 1]

@@ -222,7 +222,9 @@ class LorewriteApp(App):
     ]
 
     CSS = """
-    Horizontal { height: 1fr; }
+    /* only the main layout row: a bare `Horizontal` rule also hit the
+       Markdown widget's list items and blew up bullet lists */
+    Screen > Horizontal { height: 1fr; }
     #sidebar { width: 28; border-right: solid $primary; }
     #panel { width: 38; border-left: solid $primary; }
     .sidebar-heading, .panel-heading {
