@@ -10,7 +10,12 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 
-from ..core.continuity import Contradiction, contradiction_from_dict, locate_evidence
+from ..core.continuity import (
+    Contradiction,
+    contradiction_from_dict,
+    get_canon,
+    locate_evidence,
+)
 from ..core.jev_interface import pre_screen
 from ..core.entities import Entity
 from .client import usage_extra_body
@@ -69,16 +74,10 @@ ACCUMULATION_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "entity": {"type": "string"},
-                    "existing_canon": {"type": "string"},
-                    "new_canon": {"type": "string"},
-                    "justification": {"type": "string"},
+                    "new_facts": {"type": "array", "items": {"type": "string"}},
+                    "evidence": {"type": "string"},
                 },
-                "required": [
-                    "entity",
-                    "existing_canon",
-                    "new_canon",
-                    "justification",
-                ],
+                "required": ["entity", "new_facts", "evidence"],
                 "additionalProperties": False,
             },
         }
@@ -109,27 +108,31 @@ unreliable narrator effects as contradictions.
 """
 
 ACCUMULATION_SYSTEM_PROMPT = """\
-You propose canon updates for entity notes based on a new scene.
+You propose ADDITIONS to entity notes based on a new scene.
 
-Given entity names and the scene text, determine what new facts the scene
-establishes about each entity that appears in it. Rules:
-- Only include facts directly stated or strongly implied by the scene text.
-- new_canon must be a FULL replacement of the entity's canon section —
-  merge existing canon with new facts, preserving everything that remains
-  true and adding what the scene establishes. Do not drop existing canon
-  unless the scene explicitly contradicts it.
+You are given each entity's existing canon and the scene text. List only NEW
+facts the scene establishes about an entity that are not already in its
+existing canon. Rules:
+- One short, self-contained fact per item in new_facts.
+- Only facts directly stated or strongly implied by the scene text.
+- Never restate, reword, merge or "correct" existing canon; you cannot remove
+  or change it, only add.
 - No speculation, inference beyond strong implication, or headcanon.
-- If the scene establishes nothing new about an entity, omit that entity
-  from the response entirely.
+- evidence: a brief quote or paraphrase from the scene supporting the facts.
+- If the scene establishes nothing new about an entity, omit that entity.
 """
+
+CANON_CAP = 1500
 
 
 @dataclass(frozen=True)
 class CanonUpdate:
+    """New facts to append to one entity's managed canon section."""
+
     entity: str
-    existing_canon: str
-    new_canon: str
-    justification: str
+    new_facts: tuple[str, ...]
+    evidence: str = ""
+    existing_canon: str = ""  # for display only; filled app-side
 
 
 def build_check_prompt(scene_text: str, canon_by_name: dict[str, str]) -> str:
@@ -223,8 +226,24 @@ def check_scene(
     return parse_contradictions(raw, scene_text, "")
 
 
-def parse_canon_updates(raw: str) -> list[CanonUpdate]:
-    """Parse the model's JSON. Tolerant: skips malformed items."""
+def _fact_key(fact: str) -> str:
+    return " ".join(fact.casefold().lstrip("-*• ").rstrip(" .").split())
+
+
+def clean_fact(fact: str) -> str:
+    """One-line fact without a leading bullet marker."""
+    return " ".join(str(fact).split()).lstrip("-*• ").strip()
+
+
+def parse_canon_updates(
+    raw: str, entities: list[Entity] | None = None
+) -> list[CanonUpdate]:
+    """Parse and validate the model's JSON. Tolerant: skips malformed items.
+
+    With *entities*: unknown entities are dropped, names are canonicalized,
+    and facts already present in an entity's canon (case-insensitive) or
+    repeated within the reply are dropped. Empty facts are always dropped.
+    """
     try:
         data = json.loads(raw)
     except (json.JSONDecodeError, TypeError):
@@ -232,20 +251,43 @@ def parse_canon_updates(raw: str) -> list[CanonUpdate]:
     items = data.get("updates") if isinstance(data, dict) else None
     if not isinstance(items, list):
         return []
+    by_name = {}
+    for e in entities or []:
+        for n in e.names:
+            by_name.setdefault(n.casefold(), e)
     results: list[CanonUpdate] = []
+    seen: dict[str, set[str]] = {}
     for item in items:
         if not isinstance(item, dict):
             continue
         try:
-            entity = str(item["entity"])
-            existing = str(item["existing_canon"])
-            new = str(item["new_canon"])
-            justification = str(item["justification"])
+            name = str(item["entity"])
+            facts = item["new_facts"]
         except (KeyError, TypeError):
             continue
-        if not entity or not new:
+        if not name or not isinstance(facts, list):
             continue
-        results.append(CanonUpdate(entity, existing, new, justification))
+        existing = ""
+        if entities is not None:
+            entity = by_name.get(name.casefold())
+            if entity is None:
+                continue
+            name = entity.name
+            existing = get_canon(entity.body)
+        known = seen.setdefault(
+            name, {_fact_key(ln) for ln in existing.splitlines() if ln.strip()})
+        kept: list[str] = []
+        for fact in facts:
+            fact = clean_fact(fact) if isinstance(fact, str) else ""
+            key = _fact_key(fact)
+            if not key or key in known:
+                continue
+            known.add(key)
+            kept.append(fact)
+        if kept:
+            results.append(CanonUpdate(name, tuple(kept),
+                                       str(item.get("evidence") or ""),
+                                       existing))
     return results
 
 
@@ -255,16 +297,22 @@ def propose_canon_updates(
     model: str,
     client=None,
 ) -> list[CanonUpdate]:
-    """Network call: ask what canon the scene establishes about each entity.
+    """Network call: ask what NEW canon the scene establishes per entity.
 
+    Additions only: each entity's existing canon is sent so the model can skip
+    known facts, and the reply is validated app-side against it.
     Synchronous — run in a worker thread from the TUI.
     """
-    roster = "\n".join(
-        f"- {e.name} ({e.type})"
-        + (f" — aliases: {', '.join(e.aliases)}" if e.aliases else "")
-        for e in entities
-    )
-    prompt = f"ENTITIES:\n{roster or '(none)'}\n\nSCENE:\n{scene_text}"
+    roster = []
+    for e in entities:
+        line = f"- {e.name} ({e.type})"
+        if e.aliases:
+            line += f" — aliases: {', '.join(e.aliases)}"
+        canon = get_canon(e.body)[:CANON_CAP]
+        line += f"\n  existing canon:\n{canon}" if canon else "\n  existing canon: (none)"
+        roster.append(line)
+    prompt = (f"ENTITIES:\n{chr(10).join(roster) or '(none)'}\n\n"
+              f"SCENE:\n{scene_text}")
 
     if client is None:
         from .client import make_client
@@ -288,4 +336,4 @@ def propose_canon_updates(
     )
     record_response(response, model, "canon")
     raw = response.choices[0].message.content or ""
-    return parse_canon_updates(raw)
+    return parse_canon_updates(raw, entities)

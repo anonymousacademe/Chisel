@@ -136,9 +136,33 @@ def set_canon(body: str, canon_text: str) -> str:
     return f"{body}\n\n{section}" if body else section
 
 
-def apply_canon_update(entity: ent.Entity, new_canon: str) -> None:
-    """Set an entity's canon section and save the note."""
-    entity.body = set_canon(entity.body, new_canon)
+def _fact_key(text: str) -> str:
+    return " ".join(text.casefold().lstrip("-*• ").rstrip(" .").split())
+
+
+def add_canon_facts(body: str, facts: list[str]) -> str:
+    """Append '- fact' bullets to the managed canon section (creating it if
+    missing). Existing lines are never removed or rewritten; facts already
+    present (case-insensitive) are skipped; author text stays untouched."""
+    existing = get_canon(body)
+    known = {_fact_key(ln) for ln in existing.splitlines() if ln.strip()}
+    new_lines = []
+    for fact in facts:
+        fact = " ".join(str(fact).split()).lstrip("-*• ").strip()
+        key = _fact_key(fact)
+        if not key or key in known:
+            continue
+        known.add(key)
+        new_lines.append(f"- {fact}")
+    if not new_lines:
+        return body
+    text = existing + ("\n" if existing else "") + "\n".join(new_lines)
+    return set_canon(body, text)
+
+
+def apply_canon_update(entity: ent.Entity, new_facts: list[str]) -> None:
+    """Append new canon facts to an entity's note and save it (additions only)."""
+    entity.body = add_canon_facts(entity.body, list(new_facts))
     if entity.path is not None:
         ent.save_entity(entity, entity.path)
 

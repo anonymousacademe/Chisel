@@ -1183,12 +1183,12 @@ class LorewriteApp(App):
         for update in accepted:
             entity = ent.resolve(update.entity, self.entities)
             if entity is not None:
-                apply_canon_update(entity, update.new_canon)
+                apply_canon_update(entity, list(update.new_facts))
                 applied += 1
         self.reload_entities()
         self.refresh_sidebar()
         self.editor.refresh_links()
-        self.notify(f"Updated {applied} entity note(s)", timeout=2)
+        self.notify(f"Added canon to {applied} entity note(s)", timeout=2)
 
     def action_jump(self) -> None:
         """Open the note for the name under the cursor.

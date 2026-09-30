@@ -145,7 +145,7 @@ def test_apply_canon_update_saves_to_disk(tmp_path: Path):
     path = tmp_path / "elara.md"
     ent.save_entity(ent.Entity(name="Elara", type="character"), path)
     entity = ent.load_entity(path)
-    apply_canon_update(entity, "Elara has blue eyes.")
+    apply_canon_update(entity, ["Elara has blue eyes."])
     reloaded = ent.load_entity(path)
     canon = get_canon(reloaded.body)
     assert "Elara has blue eyes." in canon
@@ -162,3 +162,31 @@ def test_locate_evidence_finds_row():
 def test_locate_evidence_absent_returns_none():
     text = "Nothing relevant here.\n"
     assert locate_evidence(text, "Elara arrived at dawn") is None
+
+
+def test_add_canon_facts_appends_and_never_removes():
+    from lorewrite.core.continuity import add_canon_facts
+
+    body = "Author text.\n\n## Canon (auto)\n\n- Blue eyes\n- Left-handed\n\n## Notes\n\nKeep.\n"
+    out = add_canon_facts(body, ["Owns a boat", "blue eyes.", "  - Owns a boat "])
+    canon = get_canon(out)
+    assert canon.splitlines() == ["- Blue eyes", "- Left-handed", "- Owns a boat"]
+    assert out.startswith("Author text.") and "## Notes\n\nKeep." in out
+
+
+def test_add_canon_facts_creates_section_and_noop_when_all_dupes():
+    from lorewrite.core.continuity import add_canon_facts
+
+    out = add_canon_facts("Intro.\n", ["First fact"])
+    assert out.startswith("Intro.") and get_canon(out) == "- First fact"
+    assert add_canon_facts(out, ["first fact"]) == out
+
+
+def test_second_update_never_removes_first_facts(tmp_path: Path):
+    path = tmp_path / "elara.md"
+    ent.save_entity(ent.Entity(name="Elara", type="character"), path)
+    entity = ent.load_entity(path)
+    apply_canon_update(entity, ["Has blue eyes"])
+    apply_canon_update(ent.load_entity(path), ["Scar on left hand"])
+    lines = get_canon(ent.load_entity(path).body).splitlines()
+    assert lines == ["- Has blue eyes", "- Scar on left hand"]

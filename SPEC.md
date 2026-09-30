@@ -162,7 +162,7 @@ Implemented via parallel agents per docs/specification-guide.md.*
 
 - "Check scene for continuity issues" (palette): strong model (default `anthropic/claude-sonnet-4.5`, override `[ai] strong_model`), **Jev pre-screen gate** (`core/jev_interface.py`, fail-open) so only canon-bearing entities flagged as plausible get the expensive call
 - Structured report (type/severity/entity/evidence/fix) validated app-side; evidence located to a line; **ContinuityScreen**: `space` waives (persisted in `.lorewrite/waivers.json` by stable content key, never re-reported), `enter` jumps to the offending line
-- **Note accumulation**: "Update story bible from scene" (palette) → AI proposes canon updates → review modal → accepted updates written into a managed `## Canon (auto)` section of each entity note (author text never touched)
+- **Note accumulation (additions only)**: "Update story bible from scene" (palette) → the AI is sent each entity's existing canon (capped 1500 chars) and proposes only NEW facts (`{entity, new_facts[], evidence}`); unknown entities, empty facts and facts already in the canon (case-insensitive) are dropped app-side → review modal shows every fact in full, grouped by entity with existing canon dimmed, each fact toggleable with `space` → accepted facts are appended as `- fact` bullets to the managed `## Canon (auto)` section (created if missing). Existing lines are never removed or rewritten; author text outside the section is never touched
 - Error classes: physical attributes, timeline, character knowledge, object custody, present/absent, spelling drift
 - Deferred: whole-manuscript check, cross-scene retrieval layer
 

@@ -100,18 +100,43 @@ def test_parse_contradictions_invalid_items_dropped():
 
 def test_parse_canon_updates_good_json():
     raw = json.dumps({"updates": [
-        {"entity": "Elara Vance", "existing_canon": "blue eyes",
-         "new_canon": "brown eyes", "justification": "scene says brown"},
+        {"entity": "Elara Vance", "new_facts": ["Has brown eyes"],
+         "evidence": "her eyes were brown"},
     ]})
     result = parse_canon_updates(raw)
     assert len(result) == 1
     assert isinstance(result[0], CanonUpdate)
     assert result[0].entity == "Elara Vance"
+    assert result[0].new_facts == ("Has brown eyes",)
 
 
 def test_parse_canon_updates_junk_returns_empty():
     assert parse_canon_updates("not json") == []
     assert parse_canon_updates('{"updates": "bad"}') == []
+    assert parse_canon_updates('{"updates": [{"entity": "E", "new_facts": "x"}]}') == []
+
+
+def test_parse_validates_against_entities():
+    elara = ent.Entity(name="Elara Vance", aliases=["the captain"],
+                       body="## Canon (auto)\n\n- Has blue eyes\n- Owns a boat\n")
+    raw = json.dumps({"updates": [
+        {"entity": "Gandalf", "new_facts": ["Grey"], "evidence": ""},
+        {"entity": "the captain",
+         "new_facts": ["has blue eyes.", "- Owns a BOAT", "", "  ", "Scar on hand",
+                       "scar on hand", "Afraid of water"],
+         "evidence": "e"},
+    ]})
+    (u,) = parse_canon_updates(raw, [elara])
+    assert u.entity == "Elara Vance"  # canonicalized from the alias
+    assert u.new_facts == ("Scar on hand", "Afraid of water")
+    assert "Has blue eyes" in u.existing_canon
+
+
+def test_parse_drops_entity_when_every_fact_is_a_duplicate():
+    elara = ent.Entity(name="Elara", body="## Canon (auto)\n\n- Tall\n")
+    raw = json.dumps({"updates": [
+        {"entity": "Elara", "new_facts": ["tall"], "evidence": ""}]})
+    assert parse_canon_updates(raw, [elara]) == []
 
 
 # -- check_scene with fake client -----------------------------------------------
@@ -149,13 +174,32 @@ def test_check_scene_with_fake_client(monkeypatch):
 
 def test_propose_canon_updates_with_fake_client():
     raw = json.dumps({"updates": [
-        {"entity": "Elara Vance", "existing_canon": "blue eyes",
-         "new_canon": "brown eyes", "justification": "scene says brown"},
+        {"entity": "Elara Vance", "new_facts": ["Has brown eyes"],
+         "evidence": "scene says brown"},
     ]})
     client = _make_fake_client(raw)
     result = propose_canon_updates(SCENE, ENTITIES, model="test-model", client=client)
-    assert len(result) >= 1
+    assert [u.new_facts for u in result] == [("Has brown eyes",)]
     client.chat.completions.create.assert_called_once()
+
+
+def test_propose_sends_existing_canon_capped_and_asks_for_additions():
+    from lorewrite.ai.continuity import CANON_CAP
+
+    long_canon = "- " + "x" * 3000
+    elara = ent.Entity(name="Elara Vance", body=f"## Canon (auto)\n\n{long_canon}\n")
+    other = ent.Entity(name="Borin", body="## Canon (auto)\n\n- Has one arm\n")
+    client = _make_fake_client('{"updates": []}')
+    propose_canon_updates(SCENE, [elara, other], model="m", client=client)
+    kwargs = client.chat.completions.create.call_args.kwargs
+    user = kwargs["messages"][1]["content"]
+    assert "- Has one arm" in user
+    assert "- " + "x" * (CANON_CAP - 2) in user
+    assert "x" * (CANON_CAP - 1) not in user
+    assert "ADDITIONS" in kwargs["messages"][0]["content"]
+    assert "FULL replacement" not in kwargs["messages"][0]["content"]
+    props = kwargs["response_format"]["json_schema"]["schema"]["properties"]["updates"]
+    assert "new_facts" in props["items"]["properties"]
 
 
 # -- jev gate -------------------------------------------------------------------
