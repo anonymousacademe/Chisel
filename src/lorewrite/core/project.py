@@ -48,6 +48,13 @@ Everything is plain Markdown on disk — your project folder *is* the novel.
 """
 
 
+def write_atomic(path: Path, text: str) -> None:
+    """Write *text* to *path* via a temp file + rename (never a torn file)."""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(path)
+
+
 def retitle_text(text: str, new_title: str) -> str:
     """Replace the first '# ' heading with new_title (or prepend one)."""
     lines = text.splitlines()
@@ -192,10 +199,7 @@ class Project:
 
     def rename_scene(self, path: Path, new_title: str) -> None:
         """Set a scene's title (its first '# ' heading), atomically."""
-        text = retitle_text(path.read_text(encoding="utf-8"), new_title)
-        tmp = path.with_suffix(path.suffix + ".tmp")
-        tmp.write_text(text, encoding="utf-8")
-        tmp.replace(path)
+        write_atomic(path, retitle_text(path.read_text(encoding="utf-8"), new_title))
 
     def delete_scene(self, path: Path) -> None:
         path.unlink()

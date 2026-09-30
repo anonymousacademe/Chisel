@@ -1,0 +1,57 @@
+/* CodeMirror, styled to the design's prose: Source Serif 4, 30px measure, violet accents. */
+.lw-cm { user-select: text; }
+.lw-cm .cm-editor { background: transparent; outline: none; }
+.lw-cm .cm-editor.cm-focused { outline: none; }
+.lw-cm .cm-scroller {
+  overflow: visible; font-family: var(--lw-font-prose); line-height: 1.6667;
+  font-size: calc(18px * var(--lw-zoom, 1)); letter-spacing: 0.1px; color: var(--lw-text);
+}
+.lw-cm .cm-content { padding: 0; caret-color: var(--lw-accent-text); min-height: 160px; }
+.lw-cm .cm-line { padding: 0; }
+.lw-cm .cm-cursor { border-left: 1.5px solid var(--lw-accent-text); }
+.lw-cm .cm-selectionBackground, .lw-cm .cm-focused .cm-selectionBackground { background: rgba(141, 124, 246, 0.35) !important; }
+.lw-cm .cm-line.lw-blank { line-height: 13px; height: 13px; }
+
+/* title block: the first "# " line */
+.lw-cm .lw-title-line {
+  font-size: 30px; font-weight: 600; line-height: 1.15; letter-spacing: -0.4px; color: var(--lw-text-strong);
+}
+.lw-cm .lw-page__meta { font-family: var(--lw-font-ui); font-size: 11px; line-height: 13px; letter-spacing: 0; color: var(--lw-text-faint); margin-top: 8px; }
+.lw-cm .lw-page__meta::after { content: ""; display: block; width: 44px; height: 2px; margin: 16px 0 4px; border-radius: 999px; background: var(--lw-accent); }
+
+/* markdown structure */
+.lw-cm .lw-h { color: var(--lw-text-strong); font-weight: 600; }
+.lw-cm .lw-h2 { font-size: 1.22em; line-height: 1.4; margin-top: 6px; }
+.lw-cm .lw-h3, .lw-cm .lw-h4 { font-size: 1.08em; }
+.lw-cm .lw-strong { font-weight: 700; color: var(--lw-text-strong); }
+.lw-cm .lw-em { font-style: italic; }
+.lw-cm .lw-code { font-family: var(--lw-font-mono); font-size: 0.85em; background: var(--lw-bg-raised); border-radius: 3px; padding: 0 3px; }
+.lw-cm .lw-quote { border-left: 2px solid var(--lw-accent); padding-left: 12px; color: var(--lw-text-strong); }
+.lw-cm .lw-syn, .lw-cm .lw-bracket { color: var(--lw-text-faint); }
+.lw-cm .lw-frontmatter { font-family: var(--lw-font-mono); font-size: 12px; line-height: 1.7; color: var(--lw-text-muted); }
+
+/* mentions and links */
+.lw-cm .lw-mention, .lw-cm .lw-link-span { color: var(--lw-accent-text); cursor: pointer; }
+.lw-cm .lw-link-span--unresolved { color: var(--lw-warning); }
+
+/* pending AI drafts and expand markers */
+.lw-cm .lw-draft {
+  color: var(--lw-success); font-style: italic; background: rgba(103, 198, 161, 0.09);
+  border-radius: 3px; box-shadow: -2px 0 0 var(--lw-success);
+}
+.lw-cm .lw-expand {
+  font-family: var(--lw-font-ui); font-size: 0.72em; background: var(--lw-accent-soft); color: var(--lw-accent-text);
+  border-radius: 999px; padding: 2px 8px;
+}
+
+/* hover card (CodeMirror tooltips are appended to <body>) */
+.cm-tooltip.cm-tooltip-hover { border: 0; background: transparent; }
+.lw-hovercard {
+  width: 280px; padding: 10px 12px; border-radius: var(--lw-radius-md); display: flex; flex-direction: column; gap: 6px;
+  background: var(--lw-bg-raised); border: 1px solid var(--lw-border-strong); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  font-family: var(--lw-font-ui); font-size: 11px; line-height: 1.45; color: var(--lw-text-muted);
+}
+.lw-hovercard__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.lw-hovercard__head strong { font-size: 12px; color: var(--lw-text-strong); }
+.lw-hovercard__head span { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--lw-accent-text); }
+.lw-hovercard p { margin: 0; }

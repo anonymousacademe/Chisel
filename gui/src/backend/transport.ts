@@ -1,11 +1,12 @@
 // How the UI reaches the Python core. Three transports, picked at startup:
 //   pywebview  window.pywebview.api.<method>(...)   (the real app)
 //   http       POST /api/<method>                   (lorewrite.gui.devserver)
-//   none       no core available -> the mock backend (npm run dev)
+//   none       no core available -> the in-memory mock bridge (npm run dev)
 // Every bridge call resolves to {ok: true, ...} or {ok: false, error}; it never throws.
 
 export type BridgeResult<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 export type Transport = "pywebview" | "http" | "none";
+export type Call = <T = object>(method: string, ...args: unknown[]) => Promise<BridgeResult<T>>;
 
 interface PywebviewApi { [method: string]: (...args: unknown[]) => Promise<unknown> }
 declare global { interface Window { pywebview?: { api: PywebviewApi } } }
@@ -44,7 +45,7 @@ export async function call<T = object>(method: string, ...args: unknown[]): Prom
       });
       return (await res.json()) as BridgeResult<T>;
     }
-    return { ok: false, error: "no core available" };
+    return (await import("./mock")).mockCall(method, args) as BridgeResult<T>;
   } catch (e) {
     return { ok: false, error: String(e) };
   }

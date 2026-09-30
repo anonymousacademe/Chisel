@@ -41,9 +41,11 @@ class Backlink:
 
 
 class Index:
-    def __init__(self, db_path: Path):
+    def __init__(self, db_path: Path, check_same_thread: bool = True):
+        """*check_same_thread=False* lets several threads share the index
+        (the GUI serializes calls with its own lock)."""
         db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(db_path)
+        self._conn = sqlite3.connect(db_path, check_same_thread=check_same_thread)
         self._conn.executescript(SCHEMA)
         self._closed = False
 

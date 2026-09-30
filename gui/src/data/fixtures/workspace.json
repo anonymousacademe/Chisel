@@ -1,0 +1,174 @@
+{
+  "project": {
+    "title": "Test Novel",
+    "author": "Jane Writer",
+    "initials": "TA",
+    "path": "<root>",
+    "documentCount": 5
+  },
+  "binder": [
+    {
+      "id": "project",
+      "title": "Test Novel",
+      "kind": "project",
+      "meta": "42",
+      "expanded": true,
+      "children": [
+        {
+          "id": "ph:front",
+          "title": "Front Matter",
+          "kind": "folder",
+          "placeholder": true,
+          "muted": true
+        },
+        {
+          "id": "group:manuscript",
+          "title": "Manuscript",
+          "kind": "folder",
+          "meta": "42",
+          "expanded": true,
+          "children": [
+            {
+              "id": "manuscript/01-arrival.md",
+              "title": "01  Arrival",
+              "kind": "document",
+              "meta": "30"
+            },
+            {
+              "id": "manuscript/02-the-archive.md",
+              "title": "02  The Archive",
+              "kind": "document",
+              "meta": "12"
+            }
+          ]
+        },
+        {
+          "id": "ph:part1",
+          "title": "Part I",
+          "kind": "folder",
+          "placeholder": true,
+          "muted": true
+        },
+        {
+          "id": "ph:part2",
+          "title": "Part II",
+          "kind": "folder",
+          "placeholder": true,
+          "muted": true
+        },
+        {
+          "id": "ph:part3",
+          "title": "Part III",
+          "kind": "folder",
+          "placeholder": true,
+          "muted": true
+        }
+      ]
+    },
+    {
+      "id": "group:characters",
+      "title": "Characters",
+      "kind": "characters",
+      "children": [
+        {
+          "id": "entities/characters/elias-vale.md",
+          "title": "Elias Vale",
+          "kind": "entity"
+        },
+        {
+          "id": "entities/characters/mara-vale.md",
+          "title": "Mara Vale",
+          "kind": "entity"
+        }
+      ]
+    },
+    {
+      "id": "group:world",
+      "title": "World Bible",
+      "kind": "world",
+      "children": [
+        {
+          "id": "entities/places/lower-meridian.md",
+          "title": "Lower Meridian",
+          "kind": "entity",
+          "meta": "place"
+        }
+      ]
+    },
+    {
+      "id": "ph:research",
+      "title": "Research",
+      "kind": "research",
+      "placeholder": true,
+      "muted": true
+    },
+    {
+      "id": "ph:unplaced",
+      "title": "Unplaced Scenes",
+      "kind": "inbox",
+      "placeholder": true,
+      "muted": true
+    },
+    {
+      "id": "ph:trash",
+      "title": "Trash",
+      "kind": "trash",
+      "placeholder": true,
+      "muted": true
+    }
+  ],
+  "scenes": [
+    {
+      "id": "manuscript/01-arrival.md",
+      "number": "01",
+      "title": "Arrival",
+      "words": 30,
+      "excerpt": "Mara stepped off the tram into Lower Meridian. The rain had not stopped for three days and the city smelled of copper. Elias was waiting under the clock.",
+      "headings": []
+    },
+    {
+      "id": "manuscript/02-the-archive.md",
+      "number": "02",
+      "title": "The Archive",
+      "words": 12,
+      "excerpt": "Mara read the files until dawn.",
+      "headings": [
+        "Night shift"
+      ]
+    }
+  ],
+  "entities": [
+    {
+      "id": "entities/characters/elias-vale.md",
+      "name": "Elias Vale",
+      "type": "character",
+      "aliases": [
+        "Elias"
+      ],
+      "words": 0
+    },
+    {
+      "id": "entities/characters/mara-vale.md",
+      "name": "Mara Vale",
+      "type": "character",
+      "aliases": [
+        "Mara"
+      ],
+      "words": 0
+    },
+    {
+      "id": "entities/places/lower-meridian.md",
+      "name": "Lower Meridian",
+      "type": "place",
+      "aliases": [],
+      "words": 0
+    }
+  ],
+  "status": {
+    "projectWords": 42,
+    "sessionWords": 37,
+    "sessionMinutes": 3,
+    "aiCost": 0.0123,
+    "hasStyle": false
+  }
+}

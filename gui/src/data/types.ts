@@ -1,43 +1,90 @@
-// Shape of the data the UI renders. The backend (mock or Tauri) returns a Workspace.
+// Shape of the data the UI renders. Produced by lorewrite.gui.workspace (Python)
+// or, for `npm run dev` without a core, by backend/mock.ts. Keep in sync with
+// workspace.py; data/fixtures/workspace.json is checked on both sides.
 
 export type BinderKind =
-  | "project" | "folder" | "document" | "notes"
+  | "project" | "folder" | "document" | "entity" | "style"
   | "characters" | "world" | "research" | "inbox" | "trash";
 
 export interface BinderNode {
   id: string;
   title: string;
   kind: BinderKind;
-  /** Right-aligned mono label: word count ("2.8k"), item count, or "notes". */
+  /** Right-aligned mono label: word count ("2.8k"), or an entity type. */
   meta?: string;
-  /** Dimmed rows (e.g. Front Matter, Trash, notes-only docs). */
+  /** Dimmed rows (e.g. Front Matter, Trash). */
   muted?: boolean;
+  /** Shown as designed but not implemented: disabled, tooltip "Not in LoreWriter yet". */
+  placeholder?: boolean;
   children?: BinderNode[];
   expanded?: boolean;
 }
 
-export interface Collection { id: string; title: string; color: string; count: number }
-
-export interface Paragraph {
-  id: string;
-  text: string;
-  /** Marked as a revised passage (violet rule on the left). */
-  revised?: boolean;
-}
-
-export interface ManuscriptDocument {
-  id: string;
-  number: string;          // "Chapter Seven"
-  shortLabel: string;      // "Chapter 07"
+export interface SceneSummary {
+  id: string;            // project-relative path: manuscript/02-blue-hour.md
+  number: string;        // "02" (filename prefix, may be empty)
   title: string;
-  parentTitle: string;
-  sceneMeta: string;
-  status: string;          // tag in the context bar, e.g. "Revising"
   words: number;
-  target: number;
-  paragraphs: Paragraph[];
-  inspector: { label: string; value: string; accent?: boolean }[];
+  excerpt: string;
+  headings: string[];
 }
+
+export type EntityType = "character" | "place" | "object" | "faction";
+
+export interface EntitySummary {
+  id: string;            // project-relative path of the note
+  name: string;
+  type: EntityType;
+  aliases: string[];
+  words: number;
+}
+
+export type DocKind = "scene" | "entity" | "style";
+
+/** One open file: the whole Markdown text plus what the title block needs. */
+export interface DocumentPayload {
+  id: string;
+  kind: DocKind;
+  title: string;
+  kicker: string;        // "SCENE 02", "CHARACTER", "STYLE GUIDE"
+  parent: string;        // breadcrumb parent: "Manuscript"
+  text: string;
+  mtime: string;         // ns since epoch, as a string (exceeds 2^53)
+  words: number;
+  mentions: SceneMention[];
+}
+
+/** An entity a scene mentions: how often here, and how many lines link to it project-wide. */
+export interface SceneMention { name: string; type: EntityType; count: number; backlinks: number }
+
+export interface Backlink {
+  sourceId: string; sourceKind: "scene" | "entity"; sourceTitle: string; row: number; line: string;
+}
+
+/** What get_entity returns; `found: false` for a name with no note. */
+export type EntityInfo =
+  | { found: false; name: string }
+  | {
+    found: true; id: string; name: string; type: EntityType; aliases: string[];
+    body: string; canon: string; summary: string; backlinks: Backlink[];
+  };
+
+export interface Workspace {
+  project: { title: string; author: string; initials: string; path: string; documentCount: number };
+  binder: BinderNode[];
+  scenes: SceneSummary[];
+  entities: EntitySummary[];
+  status: {
+    projectWords: number;
+    /** Net words since the project was opened (may be negative). */
+    sessionWords: number;
+    sessionMinutes: number;
+    aiCost: number;
+    hasStyle: boolean;
+  };
+}
+
+export interface RecentProject { path: string; title: string; openedAt: number; exists: boolean }
 
 export interface ContinuityInsight { title: string; conflicts: number; body: string }
 
@@ -46,25 +93,3 @@ export interface RetrievedSource { id: string; kind: "character" | "document"; t
 export type ChatMessage =
   | { id: string; role: "user"; text: string }
   | { id: string; role: "assistant"; intro?: string; text: string };
-
-export interface Workspace {
-  project: { title: string; draft: string; author: string; initials: string; documentCount: number };
-  binder: BinderNode[];
-  collections: Collection[];
-  activeDocumentId: string;
-  documents: Record<string, ManuscriptDocument>;
-  assistant: {
-    insight?: ContinuityInsight;
-    messages: ChatMessage[];
-    sources: RetrievedSource[];
-  };
-  status: {
-    snapshot: string;
-    synced: boolean;
-    streakDays: number;
-    sessionWords: number;
-    sessionTarget: number;
-    sessionMinutes: number;
-    projectWords: number;
-  };
-}

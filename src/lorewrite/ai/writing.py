@@ -197,3 +197,92 @@ def generate(
     record_response(response, model, mode)
     raw = response.choices[0].message.content or ""
     return clean_output(raw, selection)
+
+
+# -- chat: ask the assistant (the GUI's composer) --------------------------------
+
+ASK_SYSTEM_PROMPT = """\
+You are a writing assistant inside a novelist's manuscript editor. Answer the
+author's question using the style guide, the story notes and the scene text you
+are given. In the scene text, <<CURSOR>> marks where the author's cursor is.
+
+Rules:
+- Reply in plain text: short paragraphs, or a short numbered list for options.
+- You can only suggest. Never say or imply that you changed the manuscript.
+- When you propose prose, write it so the author could paste it in as-is.
+- Be concrete and brief; do not repeat the question.
+- Never write HTML comments or the text "<!--".
+"""
+
+PROJECT_CONTEXT_CHARS = 12000
+HISTORY_TURNS = 6
+HISTORY_CHARS = 1500
+
+
+def build_project_context(
+    scene_titles: list[str],
+    entities: list[Entity],
+    canon_by_name: dict[str, str],
+    style_md: str | None,
+) -> str:
+    """Context for project-wide questions: style guide, every scene title in
+    order, and the canon of every entity (each capped, total capped)."""
+    sections: list[str] = []
+    if style_md and style_md.strip():
+        sections.append("STYLE GUIDE:\n" + style_md.strip())
+    if scene_titles:
+        sections.append("SCENES (in order):\n" + "\n".join(
+            f"{i}. {t}" for i, t in enumerate(scene_titles, 1)))
+    notes: list[str] = []
+    used = 0
+    for entity in entities:
+        note = (canon_by_name.get(entity.name) or entity.body or "").strip()[:ENTITY_CHARS]
+        if used + len(note) > PROJECT_CONTEXT_CHARS:
+            continue
+        used += len(note)
+        heading = f"### {entity.name} ({entity.type})"
+        notes.append(f"{heading}\n{note}" if note else heading)
+    if notes:
+        sections.append("CHARACTERS AND PLACES:\n" + "\n\n".join(notes))
+    return "\n\n".join(sections) or "(the project is empty)"
+
+
+def ask(
+    prompt: str,
+    context: str,
+    model: str,
+    history: list[dict] | None = None,
+    client=None,
+) -> str:
+    """Network call: answer *prompt* in chat. Never touches the manuscript.
+
+    *history*: earlier turns as ``{"role": "user"|"assistant", "text": ...}``
+    (the last few are sent). Synchronous — run it off the UI thread. Raises
+    ValueError for an empty prompt or reply.
+    """
+    if not prompt.strip():
+        raise ValueError("ask something first")
+    if client is None:
+        from .client import make_client
+
+        client = make_client()
+    turns = []
+    for turn in (history or [])[-HISTORY_TURNS:]:
+        role = turn.get("role")
+        text = str(turn.get("text") or "")[:HISTORY_CHARS]
+        if role in ("user", "assistant") and text:
+            turns.append({"role": role, "content": text})
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": ASK_SYSTEM_PROMPT},
+            *turns,
+            {"role": "user", "content": f"{context}\n\nQUESTION:\n{prompt.strip()}"},
+        ],
+        extra_body=usage_extra_body(),
+    )
+    record_response(response, model, "ask")
+    reply = (response.choices[0].message.content or "").replace("<!--", "<!-").strip()
+    if not reply:
+        raise ValueError("the model returned no text")
+    return reply

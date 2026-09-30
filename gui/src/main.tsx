@@ -9,7 +9,7 @@ import "@fontsource-variable/source-serif-4/opsz-italic.css";
 import "@fontsource/ibm-plex-mono/400.css";
 import "./index.css";
 import App from "./App.tsx";
-import { initTransport } from "./backend";
+import { initTransport } from "./backend/transport";
 
 initTransport().then(() => {
   createRoot(document.getElementById("root")!).render(

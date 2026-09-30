@@ -1,19 +1,21 @@
 import {
   FilePlus2, Ellipsis, ChevronDown, ChevronRight, BookOpen, Folder, FolderOpen, FileText,
-  FilePenLine, FileClock, Users, Globe2, BookMarked, Inbox, Trash2, type LucideIcon,
+  FilePenLine, Users, Globe2, BookMarked, Inbox, Trash2, ScrollText, type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
-import type { BinderNode, Collection } from "../data/types";
+import type { BinderNode } from "../data/types";
+import { allIds, filterTree, isOpenable } from "../data/tree";
 import { Icon, IconButton, SectionLabel } from "./primitives";
+import { placeholderProps } from "./placeholder";
 
 function nodeIcon(node: BinderNode, open: boolean, active: boolean): LucideIcon {
   if (active) return FilePenLine;
   switch (node.kind) {
     case "project": return BookOpen;
     case "folder": return open ? FolderOpen : Folder;
-    case "notes": return FileClock;
     case "characters": return Users;
     case "world": return Globe2;
+    case "style": return ScrollText;
     case "research": return BookMarked;
     case "inbox": return Inbox;
     case "trash": return Trash2;
@@ -22,31 +24,37 @@ function nodeIcon(node: BinderNode, open: boolean, active: boolean): LucideIcon 
 }
 
 function Row({ node, depth, activeId, expanded, onToggle, onSelect }: {
-  node: BinderNode; depth: number; activeId: string;
+  node: BinderNode; depth: number; activeId: string | null;
   expanded: Set<string>; onToggle: (id: string) => void; onSelect: (n: BinderNode) => void;
 }) {
-  const hasChildren = node.children !== undefined;
+  const ph = !!node.placeholder;
+  const hasChildren = node.children !== undefined && !ph;
   const open = expanded.has(node.id);
   const active = node.id === activeId;
   const cls = `lw-binder__item${active ? " is-active" : ""}${node.muted ? " is-muted" : ""}`;
+  const activate = () => (isOpenable(node) ? onSelect(node) : hasChildren && onToggle(node.id));
   return (
     <>
       <div role="treeitem" aria-selected={active} aria-expanded={hasChildren ? open : undefined}
-        tabIndex={active ? 0 : -1} className={cls} style={{ paddingLeft: 8 + depth * 16 }}
-        onClick={() => (node.kind === "document" || node.kind === "notes" ? onSelect(node) : hasChildren && onToggle(node.id))}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") node.kind === "document" || node.kind === "notes" ? onSelect(node) : onToggle(node.id);
-          if (e.key === "ArrowRight" && hasChildren && !open) onToggle(node.id);
-          if (e.key === "ArrowLeft" && hasChildren && open) onToggle(node.id);
-        }}>
+        tabIndex={ph ? -1 : active ? 0 : -1} className={cls} style={{ paddingLeft: 8 + depth * 16 }}
+        {...(ph ? placeholderProps : {
+          onClick: activate,
+          onKeyDown: (e: React.KeyboardEvent) => {
+            if (e.key === "Enter") activate();
+            if (e.key === "ArrowRight" && hasChildren && !open) onToggle(node.id);
+            if (e.key === "ArrowLeft" && hasChildren && open) onToggle(node.id);
+          },
+        })}>
         {hasChildren ? (
           <button className="lw-binder__disclosure" aria-label={open ? "Collapse" : "Expand"}
             onClick={(e) => { e.stopPropagation(); onToggle(node.id); }}>
             <Icon icon={open ? ChevronDown : ChevronRight} size={11} stroke={1.8} />
           </button>
-        ) : <span className="lw-binder__disclosure" aria-hidden />}
+        ) : ph && node.kind === "folder"
+          ? <span className="lw-binder__disclosure" aria-hidden><Icon icon={ChevronRight} size={11} stroke={1.8} /></span>
+          : <span className="lw-binder__disclosure" aria-hidden />}
         <Icon icon={nodeIcon(node, open, active)} size={14} stroke={1.5} className="lw-binder__icon" />
-        <span className="lw-binder__title" title={node.title}>{node.title}</span>
+        <span className="lw-binder__title" title={ph ? undefined : node.title}>{node.title}</span>
         {node.meta && <span className="lw-binder__meta">{node.meta}</span>}
       </div>
       {hasChildren && open && node.children!.map((c) => (
@@ -56,37 +64,29 @@ function Row({ node, depth, activeId, expanded, onToggle, onSelect }: {
   );
 }
 
-function filterTree(nodes: BinderNode[], q: string): BinderNode[] {
-  return nodes.flatMap((n) => {
-    const kids = n.children ? filterTree(n.children, q) : undefined;
-    if (n.title.toLowerCase().includes(q) || (kids && kids.length)) return [{ ...n, children: n.children ? kids : undefined }];
-    return [];
-  });
-}
-function allIds(nodes: BinderNode[], out = new Set<string>()) {
-  for (const n of nodes) { out.add(n.id); if (n.children) allIds(n.children, out); }
-  return out;
-}
+const LIBRARY_KINDS = new Set(["characters", "world", "style"]);
 
-export function Binder({ nodes, collections, count, activeId, expanded, onToggle, onSelect, onNew, searching }: {
-  searching: boolean;
-  nodes: BinderNode[]; collections: Collection[]; count: number; activeId: string;
-  expanded: Set<string>; onToggle: (id: string) => void; onSelect: (n: BinderNode) => void; onNew: () => void;
+export function Binder({ nodes, count, activeId, expanded, onToggle, onSelect, onNew, onMenu, searching, library, canNew, canMenu }: {
+  searching: boolean; library: boolean; canNew: boolean; canMenu: boolean;
+  nodes: BinderNode[]; count: number; activeId: string | null;
+  expanded: Set<string>; onToggle: (id: string) => void; onSelect: (n: BinderNode) => void;
+  onNew: () => void; onMenu: (anchor: HTMLElement) => void;
 }) {
   const [query, setQuery] = useState("");
   const q = searching ? query.trim().toLowerCase() : "";
-  const shown = q ? filterTree(nodes, q) : nodes;
-  const open = q ? allIds(shown) : expanded;
+  const base = library ? nodes.filter((n) => LIBRARY_KINDS.has(n.kind)) : nodes;
+  const shown = q ? filterTree(base, q) : base;
+  const open = q ? allIds(shown) : library ? new Set([...expanded, ...allIds(base)]) : expanded;
   return (
-    <aside className="lw-binder" aria-label="Manuscript binder">
+    <aside className="lw-binder" aria-label={library ? "Library" : "Manuscript binder"}>
       <div className="lw-binder__header">
         <div className="lw-binder__heading">
-          <h2>Binder</h2>
+          <h2>{library ? "Library" : "Binder"}</h2>
           <span className="lw-mono lw-faint">{count}</span>
         </div>
         <div className="lw-row lw-gap-4">
-          <IconButton icon={FilePlus2} label="New document" onClick={onNew} />
-          <IconButton icon={Ellipsis} label="Binder options" />
+          <IconButton icon={FilePlus2} label={library ? "New note" : "New scene"} onClick={onNew} disabled={!canNew} />
+          <IconButton icon={Ellipsis} label="Scene options" onClick={(e) => onMenu(e.currentTarget)} disabled={!canMenu} />
         </div>
       </div>
       <div className="lw-divider" />
@@ -99,18 +99,18 @@ export function Binder({ nodes, collections, count, activeId, expanded, onToggle
         {shown.map((n) => (
           <Row key={n.id} node={n} depth={0} activeId={activeId} expanded={open} onToggle={onToggle} onSelect={onSelect} />
         ))}
+        {q && shown.length === 0 && <p className="lw-empty">Nothing matches “{query}”.</p>}
       </div>
       <div className="lw-divider" />
       <section className="lw-collections">
         <div className="lw-collections__heading">
           <SectionLabel>Collections</SectionLabel>
-          <button className="lw-link">Edit</button>
+          <button className="lw-link" {...placeholderProps}>Edit</button>
         </div>
-        {collections.map((c) => (
-          <button key={c.id} className="lw-collections__row">
-            <span className="lw-collections__swatch" style={{ background: c.color }} />
-            <span className="lw-collections__title">{c.title}</span>
-            <span className="lw-mono lw-faint">{c.count}</span>
+        {["Needs continuity pass", "Character arcs"].map((t, i) => (
+          <button key={t} className="lw-collections__row" {...placeholderProps}>
+            <span className="lw-collections__swatch" style={{ background: i ? "var(--lw-accent)" : "var(--lw-warning)" }} />
+            <span className="lw-collections__title">{t}</span>
           </button>
         ))}
       </section>

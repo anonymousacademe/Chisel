@@ -16,12 +16,7 @@ from textual.widgets import Button, Footer, Header, Input, Label, Static
 from textual import work
 
 from .. import __version__
-from ..ai.client import (
-    DEFAULT_FAST_MODEL,
-    DEFAULT_STRONG_MODEL,
-    DEFAULT_WRITING_MODEL,
-    set_api_key,
-)
+from ..ai.client import MODEL_DEFAULTS, resolve_model, set_api_key
 from ..ai.links import Suggestion, alias_form, suggest_links
 from ..ai.style import learn_style
 from ..ai.usage import LEDGER, format_cost
@@ -31,16 +26,16 @@ from ..core import entities as ent
 from ..core import settings as user_settings
 from ..core.continuity import (
     apply_canon_update,
+    canon_map,
     clear_scene_waivers,
     filter_waived,
-    get_canon,
     load_waivers,
     remove_waiver,
     save_waiver,
 )
 from ..core.index import Index
 from ..core.links import link_at, rowcol_to_offset
-from ..core.project import Project, retitle_text
+from ..core.project import Project, retitle_text, write_atomic
 from ..core.recents import add_recent
 from ..core.style import (
     ensure_style_stub,
@@ -113,7 +108,7 @@ Press escape, f1 or ? to close this help.
 
 def _word_count(text: str, originals: dict[str, str] | None = None) -> int:
     """Words in *text*, not counting pending AI drafts (unaccepted AI text)."""
-    return len(drafts.strip_pending(text, originals).split())
+    return drafts.count_words(text, originals)
 
 
 class HelpScreen(ModalScreen[None]):
@@ -545,9 +540,7 @@ class LorewriteApp(App):
         if self.current_path is None or self._editor is None:
             return
         text = self._editor.text
-        tmp = self.current_path.with_suffix(self.current_path.suffix + ".tmp")
-        tmp.write_text(text, encoding="utf-8")
-        tmp.replace(self.current_path)
+        write_atomic(self.current_path, text)
         if self.current_path == style_path(self.project):
             return  # the style guide isn't part of the link index
         rel = str(self.current_path.relative_to(self.project.root))
@@ -777,24 +770,11 @@ class LorewriteApp(App):
 
     # -- AI: alias finder ----------------------------------------------------
 
-    _MODEL_DEFAULTS = {
-        "fast": DEFAULT_FAST_MODEL,
-        "strong": DEFAULT_STRONG_MODEL,
-        "writing": DEFAULT_WRITING_MODEL,
-    }
+    _MODEL_DEFAULTS = MODEL_DEFAULTS
 
     def _ai_model(self, kind: str) -> str:
-        """kind: fast | strong | writing.
-
-        Precedence: project.toml [ai] <kind>_model > global settings
-        <kind>_model > built-in default.
-        """
-        key = f"{kind}_model"
-        if self.project is not None:
-            raw = (self.project.meta.get("ai") or {}).get(key)
-            if raw:
-                return str(raw)
-        return user_settings.get(key) or self._MODEL_DEFAULTS[kind]
+        """kind: fast | strong | writing (see ai.client.resolve_model)."""
+        return resolve_model(kind, self.project.meta if self.project else None)
 
     def _ai_fast_model(self) -> str:
         return self._ai_model("fast")
@@ -1029,9 +1009,8 @@ class LorewriteApp(App):
         text = self.editor.text
         if mode == "draft":
             pos = start if text == snapshot else self._cursor_offset()
-            if pos > 0 and not text[pos - 1].isspace() and not body[0].isspace():
-                body = " " + body  # inside the draft: accept keeps the spacing
-            self.editor.replace_offsets(pos, pos, drafts.wrap(body))
+            insert, a, b = drafts.prepare_draft(text, mode, body, pos, pos)
+            self.editor.replace_offsets(a, b, insert)
             return
         if text[start:end] != original:
             first = text.find(original)
@@ -1041,12 +1020,12 @@ class LorewriteApp(App):
                 return
             start, end = first, first + len(original)
         # sidecar first: a marker must never exist without its original
-        draft_id = drafts.new_id(
-            drafts.all_ids(self.project.root)
-            | {p.id for p in drafts.find_pending(text) if p.id})
+        draft_id = drafts.fresh_id(self.project.root, text)
         drafts.add_original(self.project.root, self.current_path, draft_id,
                             original)
-        self.editor.replace_offsets(start, end, drafts.wrap(body, draft_id))
+        insert, a, b = drafts.prepare_draft(text, mode, body, start, end,
+                                            draft_id)
+        self.editor.replace_offsets(a, b, insert)
 
     # -- AI: style guide (M4) ---------------------------------------------------
 
@@ -1127,12 +1106,8 @@ class LorewriteApp(App):
         return self._ai_model("strong")
 
     def _canon_map(self) -> dict[str, str]:
-        """Established canon per entity: the managed section, else the body."""
-        canon = {}
-        for e in self.entities:
-            managed = get_canon(e.body)
-            canon[e.name] = managed if managed else e.body[:1500]
-        return canon
+        """Established canon per entity (core.continuity.canon_map)."""
+        return canon_map(self.entities)
 
     def action_check_continuity(self) -> None:
         """AI: check the current scene against the story bible."""

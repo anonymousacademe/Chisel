@@ -4,34 +4,42 @@ import {
   LocateFixed, Copy, RefreshCw, ThumbsUp, UserRound, FileText, ArrowUpRight, Paperclip, ArrowUp,
   type LucideIcon,
 } from "lucide-react";
-import type { ChatMessage, ContinuityInsight, RetrievedSource } from "../data/types";
+import type { ChatMessage, ContinuityInsight, EntityInfo, SceneMention } from "../data/types";
+import { NotesPanel } from "./NotesPanel";
 import { Icon, IconButton, SectionLabel, Tag } from "./primitives";
+import { placeholderProps } from "./placeholder";
 
-type Tab = "assistant" | "context" | "notes";
+export type AssistantTab = "assistant" | "context" | "notes";
+type Tab = AssistantTab;
 const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 
-const tools: { icon: LucideIcon; title: string; detail: string; prompt: string }[] = [
-  { icon: Lightbulb, title: "Brainstorm", detail: "Plot, character, image", prompt: "Brainstorm ideas for this scene: " },
+const tools: { icon: LucideIcon; title: string; detail: string; prompt: string; placeholder?: boolean }[] = [
+  { icon: Lightbulb, title: "Brainstorm", detail: "Plot, character, image", prompt: "", placeholder: true },
   { icon: WandSparkles, title: "Rewrite", detail: "Tone, clarity, rhythm", prompt: "Rewrite the selected passage to " },
   { icon: ScanSearch, title: "Continuity", detail: "Facts, timeline, logic", prompt: "Check this scene for continuity issues." },
-  { icon: BookSearch, title: "Research", detail: "Project + web library", prompt: "Research: " },
+  { icon: BookSearch, title: "Research", detail: "Project + web library", prompt: "", placeholder: true },
 ];
 
 export function Assistant(props: {
-  insight?: ContinuityInsight; messages: ChatMessage[]; sources: RetrievedSource[];
-  busy: boolean; onSend: (text: string) => void; onClose: () => void;
+  tab: AssistantTab; onTab: (t: AssistantTab) => void;
+  mentions: SceneMention[]; onPickEntity: (name: string) => void;
+  note: EntityInfo | null; missingTarget: string | null;
+  onOpenNote: (id: string) => void; onAddAlias: (name: string, alias: string) => void;
+  onCreateNote: (target: string) => void; onOpenBacklink: (sourceId: string, row: number) => void;
+  insight?: ContinuityInsight; messages: ChatMessage[];
+  busy: boolean; aiReady: boolean; onSend: (text: string) => void; onClose: () => void;
   onReviewInsight: () => void; onDismissInsight: () => void; onRegenerate: (id: string) => void;
 }) {
-  const [tab, setTab] = useState<Tab>("assistant");
+  const { tab, onTab: setTab } = props;
   const [draft, setDraft] = useState("");
   const [liked, setLiked] = useState<Set<string>>(new Set());
-  const [notes, setNotes] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
 
   // ⌘J / Ctrl+J focuses the composer.
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.defaultPrevented) return; // the editor took it (make / open a note)
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "j") { e.preventDefault(); setTab("assistant"); inputRef.current?.focus(); }
     };
     window.addEventListener("keydown", onKey);
@@ -55,7 +63,7 @@ export function Assistant(props: {
           <Tag tone="success">Project aware</Tag>
         </div>
         <div className="lw-row lw-gap-4">
-          <IconButton icon={History} label="Conversation history" />
+          <IconButton icon={History} label="Conversation history" placeholder />
           <IconButton icon={PanelRightClose} label="Close panel" onClick={props.onClose} />
         </div>
       </div>
@@ -78,7 +86,8 @@ export function Assistant(props: {
               </div>
               <div className="lw-quick__grid">
                 {tools.map((t) => (
-                  <button key={t.title} className="lw-tool" onClick={() => applyTool(t.prompt)}>
+                  <button key={t.title} className="lw-tool" disabled={!t.placeholder && !props.aiReady}
+                    {...(t.placeholder ? placeholderProps : { onClick: () => applyTool(t.prompt) })}>
                     <span className="lw-row lw-gap-6">
                       <Icon icon={t.icon} size={13} stroke={1.7} color="var(--lw-accent-text)" />
                       <span className="lw-tool__title">{t.title}</span>
@@ -121,53 +130,55 @@ export function Assistant(props: {
                     <IconButton icon={Copy} label="Copy" onClick={() => navigator.clipboard?.writeText([m.intro, m.text].filter(Boolean).join("\n"))} />
                     <IconButton icon={RefreshCw} label="Regenerate" onClick={() => props.onRegenerate(m.id)} />
                     <IconButton icon={ThumbsUp} label="Helpful" active={liked.has(m.id)}
-                      onClick={() => setLiked((s) => { const n = new Set(s); n.has(m.id) ? n.delete(m.id) : n.add(m.id); return n; })} />
+                      onClick={() => setLiked((s) => { const n = new Set(s); if (n.has(m.id)) n.delete(m.id); else n.add(m.id); return n; })} />
                   </div>
                 </div>
               </div>
             ))}
             {props.busy && <div className="lw-msg-ai"><span className="lw-mark"><Icon icon={Sparkles} size={12} stroke={1.7} /></span><p className="lw-msg-ai__intro lw-pulse">Thinking…</p></div>}
 
-            <Sources sources={props.sources} />
+            <Sources mentions={props.mentions} onPick={props.onPickEntity} />
           </>
         )}
-        {tab === "context" && <Sources sources={props.sources} />}
+        {tab === "context" && <Sources mentions={props.mentions} onPick={props.onPickEntity} />}
         {tab === "notes" && (
-          <textarea className="lw-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Scene notes, reminders, loose ideas…" />
+          <NotesPanel note={props.note} missingTarget={props.missingTarget} onOpenNote={props.onOpenNote}
+            onAddAlias={props.onAddAlias} onCreateNote={props.onCreateNote} onOpenBacklink={props.onOpenBacklink} />
         )}
       </div>
 
       <div className="lw-composer-region">
         <div className="lw-composer">
-          <textarea ref={inputRef} rows={1} value={draft} placeholder="Ask about this scene or your project…"
+          <textarea ref={inputRef} rows={1} value={draft} disabled={!props.aiReady} placeholder="Ask about this scene or your project…"
             onChange={(e) => { setDraft(e.target.value); const t = e.currentTarget; t.style.height = "15px"; t.style.height = `${t.scrollHeight}px`; }}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
           <div className="lw-composer__controls">
             <div className="lw-row lw-gap-4">
-              <IconButton icon={Paperclip} label="Attach context" small />
+              <IconButton icon={Paperclip} label="Attach context" small placeholder />
               <Tag>Current scene</Tag>
             </div>
-            <button className="lw-send" aria-label="Send" onClick={send} disabled={!draft.trim() || props.busy}>
+            <button className="lw-send" aria-label="Send" onClick={send} disabled={!draft.trim() || props.busy || !props.aiReady}>
               <Icon icon={ArrowUp} size={14} stroke={2} />
             </button>
           </div>
         </div>
-        <p className="lw-disclaimer">Muse can be wrong. Review changes before applying.</p>
+        <p className="lw-disclaimer">LoreWriter can be wrong. Review changes before applying.</p>
       </div>
     </aside>
   );
 }
 
-function Sources({ sources }: { sources: RetrievedSource[] }) {
+function Sources({ mentions, onPick }: { mentions: SceneMention[]; onPick: (name: string) => void }) {
   return (
     <section className="lw-sources">
       <SectionLabel>Retrieved context</SectionLabel>
-      {sources.map((s) => (
-        <button key={s.id} className="lw-source">
-          <span className="lw-source__icon"><Icon icon={s.kind === "character" ? UserRound : FileText} size={14} stroke={1.5} /></span>
+      {mentions.length === 0 && <p className="lw-empty">No notes are mentioned in this scene yet.</p>}
+      {mentions.map((m) => (
+        <button key={m.name} className="lw-source" onClick={() => onPick(m.name)}>
+          <span className="lw-source__icon"><Icon icon={m.type === "character" ? UserRound : FileText} size={14} stroke={1.5} /></span>
           <span className="lw-source__details">
-            <span className="lw-source__title">{s.title}</span>
-            <span className="lw-source__meta">{s.meta}</span>
+            <span className="lw-source__title">{m.name} — {m.type}</span>
+            <span className="lw-source__meta">{m.count}× in this scene · {m.backlinks} line{m.backlinks === 1 ? "" : "s"} in the project</span>
           </span>
           <Icon icon={ArrowUpRight} size={13} stroke={1.5} color="var(--lw-text-faint)" />
         </button>

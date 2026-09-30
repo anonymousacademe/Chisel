@@ -202,6 +202,16 @@ def apply_canon_update(entity: ent.Entity, new_facts: list[str]) -> None:
         ent.save_entity(entity, entity.path)
 
 
+def canon_map(entities: list[ent.Entity]) -> dict[str, str]:
+    """Established canon per entity: the managed section, else the note body
+    (capped). What the AI is shown as the story bible."""
+    canon = {}
+    for e in entities:
+        managed = get_canon(e.body)
+        canon[e.name] = managed if managed else e.body[:1500]
+    return canon
+
+
 def locate_evidence(scene_text: str, evidence: str) -> int | None:
     """Best-effort row (0-based) of an evidence snippet in the scene."""
     snippet = " ".join(evidence.split())[:80]

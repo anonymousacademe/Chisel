@@ -24,6 +24,28 @@ DEFAULT_STRONG_MODEL = "anthropic/claude-sonnet-4.5"
 DEFAULT_WRITING_MODEL = DEFAULT_STRONG_MODEL  # drafting & rewrites (plain text)
 
 
+MODEL_DEFAULTS = {
+    "fast": DEFAULT_FAST_MODEL,
+    "strong": DEFAULT_STRONG_MODEL,
+    "writing": DEFAULT_WRITING_MODEL,
+}
+
+
+def resolve_model(kind: str, project_meta: dict | None = None) -> str:
+    """The model for *kind* (fast | strong | writing).
+
+    Precedence: project.toml [ai] <kind>_model > global settings
+    <kind>_model > built-in default.
+    """
+    from ..core import settings as user_settings
+
+    key = f"{kind}_model"
+    raw = ((project_meta or {}).get("ai") or {}).get(key)
+    if raw:
+        return str(raw)
+    return user_settings.get(key) or MODEL_DEFAULTS[kind]
+
+
 def usage_extra_body(extra: dict | None = None) -> dict:
     """extra_body for chat calls: ask OpenRouter to report cost, and merge
     any existing provider options (e.g. require_parameters)."""

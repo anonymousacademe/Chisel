@@ -163,6 +163,32 @@ def wrap(body: str, draft_id: str | None = None) -> str:
     return f'<!--ai id="{draft_id}"-->{body}<!--/ai-->'
 
 
+def fresh_id(project_root: Path, text: str) -> str:
+    """A draft id unused anywhere in the project's sidecars or in *text*."""
+    return new_id(all_ids(project_root)
+                  | {p.id for p in find_pending(text) if p.id})
+
+
+def prepare_draft(text: str, mode: str, body: str, start: int, end: int,
+                  draft_id: str | None = None) -> tuple[str, int, int]:
+    """How to put generated *body* into *text* as a pending draft:
+    ``(insert, from, to)`` — replace ``text[from:to]`` with *insert*.
+
+    ``draft`` inserts at *start* (a space is added when it would glue onto the
+    previous word); ``rewrite``/``expand`` replace ``[start, end)`` and need a
+    *draft_id* whose original the caller has stored with add_original()
+    **before** the marker is written.
+    """
+    if mode == "draft":
+        if start > 0 and not text[start - 1].isspace() and body \
+                and not body[0].isspace():
+            body = " " + body
+        return wrap(body), start, start
+    if draft_id is None:
+        raise ValueError("rewrite/expand drafts need a draft id")
+    return wrap(body, draft_id), start, end
+
+
 def find_pending(text: str) -> list[Pending]:
     """Every well-formed pending draft in *text*, in document order."""
     return [Pending(m.start(), m.end(), m.start(2), m.end(2), m.group(1))
@@ -216,6 +242,11 @@ def strip_pending(text: str, originals: dict[str, str] | None = None) -> str:
     """The text as if every pending draft were rejected: unaccepted AI text
     is not canon and not the author's prose."""
     return reject_all(text, originals)
+
+
+def count_words(text: str, originals: dict[str, str] | None = None) -> int:
+    """Words in *text*, not counting pending AI drafts (unaccepted AI text)."""
+    return len(strip_pending(text, originals).split())
 
 
 def blank_pending(text: str) -> str:
