@@ -232,3 +232,16 @@ async def test_model_picker_load_failure_is_reported(tmp_path: Path, monkeypatch
         await pilot.press("escape")
         await pilot.pause()
         assert not isinstance(app.screen, settingscreen_mod.ModelPicker)
+
+
+async def test_settings_opens_after_saving_empty_model_fields(tmp_path: Path):
+    # Save with blank model fields writes null; reopening used to crash the app
+    user_settings.set("fast_model", None)
+    user_settings.set("strong_model", None)
+    app = LorewriteApp(_project(tmp_path, "z", "Z"))
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.action_settings()
+        await pilot.pause()
+        assert isinstance(app.screen, SettingsScreen)
+        assert app.screen.query_one("#fast-model", Input).value == ""

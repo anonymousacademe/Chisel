@@ -62,10 +62,11 @@ class SettingsScreen(ModalScreen[None]):
 
     def on_mount(self) -> None:
         self._refresh_key_status()
-        self.query_one("#fast-model", Input).value = user_settings.get(
-            "fast_model", "")
-        self.query_one("#strong-model", Input).value = user_settings.get(
-            "strong_model", "")
+        # Save stores empty fields as null; Input.value must be a str.
+        self.query_one("#fast-model", Input).value = str(
+            user_settings.get("fast_model") or "")
+        self.query_one("#strong-model", Input).value = str(
+            user_settings.get("strong_model") or "")
         if self._project is not None:
             prefs = self._project.editor_settings()
             self.query_one("#padding", Input).value = str(prefs["padding"])
