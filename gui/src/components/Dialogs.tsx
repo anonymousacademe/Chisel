@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 export function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+  // Escape closes the dialog wherever focus is (it may still be on the button that opened it).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented) { e.preventDefault(); onClose(); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
   return (
     <div className="lw-overlay lw-overlay--center" onMouseDown={onClose}>
-      <div className={`lw-dialog${wide ? " lw-dialog--wide" : ""}`} role="dialog" aria-label={title} onMouseDown={(e) => e.stopPropagation()}
-        onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } }}>
+      <div className={`lw-dialog${wide ? " lw-dialog--wide" : ""}`} role="dialog" aria-label={title} onMouseDown={(e) => e.stopPropagation()}>
         <h2 className="lw-dialog__title">{title}</h2>
         {children}
       </div>
