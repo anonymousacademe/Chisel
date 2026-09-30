@@ -25,6 +25,7 @@ from ..ai.client import (
 from ..ai.links import Suggestion, alias_form, suggest_links
 from ..ai.style import learn_style
 from ..ai.usage import LEDGER, format_cost
+from ..core import drafts
 from ..core import entities as ent
 from ..core import settings as user_settings
 from ..core.continuity import (
@@ -55,7 +56,7 @@ from .panels import BacklinkSelected, EntityPanel
 from .settingscreen import KeyPrompt
 from .sidebar import OpenFile, Sidebar
 from .stylereview import StyleReviewScreen
-from .theme import link_color, load_omarchy_colors, omarchy_textual_theme
+from .theme import ai_color, link_color, load_omarchy_colors, omarchy_textual_theme
 from .tour import TourScreen
 
 AUTOSAVE_DELAY = 0.6
@@ -69,6 +70,9 @@ HELP_TEXT = """\
   ctrl+j          jump to the [[link]] under the cursor (creates the note if missing)
   ctrl+l          AI: find other ways this scene refers to your characters/places
                   ('the old smith' -> Borin) and add them as aliases
+  f7 / f8         accept / reject the AI draft under the cursor
+                  (drafts are marked in color until you accept them)
+  f5              select all (f7 is accept)
   ctrl+s          save now (autosave is always on)
   ctrl+b          hide/show the sidebar
   f11             writer mode — hide everything but the editor
@@ -93,6 +97,11 @@ HELP_TEXT = """\
 Everything is saved as plain Markdown in your project folder.
 Press escape or ? to close this help.
 """
+
+
+def _word_count(text: str) -> int:
+    """Words in *text*, not counting pending AI drafts (unaccepted AI text)."""
+    return len(drafts.strip_pending(text).split())
 
 
 class HelpScreen(ModalScreen[None]):
@@ -194,6 +203,8 @@ class LorewriteApp(App):
         Binding("ctrl+j", "jump", "Jump to link"),
         Binding("ctrl+n", "new_scene", "New scene"),
         Binding("ctrl+l", "find_aliases", "Find aliases"),
+        Binding("f7", "accept_draft", "Accept AI draft", show=False),
+        Binding("f8", "reject_draft", "Reject AI draft", show=False),
         Binding("alt+left", "previous_scene", "Prev scene"),
         Binding("alt+right", "next_scene", "Next scene"),
         Binding("ctrl+s", "save", "Save"),
@@ -384,6 +395,9 @@ class LorewriteApp(App):
                     color=resolved, bold=True, underline=True
                 )
                 self.editor.mention_style = Style(color=resolved)
+            ai = ai_color(colors, resolved)
+            if ai:
+                self.editor.ai_style = Style(color=ai, italic=True)
             if colors.get("dark_foreground"):
                 self.editor.bracket_style = Style(color=colors["dark_foreground"])
             if colors.get("orange"):
@@ -438,7 +452,7 @@ class LorewriteApp(App):
         total = 0
         for path in self.project.list_scenes():
             try:
-                total += len(path.read_text(encoding="utf-8").split())
+                total += _word_count(path.read_text(encoding="utf-8"))
             except OSError:
                 continue
         self._project_words = total
@@ -562,7 +576,7 @@ class LorewriteApp(App):
             state = f"saved {time.strftime('%H:%M', time.localtime(self._last_save))}"
         else:
             state = "saved"
-        words = len(self._editor.text.split()) if self._editor else 0
+        words = _word_count(self._editor.text) if self._editor else 0
         if self._editor is not None:
             row, col = self._editor.cursor_location
             hint = self._link_hint()
@@ -584,12 +598,17 @@ class LorewriteApp(App):
     def _link_hint(self) -> str:
         text = self._editor.text
         offset = rowcol_to_offset(text, *self._editor.cursor_location)
+        hint = ""
+        if drafts.pending_at(text, offset) is not None:
+            hint = "AI draft — f7 accept · f8 reject"
         link = link_at(text, offset, self.editor.mention_names)
         if link is None:
-            return ""
+            return hint
         if self.is_resolved(link.target):
-            return f"{link.target} — ctrl+j to open"
-        return f"{link.target} — no note, ctrl+j to create"
+            link_hint = f"{link.target} — ctrl+j to open"
+        else:
+            link_hint = f"{link.target} — no note, ctrl+j to create"
+        return f"{hint}  |  {link_hint}" if hint else link_hint
 
     def _cost_note(self, calls_before: int) -> str:
         """' (AI $0.0031)' for the AI call made since *calls_before*, if the
@@ -767,7 +786,7 @@ class LorewriteApp(App):
 
     @work(exclusive=True)
     async def _fetch_suggestions(self) -> None:
-        scene_text = self.editor.text
+        scene_text = drafts.strip_pending(self.editor.text)  # AI text isn't canon
         entities = list(self.entities)
         calls = LEDGER.count()
         try:
@@ -805,6 +824,52 @@ class LorewriteApp(App):
                 added += 1
         self._entities_changed()
         self.notify(f"Added {added} alias(es) to entity notes", timeout=2)
+
+    # -- AI drafts: accept / reject (M4) ------------------------------------------
+
+    def _cursor_offset(self) -> int:
+        return rowcol_to_offset(self.editor.text, *self.editor.cursor_location)
+
+    def action_accept_draft(self) -> None:
+        """Accept the pending AI draft under the cursor (becomes normal text)."""
+        pending = drafts.pending_at(self.editor.text, self._cursor_offset())
+        if pending is None:
+            self.notify("No AI draft under the cursor", severity="warning",
+                        timeout=2)
+            return
+        body = self.editor.text[pending.body_start:pending.body_end]
+        self.editor.replace_offsets(pending.start, pending.end, body)
+        self.notify("AI draft accepted", timeout=1)
+
+    def action_reject_draft(self) -> None:
+        """Reject the pending AI draft under the cursor: restore what was there."""
+        pending = drafts.pending_at(self.editor.text, self._cursor_offset())
+        if pending is None:
+            self.notify("No AI draft under the cursor", severity="warning",
+                        timeout=2)
+            return
+        self.editor.replace_offsets(pending.start, pending.end,
+                                    pending.original or "")
+        self.notify("AI draft rejected", timeout=1)
+
+    def _resolve_all_drafts(self, accept: bool) -> None:
+        found = drafts.find_pending(self.editor.text)
+        if not found:
+            self.notify("No AI drafts in this scene", timeout=2)
+            return
+        for p in reversed(found):  # back to front so offsets hold
+            text = self.editor.text
+            new = (text[p.body_start:p.body_end] if accept
+                   else (p.original or ""))
+            self.editor.replace_offsets(p.start, p.end, new)
+        verb = "accepted" if accept else "rejected"
+        self.notify(f"{len(found)} AI draft(s) {verb}", timeout=2)
+
+    def accept_all_drafts(self) -> None:
+        self._resolve_all_drafts(True)
+
+    def reject_all_drafts(self) -> None:
+        self._resolve_all_drafts(False)
 
     # -- AI: style guide (M4) ---------------------------------------------------
 
@@ -912,7 +977,7 @@ class LorewriteApp(App):
 
         from ..ai.continuity import check_scene
 
-        scene_text = self.editor.text
+        scene_text = drafts.strip_pending(self.editor.text)  # AI text isn't canon
         entities = list(self.entities)
         canon = self._canon_map()
         scene_rel = str(self.current_path.relative_to(self.project.root))
@@ -975,7 +1040,7 @@ class LorewriteApp(App):
         from ..ai.continuity import propose_canon_updates
         from .noteupdates import NoteUpdateScreen
 
-        scene_text = self.editor.text
+        scene_text = drafts.strip_pending(self.editor.text)  # AI text isn't canon
         entities = list(self.entities)
         calls = LEDGER.count()
         try:

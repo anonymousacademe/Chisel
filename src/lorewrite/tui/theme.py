@@ -87,3 +87,16 @@ def link_color(colors: dict) -> str | None:
         if value and value.lower() not in taken:
             return value
     return None
+
+
+def ai_color(colors: dict, link: str | None = None) -> str | None:
+    """Color for pending AI drafts: theme magenta, else the next hue that is
+    distinct from the prose, unresolved-link orange and the link color."""
+    taken = {(colors.get(k) or "").lower() for k in ("foreground", "orange")}
+    if link:
+        taken.add(link.lower())
+    for key in ("magenta", "purple", "yellow", "red", "green", "blue"):
+        value = colors.get(key)
+        if value and value.lower() not in taken:
+            return value
+    return None

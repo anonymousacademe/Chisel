@@ -10,6 +10,8 @@ import re
 import shutil
 from pathlib import Path
 
+from .drafts import strip_pending
+
 STYLE_FILE = "style.md"
 BACKUP_FILE = "style.md.bak"
 MIN_PARAGRAPH_WORDS = 25
@@ -98,7 +100,7 @@ def sample_manuscript(project, max_words: int = 6000) -> list[tuple[str, str]]:
             text = path.read_text(encoding="utf-8")
         except OSError:
             continue
-        paras = _paragraphs(text)
+        paras = _paragraphs(strip_pending(text))  # AI text isn't the author's
         if paras:
             per_scene.append((str(path.relative_to(project.root)), paras))
     if not per_scene:

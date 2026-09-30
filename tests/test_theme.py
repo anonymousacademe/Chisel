@@ -79,3 +79,13 @@ def test_link_color_skips_hues_equal_to_foreground():
                        "blue": "#e68e0d", "orange": "#c63d3d"}) == "#e68e0d"
     assert link_color({"foreground": "#fff", "cyan": "#0ff"}) == "#0ff"
     assert link_color({"foreground": "#fff"}) is None
+
+
+def test_ai_color_prefers_magenta_and_skips_taken_colors():
+    from lorewrite.tui.theme import ai_color
+
+    colors = {"foreground": "#ffffff", "orange": "#ff8800", "magenta": "#cc00cc",
+              "yellow": "#eeee00"}
+    assert ai_color(colors) == "#cc00cc"
+    assert ai_color(colors, link="#CC00CC") == "#eeee00"  # link color is taken
+    assert ai_color({"foreground": "#111111", "magenta": "#111111"}) is None
