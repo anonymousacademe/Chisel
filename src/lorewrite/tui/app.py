@@ -18,6 +18,7 @@ from textual import work
 from .. import __version__
 from ..ai.client import DEFAULT_FAST_MODEL, set_api_key
 from ..ai.links import Suggestion, apply_suggestions, suggest_links
+from ..ai.usage import LEDGER, format_cost
 from ..core import entities as ent
 from ..core import settings as user_settings
 from ..core.continuity import (
@@ -546,6 +547,8 @@ class LorewriteApp(App):
         ]
         if hint:
             parts.append(hint)
+        if LEDGER.session_total() > 0:
+            parts.append(format_cost(LEDGER.session_total()))
         self._status_text = "  |  ".join(parts)
         self._status.update(self._status_text)
 
@@ -558,6 +561,17 @@ class LorewriteApp(App):
         if self.is_resolved(link.target):
             return f"{link.target} — ctrl+j to open"
         return f"{link.target} — no note, ctrl+j to create"
+
+    def _cost_note(self, calls_before: int) -> str:
+        """' (AI $0.0031)' for the AI call made since *calls_before*, if the
+        provider reported a cost. Also refreshes the status-bar total."""
+        self.update_status()
+        if LEDGER.count() <= calls_before:
+            return ""
+        last = LEDGER.last()
+        if last is None or last.cost is None:
+            return ""
+        return f" ({format_cost(last.cost)})"
 
     # -- entity panel / backlinks --------------------------------------------------
 
@@ -710,6 +724,7 @@ class LorewriteApp(App):
     async def _fetch_suggestions(self) -> None:
         scene_text = self.editor.text
         entities = list(self.entities)
+        calls = LEDGER.count()
         try:
             suggestions = await asyncio.to_thread(
                 suggest_links, scene_text, entities, self._ai_fast_model()
@@ -718,8 +733,9 @@ class LorewriteApp(App):
             self.notify(f"Link suggestions failed: {exc}", severity="error",
                         timeout=6)
             return
+        cost = self._cost_note(calls)
         if not suggestions:
-            self.notify("No unlinked mentions found", timeout=2)
+            self.notify("No unlinked mentions found" + cost, timeout=2)
             return
         self.push_screen(
             LinkReviewScreen(suggestions, scene_text),
@@ -826,6 +842,7 @@ class LorewriteApp(App):
         entities = list(self.entities)
         canon = self._canon_map()
         scene_rel = str(self.current_path.relative_to(self.project.root))
+        calls = LEDGER.count()
         try:
             results = await asyncio.to_thread(
                 check_scene, scene_text, entities, canon,
@@ -836,11 +853,14 @@ class LorewriteApp(App):
                         timeout=6)
             return
         # check_scene leaves scene blank; the jump action needs it
+        cost = self._cost_note(calls)
         results = [replace(c, scene=scene_rel) for c in results]
         results = filter_waived(results, load_waivers(self.project.root))
         if not results:
-            self.notify("No continuity issues found", timeout=3)
+            self.notify("No continuity issues found" + cost, timeout=3)
             return
+        if cost:
+            self.notify(f"Continuity check done{cost}", timeout=3)
         self.push_screen(ContinuityScreen(results))
 
     def on_waive_toggled(self, message: WaiveToggled) -> None:
@@ -883,6 +903,7 @@ class LorewriteApp(App):
 
         scene_text = self.editor.text
         entities = list(self.entities)
+        calls = LEDGER.count()
         try:
             updates = await asyncio.to_thread(
                 propose_canon_updates, scene_text, entities,
@@ -892,9 +913,12 @@ class LorewriteApp(App):
             self.notify(f"Story-bible update failed: {exc}", severity="error",
                         timeout=6)
             return
+        cost = self._cost_note(calls)
         if not updates:
-            self.notify("No new canon found in this scene", timeout=2)
+            self.notify("No new canon found in this scene" + cost, timeout=2)
             return
+        if cost:
+            self.notify(f"Canon proposals ready{cost}", timeout=3)
         self.push_screen(NoteUpdateScreen(updates), self._apply_canon_updates)
 
     def _apply_canon_updates(self, accepted) -> None:

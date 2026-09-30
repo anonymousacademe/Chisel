@@ -9,3 +9,13 @@ def isolated_state_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("LOREWRITE_STATE_DIR", str(state_dir))
     state_dir.mkdir(parents=True, exist_ok=True)
     (state_dir / "settings.json").write_text('{"tour_seen": true}')
+
+
+@pytest.fixture(autouse=True)
+def fresh_usage_ledger():
+    """The AI spend ledger is a module singleton; isolate it per test."""
+    from lorewrite.ai.usage import LEDGER
+
+    LEDGER.clear()
+    yield
+    LEDGER.clear()

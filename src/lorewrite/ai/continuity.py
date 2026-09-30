@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from ..core.continuity import Contradiction, contradiction_from_dict, locate_evidence
 from ..core.jev_interface import pre_screen
 from ..core.entities import Entity
+from .client import usage_extra_body
+from .usage import record_response
 
 CONTRADICTION_SCHEMA = {
     "type": "object",
@@ -214,8 +216,9 @@ def check_scene(
                 "schema": CONTRADICTION_SCHEMA,
             },
         },
-        extra_body={"provider": {"require_parameters": True}},
+        extra_body=usage_extra_body({"provider": {"require_parameters": True}}),
     )
+    record_response(response, model, "continuity")
     raw = response.choices[0].message.content or ""
     return parse_contradictions(raw, scene_text, "")
 
@@ -281,7 +284,8 @@ def propose_canon_updates(
                 "schema": ACCUMULATION_SCHEMA,
             },
         },
-        extra_body={"provider": {"require_parameters": True}},
+        extra_body=usage_extra_body({"provider": {"require_parameters": True}}),
     )
+    record_response(response, model, "canon")
     raw = response.choices[0].message.content or ""
     return parse_canon_updates(raw)

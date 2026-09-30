@@ -21,6 +21,16 @@ KEYRING_USER = "openrouter"
 # Sensible defaults (see research: cheap model for linking, strong for lore).
 DEFAULT_FAST_MODEL = "google/gemini-2.5-flash"
 DEFAULT_STRONG_MODEL = "anthropic/claude-sonnet-4.5"
+DEFAULT_WRITING_MODEL = DEFAULT_STRONG_MODEL  # drafting & rewrites (plain text)
+
+
+def usage_extra_body(extra: dict | None = None) -> dict:
+    """extra_body for chat calls: ask OpenRouter to report cost, and merge
+    any existing provider options (e.g. require_parameters)."""
+    body = dict(extra or {})
+    body["usage"] = {**(body.get("usage") or {}), "include": True}
+    return body
+
 
 
 def get_api_key() -> str | None:

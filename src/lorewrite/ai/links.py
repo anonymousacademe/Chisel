@@ -13,6 +13,8 @@ from dataclasses import dataclass
 
 from ..core.entities import Entity
 from ..core.links import find_links
+from .client import usage_extra_body
+from .usage import record_response
 
 SCHEMA = {
     "type": "object",
@@ -160,7 +162,8 @@ def suggest_links(
             "json_schema": {"name": "link_mentions", "strict": True,
                             "schema": SCHEMA},
         },
-        extra_body={"provider": {"require_parameters": True}},
+        extra_body=usage_extra_body({"provider": {"require_parameters": True}}),
     )
+    record_response(response, model, "links")
     raw = response.choices[0].message.content or ""
     return validate_suggestions(scene_text, parse_suggestions(raw), entities)
