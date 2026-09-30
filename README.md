@@ -76,12 +76,23 @@ Uses [OpenRouter](https://openrouter.ai) (bring your own key). Either:
   keyring), or
 - Set the `OPENROUTER_API_KEY` environment variable.
 
-Default models are cheap-tier; override per project in `project.toml`:
+Three model roles, each chosen in *Settings* (type a slug or **Choose…** from
+the live catalog) or per project in `project.toml` (project wins):
+
+| Role | Used for | Default |
+|---|---|---|
+| fast | alias finding | `google/gemini-2.5-flash` |
+| strong | continuity checks, story-bible updates | `anthropic/claude-sonnet-4.5` |
+| writing | drafting, rewrites, style guide | `anthropic/claude-sonnet-4.5` |
 
 ```toml
 [ai]
 fast_model = "google/gemini-2.5-flash"
+strong_model = "anthropic/claude-sonnet-4.5"
+writing_model = "anthropic/claude-sonnet-4.5"
 ```
+
+AI spend for the session is shown in the status bar (`AI $0.0123`).
 
 ## Your project on disk
 

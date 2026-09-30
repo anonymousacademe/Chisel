@@ -88,7 +88,7 @@ class ModelInfo:
     context_length: int | None
 
 
-_models_cache: list[ModelInfo] | None = None
+_models_payload: dict | None = None
 
 
 def _per_million(raw) -> float | None:
@@ -98,17 +98,20 @@ def _per_million(raw) -> float | None:
         return None
 
 
-def parse_models(payload: dict) -> list[ModelInfo]:
+def parse_models(payload: dict, structured_only: bool = True) -> list[ModelInfo]:
     """Models usable by lorewrite, sorted by name.
 
-    Every AI call sends a strict JSON schema with provider.require_parameters,
-    so models without structured-output support are left out.
+    The structured-output calls (linking, continuity) send a strict JSON schema
+    with provider.require_parameters, so by default models without
+    structured-output support are left out. Drafting is plain text, so the
+    writing-model picker passes structured_only=False for the whole catalog.
     """
     models = []
     for m in payload.get("data") or []:
         if not isinstance(m, dict) or not m.get("id"):
             continue
-        if "structured_outputs" not in (m.get("supported_parameters") or []):
+        if structured_only and "structured_outputs" not in (
+                m.get("supported_parameters") or []):
             continue
         pricing = m.get("pricing") or {}
         models.append(ModelInfo(
@@ -121,15 +124,16 @@ def parse_models(payload: dict) -> list[ModelInfo]:
     return sorted(models, key=lambda m: m.name.lower())
 
 
-def list_models(timeout: float = 10) -> list[ModelInfo]:
+def list_models(timeout: float = 10, structured_only: bool = True) -> list[ModelInfo]:
     """Fetch the OpenRouter model catalog (public; no key needed).
 
-    Cached for the session. Raises on network or parse failure.
+    The raw payload is cached for the session and filtered per call.
+    Raises on network or parse failure.
     """
-    global _models_cache
-    if _models_cache is None:
+    global _models_payload
+    if _models_payload is None:
         with urllib.request.urlopen(
             f"{OPENROUTER_BASE_URL}/models", timeout=timeout
         ) as resp:
-            _models_cache = parse_models(json.load(resp))
-    return _models_cache
+            _models_payload = json.load(resp)
+    return parse_models(_models_payload, structured_only)

@@ -18,6 +18,7 @@ from textual.widgets.option_list import Option
 from ..ai.client import (
     DEFAULT_FAST_MODEL,
     DEFAULT_STRONG_MODEL,
+    DEFAULT_WRITING_MODEL,
     ModelInfo,
     clear_api_key,
     get_api_key,
@@ -51,6 +52,10 @@ class SettingsScreen(ModalScreen[None]):
             with Horizontal(classes="model-row"):
                 yield Input(id="strong-model", placeholder=DEFAULT_STRONG_MODEL)
                 yield Button("Choose…", id="pick-strong")
+            yield Label("Writing model (drafting & rewrites):")
+            with Horizontal(classes="model-row"):
+                yield Input(id="writing-model", placeholder=DEFAULT_WRITING_MODEL)
+                yield Button("Choose…", id="pick-writing")
             if self._project is not None:
                 yield Label("Editor (this project)", classes="settings-heading")
                 yield Label("Side padding (0–8):")
@@ -67,6 +72,8 @@ class SettingsScreen(ModalScreen[None]):
             user_settings.get("fast_model") or "")
         self.query_one("#strong-model", Input).value = str(
             user_settings.get("strong_model") or "")
+        self.query_one("#writing-model", Input).value = str(
+            user_settings.get("writing_model") or "")
         if self._project is not None:
             prefs = self._project.editor_settings()
             self.query_one("#padding", Input).value = str(prefs["padding"])
@@ -90,15 +97,20 @@ class SettingsScreen(ModalScreen[None]):
                 KeyPrompt(),
                 lambda key: self._store_key(key),
             )
-        elif bid in ("pick-fast", "pick-strong"):
+        elif bid in ("pick-fast", "pick-strong", "pick-writing"):
             field = self.query_one(
-                "#fast-model" if bid == "pick-fast" else "#strong-model", Input)
+                {"pick-fast": "#fast-model", "pick-strong": "#strong-model",
+                 "pick-writing": "#writing-model"}[bid], Input)
 
             def _picked(model_id: str | None) -> None:
                 if model_id:
                     field.value = model_id
 
-            self.app.push_screen(ModelPicker(field.value.strip()), _picked)
+            # drafting is plain text: show the whole catalog for that field
+            self.app.push_screen(
+                ModelPicker(field.value.strip(),
+                            structured_only=bid != "pick-writing"),
+                _picked)
         elif bid == "clear-key":
             clear_api_key()
             self._refresh_key_status()
@@ -124,6 +136,8 @@ class SettingsScreen(ModalScreen[None]):
         strong = self.query_one("#strong-model", Input).value.strip()
         user_settings.set("fast_model", fast or None)
         user_settings.set("strong_model", strong or None)
+        writing = self.query_one("#writing-model", Input).value.strip()
+        user_settings.set("writing_model", writing or None)
         if self._project is not None:
             raw = self.query_one("#padding", Input).value.strip()
             try:
@@ -160,8 +174,8 @@ def model_label(m: ModelInfo) -> Text:
 class ModelPicker(ModalScreen[str | None]):
     """Filterable list of OpenRouter models. Dismisses with a model id or None.
 
-    Only models supporting structured outputs are listed (every lorewrite AI
-    call requires them).
+    By default only models supporting structured outputs are listed (linking
+    and continuity require them); structured_only=False lists everything.
     """
 
     BINDINGS = [Binding("escape", "cancel", "Cancel")]
@@ -174,9 +188,10 @@ class ModelPicker(ModalScreen[str | None]):
     #picker-status { color: $text-muted; }
     """
 
-    def __init__(self, current: str = "") -> None:
+    def __init__(self, current: str = "", structured_only: bool = True) -> None:
         super().__init__()
         self._current = current
+        self._structured_only = structured_only
         self._models: list[ModelInfo] = []
         self._shown: list[ModelInfo] = []
 
@@ -194,7 +209,8 @@ class ModelPicker(ModalScreen[str | None]):
     async def _load(self) -> None:
         status = self.query_one("#picker-status", Label)
         try:
-            self._models = await asyncio.to_thread(list_models)
+            self._models = await asyncio.to_thread(
+                list_models, structured_only=self._structured_only)
         except Exception as exc:
             status.update(Text(
                 f"Couldn't load models ({exc}). Type a model id in Settings instead."))

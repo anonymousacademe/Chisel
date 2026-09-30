@@ -220,8 +220,9 @@ TUI remains the supported interface until then.
 
 - BYOK via OpenRouter; `keyring` storage (Secret Service on Linux), config-file fallback `chmod 600`, env var for dev
 - Estimated hobbyist cost at 2–5k words/day with all AI features: **~$1.50–3.00/month** mid-tier, <$10–15 on premium models
-- Model slugs resolved from `/api/v1/models` at runtime, never hardcoded (catalog churns). Settings has a **Choose…** picker per model field: filterable list of the live catalog (name, id, $/M in/out, context), limited to models with `structured_outputs` since every AI call requires a strict JSON schema; fetched once per session, free-text slug entry still works offline
-- Per-call cost tracked from `usage.cost` and shown in a status line — AI spend is always visible
+- Model slugs resolved from `/api/v1/models` at runtime, never hardcoded (catalog churns). Settings has a **Choose…** picker per model field: filterable list of the live catalog (name, id, $/M in/out, context), limited to models with `structured_outputs` for the fast/strong fields (their calls require a strict JSON schema), the whole catalog for the writing field (drafting is plain text); fetched once per session, free-text slug entry still works offline
+- **Three model roles**: `fast` (alias finding), `strong` (continuity, story bible), `writing` (drafting, rewrites, style guide). Precedence per role: `project.toml [ai] <role>_model` > user setting `<role>_model` > built-in default. The writing model is a user choice, not hardcoded.
+- Per-call cost tracked from `usage.cost` (requests send `usage: {include: true}`) in a session ledger (`ai/usage.py`) and shown in the status bar (`AI $0.0123`) and in each AI call's notification — AI spend is always visible
 
 ## 9. Testing strategy
 

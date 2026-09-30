@@ -16,7 +16,12 @@ from textual.widgets import Button, Footer, Header, Input, Label, Static
 from textual import work
 
 from .. import __version__
-from ..ai.client import DEFAULT_FAST_MODEL, set_api_key
+from ..ai.client import (
+    DEFAULT_FAST_MODEL,
+    DEFAULT_STRONG_MODEL,
+    DEFAULT_WRITING_MODEL,
+    set_api_key,
+)
 from ..ai.links import Suggestion, apply_suggestions, suggest_links
 from ..ai.usage import LEDGER, format_cost
 from ..core import entities as ent
@@ -278,7 +283,10 @@ class LorewriteApp(App):
     }
     #settings-title { text-style: bold; text-align: center; }
     .settings-heading { text-style: bold; padding: 1 0 0 0; }
-    #settings Button { width: 100%; margin-top: 1; }
+    /* compact fields: the screen must fit ~40 rows with three model rows */
+    #settings Input { height: 1; border: none; padding: 0 1; background: $boost; }
+    #settings Checkbox { height: 1; border: none; padding: 0; }
+    #settings Button { width: 100%; height: 1; border: none; margin-top: 1; }
     #settings .model-row { height: auto; }
     #settings .model-row Input { width: 1fr; }
     #settings .model-row Button { width: 12; margin-top: 0; }
@@ -698,13 +706,27 @@ class LorewriteApp(App):
 
     # -- AI: link mentions ----------------------------------------------------
 
-    def _ai_fast_model(self) -> str:
-        """Precedence: project.toml [ai] > global settings > built-in default."""
+    _MODEL_DEFAULTS = {
+        "fast": DEFAULT_FAST_MODEL,
+        "strong": DEFAULT_STRONG_MODEL,
+        "writing": DEFAULT_WRITING_MODEL,
+    }
+
+    def _ai_model(self, kind: str) -> str:
+        """kind: fast | strong | writing.
+
+        Precedence: project.toml [ai] <kind>_model > global settings
+        <kind>_model > built-in default.
+        """
+        key = f"{kind}_model"
         if self.project is not None:
-            raw = (self.project.meta.get("ai") or {}).get("fast_model")
+            raw = (self.project.meta.get("ai") or {}).get(key)
             if raw:
                 return str(raw)
-        return user_settings.get("fast_model") or DEFAULT_FAST_MODEL
+        return user_settings.get(key) or self._MODEL_DEFAULTS[kind]
+
+    def _ai_fast_model(self) -> str:
+        return self._ai_model("fast")
 
     def action_link_mentions(self) -> None:
         """AI: propose [[links]] for unlinked entity mentions in this scene."""
@@ -801,14 +823,7 @@ class LorewriteApp(App):
     # -- AI: continuity checking (M3) -----------------------------------------
 
     def _ai_strong_model(self) -> str:
-        """Precedence: project.toml [ai] > global settings > built-in default."""
-        if self.project is not None:
-            raw = (self.project.meta.get("ai") or {}).get("strong_model")
-            if raw:
-                return str(raw)
-        from ..ai.client import DEFAULT_STRONG_MODEL
-
-        return user_settings.get("strong_model") or DEFAULT_STRONG_MODEL
+        return self._ai_model("strong")
 
     def _canon_map(self) -> dict[str, str]:
         """Established canon per entity: the managed section, else the body."""
