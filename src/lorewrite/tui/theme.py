@@ -89,14 +89,56 @@ def link_color(colors: dict) -> str | None:
     return None
 
 
-def ai_color(colors: dict, link: str | None = None) -> str | None:
-    """Color for pending AI drafts: theme magenta, else the next hue that is
-    distinct from the prose, unresolved-link orange and the link color."""
-    taken = {(colors.get(k) or "").lower() for k in ("foreground", "orange")}
-    if link:
-        taken.add(link.lower())
-    for key in ("magenta", "purple", "yellow", "red", "green", "blue"):
-        value = colors.get(key)
-        if value and value.lower() not in taken:
-            return value
+DRAFT_CANDIDATES = ("green", "yellow", "magenta", "bright_cyan", "blue", "cyan",
+                    "bright_green", "bright_magenta", "bright_blue", "bright_yellow")
+# last-resort hues for palettes with nothing distinct (e.g. matte-black is
+# only reds, ambers and grays)
+FALLBACK_HUES = ("#3fb8af", "#a78bfa", "#6fcf97", "#5ac8fa")
+GOOD_DISTANCE = 110  # RGB distance at which a theme hue counts as distinct
+
+
+def _rgb(color: str) -> tuple[int, int, int] | None:
+    c = (color or "").strip().lstrip("#")
+    if len(c) == 3:
+        c = "".join(ch * 2 for ch in c)
+    if len(c) != 6:
+        return None
+    try:
+        return int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16)
+    except ValueError:
+        return None
+
+
+def rgb_distance(a: str, b: str) -> float:
+    """Euclidean RGB distance between two hex colors (inf if unparsable)."""
+    ra, rb = _rgb(a), _rgb(b)
+    if ra is None or rb is None:
+        return float("inf")
+    return sum((x - y) ** 2 for x, y in zip(ra, rb)) ** 0.5
+
+
+def distinct_color(colors: dict, avoid: list[str | None]) -> str:
+    """The hue for pending AI drafts: among the theme's candidate hues the one
+    farthest (in RGB) from every color in *avoid* (foreground, link color,
+    unresolved color, ...). If no theme hue is clearly distinct, built-in
+    fallback hues join the pool, so drafts never blend into links or prose."""
+    avoid_rgb = [a for a in avoid if a and _rgb(a)]
+
+    def score(color: str) -> float:
+        return min((rgb_distance(color, a) for a in avoid_rgb),
+                   default=float("inf"))
+
+    theme = [colors[k] for k in DRAFT_CANDIDATES if _rgb(colors.get(k) or "")]
+    best = max(theme, key=score, default=None)
+    if best is not None and score(best) >= GOOD_DISTANCE:
+        return best
+    return max([*theme, *FALLBACK_HUES], key=score)
+
+
+def draft_tint(colors: dict) -> str | None:
+    """Subtle background tint for draft text: the theme's selection color,
+    else its lighter background."""
+    for key in ("selection", "lighter_background"):
+        if _rgb(colors.get(key) or ""):
+            return colors[key]
     return None

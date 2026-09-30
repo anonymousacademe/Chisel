@@ -58,7 +58,13 @@ from .promptscreen import PromptScreen
 from .settingscreen import KeyPrompt
 from .sidebar import OpenFile, Sidebar
 from .stylereview import StyleReviewScreen
-from .theme import ai_color, link_color, load_omarchy_colors, omarchy_textual_theme
+from .theme import (
+    distinct_color,
+    draft_tint,
+    link_color,
+    load_omarchy_colors,
+    omarchy_textual_theme,
+)
 from .tour import TourScreen
 
 AUTOSAVE_DELAY = 0.6
@@ -412,9 +418,10 @@ class LorewriteApp(App):
                     color=resolved, bold=True, underline=True
                 )
                 self.editor.mention_style = Style(color=resolved)
-            ai = ai_color(colors, resolved)
-            if ai:
-                self.editor.ai_style = Style(color=ai, italic=True)
+            hue = distinct_color(colors, [colors.get("foreground"), resolved,
+                                          colors.get("orange")])
+            self.editor.ai_style = Style(color=hue, italic=True,
+                                         bgcolor=draft_tint(colors))
             if colors.get("dark_foreground"):
                 self.editor.bracket_style = Style(color=colors["dark_foreground"])
             if colors.get("orange"):

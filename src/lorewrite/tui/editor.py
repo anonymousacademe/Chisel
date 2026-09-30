@@ -28,7 +28,7 @@ RESOLVED_STYLE = Style(color="cyan", bold=True, underline=True)
 UNRESOLVED_STYLE = Style(color="orange1", bold=True, underline=True)
 MENTION_STYLE = Style(color="cyan")
 BRACKET_STYLE = Style(dim=True)
-AI_STYLE = Style(color="magenta", italic=True)
+AI_STYLE = Style(color="green", bgcolor="grey19", italic=True)
 
 
 def _style_cell_range(
