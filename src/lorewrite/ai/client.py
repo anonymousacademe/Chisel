@@ -1,4 +1,4 @@
-"""OpenRouter client (OpenAI-compatible). Stub for M2+; not wired into the TUI yet.
+"""OpenRouter client (OpenAI-compatible): key resolution, client, model catalog.
 
 Design notes (SPEC §8):
 - Key resolution order: OPENROUTER_API_KEY env var, then keyring
@@ -9,7 +9,10 @@ Design notes (SPEC §8):
 
 from __future__ import annotations
 
+import json
 import os
+import urllib.request
+from dataclasses import dataclass
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 KEYRING_SERVICE = "lorewrite"
@@ -61,3 +64,62 @@ def make_client():
             "via lorewrite.ai.client.set_api_key()."
         )
     return OpenAI(base_url=OPENROUTER_BASE_URL, api_key=key)
+
+
+# -- model catalog -------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ModelInfo:
+    id: str
+    name: str
+    prompt_per_m: float | None  # USD per million tokens
+    completion_per_m: float | None
+    context_length: int | None
+
+
+_models_cache: list[ModelInfo] | None = None
+
+
+def _per_million(raw) -> float | None:
+    try:
+        return float(raw) * 1_000_000
+    except (TypeError, ValueError):
+        return None
+
+
+def parse_models(payload: dict) -> list[ModelInfo]:
+    """Models usable by lorewrite, sorted by name.
+
+    Every AI call sends a strict JSON schema with provider.require_parameters,
+    so models without structured-output support are left out.
+    """
+    models = []
+    for m in payload.get("data") or []:
+        if not isinstance(m, dict) or not m.get("id"):
+            continue
+        if "structured_outputs" not in (m.get("supported_parameters") or []):
+            continue
+        pricing = m.get("pricing") or {}
+        models.append(ModelInfo(
+            id=m["id"],
+            name=m.get("name") or m["id"],
+            prompt_per_m=_per_million(pricing.get("prompt")),
+            completion_per_m=_per_million(pricing.get("completion")),
+            context_length=m.get("context_length"),
+        ))
+    return sorted(models, key=lambda m: m.name.lower())
+
+
+def list_models(timeout: float = 10) -> list[ModelInfo]:
+    """Fetch the OpenRouter model catalog (public; no key needed).
+
+    Cached for the session. Raises on network or parse failure.
+    """
+    global _models_cache
+    if _models_cache is None:
+        with urllib.request.urlopen(
+            f"{OPENROUTER_BASE_URL}/models", timeout=timeout
+        ) as resp:
+            _models_cache = parse_models(json.load(resp))
+    return _models_cache

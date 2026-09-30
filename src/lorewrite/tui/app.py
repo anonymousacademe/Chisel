@@ -275,6 +275,9 @@ class LorewriteApp(App):
     #settings-title { text-style: bold; text-align: center; }
     .settings-heading { text-style: bold; padding: 1 0 0 0; }
     #settings Button { width: 100%; margin-top: 1; }
+    #settings .model-row { height: auto; }
+    #settings .model-row Input { width: 1fr; }
+    #settings .model-row Button { width: 12; margin-top: 0; }
     #settings-hint { padding: 1 0 0 0; color: $text-muted; }
     """
 

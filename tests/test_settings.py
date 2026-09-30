@@ -159,3 +159,76 @@ async def test_key_prompt_ctrl_v_pastes_system_clipboard(tmp_path: Path, monkeyp
         await pilot.press("enter")
         await pilot.pause()
     assert stored == ["sk-or-v1-secret"]
+
+
+# -- model picker ---------------------------------------------------------------------
+
+
+def test_parse_models_keeps_structured_output_models_sorted():
+    from lorewrite.ai.client import parse_models
+
+    payload = {"data": [
+        {"id": "z/zeta", "name": "Zeta", "supported_parameters": ["structured_outputs"],
+         "pricing": {"prompt": "0.0000003", "completion": "0.0000025"},
+         "context_length": 128000},
+        {"id": "a/plain", "name": "Plain", "supported_parameters": ["tools"]},
+        {"id": "b/alpha", "name": "alpha [beta]",
+         "supported_parameters": ["structured_outputs"], "pricing": {}},
+        {"name": "no id"},
+    ]}
+    models = parse_models(payload)
+    assert [m.id for m in models] == ["b/alpha", "z/zeta"]
+    assert round(models[1].prompt_per_m, 2) == 0.3
+    assert models[0].prompt_per_m is None
+
+
+def _fake_models():
+    from lorewrite.ai.client import ModelInfo
+
+    return [
+        ModelInfo("anthropic/claude-sonnet-4.5", "Anthropic: Claude Sonnet 4.5",
+                  3.0, 15.0, 200000),
+        ModelInfo("google/gemini-2.5-flash", "Google: Gemini 2.5 Flash",
+                  0.3, 2.5, 1000000),
+        ModelInfo("meta/llama-x", "Meta: Llama [x]", 0.0, 0.0, None),
+    ]
+
+
+async def test_model_picker_filters_and_fills_field(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(settingscreen_mod, "list_models", _fake_models)
+    app = LorewriteApp(_project(tmp_path, "m", "M"))
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.push_screen(SettingsScreen(app.project))
+        await pilot.pause()
+        settings = app.screen
+        await pilot.click("#pick-fast")
+        await pilot.pause()
+        await pilot.pause()
+        assert isinstance(app.screen, settingscreen_mod.ModelPicker)
+        await pilot.press(*"gemini")
+        await pilot.pause()
+        assert [m.id for m in app.screen._shown] == ["google/gemini-2.5-flash"]
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen is settings
+        assert settings.query_one("#fast-model", Input).value == \
+            "google/gemini-2.5-flash"
+
+
+async def test_model_picker_load_failure_is_reported(tmp_path: Path, monkeypatch):
+    def _boom():
+        raise OSError("offline")
+
+    monkeypatch.setattr(settingscreen_mod, "list_models", _boom)
+    app = LorewriteApp(_project(tmp_path, "f", "F"))
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.push_screen(settingscreen_mod.ModelPicker())
+        await pilot.pause()
+        await pilot.pause()
+        status = str(app.screen.query_one("#picker-status").render())
+        assert "offline" in status
+        await pilot.press("escape")
+        await pilot.pause()
+        assert not isinstance(app.screen, settingscreen_mod.ModelPicker)
