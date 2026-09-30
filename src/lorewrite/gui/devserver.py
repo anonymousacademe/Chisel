@@ -59,6 +59,10 @@ def make_handler(api: Api, dist: Path):
             if not self.path.startswith("/api/") or name not in methods:
                 return self._send(404, b'{"ok": false, "error": "no such method"}',
                                   "application/json")
+            # Only our own fetch() sends application/json; any other origin would need
+            # a CORS preflight (never answered), so a web page cannot drive this API.
+            if (self.headers.get("Content-Type") or "").split(";")[0].strip() != "application/json":
+                return self._send(415, b'{"ok": false, "error": "JSON only"}', "application/json")
             length = int(self.headers.get("Content-Length") or 0)
             try:
                 payload = json.loads(self.rfile.read(length) or b"{}")

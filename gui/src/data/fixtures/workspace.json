@@ -96,6 +96,12 @@
       ]
     },
     {
+      "id": "style.md",
+      "title": "Style Guide",
+      "kind": "style",
+      "meta": "new"
+    },
+    {
       "id": "ph:research",
       "title": "Research",
       "kind": "research",

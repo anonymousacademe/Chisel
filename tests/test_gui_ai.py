@@ -233,3 +233,16 @@ def test_a_slow_ai_call_does_not_block_saves(tmp_path, monkeypatch):
     release.set()
     t.join(5)
     assert result["ok"] and result["issues"] == []
+
+
+def test_ensure_style_creates_the_stub_once(tmp_path):
+    api, root = open_api(tmp_path)
+    assert not (root / "style.md").exists()
+    assert api.ensure_style()["id"] == "style.md"
+    stub = (root / "style.md").read_text()
+    assert stub.startswith("# Style guide") and "## Voice" in stub
+    (root / "style.md").write_text("# Style guide\n\nMine.\n")
+    api.ensure_style()  # never overwrites
+    assert "Mine." in (root / "style.md").read_text()
+    binder = {n["id"]: n for n in api.get_workspace()["workspace"]["binder"]}
+    assert "meta" not in binder["style.md"]

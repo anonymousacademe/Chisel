@@ -38,6 +38,7 @@ export const api = {
   proposeCanon: (id: string, text: string) => call<{ updates: CanonProposal[]; cost: number | null }>("propose_canon", id, text),
   applyCanon: (updates: { entity: string; facts: string[] }[]) => call<{ applied: number }>("apply_canon", updates),
   learnStyle: () => call<{ markdown: string; replacing: boolean; samples: number; cost: number | null }>("learn_style"),
+  ensureStyle: () => call<{ id: string }>("ensure_style"),
   saveStyle: (text: string) => call<{ id: string }>("save_style", text),
   generate: (mode: string, instruction: string, id: string, text: string, start: number, end: number) =>
     call<GenerateResult>("generate", mode, instruction, id, text, start, end),

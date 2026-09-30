@@ -45,9 +45,18 @@ def test_devserver_serves_dist_and_bridge(tmp_path):
     try:
         base = f"http://127.0.0.1:{port}/"
         assert b"hi" in urllib.request.urlopen(base).read()
-        req = urllib.request.Request(base + "api/ping", data=b"{}", method="POST")
+        req = urllib.request.Request(base + "api/ping", data=b"{}", method="POST",
+                                     headers={"Content-Type": "application/json"})
         assert json.load(urllib.request.urlopen(req))["pong"] is True
-        bad = urllib.request.Request(base + "api/__init__", data=b"{}", method="POST")
+        plain = urllib.request.Request(base + "api/ping", data=b"{}", method="POST",
+                                       headers={"Content-Type": "text/plain"})
+        try:
+            urllib.request.urlopen(plain)
+            raise AssertionError("expected 415")
+        except urllib.error.HTTPError as e:
+            assert e.code == 415  # simple cross-origin POSTs are refused
+        bad = urllib.request.Request(base + "api/__init__", data=b"{}", method="POST",
+                                     headers={"Content-Type": "application/json"})
         try:
             urllib.request.urlopen(bad)
             raise AssertionError("expected 404")

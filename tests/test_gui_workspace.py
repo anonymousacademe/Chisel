@@ -54,7 +54,7 @@ def test_binder_groups_and_placeholders(tmp_path):
     top = {n["id"]: n for n in built["binder"]}
     assert {c["title"] for c in top["group:characters"]["children"]} == {"Mara Vale", "Elias Vale"}
     assert top["group:world"]["children"][0]["meta"] == "place"
-    assert "style.md" not in top  # no style guide yet
+    assert top["style.md"]["meta"] == "new"  # listed before it exists; opening creates the stub
     assert top["ph:research"]["placeholder"] and top["ph:trash"]["placeholder"]
     manuscript = next(c for c in top["project"]["children"] if c["id"] == "group:manuscript")
     assert [c["title"] for c in manuscript["children"]] == ["01  Arrival", "02  The Archive"]

@@ -196,8 +196,9 @@ def build_binder(project: Project, scenes: list[dict], entities: list[dict],
         "children": [{"id": e["id"], "title": e["name"], "kind": "entity",
                       "meta": e["type"]} for e in world],
     }]
-    if has_style:
-        binder.append({"id": STYLE_ID, "title": "Style Guide", "kind": "style"})
+    # always listed: opening it before it exists creates the stub (Api.ensure_style)
+    binder.append({"id": STYLE_ID, "title": "Style Guide", "kind": "style",
+                   **({} if has_style else {"meta": "new"})})
     binder += [
         _placeholder("research", "Research", "research"),
         _placeholder("unplaced", "Unplaced Scenes", "inbox"),

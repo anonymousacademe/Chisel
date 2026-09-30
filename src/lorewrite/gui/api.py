@@ -50,7 +50,7 @@ from ..core.continuity import (
 )
 from ..core.project import Project, write_atomic
 from ..core.spans import compute_spans, from_utf16, index_to_utf16, to_utf16
-from ..core.style import load_style, sample_manuscript, save_style
+from ..core.style import ensure_style_stub, load_style, sample_manuscript, save_style
 from ..core.recents import add_recent, load_recents
 from ..core.style import style_path
 from . import workspace as ws
@@ -646,6 +646,13 @@ class Api:
         proposal = learn_style(samples, model)
         return {"markdown": proposal.markdown, "replacing": replacing,
                 "samples": len(samples), "cost": self._spent(calls)}
+
+    @bridge
+    def ensure_style(self) -> dict:
+        """Create style.md from the stub template if missing (opening the Style Guide)."""
+        with self._lock:
+            ensure_style_stub(self._require())
+            return {"id": ws.STYLE_ID}
 
     @bridge
     def save_style(self, text: str) -> dict:

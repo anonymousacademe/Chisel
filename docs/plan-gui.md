@@ -223,3 +223,50 @@ Work only in `~/lorewrite-gui`. Never modify `~/lorewrite`, `~/lorewrite-m4`,
 `m4-ai-writing`; never push. Write the final report (per-phase summary, how to
 run, placeholder inventory, deviations, Jev results, known limitations) to
 `/tmp/gui-report.md` and reply with the path.
+
+## As built — deviations from this plan
+
+Kept here so the next agent knows where the code differs from the text above.
+
+- **Commits.** Phases 1-3 share one commit (developed together); the Phase 6 docs commit
+  precedes the Phase 5 code commit. Content per phase is as described below.
+- **Drafts API.** `generate` returns the wrapped draft and the range it replaces (as planned) but
+  the replaced original is stored by a separate `register_draft` call the editor makes *before*
+  it writes the marker, so a discarded draft leaves no sidecar entry. `accept_draft`/`reject_draft`
+  became one `resolve_drafts(doc, text, accept, index|None)` (one draft or all; returns editor
+  edits, skips a reject whose original is missing). Added `draft_from_reply` (chat "Insert as
+  draft"), `apply_aliases`, `apply_canon`, `ensure_style`, `scene_context`, `ai_status`.
+- **Title block.** The `# heading` line is drawn *as* the big title inside CodeMirror (editable in
+  place, its `# ` hidden); the kicker is React above it and the mentions line + violet rule is a
+  block widget under it. Entity notes and files without a heading get a React title instead.
+- **Design annotations removed.** The comment/sparkle markers in the page gutter were mock
+  annotations at fixed positions; drawing them would be fake data. Comments remain a placeholder
+  toolbar button.
+- **Binder.** Parts are three generic placeholder rows "Part I/II/III" (the design's titles are
+  sample content). The Style Guide item is always listed; opening it before `style.md` exists
+  creates the stub, as the TUI does.
+- **Ctrl+J.** The design shows "Ctrl J" focusing the composer; the TUI uses it to open/make a
+  note. In the editor it opens/makes a note when a name is selected or under the cursor, and
+  otherwise falls through to focus the composer.
+- **Make note** does not navigate away: the new note appears in the Notes tab (the TUI opened it
+  in the editor). "New note" from the Library view does open it.
+- **Hard-wrapped Markdown** (the terminal app's files, the example project) is displayed reflowed
+  (newline drawn as a space, display only) with a Settings toggle. Not in the plan; needed for real
+  projects.
+- **Editor prefs** in Settings are GUI-specific (text size, reflow) rather than the TUI's padding
+  and line numbers.
+- **Core changes beyond factoring.** `find_mentions` overlap resolution and `Index.update_file` row
+  lookup were quadratic (a dense 42k-word scene took ~4 s per call); both are fixed and covered by a
+  property test against the old algorithm. `locate_evidence` now finds quotes that span hard-wrapped
+  lines. `Index(check_same_thread=False)` for the GUI's worker threads.
+- **Bridge.** pywebview gets `Api.facade()` (bridge methods only). Deliberate errors (`ValueError`,
+  `FileNotFoundError`, ...) reach the UI as plain messages; other exceptions keep their class name.
+  The devserver accepts only `application/json` POSTs.
+- **Session words** are the net change since the project was opened (may be negative); minutes are
+  time since it was opened.
+- **Tauri.** The `@tauri-apps/api` npm dependency (only the deleted Tauri adapter used it) was
+  removed; `@tauri-apps/cli` and `src-tauri/` are untouched.
+- **Not done / limits.** No component-level React tests (vitest covers pure logic; interaction was
+  checked with headless Chromium against the devserver). The window-manager close button does not
+  do a synchronous final save (1.5 s autosave + blur/pagehide flush cover it). The 5 remaining
+  `oxlint` warnings are React-compiler style hints, not errors.

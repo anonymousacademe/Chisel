@@ -199,7 +199,15 @@ export default function App() {
   }
 
   const isScene = doc?.kind === "scene";
-  const select = (n: BinderNode) => { if (isOpenable(n)) void openDoc(n.id); };
+  const select = async (n: BinderNode) => {
+    if (!isOpenable(n)) return;
+    if (n.kind === "style" && !ws.status.hasStyle) { // first open creates the stub, as the terminal app does
+      const r = await api.ensureStyle();
+      if (!r.ok) return notify(r.error, "error");
+      await refresh();
+    }
+    void openDoc(n.id);
+  };
   const toggle = (id: string) => setExpanded((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const onRail = (v: RailView) => {
     if (v === "assistant") { setAssistantOpen((o) => !o); return; }
@@ -578,7 +586,7 @@ export default function App() {
           initials={ws.project.initials} author={ws.project.author} />
         {showBinder && (
           <Binder nodes={ws.binder} count={ws.project.documentCount} activeId={doc?.id ?? null}
-            expanded={expanded} onToggle={toggle} onSelect={select} searching={rail === "search"}
+            expanded={expanded} onToggle={toggle} onSelect={(n) => void select(n)} searching={rail === "search"}
             library={rail === "library"} canNew canMenu={rail !== "library"}
             onNew={() => setDialog(rail === "library" ? { kind: "new-note", name: "", openAfter: true } : { kind: "new-scene" })} onMenu={openSceneMenu} />
         )}
