@@ -171,7 +171,7 @@ Implemented via parallel agents per docs/specification-guide.md.*
 *Expanded from vault notes: AI-written text is always visually marked and
 review-gated.*
 
-- **Style guide**: the app maintains a per-project style summary learned from the author's own prose (updated on demand), stored in the project (e.g. `.lorewrite/style.md`), used as context for all generative features.
+- **Style guide** ✅: `<project>/style.md` — plain Markdown at the project root (**not** `.lorewrite/`: it is author content, hand-editable, and the cache is disposable). Sections: Voice, Rhythm & syntax, Diction, Dialogue, Avoid, Exemplars (2–3 paragraphs quoted verbatim, each with its source scene filename). "AI: learn style guide from manuscript" (palette) samples ~6000 words spread across all scenes (`core/style.py`), the **writing** model describes the author's habits and picks exemplar paragraphs (indexes validated app-side; the app quotes them, the model never writes them), and a read-only review modal shows the proposed file (`enter` save — an existing guide is kept as `style.md.bak` — / `esc` discard). "Open style guide" edits it in the editor (stub template if missing). Used as context for all generative features.
 - `{{expand: instruction}}` markers; mid-tier model with style guide + surrounding ±500 words + 2-3 exemplar paragraphs
 - **Hotkey prompt window** (vault): "Give me one paragraph describing the busy street… stressed mood" → drafted with story + character + style context
 - **AI-written text is inserted in a distinct color** flagged as AI-generated; it stays marked until the author explicitly accepts it (accept = normal text). Rollback/reject always available.

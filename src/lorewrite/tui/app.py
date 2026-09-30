@@ -23,6 +23,7 @@ from ..ai.client import (
     set_api_key,
 )
 from ..ai.links import Suggestion, alias_form, suggest_links
+from ..ai.style import learn_style
 from ..ai.usage import LEDGER, format_cost
 from ..core import entities as ent
 from ..core import settings as user_settings
@@ -38,6 +39,13 @@ from ..core.index import Index
 from ..core.links import link_at, rowcol_to_offset
 from ..core.project import Project, retitle_text
 from ..core.recents import add_recent
+from ..core.style import (
+    ensure_style_stub,
+    load_style,
+    sample_manuscript,
+    save_style,
+    style_path,
+)
 from .commands import ActionProvider, EntityProvider, InsertLinkProvider, SceneProvider
 from .continuityscreen import ContinuityScreen, JumpToContradiction, WaiveToggled
 from .editor import LinkedTextArea
@@ -46,6 +54,7 @@ from .linkreview import AliasReviewScreen
 from .panels import BacklinkSelected, EntityPanel
 from .settingscreen import KeyPrompt
 from .sidebar import OpenFile, Sidebar
+from .stylereview import StyleReviewScreen
 from .theme import link_color, load_omarchy_colors, omarchy_textual_theme
 from .tour import TourScreen
 
@@ -277,6 +286,15 @@ class LorewriteApp(App):
     #continuity-hint, #noteupdate-hint {
         width: 76; padding: 0 2; color: $text-muted;
     }
+    StyleReviewScreen { align: center middle; }
+    #style-header {
+        width: 84; padding: 1 2; background: $surface; border: solid $primary;
+    }
+    #style-scroll {
+        width: 84; height: auto; max-height: 70%;
+        background: $surface; border: solid $primary; padding: 0 1;
+    }
+    #style-hint { width: 84; padding: 0 2; color: $text-muted; }
     SettingsScreen { align: center middle; }
     #settings {
         width: 64; height: auto; max-height: 90%;
@@ -486,6 +504,8 @@ class LorewriteApp(App):
         tmp = self.current_path.with_suffix(self.current_path.suffix + ".tmp")
         tmp.write_text(text, encoding="utf-8")
         tmp.replace(self.current_path)
+        if self.current_path == style_path(self.project):
+            return  # the style guide isn't part of the link index
         rel = str(self.current_path.relative_to(self.project.root))
         names = self._all_names() if self._is_scene(self.current_path) else None
         self.idx.update_file(rel, text, names)
@@ -785,6 +805,63 @@ class LorewriteApp(App):
                 added += 1
         self._entities_changed()
         self.notify(f"Added {added} alias(es) to entity notes", timeout=2)
+
+    # -- AI: style guide (M4) ---------------------------------------------------
+
+    def action_open_style_guide(self) -> None:
+        """Open style.md in the editor, creating it from a stub if missing."""
+        if self.project is None:
+            return
+        self.save_current()
+        self.open_file(ensure_style_stub(self.project))
+
+    open_style_guide = action_open_style_guide
+
+    def action_learn_style(self) -> None:
+        """AI: learn a style guide from the manuscript; review before saving."""
+        if self.project is None:
+            self.notify("Open a project first", severity="warning")
+            return
+        self.save_current()
+        samples = sample_manuscript(self.project)
+        if not samples:
+            self.notify("Nothing to learn from yet — write some scenes first",
+                        severity="warning")
+            return
+        self.notify(f"Learning your style from {len(samples)} paragraphs…",
+                    timeout=3)
+        self._learn_style_worker(samples)
+
+    learn_style_guide = action_learn_style
+
+    @work(exclusive=True, group="style")
+    async def _learn_style_worker(self, samples) -> None:
+        calls = LEDGER.count()
+        try:
+            proposal = await asyncio.to_thread(
+                learn_style, samples, self._ai_model("writing"))
+        except Exception as exc:
+            self.notify(f"Style guide failed: {exc}", severity="error",
+                        timeout=6)
+            return
+        cost = self._cost_note(calls)
+        if cost:
+            self.notify(f"Style guide ready{cost}", timeout=3)
+        replacing = style_path(self.project).is_file()
+        self.push_screen(
+            StyleReviewScreen(proposal.markdown, replacing),
+            lambda ok: self._save_style_guide(proposal.markdown, ok),
+        )
+
+    def _save_style_guide(self, markdown: str, ok: bool | None) -> None:
+        if not ok or self.project is None:
+            return
+        path = save_style(self.project, markdown)
+        if self.current_path == path:  # open in the editor: show the new text
+            self.editor.load_text(markdown)
+            self._dirty = False
+            self.update_status()
+        self.notify("Saved style.md", timeout=2)
 
     def set_api_key(self) -> None:
         def _store(key: str | None) -> None:
