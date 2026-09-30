@@ -8,12 +8,13 @@ Rebuild with index.rebuild(project) at any time.
 from __future__ import annotations
 
 import sqlite3
+from bisect import bisect_right
 from dataclasses import dataclass
 from pathlib import Path
 
 from . import drafts
 from . import entities as ent
-from .links import find_all_links, offset_to_rowcol
+from .links import find_all_links
 
 SCHEMA = """\
 CREATE TABLE IF NOT EXISTS entities (
@@ -73,8 +74,12 @@ class Index:
         cur.execute("DELETE FROM links WHERE source = ?", (rel_path,))
         text = drafts.blank_pending(text)
         lines = [ln.rstrip() for ln in text.splitlines()]
+        line_starts = [0]  # offset of each line, for O(log n) offset -> row
+        for i, ch in enumerate(text):
+            if ch == "\n":
+                line_starts.append(i + 1)
         for link in find_all_links(text, names):
-            row, _ = offset_to_rowcol(text, link.start)
+            row = bisect_right(line_starts, link.start) - 1
             line = lines[row] if row < len(lines) else ""
             cur.execute(
                 "INSERT INTO links (source, target, row, line) VALUES (?, ?, ?, ?)",

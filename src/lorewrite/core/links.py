@@ -12,6 +12,7 @@ mentions). Files are never rewritten to add brackets.
 from __future__ import annotations
 
 import re
+from bisect import bisect_left
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -78,16 +79,22 @@ def find_mentions(text: str, names: list[str]) -> list[Link]:
     pattern = _mention_re(tuple(sorted(set(names))))
     if pattern is None:
         return []
-    taken = [(l.start, l.end) for l in find_links(text)]
+    # Disjoint intervals kept sorted by start: an overlap test only needs the
+    # one interval starting last before the candidate's end (was O(n^2)).
+    taken = sorted((l.start, l.end) for l in find_links(text))
+    starts = [s for s, _ in taken]
     candidates = sorted(
         ((m.start(1), m.end(1)) for m in pattern.finditer(text)),
         key=lambda span: (span[0] - span[1], span[0]),  # longest, then leftmost
     )
     chosen = []
     for start, end in candidates:
-        if any(s < end and start < e for s, e in taken):
+        i = bisect_left(starts, end)
+        if i and taken[i - 1][1] > start:
             continue
-        taken.append((start, end))
+        at = bisect_left(starts, start)
+        starts.insert(at, start)
+        taken.insert(at, (start, end))
         chosen.append((start, end))
     return [Link(target=text[start:end], display=None, start=start, end=end,
                  explicit=False) for start, end in sorted(chosen)]

@@ -56,6 +56,11 @@ from ..core.style import style_path
 from . import workspace as ws
 
 
+# Errors the core raises on purpose, with a message written for the author:
+# shown as-is. Anything else keeps its class name (it is a bug worth reporting).
+USER_ERRORS = (ValueError, FileNotFoundError, FileExistsError, LookupError, IndexError, RuntimeError)
+
+
 def bridge(fn: Callable[..., dict]) -> Callable[..., dict]:
     """Wrap an Api method: exceptions become ``{"ok": False, "error": ...}``."""
 
@@ -64,7 +69,8 @@ def bridge(fn: Callable[..., dict]) -> Callable[..., dict]:
         try:
             result = fn(self, *args, **kwargs)
         except Exception as exc:  # the bridge never raises
-            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+            message = str(exc) if type(exc) in USER_ERRORS else f"{type(exc).__name__}: {exc}"
+            return {"ok": False, "error": message}
         if not isinstance(result, dict):
             result = {"value": result}
         result.setdefault("ok", True)

@@ -85,3 +85,15 @@ def test_plain_mentions_count_as_backlinks_in_scenes(project: Project):
     # an entity's own note mentioning its name is not a backlink
     assert not any(s.startswith("entities/") for s, _ in sources)
     index.close()
+
+
+def test_index_rows_match_offset_to_rowcol(tmp_path):
+    from lorewrite.core.index import Index
+    from lorewrite.core.links import find_all_links, offset_to_rowcol
+
+    text = "# T\n\nMara walked.\nThen [[Elias]] and Mara.\n\n\nLast Mara line"
+    idx = Index(tmp_path / "i.sqlite")
+    idx.update_file("manuscript/01-a.md", text, ["Mara"])
+    rows = sorted(r[0] for r in idx._conn.execute("SELECT row FROM links"))
+    expected = sorted(offset_to_rowcol(text, l.start)[0] for l in find_all_links(text, ["Mara"]))
+    assert rows == expected == [2, 3, 3, 6]

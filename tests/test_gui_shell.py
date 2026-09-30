@@ -19,8 +19,13 @@ def test_bridge_wraps_results_and_errors():
         def plain(self):
             return 3
 
+        @bridge
+        def bug(self):
+            return {}["missing"]
+
     api = Boom()
-    assert api.bad() == {"ok": False, "error": "ValueError: nope"}
+    assert api.bad() == {"ok": False, "error": "nope"}  # deliberate errors: message only
+    assert api.bug()["error"].startswith("KeyError")     # unexpected ones keep the class
     assert api.plain() == {"value": 3, "ok": True}
     assert api.ping() == {"pong": True, "ok": True}
     assert "ping" in api.bridge_methods()

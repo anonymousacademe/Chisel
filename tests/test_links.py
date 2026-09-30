@@ -86,3 +86,47 @@ def test_overlapping_mentions_prefer_the_longest():
     text = "Rain in the Hollow Market. Back at the Hollow, the Meridian slept."
     got = [m.target for m in find_mentions(text, names)]
     assert got == ["Hollow Market", "the Hollow", "the Meridian"]
+
+
+def _bruteforce_mentions(text, names):
+    """The original O(n^2) resolution, kept as the reference."""
+    from lorewrite.core.links import _mention_re, find_links
+
+    pattern = _mention_re(tuple(sorted(set(names))))
+    taken = [(l.start, l.end) for l in find_links(text)]
+    candidates = sorted(((m.start(1), m.end(1)) for m in pattern.finditer(text)),
+                        key=lambda span: (span[0] - span[1], span[0]))
+    chosen = []
+    for start, end in candidates:
+        if any(s < end and start < e for s, e in taken):
+            continue
+        taken.append((start, end))
+        chosen.append((start, end))
+    return sorted(chosen)
+
+
+def test_find_mentions_matches_bruteforce_reference():
+    import random
+
+    from lorewrite.core.links import find_mentions
+
+    rng = random.Random(7)
+    words = ["the", "Hollow", "Market", "Hollow Market", "the Hollow", "Rook", "Rook Tanaka",
+             "[[Rook|the man]]", "said", "rain", "Wren", "[[Hollow Market]]", "\n", "\n\n"]
+    names = ["the Hollow", "Hollow Market", "Rook", "Rook Tanaka", "Wren", "Market"]
+    for _ in range(200):
+        text = " ".join(rng.choice(words) for _ in range(rng.randint(1, 60)))
+        got = [(m.start, m.end) for m in find_mentions(text, names)]
+        assert got == _bruteforce_mentions(text, names), text
+
+
+def test_find_mentions_scales_to_a_huge_dense_scene():
+    import time
+
+    from lorewrite.core.links import find_mentions
+
+    text = " ".join(["Rook said Wren spoke in the Hollow Market"] * 6000)  # ~250 KB, ~18k mentions
+    t = time.time()
+    found = find_mentions(text, ["Rook", "Wren", "Hollow Market"])
+    assert len(found) == 18000
+    assert time.time() - t < 3.0  # was tens of seconds when quadratic
