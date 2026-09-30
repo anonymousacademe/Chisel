@@ -1,0 +1,46 @@
+/* Design tokens extracted from LoreWriter_1.fig ("The Meridian Archive workspace"). */
+:root {
+  /* Surfaces, darkest to lightest */
+  --lw-bg-app: #121318;
+  --lw-bg-rail: #15161b;       /* activity rail, status bar */
+  --lw-bg-titlebar: #18191f;
+  --lw-bg-panel: #1b1c23;      /* binder, toolbars, assistant, inspector strip */
+  --lw-bg-editor: #202127;
+  --lw-bg-raised: #202129;     /* cards, buttons, composer, active view mode */
+  --lw-bg-surface: #24242b;    /* writing surface */
+
+  /* Lines */
+  --lw-border: #292a32;
+  --lw-border-strong: #30313a;
+
+  /* Text */
+  --lw-text-strong: #f0eef4;
+  --lw-text: #c5c1cd;
+  --lw-text-muted: #85818f;
+  --lw-text-faint: #625f6a;
+
+  /* Accent (violet) */
+  --lw-accent: #8d7cf6;
+  --lw-accent-text: #a99cff;
+  --lw-accent-soft: #25223a;
+  --lw-accent-muted: #302c4a;
+
+  /* Status */
+  --lw-success: #67c6a1;
+  --lw-success-soft: #1d332d;
+  --lw-warning: #d8aa63;
+  --lw-traffic-close: #e36a78;
+  --lw-traffic-min: #d6a55c;
+  --lw-traffic-max: #62b98c;
+
+  /* Type */
+  --lw-font-ui: "Inter", system-ui, sans-serif;
+  --lw-font-prose: "Source Serif 4 Variable", "Source Serif 4", Georgia, serif;
+  --lw-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* Radii */
+  --lw-radius-xs: 3px;
+  --lw-radius-sm: 5px;
+  --lw-radius-md: 8px;
+  --lw-radius-pill: 999px;
+}
