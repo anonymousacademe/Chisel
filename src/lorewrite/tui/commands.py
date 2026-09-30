@@ -79,7 +79,7 @@ class EntityProvider(_Provider):
 
 
 class InsertLinkProvider(_Provider):
-    """Insert a [[link]] to an entity at the cursor."""
+    """Insert an entity's name at the cursor (recognized as a mention)."""
 
     def _entries(self):
         app = self.app
@@ -89,7 +89,7 @@ class InsertLinkProvider(_Provider):
                 display,
                 display,
                 partial(app.insert_link, entity.name),
-                f"Insert [[{entity.name}]] at cursor",
+                f"Insert {entity.name} at cursor",
             )
 
 

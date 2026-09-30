@@ -1,6 +1,7 @@
 """SQLite index over a project. A rebuildable cache, never the truth (SPEC §2).
 
-Stores: entities, and every wiki-link occurrence (for backlinks).
+Stores: entities, and every wiki-link occurrence (for backlinks). In scenes,
+plain-text mentions of entity names/aliases count as links too.
 Rebuild with index.rebuild(project) at any time.
 """
 
@@ -11,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import entities as ent
-from .links import find_links, offset_to_rowcol
+from .links import find_all_links, offset_to_rowcol
 
 SCHEMA = """\
 CREATE TABLE IF NOT EXISTS entities (
@@ -51,15 +52,22 @@ class Index:
 
     # -- writing ----------------------------------------------------------
 
-    def update_file(self, rel_path: str, text: str) -> None:
-        """Re-index one file's links. No-op after close (teardown races)."""
+    def update_file(
+        self, rel_path: str, text: str, names: list[str] | None = None
+    ) -> None:
+        """Re-index one file's links. No-op after close (teardown races).
+
+        *names*: entity names/aliases whose plain mentions also count
+        (passed for scenes, not for entity notes).
+        """
         if self._closed:
             return
         cur = self._conn.cursor()
         cur.execute("DELETE FROM links WHERE source = ?", (rel_path,))
-        for link in find_links(text):
+        lines = text.splitlines()
+        for link in find_all_links(text, names):
             row, _ = offset_to_rowcol(text, link.start)
-            line = text.splitlines()[row] if text.splitlines() else ""
+            line = lines[row] if row < len(lines) else ""
             cur.execute(
                 "INSERT INTO links (source, target, row, line) VALUES (?, ?, ?, ?)",
                 (rel_path, link.target, row, line),
@@ -85,13 +93,13 @@ class Index:
     # -- reading ----------------------------------------------------------
 
     def backlinks(self, entity: ent.Entity) -> list[Backlink]:
-        """Every link occurrence pointing at *entity* (by name or alias)."""
+        """Every line linking to or mentioning *entity* (by name or alias)."""
         if self._closed:
             return []
         names = entity.names
         placeholders = ",".join("?" for _ in names)
         rows = self._conn.execute(
-            f"SELECT source, row, line FROM links"
+            f"SELECT DISTINCT source, row, line FROM links"
             f" WHERE target COLLATE NOCASE IN ({placeholders})"
             f" ORDER BY source, row",
             names,
@@ -104,9 +112,13 @@ class Index:
         cur.execute("DELETE FROM links")
         cur.execute("DELETE FROM entities")
         self._conn.commit()
+        names: list[str] = []
         for path in project.list_entity_files():
             entity = ent.load_entity(path)
+            names.extend(entity.names)
             self.upsert_entity(entity, str(path.relative_to(project.root)))
+        scenes = set(project.list_scenes())
         for path in project.all_markdown_files():
             rel = str(path.relative_to(project.root))
-            self.update_file(rel, path.read_text(encoding="utf-8"))
+            self.update_file(rel, path.read_text(encoding="utf-8"),
+                             names if path in scenes else None)

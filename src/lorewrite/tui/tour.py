@@ -35,15 +35,13 @@ the file, saved/modified state, word count, and cursor position.
     """\
 # 3/4 — Links: the heart of lorewrite
 
-Wrap any character or place in double brackets:  [[Elara Vance]]
+No brackets needed. Select a character or place name the first
+time you write it and press ctrl+j to make a note for it. From
+then on every mention of that name (or its aliases) is colored.
 
-  cyan   = the note exists
-  orange = no note yet
-
-Put the cursor on a link and press ctrl+j to open its note —
-lorewrite offers to create it first if it doesn't exist.
+Put the cursor on a name and press ctrl+j to open its note.
 The right panel previews the note under your cursor and lists
-every scene that links to it (backlinks).
+every scene that mentions it (backlinks).
 """,
     """\
 # 4/4 — Finding things

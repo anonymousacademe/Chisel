@@ -1,5 +1,8 @@
 """LinkedTextArea: a TextArea that visually highlights [[wiki-links]].
 
+Plain-text mentions of known names (see core.links.find_mentions) are colored
+quietly, and the brackets of explicit links are faded so they don't distract.
+
 Highlighting works by post-processing rendered lines (see SPEC §6: this touches
 Textual internals, so everything is wrapped in a fallback — any internal API
 drift degrades to a plain TextArea, never a crash).
@@ -14,10 +17,12 @@ from rich.style import Style
 from textual.strip import Strip
 from textual.widgets import TextArea
 
-from ..core.links import Link, find_links, offset_to_rowcol
+from ..core.links import find_all_links, offset_to_rowcol
 
 RESOLVED_STYLE = Style(color="cyan", bold=True, underline=True)
 UNRESOLVED_STYLE = Style(color="orange1", bold=True, underline=True)
+MENTION_STYLE = Style(color="cyan")
+BRACKET_STYLE = Style(dim=True)
 
 
 def _style_cell_range(
@@ -67,14 +72,36 @@ class LinkedTextArea(TextArea):
             pass  # tree-sitter unavailable: plain text, links still highlight
         #: callable(target: str) -> bool, set by the app
         self.link_resolver: Callable[[str], bool] | None = None
-        self._links: list[Link] = []
+        #: entity names/aliases recognized without brackets; set by the app
+        #: (empty for entity notes, where only explicit links count)
+        self.mention_names: list[str] = []
+        # row -> [(start_col, end_col, kind, target)], kind in
+        # "bracket" | "link" | "mention"
+        self._spans: dict[int, list[tuple[int, int, str, str]]] = {}
         # overridable by the app to follow the system theme
         self.resolved_style = RESOLVED_STYLE
         self.unresolved_style = UNRESOLVED_STYLE
+        self.mention_style = MENTION_STYLE
+        self.bracket_style = BRACKET_STYLE
 
     def refresh_links(self) -> None:
         """Re-scan the document for links and repaint."""
-        self._links = find_links(self.text)
+        text = self.text
+        spans: dict[int, list[tuple[int, int, str, str]]] = {}
+        for link in find_all_links(text, self.mention_names):
+            row, col = offset_to_rowcol(text, link.start)
+            _, end_col = offset_to_rowcol(text, link.end)
+            row_spans = spans.setdefault(row, [])
+            if not link.explicit:
+                row_spans.append((col, end_col, "mention", link.target))
+                continue
+            # [[Name]] / [[Name|display]]: fade everything but the shown text
+            inner = text[link.start + 2:link.end - 2]
+            shown = col + 2 + (inner.index("|") + 1 if "|" in inner else 0)
+            row_spans.append((col, shown, "bracket", link.target))
+            row_spans.append((shown, end_col - 2, "link", link.target))
+            row_spans.append((end_col - 2, end_col, "bracket", link.target))
+        self._spans = spans
         # TextArea caches rendered strips without link state in the cache key;
         # clear it so resolution changes (e.g. a new entity note turning an
         # orange link cyan) repaint immediately. Private API, hence defensive.
@@ -94,13 +121,16 @@ class LinkedTextArea(TextArea):
             return strip
 
     def _apply_link_styles(self, strip: Strip, y: int) -> Strip:
-        if not self._links:
+        if not self._spans:
             return strip
         y_offset = y + int(self.scroll_offset.y)
         line_info = self.wrapped_document._offset_to_line_info[y_offset]
         if line_info is None:
             return strip
         line_index, section_offset = line_info
+        row_spans = self._spans.get(line_index)
+        if not row_spans:
+            return strip
         line = self.get_line(line_index).plain
 
         wrap_offsets = self.wrapped_document.get_offsets(line_index)
@@ -111,25 +141,26 @@ class LinkedTextArea(TextArea):
             else len(line)
         )
         gutter = self.gutter_width if self.show_line_numbers else 0
+        cell = lambda c: len(line[:c].expandtabs(self.indent_width))  # noqa: E731
 
-        text = self.text
         segments = list(strip)
         styled = False
-        for link in self._links:
-            row, col = offset_to_rowcol(text, link.start)
-            _, end_col = offset_to_rowcol(text, link.end)
-            if row != line_index or end_col <= section_start or col >= section_end:
+        for col, end_col, kind, target in row_spans:
+            if end_col <= section_start or col >= section_end or end_col <= col:
                 continue
             lo = max(col, section_start)
             hi = min(end_col, section_end)
-            cell = lambda c: len(line[:c].expandtabs(self.indent_width))  # noqa: E731
             cell_lo = gutter + cell(lo) - cell(section_start)
             cell_hi = gutter + cell(hi) - cell(section_start)
-            resolved = bool(self.link_resolver and self.link_resolver(link.target))
-            segments = _style_cell_range(
-                segments, cell_lo, cell_hi,
-                self.resolved_style if resolved else self.unresolved_style,
-            )
+            if kind == "bracket":
+                style = self.bracket_style
+            elif kind == "mention":
+                style = self.mention_style
+            elif self.link_resolver and self.link_resolver(target):
+                style = self.resolved_style
+            else:
+                style = self.unresolved_style
+            segments = _style_cell_range(segments, cell_lo, cell_hi, style)
             styled = True
         if not styled:
             return strip

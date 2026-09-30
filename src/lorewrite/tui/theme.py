@@ -72,3 +72,18 @@ def omarchy_textual_theme(colors: dict | None = None) -> Theme | None:
         panel=colors.get("dark_background"),
         boost=colors.get("lighter_background"),
     )
+
+
+def link_color(colors: dict) -> str | None:
+    """Color for resolved links/mentions that actually stands out from prose.
+
+    Some themes (e.g. matte-black) set cyan equal to the foreground, which
+    would make plain-name mentions invisible; fall back through other hues,
+    skipping the unresolved-link (orange) color.
+    """
+    taken = {(colors.get(k) or "").lower() for k in ("foreground", "orange")}
+    for key in ("cyan", "blue", "accent", "green", "magenta"):
+        value = colors.get(key)
+        if value and value.lower() not in taken:
+            return value
+    return None

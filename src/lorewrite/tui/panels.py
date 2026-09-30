@@ -27,9 +27,8 @@ class EntityPanel(Vertical):
     def compose(self):
         yield Label("Entity", classes="panel-heading", id="entity-title")
         yield Markdown(
-            "*Put the cursor on a `[[link]]` to inspect that character or"
-            " place. Their note and every scene mentioning them shows up"
-            " here.*",
+            "*Put the cursor on a character or place name to inspect it."
+            " Its note and every scene mentioning it shows up here.*",
             id="entity-body",
         )
         yield Label("Backlinks", classes="panel-heading")

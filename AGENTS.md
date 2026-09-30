@@ -18,7 +18,7 @@ SPEC.md                 # master design doc — update it when design changes
 README.md               # user-facing intro
 src/lorewrite/
   core/                 # pure Python, no Textual — fully unit-testable
-    links.py            # [[link]] parsing, offset<->rowcol math
+    links.py            # [[link]] parsing, plain-name mentions, offset<->rowcol
     entities.py         # entity notes: frontmatter, aliases, resolve, add_alias
     project.py          # project layout, scenes (order/rename/move/delete), settings
     index.py            # SQLite backlink index; no-ops after close()
@@ -106,12 +106,11 @@ docs/specification-guide.md  # M3–M8 implementation guide for parallel agent
   `Scene · / Entity · / Link · / Action ·` text.
 - Commits only when the user asks. Match existing style; minimal diffs.
 
-## Current state & what's next (2026-09-27)
+## Current state & what's next (2026-09-29)
 
 Done: M1 (editor+links), M1.5 (UX polish from the GLM review), M2 (AI
-auto-linking). **Next: M3 — lore/continuity checking + the Contextual
-Tracker** (SPEC §7): cross-scene contradiction reports, note accumulation into
-entity notes (author-reviewable), waivable flags, Jev as a cheap pre-screen.
-Then M4 (style-aware drafting, AI text visually marked until accepted).
+auto-linking), M3 (continuity + Contextual Tracker), settings screen, model
+picker, bracket-free implicit mentions (SPEC §5). **Next: M4** (style-aware
+drafting, AI text visually marked until accepted).
 Known concern: user is unconvinced by the command palette as primary UI
 (SPEC §11b).

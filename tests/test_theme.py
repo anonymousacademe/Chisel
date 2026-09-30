@@ -70,3 +70,12 @@ def test_theme_none_off_omarchy(tmp_path: Path):
     )
     assert colors is None
     assert omarchy_textual_theme({}) is None
+
+
+def test_link_color_skips_hues_equal_to_foreground():
+    from lorewrite.tui.theme import link_color
+
+    assert link_color({"foreground": "#bebebe", "cyan": "#BEBEBE",
+                       "blue": "#e68e0d", "orange": "#c63d3d"}) == "#e68e0d"
+    assert link_color({"foreground": "#fff", "cyan": "#0ff"}) == "#0ff"
+    assert link_color({"foreground": "#fff"}) is None

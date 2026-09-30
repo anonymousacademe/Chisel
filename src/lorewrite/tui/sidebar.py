@@ -74,7 +74,7 @@ class Sidebar(Vertical):
             entity_lv.append(ListItem(Label(Text(name))))
         if not entities and not self._entities:
             entity_lv.append(
-                ListItem(Label(Text("type [[Name]], then ctrl+j")),
+                ListItem(Label(Text("select a name, then ctrl+j")),
                          classes="empty-hint")
             )
 

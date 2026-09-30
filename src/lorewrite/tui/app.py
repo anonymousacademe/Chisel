@@ -7,6 +7,7 @@ import asyncio
 import time
 from pathlib import Path
 
+from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal
@@ -39,7 +40,7 @@ from .linkreview import LinkReviewScreen
 from .panels import BacklinkSelected, EntityPanel
 from .settingscreen import KeyPrompt
 from .sidebar import OpenFile, Sidebar
-from .theme import load_omarchy_colors, omarchy_textual_theme
+from .theme import link_color, load_omarchy_colors, omarchy_textual_theme
 from .tour import TourScreen
 
 AUTOSAVE_DELAY = 0.6
@@ -66,10 +67,12 @@ HELP_TEXT = """\
 
 # Links
 
-  [[Name]]          link to a character or place note
-  [[Name|alias]]    link showing different text
+  No brackets needed: once a character or place has a note, every
+  mention of its name or aliases is recognized (colored) automatically.
 
-  cyan  = the note exists    orange = no note yet (ctrl+j to create)
+  select a name, ctrl+j   make a note for it (once — then it's recognized)
+  ctrl+j on a name        open its note
+  [[Name]] still works; its brackets are faded. orange = no note yet
 
 Everything is saved as plain Markdown in your project folder.
 Press escape or ? to close this help.
@@ -152,7 +155,7 @@ class EntityTypePrompt(ModalScreen[str | None]):
         self._name = name
 
     def compose(self) -> ComposeResult:
-        yield Label(f"Create note for [[{self._name}]] as:")
+        yield Label(Text(f'Create a note for "{self._name}" as:'))
         yield Button("Character", id="character", variant="primary")
         yield Button("Place", id="place")
         yield Button("Cancel", id="cancel")
@@ -347,10 +350,14 @@ class LorewriteApp(App):
             colors = load_omarchy_colors() or {}
             from rich.style import Style
 
-            if colors.get("cyan"):
+            resolved = link_color(colors)
+            if resolved:
                 self.editor.resolved_style = Style(
-                    color=colors["cyan"], bold=True, underline=True
+                    color=resolved, bold=True, underline=True
                 )
+                self.editor.mention_style = Style(color=resolved)
+            if colors.get("dark_foreground"):
+                self.editor.bracket_style = Style(color=colors["dark_foreground"])
             if colors.get("orange"):
                 self.editor.unresolved_style = Style(
                     color=colors["orange"], bold=True, underline=True
@@ -422,6 +429,27 @@ class LorewriteApp(App):
 
     def reload_entities(self) -> None:
         self.entities = self.project.load_entities()
+        self._sync_mention_names()
+
+    def _all_names(self) -> list[str]:
+        return [n for e in self.entities for n in e.names]
+
+    def _is_scene(self, path: Path | None) -> bool:
+        return (path is not None and self.project is not None
+                and path.parent == self.project.manuscript_dir)
+
+    def _sync_mention_names(self) -> None:
+        """Plain-name recognition applies to scenes, not entity notes."""
+        if self._editor is not None:
+            self._editor.mention_names = (
+                self._all_names() if self._is_scene(self.current_path) else [])
+
+    def _entities_changed(self) -> None:
+        """Names/aliases changed: earlier scenes may now mention them."""
+        self.idx.rebuild(self.project)
+        self.reload_entities()
+        self.refresh_sidebar()
+        self.editor.refresh_links()
 
     def refresh_sidebar(self) -> None:
         self.sidebar.set_scenes(
@@ -435,6 +463,7 @@ class LorewriteApp(App):
         self.save_current()
         self.current_path = path
         self._dirty = False
+        self._sync_mention_names()
         self.editor.load_text(path.read_text(encoding="utf-8"))
         self.editor.refresh_links()
         self.editor.focus()
@@ -448,14 +477,18 @@ class LorewriteApp(App):
         tmp.write_text(text, encoding="utf-8")
         tmp.replace(self.current_path)
         rel = str(self.current_path.relative_to(self.project.root))
-        self.idx.update_file(rel, text)
+        names = self._all_names() if self._is_scene(self.current_path) else None
+        self.idx.update_file(rel, text, names)
 
     def save_current(self, explicit: bool = False) -> None:
         """Write the current buffer to disk and refresh derived state."""
         if self.current_path is None or self._editor is None:
             return
         self._write_to_disk()
+        names_before = self._all_names()
         self.reload_entities()
+        if self._all_names() != names_before:  # aliases edited in a note
+            self._entities_changed()
         self._dirty = False
         self._last_save = time.time()
         self._recount_project_words()
@@ -519,12 +552,12 @@ class LorewriteApp(App):
     def _link_hint(self) -> str:
         text = self._editor.text
         offset = rowcol_to_offset(text, *self._editor.cursor_location)
-        link = link_at(text, offset)
+        link = link_at(text, offset, self.editor.mention_names)
         if link is None:
             return ""
         if self.is_resolved(link.target):
-            return f"[[{link.target}]] — ctrl+j to open"
-        return f"[[{link.target}]] — no note, ctrl+j to create"
+            return f"{link.target} — ctrl+j to open"
+        return f"{link.target} — no note, ctrl+j to create"
 
     # -- entity panel / backlinks --------------------------------------------------
 
@@ -538,12 +571,12 @@ class LorewriteApp(App):
     def update_panel_for_cursor(self) -> None:
         text = self.editor.text
         offset = rowcol_to_offset(text, *self.editor.cursor_location)
-        link = link_at(text, offset)
+        link = link_at(text, offset, self.editor.mention_names)
         if link is None:
             return
         entity = ent.resolve(link.target, self.entities)
         if entity is None:
-            self.panel.show_entity(f"[[{link.target}]] — no note yet", "")
+            self.panel.show_entity(f"{link.target} — no note yet", "")
             self.panel.set_backlinks([])
         else:
             self.panel.show_entity(f"{entity.name} [{entity.type}]", entity.body)
@@ -722,9 +755,7 @@ class LorewriteApp(App):
                 for surface in surfaces:
                     if entity is not None:
                         ent.add_alias(entity, surface)
-            self.reload_entities()
-            self.refresh_sidebar()
-            self.editor.refresh_links()
+            self._entities_changed()
             self.notify("Aliases saved to entity notes", timeout=2)
 
         self.push_screen(
@@ -881,14 +912,24 @@ class LorewriteApp(App):
         self.notify(f"Updated {applied} entity note(s)", timeout=2)
 
     def action_jump(self) -> None:
-        """Open the note for the link under the cursor, creating it if needed."""
-        text = self.editor.text
-        offset = rowcol_to_offset(text, *self.editor.cursor_location)
-        link = link_at(text, offset)
-        if link is None:
-            self.notify("Cursor is not on a [[link]]", severity="warning")
-            return
-        entity = ent.resolve(link.target, self.entities)
+        """Open the note for the name under the cursor.
+
+        With a selection (or on an unresolved [[link]]), create a note for it
+        first; from then on plain mentions of the name are recognized.
+        """
+        selected = self.editor.selected_text.strip()
+        if selected and "\n" not in selected:
+            target = selected
+        else:
+            text = self.editor.text
+            offset = rowcol_to_offset(text, *self.editor.cursor_location)
+            link = link_at(text, offset, self.editor.mention_names)
+            if link is None:
+                self.notify("Select a name and press ctrl+j to make a note for it",
+                            severity="warning")
+                return
+            target = link.target
+        entity = ent.resolve(target, self.entities)
         if entity is not None and entity.path is not None:
             self.open_file(entity.path)
             return
@@ -897,19 +938,14 @@ class LorewriteApp(App):
         def _created(etype: str | None) -> None:
             if etype is None:
                 return
-            entity, path = self.project.create_entity(link.target, etype)
-            self.idx.upsert_entity(
-                entity, str(path.relative_to(self.project.root))
-            )
-            self.reload_entities()
-            self.refresh_sidebar()
-            self.editor.refresh_links()
+            _, path = self.project.create_entity(target, etype)
+            self._entities_changed()
             self.open_file(path)
 
-        self.push_screen(EntityTypePrompt(link.target), _created)
+        self.push_screen(EntityTypePrompt(target), _created)
 
     def insert_link(self, name: str) -> None:
-        self.editor.insert(f"[[{name}]]")
+        self.editor.insert(name)
         self.editor.refresh_links()
         self.editor.focus()
         self.save_current()
@@ -1013,11 +1049,8 @@ class LorewriteApp(App):
         def _create(name: str | None) -> None:
             if not name:
                 return
-            entity, path = self.project.create_entity(name, etype)
-            self.idx.upsert_entity(entity, str(path.relative_to(self.project.root)))
-            self.reload_entities()
-            self.refresh_sidebar()
-            self.editor.refresh_links()
+            _, path = self.project.create_entity(name, etype)
+            self._entities_changed()
             self.open_file(path)
 
         self.push_screen(NamePrompt(f"New {etype} name:"), _create)

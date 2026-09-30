@@ -73,6 +73,28 @@ Aliases in frontmatter drive both auto-linking and lore retrieval.
 | `[[Name]]` | Link to entity note (resolved case-insensitively, by name or alias) |
 | `[[Name\|display text]]` | Link with display alias |
 | Unresolved link | Shown as "new"; jump-to offers **Create note** (Obsidian create-on-click) |
+| Plain name (no brackets) | **Implicit mention** — see below |
+
+**Brackets are optional (2026-09, author request: brackets distract from the
+prose).** Once an entity note exists, every plain-text occurrence of its name
+or an alias in a scene is an implicit mention: colored quietly in the editor
+(no bold/underline), jumpable with `ctrl+j`, shown in the entity panel, and
+counted in backlinks. Files are never rewritten to add brackets. The first
+time, the author selects the name and presses `ctrl+j` to create the note.
+
+- Matching (`core.links.find_mentions`): whole words, longest name first,
+  case-sensitive as written in the note (so a character named "Will" doesn't
+  match "will") except that a leading capital is allowed for sentence starts;
+  names/aliases under 2 characters are ignored; spans inside `[[...]]` skipped.
+- Scope: scenes only. Entity notes count explicit links only (their own
+  frontmatter/body would otherwise self-match).
+- Existing `[[links]]` still work; their brackets (and the `Name|` part of
+  `[[Name|display]]`) are faded so only the shown text stands out.
+- Creating an entity or changing aliases rebuilds the index so earlier scenes
+  pick up the new name immediately.
+- Trade-off: plain mentions are not links for Obsidian or other tools.
+- Link colors come from the Omarchy theme; if its cyan equals the foreground
+  (e.g. matte-black), the next distinct hue is used so mentions stay visible.
 
 Explicitly deferred: `[[Note#Section]]`, `![[embeds]]`, block refs.
 

@@ -145,3 +145,74 @@ async def test_status_bar_link_hint(project: Project):
         status = app._status_text
         assert "ctrl+j" in status
         assert "Elara Vance" in status
+
+
+# -- no brackets needed: plain mentions -----------------------------------------------
+
+
+async def test_select_name_and_ctrl_j_creates_note_then_mentions_resolve(tmp_path: Path):
+    proj = Project.create(tmp_path / "plain", title="Plain")
+    scene = proj.manuscript_dir / "02-road.md"
+    scene.write_text("# Road\n\nBorin drank.\n", encoding="utf-8")
+    earlier = proj.manuscript_dir / "03-inn.md"
+    earlier.write_text("# Inn\n\nLater, Borin slept.\n", encoding="utf-8")
+    app = LorewriteApp(proj)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.open_file(scene)
+        app.editor.selection = ((2, 0), (2, 5))  # "Borin"
+        await pilot.pause()
+        app.action_jump()
+        await pilot.pause()
+        await pilot.click("#character")
+        await pilot.pause()
+        assert app.current_path.name == "borin.md"
+        # scene text untouched: no brackets were added
+        assert scene.read_text(encoding="utf-8") == "# Road\n\nBorin drank.\n"
+        borin = next(e for e in app.entities if e.name == "Borin")
+        # both scenes now count, including one never opened
+        sources = {b.source for b in app.idx.backlinks(borin)}
+        assert sources == {"manuscript/02-road.md", "manuscript/03-inn.md"}
+        # ctrl+j on a plain mention opens the note
+        app.open_file(earlier)
+        app.editor.move_cursor((2, 9))
+        await pilot.pause()
+        assert "Borin — ctrl+j to open" in app._status_text
+        app.action_jump()
+        await pilot.pause()
+        assert app.current_path.name == "borin.md"
+
+
+async def test_mentions_colored_and_brackets_faded(project: Project):
+    scene = project.manuscript_dir / "02-tavern.md"
+    scene.write_text("# The Tavern\n\nElara Vance sat. [[Elara Vance]] rose.\n",
+                     encoding="utf-8")
+    app = LorewriteApp(project)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.open_file(scene)
+        await pilot.pause()
+        strip = app.editor.render_line(2)
+        mention_color = app.editor.mention_style.color.get_truecolor()
+        plain_mention = [s for s in strip if s.text.strip() == "Elara Vance"
+                         and s.style and not s.style.underline]
+        assert plain_mention and all(
+            s.style.color.get_truecolor() == mention_color for s in plain_mention)
+        brackets = [s for s in strip if s.text in ("[[", "]]")]
+        faded = app.editor.bracket_style
+        assert brackets and all(
+            s.style and (s.style.dim if faded.color is None else
+                         s.style.color == faded.color) for s in brackets)
+
+
+async def test_entity_notes_do_not_highlight_plain_names(project: Project):
+    app = LorewriteApp(project)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        note = project.entities_dir / "characters" / "elara-vance.md"
+        app.open_file(note)
+        await pilot.pause()
+        assert app.editor.mention_names == []
+        app.open_file(project.manuscript_dir / "02-tavern.md")
+        await pilot.pause()
+        assert "Elara Vance" in app.editor.mention_names

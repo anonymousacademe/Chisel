@@ -1,7 +1,7 @@
 # lorewrite
 
 A terminal-native fiction-writing app. Write scenes in a clean Markdown editor,
-mark characters and places with `[[wiki-links]]`, and let AI keep the link
+mark characters and places once — no brackets needed after that — and let AI keep the link
 graph and the story's internal consistency up to date — without ever touching
 your prose uninvited.
 
@@ -22,8 +22,10 @@ polish), and M2 (AI auto-linking) are implemented and tested. See
 
 - Markdown editor with real syntax highlighting, autosave, and a status bar
   (file, saved/modified, word counts, cursor, link hints)
-- `[[Character]]` / `[[Place|alias]]` links — cyan when the note exists,
-  orange when it doesn't; `ctrl+j` jumps to (or creates) the note
+- No brackets needed: select a name and press `ctrl+j` to make a note for it;
+  from then on every mention of that name or its aliases is colored, jumpable
+  (`ctrl+j`), and counted in backlinks. `[[Name]]` / `[[Name|alias]]` links
+  still work, with their brackets faded; orange means no note yet
 - Entity panel with note preview and backlinks to every mentioning scene
 - Launch screen with recent projects; command palette with categorized menu
   (`ctrl+p`); scene organization (new / rename / reorder / delete)
@@ -59,7 +61,7 @@ First launch shows a 4-page tour. Core keys:
 |---|---|
 | `ctrl+n` | new scene |
 | `ctrl+p` | command palette — everything lives here |
-| `ctrl+j` | jump to the `[[link]]` under the cursor (creates the note if missing) |
+| `ctrl+j` | open the note for the name under the cursor; with a name selected (or on an unresolved link), create it |
 | `ctrl+l` | AI: propose links for unlinked mentions in this scene |
 | `alt+←/→` | previous / next scene |
 | `f11` | writer mode |

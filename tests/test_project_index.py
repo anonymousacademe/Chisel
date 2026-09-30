@@ -62,10 +62,26 @@ def test_index_backlinks(project: Project):
     entities = project.load_entities()
     elara = next(e for e in entities if e.name == "Elara Vance")
     backlinks = index.backlinks(elara)
-    # one explicit [[Elara Vance]] link in 02-tavern.md; "The captain" is plain
-    # text (backlinks track explicit links only)
+    # [[Elara Vance]] and the plain alias "The captain" share one line: one entry
     assert len(backlinks) == 1
     assert backlinks[0].source.endswith("02-tavern.md")
     assert backlinks[0].row == 2
     assert "Elara Vance" in backlinks[0].line
+    index.close()
+
+
+def test_plain_mentions_count_as_backlinks_in_scenes(project: Project):
+    (project.manuscript_dir / "03-road.md").write_text(
+        "# The Road\n\nElara rode on. the captain was tired.\n", encoding="utf-8")
+    elara_path = project.entities_dir / "characters" / "elara-vance.md"
+    elara_path.write_text(
+        "---\nname: Elara Vance\ntype: character\naliases: [the captain, Elara]\n"
+        "---\n\nElara has green eyes.\n", encoding="utf-8")
+    index = Index(project.index_path)
+    index.rebuild(project)
+    elara = next(e for e in project.load_entities() if e.name == "Elara Vance")
+    sources = [(b.source, b.row) for b in index.backlinks(elara)]
+    assert ("manuscript/03-road.md", 2) in sources
+    # an entity's own note mentioning its name is not a backlink
+    assert not any(s.startswith("entities/") for s, _ in sources)
     index.close()
