@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from types import SimpleNamespace
 
+from ..ai.client import ModelInfo
 from ..ai.continuity import CanonUpdate
 from ..ai.links import Suggestion
 from ..ai.usage import LEDGER
@@ -32,8 +33,18 @@ def _first_sentence_with(text: str, names: list[str]) -> str | None:
 
 
 def install(api_module) -> None:
+    keys = {"key": "mock-key"}  # an in-memory "keyring": never touches the real one
+
     def get_api_key():
-        return "mock-key"
+        return keys.get("key")
+
+    def list_models(timeout=10, structured_only=True):
+        models = [
+            ModelInfo("mock/aria-large", "Aria Large", 3.0, 15.0, 200000),
+            ModelInfo("mock/brook-fast", "Brook Fast", 0.1, 0.4, 128000),
+            ModelInfo("mock/cedar-writer", "Cedar Writer", 1.0, 5.0, 64000),
+        ]
+        return models if not structured_only else models[:2]
 
     def suggest_links(scene_text, entities, model):
         _spend("links")
@@ -97,6 +108,9 @@ def install(api_module) -> None:
                 "3. Cut to the caller ID going dark.")
 
     api_module.get_api_key = get_api_key
+    api_module._set_api_key = lambda k: keys.__setitem__("key", k)
+    api_module._clear_api_key = lambda: keys.pop("key", None)
+    api_module._list_models = list_models
     api_module.suggest_links = suggest_links
     api_module.check_scene = check_scene
     api_module.propose_canon_updates = propose_canon_updates

@@ -3,7 +3,7 @@ import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { redo, redoDepth, undo, undoDepth } from "@codemirror/commands";
 import { api } from "../backend/api";
-import { metaCompartment, metaFacet, setSpans, spansField, editorExtensions, type Card, type CursorInfo } from "../editor/cm";
+import { metaCompartment, metaFacet, reflowCompartment, reflowFacet, setSpans, spansField, editorExtensions, type Card, type CursorInfo } from "../editor/cm";
 import { replaceRange, toggleWrap } from "../editor/commands";
 import type { Span } from "../editor/spans";
 
@@ -33,6 +33,7 @@ interface Props {
   kind: string;
   initialText: string;
   meta: string;
+  reflow: boolean;
   /** Bump to refetch spans (entity notes or aliases changed). */
   spansVersion: number;
   onChange(text: string): void;
@@ -120,7 +121,7 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
       parent: host.current!,
       state: EditorState.create({
         doc: hooks.current.initialText,
-        extensions: editorExtensions(hooks.current.kind, hooks.current.meta, {
+        extensions: editorExtensions(hooks.current.kind, hooks.current.meta, hooks.current.reflow, {
           onChange: (t) => { hooks.current.onChange(t); schedule(); },
           onCursor: (c) => hooks.current.onCursor(c),
           onBlur: () => hooks.current.onBlur(),
@@ -144,6 +145,10 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
   useEffect(() => {
     view.current?.dispatch({ effects: metaCompartment.reconfigure(metaFacet.of(props.meta)) });
   }, [props.meta]);
+
+  useEffect(() => {
+    view.current?.dispatch({ effects: reflowCompartment.reconfigure(reflowFacet.of(props.reflow)) });
+  }, [props.reflow]);
 
   // Entities changed: spans depend on them.
   useEffect(() => {

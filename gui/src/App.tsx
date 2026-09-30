@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./backend/api";
 import type {
-  AliasSuggestion, BinderNode, CanonProposal, ChatMessage, DocumentPayload, EntityInfo, EntityType, Issue, SceneMention, Workspace,
+  AliasSuggestion, BinderNode, CanonProposal, ChatMessage, DocumentPayload, EntityInfo, EntityType, Issue, SceneMention, SettingsInfo, Workspace,
 } from "./data/types";
 import type { BridgeResult } from "./backend/transport";
 import { anchorDraft } from "./editor/drafts";
@@ -15,6 +15,7 @@ import { Binder } from "./components/Binder";
 import { Editor, type ViewMode } from "./components/Editor";
 import type { EditorHandle } from "./components/EditorPane";
 import { Assistant, type AssistantTab, type QuickAction } from "./components/Assistant";
+import { SettingsDialog } from "./components/SettingsDialog";
 import { AliasReviewDialog, CanonReviewDialog, StyleReviewDialog } from "./components/ReviewDialogs";
 import { StatusBar } from "./components/StatusBar";
 import { Launch } from "./components/Launch";
@@ -34,6 +35,7 @@ type Dialog =
   | { kind: "aliases"; items: AliasSuggestion[] }
   | { kind: "canon"; items: CanonProposal[] }
   | { kind: "style"; markdown: string; replacing: boolean }
+  | { kind: "settings"; info: SettingsInfo }
   | null;
 
 const uid = () => crypto.randomUUID();
@@ -71,6 +73,7 @@ export default function App() {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [scope, setScope] = useState<"scene" | "project">("scene");
+  const [reflow, setReflow] = useState(true);
   const noticeId = useRef(0);
   const editorRef = useRef<EditorHandle>(null);
   const focusAfterOpen = useRef(false);
@@ -125,6 +128,7 @@ export default function App() {
 
   const boot = useCallback(async () => {
     void api.aiStatus().then((r) => setAiReady(r.ok && r.hasKey));
+    void api.getSettings().then((r) => { if (r.ok) { setZoom(r.editor.zoom); setReflow(r.editor.reflow); } });
     const w = await refresh();
     if (!w) return;
     setExpanded(collectExpanded(w.binder));
@@ -159,6 +163,8 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setSwitcher((s) => !s); }
+      else if (e.key === "F11") { e.preventDefault(); setFocus((f) => !f); }
+      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n" && !e.shiftKey) { e.preventDefault(); setDialog({ kind: "new-scene" }); }
     };
     const onHide = () => { void saver.flush(); };
     // the terminal app may have edited the file while we were in the background
@@ -276,7 +282,11 @@ export default function App() {
   // Everything the model returns is a suggestion: chat text, a review list, or a
   // pending <!--ai--> draft with Accept / Reject. Nothing edits prose on its own.
   const requireAi = () => {
-    if (!aiReady) { notify("Set your OpenRouter API key first (Settings). AI features are off until then.", "error"); return false; }
+    if (!aiReady) {
+      notify("Add your OpenRouter API key first. AI features are off until then.", "error");
+      void openSettings();
+      return false;
+    }
     return true;
   };
   async function aiCall<X>(label: string, fn: () => Promise<BridgeResult<X>>): Promise<(X & { ok: true }) | null> {
@@ -468,6 +478,37 @@ export default function App() {
     { label: "Restore waived issues", disabled: doc?.kind !== "scene", onSelect: () => void restoreWaived() },
   ] });
 
+  // -- settings / project ------------------------------------------------------
+  const openSettings = async () => {
+    const r = await api.getSettings();
+    if (!r.ok) return notify(r.error, "error");
+    setDialog({ kind: "settings", info: r });
+  };
+  const settingsSaved = (editor: { zoom: number; reflow: boolean }) => {
+    setZoom(editor.zoom); setReflow(editor.reflow);
+    void api.aiStatus().then((r) => setAiReady(r.ok && r.hasKey));
+    notify("Settings saved.");
+  };
+  const cycleZoom = () => {
+    const next = ZOOMS[(ZOOMS.indexOf(zoom) + 1) % ZOOMS.length];
+    setZoom(next);
+    void api.setSettings(undefined, { zoom: next });
+  };
+  const switchProject = async () => {
+    if (!(await saver.flush())) return notify("Could not save the current document first.", "error");
+    saver.detach(); setDoc(null); setWs(null);
+  };
+  const openProjectMenu = (anchor: HTMLElement) => setMenu({ anchor, items: [
+    { label: "Switch project…", onSelect: () => void switchProject() },
+    { label: "Rebuild the link index", onSelect: async () => {
+      const r = await api.rebuildIndex();
+      if (!r.ok) return notify(r.error, "error");
+      await refresh(); setSpansVersion((v) => v + 1); setNoteVersion((v) => v + 1);
+      notify("Index rebuilt from the files.");
+    } },
+    { label: "Settings…", onSelect: () => void openSettings() },
+  ] });
+
   const saveNow = async () => { const ok = await saver.flush(); if (ok) notify("Saved"); };
   const closeWindow = async () => { await saver.flush(); await api.close(); };
 
@@ -531,9 +572,9 @@ export default function App() {
     <div className="lw-app" style={{ ["--lw-zoom" as string]: zoom / 100 }}>
       <TitleBar projectTitle={ws.project.title} documentLabel={docLabel} saveState={saveState}
         assistantOpen={showAssistant} onToggleAssistant={() => setAssistantOpen((o) => !o)}
-        onSearch={() => setSwitcher(true)} onClose={() => void closeWindow()} />
+        onSearch={() => setSwitcher(true)} onClose={() => void closeWindow()} onMore={openProjectMenu} />
       <div className="lw-workspace">
-        <ActivityRail view={rail} assistantOpen={showAssistant} onView={onRail} badge={0}
+        <ActivityRail view={rail} assistantOpen={showAssistant} onView={onRail} onSettings={() => void openSettings()} badge={0}
           initials={ws.project.initials} author={ws.project.author} />
         {showBinder && (
           <Binder nodes={ws.binder} count={ws.project.documentCount} activeId={doc?.id ?? null}
@@ -541,7 +582,7 @@ export default function App() {
             library={rail === "library"} canNew canMenu={rail !== "library"}
             onNew={() => setDialog(rail === "library" ? { kind: "new-note", name: "", openAfter: true } : { kind: "new-scene" })} onMenu={openSceneMenu} />
         )}
-        <Editor doc={doc} scenes={ws.scenes} words={words} mentions={mentions}
+        <Editor doc={doc} scenes={ws.scenes} words={words} mentions={mentions} reflow={reflow}
           sessionWords={ws.status.sessionWords} sessionMinutes={ws.status.sessionMinutes}
           mode={mode} onMode={setMode} focus={focus} onFocus={() => setFocus((f) => !f)} onOpen={(id) => void openDoc(id)}
           editorRef={editorRef} docRev={docRev} spansVersion={spansVersion} cursor={cursor} saveState={saveState}
@@ -566,7 +607,7 @@ export default function App() {
         )}
       </div>
       <StatusBar sessionWords={ws.status.sessionWords} projectWords={ws.status.projectWords} aiCost={ws.status.aiCost}
-        line={cursor.line} col={cursor.col} zoom={zoom} onZoom={() => setZoom((z) => ZOOMS[(ZOOMS.indexOf(z) + 1) % ZOOMS.length])} />
+        line={cursor.line} col={cursor.col} zoom={zoom} onZoom={cycleZoom} />
       {switcher && <QuickSwitcher ws={ws} onClose={() => setSwitcher(false)}
         onPick={(id) => { setSwitcher(false); void openDoc(id); }} />}
       {menu && <Menu anchor={menu.anchor} items={menu.items} onClose={() => setMenu(null)} />}
@@ -591,6 +632,7 @@ export default function App() {
       {dialog?.kind === "aliases" && <AliasReviewDialog suggestions={dialog.items} onApply={(p) => void applyAliases(p)} onClose={() => setDialog(null)} />}
       {dialog?.kind === "canon" && <CanonReviewDialog proposals={dialog.items} onApply={(p) => void applyCanon(p)} onClose={() => setDialog(null)} />}
       {dialog?.kind === "style" && <StyleReviewDialog markdown={dialog.markdown} replacing={dialog.replacing} onSave={(t) => void saveStyle(t)} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "settings" && <SettingsDialog initial={dialog.info} onClose={() => setDialog(null)} onSaved={settingsSaved} notify={notify} />}
       {dialog?.kind === "rename" && doc && (
         <PromptDialog title="Rename scene" label="Title" initial={doc.title} confirm="Rename" onSubmit={(t) => void renameScene(t)} onClose={() => setDialog(null)} />
       )}

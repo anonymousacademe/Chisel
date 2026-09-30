@@ -118,3 +118,14 @@ export interface DraftEdit { from: number; to: number; insert: string }
 export type ChatMessage =
   | { id: string; role: "user"; text: string }
   | { id: string; role: "assistant"; text: string; error?: boolean };
+
+export type ModelKind = "fast" | "strong" | "writing";
+export interface EditorPrefs { zoom: number; reflow: boolean }
+export interface ModelChoice { value: string; default: string; effective: string; projectOverride: string }
+export interface SettingsInfo {
+  hasKey: boolean;
+  keySource: "environment" | "keyring" | "none";
+  models: Record<ModelKind, ModelChoice>;
+  editor: EditorPrefs;
+}
+export interface ModelOption { id: string; name: string; promptPerM: number | null; completionPerM: number | null; context: number | null }

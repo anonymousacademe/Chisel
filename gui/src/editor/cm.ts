@@ -11,6 +11,9 @@ import { frontmatterRange, softBreaks, specsFor, titleLine, type Span } from "./
 export const setSpans = StateEffect.define<Span[]>();
 /** Holds metaFacet so the mentions line can change without rebuilding the editor. */
 export const metaCompartment = new Compartment();
+/** Show hard-wrapped source lines as flowing paragraphs (display only). */
+export const reflowFacet = Facet.define<boolean, boolean>({ combine: (v) => (v.length ? v[v.length - 1] : true) });
+export const reflowCompartment = new Compartment();
 
 /** What the title block needs that only the host knows (mentions line). */
 export const metaFacet = Facet.define<string, string>({ combine: (v) => v[v.length - 1] ?? "" });
@@ -129,7 +132,7 @@ function build(state: EditorState): Built {
   }
 
   // hard-wrapped source lines flow as one paragraph (display only)
-  for (const pos of softBreaks(text, fm)) {
+  for (const pos of state.facet(reflowFacet) ? softBreaks(text, fm) : []) {
     ranges.push(SPACE.range(pos, pos + 1));
     atomic.push(SPACE.range(pos, pos + 1));
   }
@@ -172,7 +175,8 @@ function build(state: EditorState): Built {
 const decoField = StateField.define<Built>({
   create: (state) => build(state),
   update(value, tr) {
-    const facetChanged = tr.startState.facet(metaFacet) !== tr.state.facet(metaFacet);
+    const facetChanged = tr.startState.facet(metaFacet) !== tr.state.facet(metaFacet)
+      || tr.startState.facet(reflowFacet) !== tr.state.facet(reflowFacet);
     if (tr.docChanged || tr.selection || facetChanged || tr.effects.some((e) => e.is(setSpans))) return build(tr.state);
     return value;
   },
@@ -208,11 +212,12 @@ export interface Hooks {
   extraKeys?: { key: string; run: () => boolean }[];
 }
 
-export function editorExtensions(kind: string, meta: string, hooks: Hooks, undoDepth: (s: EditorState) => number, redoDepth: (s: EditorState) => number): Extension[] {
+export function editorExtensions(kind: string, meta: string, reflow: boolean, hooks: Hooks, undoDepth: (s: EditorState) => number, redoDepth: (s: EditorState) => number): Extension[] {
   return [
     kindFacet.of(kind),
     draftFacet.of((i, a) => hooks.onResolveDraft(i, a)),
     metaCompartment.of(metaFacet.of(meta)),
+    reflowCompartment.of(reflowFacet.of(reflow)),
     history(),
     drawSelection(),
     markdown(),

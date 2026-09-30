@@ -1,7 +1,7 @@
 import type { Span } from "../editor/spans";
 import type {
   AliasSuggestion, CanonProposal, DocumentPayload, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
-  Issue, RecentProject, SceneMention, Workspace,
+  Issue, ModelKind, ModelOption, RecentProject, SceneMention, SettingsInfo, EditorPrefs, Workspace,
 } from "../data/types";
 import { call } from "./transport";
 
@@ -49,6 +49,11 @@ export const api = {
   ask: (prompt: string, scope: "scene" | "project", id: string | null, text: string | null, cursor: number,
     history: { role: string; text: string }[]) =>
     call<{ reply: string; cost: number | null }>("ask", prompt, scope, id, text, cursor, history),
+  getSettings: () => call<SettingsInfo>("get_settings"),
+  setSettings: (models?: Partial<Record<ModelKind, string>>, editor?: Partial<EditorPrefs>) => call("set_settings", models ?? null, editor ?? null),
+  setApiKey: (key: string) => call("set_api_key", key),
+  clearApiKey: () => call<{ stillSet: boolean; note: string }>("clear_api_key"),
+  listModels: (structuredOnly: boolean) => call<{ models: ModelOption[] }>("list_models", structuredOnly),
   minimize: () => call("minimize"),
   toggleMaximize: () => call("toggle_maximize"),
   close: () => call("close"),

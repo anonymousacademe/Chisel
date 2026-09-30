@@ -448,3 +448,17 @@ button.lw-status__item:hover { color: var(--lw-text); }
   background: var(--lw-bg-raised); border: 1px solid var(--lw-border-strong); font-family: var(--lw-font-mono); font-size: 11px; line-height: 1.55; color: var(--lw-text);
 }
 .lw-composer textarea:focus-visible { outline: none; }
+
+/* ---------- settings dialog ---------- */
+.lw-settings { overflow-y: auto; display: flex; flex-direction: column; gap: 18px; max-height: 60vh; padding-right: 4px; }
+.lw-settings__section { display: flex; flex-direction: column; gap: 10px; }
+.lw-settings__section h3 { margin: 0; font-size: 10px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--lw-accent-text); }
+.lw-settings__model { display: flex; flex-direction: column; gap: 6px; }
+.lw-check { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--lw-text); }
+.lw-check input { accent-color: var(--lw-accent); }
+.lw-picker { border-radius: var(--lw-radius-md); border: 1px solid var(--lw-border-strong); overflow: hidden; background: var(--lw-bg-raised); }
+.lw-picker__list { max-height: 200px; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 1px; }
+
+.lw-switcher__input input:focus-visible, .lw-launch__input:focus-visible { outline: none; }
+.lw-launch__input:focus-visible { box-shadow: 0 0 0 1px var(--lw-accent); }
+.lw-cork__hint { grid-column: 1 / -1; margin: 0; font-size: 11px; color: var(--lw-text-muted); }

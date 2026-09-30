@@ -37,7 +37,7 @@ def main(argv: list[str] | None = None) -> None:
     window = webview.create_window(
         "LoreWriter",
         url=args.dev or str(index),
-        js_api=api,
+        js_api=api.facade(),
         width=1600, height=1000, min_size=(1280, 760),
         frameless=True, easy_drag=False, text_select=True,
         background_color=BACKGROUND,

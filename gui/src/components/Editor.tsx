@@ -22,7 +22,7 @@ const modes: { id: ViewMode; icon: LucideIcon; label: string }[] = [
 ];
 
 export function Editor(props: {
-  doc: DocumentPayload | null; scenes: SceneSummary[]; words: number; mentions: SceneMention[];
+  doc: DocumentPayload | null; scenes: SceneSummary[]; words: number; mentions: SceneMention[]; reflow: boolean;
   sessionWords: number; sessionMinutes: number;
   mode: ViewMode; onMode: (m: ViewMode) => void;
   focus: boolean; onFocus: () => void; onOpen: (id: string) => void;
@@ -107,7 +107,7 @@ export function Editor(props: {
                   )}
                 </header>
                 <EditorPane key={`${doc.id}:${props.docRev}`} ref={props.editorRef} docId={doc.id} kind={doc.kind}
-                  initialText={doc.text} meta={meta} spansVersion={props.spansVersion}
+                  initialText={doc.text} meta={meta} reflow={props.reflow} spansVersion={props.spansVersion}
                   onChange={props.onChange} onCursor={props.onCursor} onBlur={props.onBlur} onSaveNow={props.onSaveNow}
                   getCard={props.getCard} onOpenEntity={props.onOpenEntity} onResolveDraft={props.onResolveDraft} extraKeys={props.extraKeys} />
               </article>
@@ -117,6 +117,7 @@ export function Editor(props: {
 
         {props.mode === "corkboard" && (
           <div className="lw-cork">
+            <p className="lw-cork__hint" {...placeholderProps}>Drag cards to reorder (use the binder menu to move a scene for now)</p>
             {props.scenes.map((s) => (
               <button key={s.id} className={`lw-card${s.id === doc?.id ? " is-active" : ""}`} onClick={() => props.onOpen(s.id)}>
                 <span className="lw-card__kicker">{s.number ? `SCENE ${s.number}` : "SCENE"}</span>

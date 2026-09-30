@@ -9,13 +9,22 @@ the bridge. No pywebview import here, so this is unit-testable.
 from __future__ import annotations
 
 import functools
+import os
 import re
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Callable
 
-from ..ai.client import get_api_key, resolve_model
+from ..ai.client import (
+    MODEL_DEFAULTS,
+    clear_api_key as _clear_api_key,
+    get_api_key,
+    list_models as _list_models,
+    resolve_model,
+    set_api_key as _set_api_key,
+)
 from ..ai.continuity import check_scene, propose_canon_updates
 from ..ai.links import alias_form, suggest_links
 from ..ai.style import learn_style
@@ -27,6 +36,7 @@ from ..ai.writing import (
     generate as generate_text,
 )
 from ..core import drafts
+from ..core import settings as user_settings
 from ..core import entities as ent
 from ..core.index import Index
 from ..core.continuity import (
@@ -136,7 +146,9 @@ class Api:
             return {"path": None}
         import webview
 
-        picked = self._window.create_file_dialog(webview.FOLDER_DIALOG)
+        folder = getattr(getattr(webview, "FileDialog", None), "FOLDER", None)
+        picked = self._window.create_file_dialog(
+            folder if folder is not None else webview.FOLDER_DIALOG)
         return {"path": str(picked[0]) if picked else None}
 
     @bridge
@@ -381,6 +393,86 @@ class Api:
             self.index.rebuild(project)
             self.reload_entities()
             return {}
+
+    # -- settings ---------------------------------------------------------------
+
+    EDITOR_DEFAULTS = {"zoom": 100, "reflow": True}
+    ZOOMS = (90, 100, 110, 125)
+
+    @bridge
+    def get_settings(self) -> dict:
+        """Everything the settings dialog shows. The API key itself is never sent."""
+        project = self.project
+        meta = project.meta if project else None
+        overrides = (meta or {}).get("ai") or {}
+        source = "none"
+        if os.environ.get("OPENROUTER_API_KEY"):
+            source = "environment"
+        elif get_api_key():
+            source = "keyring"
+        models = {}
+        for kind in ("fast", "strong", "writing"):
+            key = f"{kind}_model"
+            models[kind] = {
+                "value": user_settings.get(key) or "",       # what the user chose ("" = default)
+                "default": MODEL_DEFAULTS[kind],
+                "effective": resolve_model(kind, meta),
+                "projectOverride": str(overrides.get(key) or ""),
+            }
+        editor = {k: user_settings.get(f"gui_{k}", v) for k, v in self.EDITOR_DEFAULTS.items()}
+        return {"hasKey": source != "none", "keySource": source, "models": models, "editor": editor}
+
+    @bridge
+    def set_settings(self, models: dict | None = None, editor: dict | None = None) -> dict:
+        """Save model choices ("" resets to the default) and GUI editor prefs."""
+        with self._lock:
+            for kind, value in (models or {}).items():
+                if kind not in MODEL_DEFAULTS:
+                    raise ValueError(f"unknown model kind: {kind}")
+                value = str(value or "").strip()
+                user_settings.set(f"{kind}_model", value or None)
+            for key, value in (editor or {}).items():
+                if key == "zoom":
+                    value = int(value)
+                    if value not in self.ZOOMS:
+                        raise ValueError(f"zoom must be one of {self.ZOOMS}")
+                elif key == "reflow":
+                    value = bool(value)
+                else:
+                    raise ValueError(f"unknown editor setting: {key}")
+                user_settings.set(f"gui_{key}", value)
+        return {}
+
+    @bridge
+    def set_api_key(self, key: str) -> dict:
+        key = (key or "").strip()
+        if not key:
+            raise ValueError("paste your OpenRouter API key first")
+        try:
+            _set_api_key(key)
+        except Exception as exc:
+            raise RuntimeError(
+                f"The system keyring is unavailable ({exc}). Set the "
+                "OPENROUTER_API_KEY environment variable instead.") from exc
+        return {}
+
+    @bridge
+    def clear_api_key(self) -> dict:
+        _clear_api_key()
+        env = bool(os.environ.get("OPENROUTER_API_KEY"))
+        return {"stillSet": env, "note": (
+            "The key stored in the keyring was removed, but OPENROUTER_API_KEY is "
+            "still set in the environment." if env else "")}
+
+    @bridge
+    def list_models(self, structured_only: bool = True) -> dict:
+        """The OpenRouter model catalog (public, needs network). Structured-output
+        models only for the fast/strong pickers; the whole catalog for writing."""
+        models = _list_models(structured_only=structured_only)
+        return {"models": [{
+            "id": m.id, "name": m.name, "promptPerM": m.prompt_per_m,
+            "completionPerM": m.completion_per_m, "context": m.context_length,
+        } for m in models]}
 
     # -- AI ---------------------------------------------------------------------
     # Every AI call gathers its inputs under the lock, releases it for the slow
@@ -698,6 +790,14 @@ class Api:
         if self._window is not None:
             self._window.destroy()
         return {}
+
+    def facade(self) -> Any:
+        """The object handed to pywebview as js_api: just the bridge methods.
+
+        pywebview walks every public attribute of its js_api object, recursing
+        into non-callables, so handing it the Api itself would publish
+        ``project`` and ``index`` (and everything on them) to JavaScript."""
+        return SimpleNamespace(**{n: getattr(self, n) for n in self.bridge_methods()})
 
     def bridge_methods(self) -> list[str]:
         return sorted(n for n in dir(type(self))

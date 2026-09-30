@@ -55,3 +55,18 @@ def test_devserver_serves_dist_and_bridge(tmp_path):
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_facade_exposes_only_bridge_methods(tmp_path):
+    from tests.gui_helpers import make_project
+
+    api = Api()
+    make_project(tmp_path / "p")
+    api.open_project(str(tmp_path / "p"))
+    facade = api.facade()
+    public = {n for n in dir(facade) if not n.startswith("_")}
+    assert public == set(api.bridge_methods())
+    # pywebview recurses into non-callable attributes: nothing like project/index/entities may show up
+    assert not {"project", "index", "entities", "resolve_document", "reload_entities"} & public
+    assert facade.ping()["pong"] is True
+    assert all(callable(getattr(facade, n)) for n in public)
