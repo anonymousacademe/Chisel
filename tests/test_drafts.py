@@ -16,19 +16,59 @@ def test_wrap_insertion_and_find():
     assert "<!--ai-->Generated line.<!--/ai-->" in text
     (p,) = drafts.find_pending(text)
     assert text[p.body_start:p.body_end] == "Generated line."
-    assert p.original is None
+    assert p.id is None
     assert text[p.start:p.end] == "<!--ai-->Generated line.<!--/ai-->"
 
 
 def test_wrap_replacement_roundtrips_original():
-    original = "Naïve café — “quoted” 日本語 -->"
-    wrapped = drafts.wrap("New text", original)
+    original = "Naïve café — “quoted” 日本語 --> <!--ai-->"
+    wrapped = drafts.wrap("New text", "k3f9q2")
+    assert wrapped == '<!--ai id="k3f9q2"-->New text<!--/ai-->'
     text = f"a {wrapped} b"
     (p,) = drafts.find_pending(text)
-    assert p.original == original
-    assert "-->" not in wrapped.split('replaces="')[1].split('"')[0]  # base64 only
-    assert drafts.reject(text, p) == f"a {original} b"
+    assert p.id == "k3f9q2"
+    originals = {"k3f9q2": original}
+    assert drafts.reject(text, p, originals) == f"a {original} b"
     assert drafts.accept(text, p) == "a New text b"
+
+
+def test_reject_refuses_when_original_missing():
+    text = "a " + drafts.wrap("New", "abc123") + " b"
+    (p,) = drafts.find_pending(text)
+    for originals in (None, {}, {"other1": "x"}):
+        with pytest.raises(drafts.MissingOriginal):
+            drafts.reject(text, p, originals)
+
+
+def test_new_id_is_six_base36_and_unique():
+    ids = set()
+    for _ in range(200):
+        i = drafts.new_id(ids)
+        assert len(i) == 6 and i.isalnum() and i == i.lower()
+        assert i not in ids
+        ids.add(i)
+
+
+def test_sidecar_roundtrip_atomic_and_deleted_when_empty(tmp_path):
+    scene = tmp_path / "manuscript" / "01-a.md"
+    drafts.add_original(tmp_path, scene, "aaaaaa", "one")
+    drafts.add_original(tmp_path, scene, "bbbbbb", "two ü")
+    path = tmp_path / ".drafts" / "01-a.md.json"
+    assert path.is_file() and not list(tmp_path.rglob("*.tmp"))
+    assert drafts.load_originals(tmp_path, scene) == {"aaaaaa": "one", "bbbbbb": "two ü"}
+    assert drafts.all_ids(tmp_path) == {"aaaaaa", "bbbbbb"}
+    drafts.drop_original(tmp_path, scene, "aaaaaa")
+    assert drafts.load_originals(tmp_path, scene) == {"bbbbbb": "two ü"}
+    drafts.drop_original(tmp_path, scene, "bbbbbb")
+    assert not path.exists()
+    assert drafts.load_originals(tmp_path, scene) == {}
+
+
+def test_sidecar_corrupt_file_reads_as_empty(tmp_path):
+    scene = tmp_path / "01-a.md"
+    (tmp_path / ".drafts").mkdir()
+    (tmp_path / ".drafts" / "01-a.md.json").write_text("{not json")
+    assert drafts.load_originals(tmp_path, scene) == {}
 
 
 def test_accept_and_reject_insertion():
@@ -39,19 +79,22 @@ def test_accept_and_reject_insertion():
 
 
 def test_multiple_drafts_and_accept_all_reject_all():
-    text = ("A " + drafts.wrap("one") + " B " + drafts.wrap("two", "TWO ORIG")
+    text = ("A " + drafts.wrap("one") + " B " + drafts.wrap("two", "abc123")
             + " C " + drafts.wrap("three") + " D")
+    originals = {"abc123": "TWO ORIG"}
     assert len(drafts.find_pending(text)) == 3
     assert drafts.accept_all(text) == "A one B two C three D"
-    assert drafts.reject_all(text) == "A  B TWO ORIG C  D"
-    assert drafts.strip_pending(text) == drafts.reject_all(text)
+    assert drafts.reject_all(text, originals) == "A  B TWO ORIG C  D"
+    assert drafts.strip_pending(text, originals) == drafts.reject_all(text, originals)
+    # lenient view when the sidecar is gone: the replaced span is just dropped
+    assert drafts.strip_pending(text) == "A  B  C  D"
 
 
 def test_multiline_body_and_original():
-    text = "top\n" + drafts.wrap("l1\nl2\n\nl3", "o1\no2") + "\nbottom"
+    text = "top\n" + drafts.wrap("l1\nl2\n\nl3", "abc123") + "\nbottom"
     (p,) = drafts.find_pending(text)
     assert text[p.body_start:p.body_end] == "l1\nl2\n\nl3"
-    assert drafts.reject(text, p) == "top\no1\no2\nbottom"
+    assert drafts.reject(text, p, {"abc123": "o1\no2"}) == "top\no1\no2\nbottom"
 
 
 def test_body_cannot_forge_markers():
@@ -66,8 +109,8 @@ def test_body_cannot_forge_markers():
 @pytest.mark.parametrize("text", [
     "<!--ai-->never closed",
     "never opened<!--/ai-->",
-    '<!--ai replaces="!!!not base64!!!">-->x<!--/ai-->',
-    '<!--ai replaces="/w==">-->x<!--/ai-->',   # bad utf-8 payload / attr shape
+    '<!--ai replaces="QUJD"-->x<!--/ai-->',    # the dropped base64 form
+    '<!--ai id="TOOLONGID">x<!--/ai-->',
     "<!--ai <!--ai-->x<!--/ai-->",
     "<!-- ai -->x<!--/ai-->",
 ])
@@ -84,10 +127,16 @@ def test_nested_outer_ignored_inner_is_pending():
     assert [text[p.body_start:p.body_end] for p in found] == ["inner"]
 
 
-def test_corrupt_replaces_payload_left_as_plain_text():
-    text = '<!--ai replaces="@@@@">x<!--/ai-->'
+def test_old_replaces_form_is_plain_text():
+    text = '<!--ai replaces="QUJD"-->x<!--/ai-->'
     assert drafts.find_pending(text) == []
     assert drafts.strip_pending(text) == text
+
+
+@pytest.mark.parametrize("bad", ["ABCDEF", "abc12", "abc1234", "ab-123", ""])
+def test_ids_must_be_six_lowercase_base36(bad):
+    text = f'<!--ai id="{bad}"-->x<!--/ai-->'
+    assert drafts.find_pending(text) == []
 
 
 def test_pending_at_edges_and_outside():
@@ -125,9 +174,11 @@ def project(tmp_path: Path) -> Project:
     return proj
 
 
-def _scene(proj: Project, body: str) -> Path:
+def _scene(proj: Project, body: str, originals: dict | None = None) -> Path:
     path = proj.manuscript_dir / "02-scene.md"
     path.write_text(body, encoding="utf-8")
+    for draft_id, original in (originals or {}).items():
+        drafts.add_original(proj.root, path, draft_id, original)
     return path
 
 
@@ -177,8 +228,9 @@ async def test_expand_marker_is_faded(project):
 
 
 async def test_f7_accepts_and_f8_rejects_draft_under_cursor(project):
-    body = "# S\n\nOne " + drafts.wrap("alpha") + " two " + drafts.wrap("beta", "ORIG") + " end.\n"
-    scene = _scene(project, body)
+    body = ("# S\n\nOne " + drafts.wrap("alpha") + " two "
+            + drafts.wrap("beta", "abc123") + " end.\n")
+    scene = _scene(project, body, {"abc123": "ORIG"})
     app = LorewriteApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
@@ -193,7 +245,7 @@ async def test_f7_accepts_and_f8_rejects_draft_under_cursor(project):
         assert "AI draft — f7 accept · f8 reject" in app._status_text
         await pilot.press("f7")
         await pilot.pause()
-        assert app.editor.text.startswith("# S\n\nOne alpha two <!--ai replaces=")
+        assert app.editor.text.startswith('# S\n\nOne alpha two <!--ai id="abc123"-->')
         # cursor into the second draft, then reject: original restored
         line = app.editor.text.split("\n")[2]
         app.editor.move_cursor((2, line.index("beta") + 1))
@@ -202,6 +254,7 @@ async def test_f7_accepts_and_f8_rejects_draft_under_cursor(project):
         await pilot.pause()
         assert app.editor.text == "# S\n\nOne alpha two ORIG end.\n"
         assert app.editor.text.count("<!--") == 0
+        assert not list(project.root.glob(".drafts/*"))  # entry removed, file gone
         # select-all moved to f5, f7 no longer selects everything
         await pilot.press("f7")
         await pilot.pause()
@@ -221,9 +274,9 @@ async def test_f5_selects_all(project):
 
 
 async def test_accept_all_and_reject_all_via_palette_methods(project):
-    body = ("# S\n\nA " + drafts.wrap("one") + " B " + drafts.wrap("two", "TWO")
+    body = ("# S\n\nA " + drafts.wrap("one") + " B " + drafts.wrap("two", "abc123")
             + " C\n")
-    scene = _scene(project, body)
+    scene = _scene(project, body, {"abc123": "TWO"})
     app = LorewriteApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()

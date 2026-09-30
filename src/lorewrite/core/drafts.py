@@ -1,34 +1,52 @@
 """Pending AI text: the marking mechanism for every generated span (SPEC §7 M4).
 
 AI-written text is stored *in the scene file* between HTML comments, so it
-survives saves, reopening and external editors (Obsidian hides the comments):
+survives saves, reopening and external editors (Obsidian hides HTML comments):
 
     <!--ai-->generated text<!--/ai-->
-    <!--ai replaces="BASE64"-->generated text<!--/ai-->
+    <!--ai id="k3f9q2"-->generated text<!--/ai-->
 
-``replaces`` is the urlsafe base64 (UTF-8) of the text the draft replaced (a
-selection, or an ``{{expand: …}}`` marker); absent means a pure insertion.
-Accept keeps the body as normal text; reject restores exactly what was there
-before. Nested or malformed markers are ignored (plain text), never an error.
-Pure Python, no Textual.
+The second form is a draft that *replaced* something (a selection, or an
+``{{expand: …}}`` marker). The id is 6 lowercase base36 characters, unique in
+the project; the replaced original lives in a sidecar,
+``<project>/.drafts/<scene-filename>.json`` ({"k3f9q2": "original text"}).
+The sidecar is author data (not cache, never under ``.lorewrite/``).
+
+Accept keeps the body as normal text; reject restores the original. If an
+original is missing from the sidecar, reject refuses (MissingOriginal) —
+prose is never deleted on a failed lookup. Nested or malformed markers are
+ignored (plain text), never an error. Pure Python, no Textual.
 """
 
 from __future__ import annotations
 
-import base64
-import binascii
+import json
 import re
+import secrets
+import string
 from dataclasses import dataclass
+from pathlib import Path
+
+DRAFTS_DIR = ".drafts"
+_ID_ALPHABET = string.ascii_lowercase + string.digits
 
 # Body may not contain another opening tag or a closing tag: an unclosed or
 # nested draft never matches, so it is treated as plain text.
 _PENDING_RE = re.compile(
-    r'<!--ai(?: replaces="([A-Za-z0-9_=-]*)")?-->'
+    r'<!--ai(?: id="([a-z0-9]{6})")?-->'
     r"((?:(?!<!--ai)(?!<!--/ai-->).)*)"
     r"<!--/ai-->",
     re.DOTALL,
 )
 _EXPAND_RE = re.compile(r"\{\{expand:\s*([^{}]*?)\s*\}\}")
+
+
+class MissingOriginal(Exception):
+    """A draft's replaced text is not in the sidecar; reject must refuse."""
+
+    def __init__(self, draft_id: str) -> None:
+        super().__init__(f"original text for draft {draft_id} is missing")
+        self.draft_id = draft_id
 
 
 @dataclass(frozen=True)
@@ -37,7 +55,7 @@ class Pending:
     end: int  # offset one past the closing tag
     body_start: int
     body_end: int
-    original: str | None  # text the draft replaced; None for pure insertions
+    id: str | None  # None for pure insertions
 
 
 @dataclass(frozen=True)
@@ -47,36 +65,108 @@ class ExpandMarker:
     instruction: str
 
 
-def _encode(original: str) -> str:
-    return base64.urlsafe_b64encode(original.encode("utf-8")).decode("ascii")
+# -- sidecar ----------------------------------------------------------------
 
 
-def _decode(raw: str) -> str | None:
+def sidecar_path(project_root: Path, scene_path: Path) -> Path:
+    return project_root / DRAFTS_DIR / f"{scene_path.name}.json"
+
+
+def load_originals(project_root: Path, scene_path: Path) -> dict[str, str]:
     try:
-        return base64.urlsafe_b64decode(raw.encode("ascii")).decode("utf-8")
-    except (binascii.Error, UnicodeError, ValueError):
-        return None
+        data = json.loads(sidecar_path(project_root, scene_path)
+                          .read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {k: v for k, v in data.items()
+            if isinstance(k, str) and isinstance(v, str)}
 
 
-def wrap(body: str, original: str | None = None) -> str:
-    """The marked-up form of a generated *body* (optionally replacing *original*)."""
+def save_originals(project_root: Path, scene_path: Path,
+                   originals: dict[str, str]) -> None:
+    """Write the sidecar atomically; delete the file when there is nothing."""
+    path = sidecar_path(project_root, scene_path)
+    if not originals:
+        path.unlink(missing_ok=True)
+        try:
+            path.parent.rmdir()  # tidy: only succeeds when nothing else is in it
+        except OSError:
+            pass
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(originals, indent=2, ensure_ascii=False),
+                   encoding="utf-8")
+    tmp.replace(path)
+
+
+def add_original(project_root: Path, scene_path: Path, draft_id: str,
+                 original: str) -> None:
+    originals = load_originals(project_root, scene_path)
+    originals[draft_id] = original
+    save_originals(project_root, scene_path, originals)
+
+
+def drop_original(project_root: Path, scene_path: Path, draft_id: str) -> None:
+    originals = load_originals(project_root, scene_path)
+    if originals.pop(draft_id, None) is not None:
+        save_originals(project_root, scene_path, originals)
+
+
+def move_sidecar(project_root: Path, old_scene: Path, new_scene: Path) -> None:
+    """Carry a scene's sidecar along with a rename."""
+    old = sidecar_path(project_root, old_scene)
+    if old.is_file():
+        new = sidecar_path(project_root, new_scene)
+        new.parent.mkdir(parents=True, exist_ok=True)
+        old.replace(new)
+
+
+def delete_sidecar(project_root: Path, scene_path: Path) -> None:
+    path = sidecar_path(project_root, scene_path)
+    path.unlink(missing_ok=True)
+    try:
+        path.parent.rmdir()
+    except OSError:
+        pass
+
+
+def all_ids(project_root: Path) -> set[str]:
+    """Every draft id recorded in any sidecar of the project."""
+    ids: set[str] = set()
+    for path in (project_root / DRAFTS_DIR).glob("*.json"):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(data, dict):
+            ids.update(k for k in data if isinstance(k, str))
+    return ids
+
+
+def new_id(taken: set[str]) -> str:
+    """A fresh 6-char lowercase base36 id not in *taken*."""
+    while True:
+        candidate = "".join(secrets.choice(_ID_ALPHABET) for _ in range(6))
+        if candidate not in taken:
+            return candidate
+
+
+def wrap(body: str, draft_id: str | None = None) -> str:
+    """The marked-up form of a generated *body*; pass *draft_id* when the
+    draft replaces something (store the original with add_original)."""
     body = body.replace("<!--", "<!-")  # a body can never forge/close a marker
-    if original is None:
+    if draft_id is None:
         return f"<!--ai-->{body}<!--/ai-->"
-    return f'<!--ai replaces="{_encode(original)}"-->{body}<!--/ai-->'
+    return f'<!--ai id="{draft_id}"-->{body}<!--/ai-->'
 
 
 def find_pending(text: str) -> list[Pending]:
     """Every well-formed pending draft in *text*, in document order."""
-    out: list[Pending] = []
-    for m in _PENDING_RE.finditer(text):
-        original = None
-        if m.group(1) is not None:
-            original = _decode(m.group(1))
-            if original is None:
-                continue  # corrupt replaces payload: leave as plain text
-        out.append(Pending(m.start(), m.end(), m.start(2), m.end(2), original))
-    return out
+    return [Pending(m.start(), m.end(), m.start(2), m.end(2), m.group(1))
+            for m in _PENDING_RE.finditer(text)]
 
 
 def pending_at(text: str, offset: int) -> Pending | None:
@@ -93,9 +183,18 @@ def accept(text: str, pending: Pending) -> str:
         + text[pending.end:]
 
 
-def reject(text: str, pending: Pending) -> str:
-    """Restore the original text (or remove a pure insertion)."""
-    return text[:pending.start] + (pending.original or "") + text[pending.end:]
+def reject(text: str, pending: Pending,
+           originals: dict[str, str] | None = None) -> str:
+    """Restore the original text (or remove a pure insertion).
+
+    Raises MissingOriginal if the draft replaced something and *originals*
+    doesn't have it — nothing is changed."""
+    original = ""
+    if pending.id is not None:
+        if pending.id not in (originals or {}):
+            raise MissingOriginal(pending.id)
+        original = originals[pending.id]
+    return text[:pending.start] + original + text[pending.end:]
 
 
 def accept_all(text: str) -> str:
@@ -104,16 +203,19 @@ def accept_all(text: str) -> str:
     return text
 
 
-def reject_all(text: str) -> str:
+def reject_all(text: str, originals: dict[str, str] | None = None) -> str:
+    """Reject every draft. Lenient: a missing original becomes "" — use this
+    for read-only views (AI context, counts), never to rewrite the file."""
     for p in reversed(find_pending(text)):
-        text = reject(text, p)
+        original = (originals or {}).get(p.id, "") if p.id else ""
+        text = text[:p.start] + original + text[p.end:]
     return text
 
 
-def strip_pending(text: str) -> str:
+def strip_pending(text: str, originals: dict[str, str] | None = None) -> str:
     """The text as if every pending draft were rejected: unaccepted AI text
     is not canon and not the author's prose."""
-    return reject_all(text)
+    return reject_all(text, originals)
 
 
 def find_expand_markers(text: str) -> list[ExpandMarker]:

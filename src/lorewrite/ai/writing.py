@@ -50,7 +50,8 @@ def _head_words(s: str, n: int) -> str:
 
 
 def _marked_scene(scene_text: str, cursor_offset: int,
-                  span: tuple[int, int] | None) -> str:
+                  span: tuple[int, int] | None,
+                  originals: dict[str, str] | None = None) -> str:
     """The scene with the CURSOR sentinel placed and pending AI drafts
     removed (unaccepted AI text is not context). *span*, if given, is text
     that is being replaced (a selection or an expand marker): it is cut out
@@ -66,7 +67,7 @@ def _marked_scene(scene_text: str, cursor_offset: int,
                 cursor = p.start  # cursor inside a draft: mark just before it
         text = scene_text[:cursor] + CURSOR + scene_text[cursor:]
     # the sentinel never lands inside a pending span, so stripping is safe
-    return drafts.strip_pending(text)
+    return drafts.strip_pending(text, originals)
 
 
 def build_context(
@@ -76,12 +77,14 @@ def build_context(
     canon_by_name: dict[str, str],
     style_md: str | None,
     span: tuple[int, int] | None = None,
+    originals: dict[str, str] | None = None,
 ) -> str:
     """The prompt context: full style guide, ±500 words around the cursor
     (cut at word boundaries, CURSOR sentinel at the insertion point), and
     notes/canon of the entities the scene mentions (1200 chars each, 6000
-    total). Pending AI drafts are stripped."""
-    marked = _marked_scene(scene_text, cursor_offset, span)
+    total). Pending AI drafts are stripped (*originals*: the scene's draft
+sidecar, so replaced text counts as the accepted prose)."""
+    marked = _marked_scene(scene_text, cursor_offset, span, originals)
     before, _, after = marked.partition(CURSOR)
     window = _tail_words(before, CONTEXT_WORDS) + CURSOR + _head_words(
         after, CONTEXT_WORDS)
@@ -92,7 +95,7 @@ def build_context(
 
     names = [n for e in entities for n in e.names]
     mentioned: list[Entity] = []
-    for link in find_all_links(drafts.strip_pending(scene_text), names):
+    for link in find_all_links(drafts.strip_pending(scene_text, originals), names):
         entity = resolve(link.target, entities)
         if entity is not None and entity not in mentioned:
             mentioned.append(entity)

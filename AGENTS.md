@@ -82,7 +82,9 @@ docs/specification-guide.md  # M3–M8 implementation guide for parallel agent
 - **ListView swallows Enter** — modal screens with a ListView must handle
   `on_list_view_selected` if Enter should confirm (see AliasReviewScreen).
 - **Pending AI drafts live in the scene file** as `<!--ai-->…<!--/ai-->`
-  comments (`core/drafts.py`). Anything that sends scene text to an AI or
+  comments (`core/drafts.py`); text a draft replaced is in the sidecar
+  `.drafts/<scene>.json` (author data, moved/deleted with the scene; reject
+  refuses if the original is missing). Anything that sends scene text to an AI or
   counts words must go through `drafts.strip_pending` (unaccepted AI text is
   not canon). Generated text is only ever inserted wrapped, never bare.
 - **`f7` is TextArea's select-all**: `LinkedTextArea.BINDINGS` overrides it

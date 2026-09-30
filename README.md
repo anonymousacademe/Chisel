@@ -41,7 +41,8 @@ design and roadmap.
   cursor (prompt window), expand a `{{expand: note}}` marker, or rewrite the
   selection in your style. Generated text shows in color and stays a draft
   until you accept it (`f7`) or reject it (`f8`, original restored exactly).
-  Drafts live in the scene file as `<!--ai-->…<!--/ai-->` comments.
+  Drafts live in the scene file as short `<!--ai-->…<!--/ai-->` comments;
+  the text a rewrite replaced is kept in `.drafts/<scene>.json`.
 - AI spend for the session in the status bar
 - Follows the Omarchy system theme automatically (falls back gracefully
   elsewhere)

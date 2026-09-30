@@ -104,9 +104,9 @@ Press escape or ? to close this help.
 """
 
 
-def _word_count(text: str) -> int:
+def _word_count(text: str, originals: dict[str, str] | None = None) -> int:
     """Words in *text*, not counting pending AI drafts (unaccepted AI text)."""
-    return len(drafts.strip_pending(text).split())
+    return len(drafts.strip_pending(text, originals).split())
 
 
 class HelpScreen(ModalScreen[None]):
@@ -469,7 +469,8 @@ class LorewriteApp(App):
         total = 0
         for path in self.project.list_scenes():
             try:
-                total += _word_count(path.read_text(encoding="utf-8"))
+                text = path.read_text(encoding="utf-8")
+                total += _word_count(text, self._originals(text, path))
             except OSError:
                 continue
         self._project_words = total
@@ -593,7 +594,8 @@ class LorewriteApp(App):
             state = f"saved {time.strftime('%H:%M', time.localtime(self._last_save))}"
         else:
             state = "saved"
-        words = _word_count(self._editor.text) if self._editor else 0
+        words = (_word_count(self._editor.text, self._originals(self._editor.text))
+                 if self._editor else 0)
         if self._editor is not None:
             row, col = self._editor.cursor_location
             hint = self._link_hint()
@@ -803,7 +805,8 @@ class LorewriteApp(App):
 
     @work(exclusive=True)
     async def _fetch_suggestions(self) -> None:
-        scene_text = drafts.strip_pending(self.editor.text)  # AI text isn't canon
+        scene_text = drafts.strip_pending(  # AI text isn't canon
+            self.editor.text, self._originals(self.editor.text))
         entities = list(self.entities)
         calls = LEDGER.count()
         try:
@@ -847,6 +850,14 @@ class LorewriteApp(App):
     def _cursor_offset(self) -> int:
         return rowcol_to_offset(self.editor.text, *self.editor.cursor_location)
 
+    def _originals(self, text: str, path: Path | None = None) -> dict[str, str]:
+        """The draft sidecar of *path* (default: the open scene); read only
+        when the text actually contains an id-carrying draft."""
+        path = path or self.current_path
+        if self.project is None or path is None or '<!--ai id="' not in text:
+            return {}
+        return drafts.load_originals(self.project.root, path)
+
     def action_accept_draft(self) -> None:
         """Accept the pending AI draft under the cursor (becomes normal text)."""
         pending = drafts.pending_at(self.editor.text, self._cursor_offset())
@@ -856,7 +867,27 @@ class LorewriteApp(App):
             return
         body = self.editor.text[pending.body_start:pending.body_end]
         self.editor.replace_offsets(pending.start, pending.end, body)
+        self._forget_originals([pending])
         self.notify("AI draft accepted", timeout=1)
+
+    def _forget_originals(self, resolved: list) -> None:
+        """Drop sidecar entries of accepted/rejected drafts."""
+        if self.project is None or self.current_path is None:
+            return
+        for p in resolved:
+            if p.id is not None:
+                drafts.drop_original(self.project.root, self.current_path, p.id)
+
+    def _reject_pending(self, pending) -> bool:
+        """Restore what a draft replaced. Refuses (returns False) when the
+        original is missing: prose is never deleted on a failed lookup."""
+        originals = self._originals(self.editor.text)
+        if pending.id is not None and pending.id not in originals:
+            return False
+        original = originals[pending.id] if pending.id is not None else ""
+        self.editor.replace_offsets(pending.start, pending.end, original)
+        self._forget_originals([pending])
+        return True
 
     def action_reject_draft(self) -> None:
         """Reject the pending AI draft under the cursor: restore what was there."""
@@ -865,8 +896,10 @@ class LorewriteApp(App):
             self.notify("No AI draft under the cursor", severity="warning",
                         timeout=2)
             return
-        self.editor.replace_offsets(pending.start, pending.end,
-                                    pending.original or "")
+        if not self._reject_pending(pending):
+            self.notify("Original text for this draft is missing — accept it "
+                        "or edit by hand", severity="error", timeout=6)
+            return
         self.notify("AI draft rejected", timeout=1)
 
     def _resolve_all_drafts(self, accept: bool) -> None:
@@ -874,13 +907,22 @@ class LorewriteApp(App):
         if not found:
             self.notify("No AI drafts in this scene", timeout=2)
             return
+        skipped = 0
         for p in reversed(found):  # back to front so offsets hold
-            text = self.editor.text
-            new = (text[p.body_start:p.body_end] if accept
-                   else (p.original or ""))
-            self.editor.replace_offsets(p.start, p.end, new)
+            if accept:
+                text = self.editor.text
+                self.editor.replace_offsets(
+                    p.start, p.end, text[p.body_start:p.body_end])
+                self._forget_originals([p])
+            elif not self._reject_pending(p):
+                skipped += 1
         verb = "accepted" if accept else "rejected"
-        self.notify(f"{len(found)} AI draft(s) {verb}", timeout=2)
+        msg = f"{len(found) - skipped} AI draft(s) {verb}"
+        if skipped:
+            msg += (f"; {skipped} left because the original text is missing"
+                    " — accept them or edit by hand")
+        self.notify(msg, severity="warning" if skipped else "information",
+                    timeout=6 if skipped else 2)
 
     def accept_all_drafts(self) -> None:
         self._resolve_all_drafts(True)
@@ -936,7 +978,8 @@ class LorewriteApp(App):
         selection = text[start:end] if end > start else None
         span = (start, end) if end > start else None
         context = build_context(text, start, self.entities, self._canon_map(),
-                                load_style(self.project), span=span)
+                                load_style(self.project), span=span,
+                                originals=self._originals(text))
         if load_style(self.project) is None and not self._style_tip_shown:
             self._style_tip_shown = True
             self.notify("Tip: learn a style guide first (ctrl+p → learn style)",
@@ -985,7 +1028,13 @@ class LorewriteApp(App):
                             severity="warning", timeout=5)
                 return
             start, end = first, first + len(original)
-        self.editor.replace_offsets(start, end, drafts.wrap(body, original))
+        # sidecar first: a marker must never exist without its original
+        draft_id = drafts.new_id(
+            drafts.all_ids(self.project.root)
+            | {p.id for p in drafts.find_pending(text) if p.id})
+        drafts.add_original(self.project.root, self.current_path, draft_id,
+                            original)
+        self.editor.replace_offsets(start, end, drafts.wrap(body, draft_id))
 
     # -- AI: style guide (M4) ---------------------------------------------------
 
@@ -1093,7 +1142,8 @@ class LorewriteApp(App):
 
         from ..ai.continuity import check_scene
 
-        scene_text = drafts.strip_pending(self.editor.text)  # AI text isn't canon
+        scene_text = drafts.strip_pending(  # AI text isn't canon
+            self.editor.text, self._originals(self.editor.text))
         entities = list(self.entities)
         canon = self._canon_map()
         scene_rel = str(self.current_path.relative_to(self.project.root))
@@ -1156,7 +1206,8 @@ class LorewriteApp(App):
         from ..ai.continuity import propose_canon_updates
         from .noteupdates import NoteUpdateScreen
 
-        scene_text = drafts.strip_pending(self.editor.text)  # AI text isn't canon
+        scene_text = drafts.strip_pending(  # AI text isn't canon
+            self.editor.text, self._originals(self.editor.text))
         entities = list(self.entities)
         calls = LEDGER.count()
         try:

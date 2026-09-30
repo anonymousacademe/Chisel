@@ -214,7 +214,7 @@ async def test_ctrl_g_draft_mode_inserts_pending_span_at_cursor(project, monkeyp
             "# S\n\nFirst para.\n" + drafts.wrap("Generated prose.")
             + "\nSecond para.\n")
         (p,) = drafts.find_pending(app.editor.text)
-        assert p.original is None
+        assert p.id is None
         # reject removes exactly the insertion
         app.editor.move_cursor((3, 5))
         await pilot.pause()
@@ -279,9 +279,9 @@ async def test_ctrl_g_expand_marker_replaces_and_reject_restores(project, monkey
         assert calls[0].mode == "expand" and calls[0].instruction == "describe the rain"
         assert "{{expand" not in calls[0].context
         text = app.editor.text
-        assert text.startswith("# S\n\nBefore <!--ai replaces=")
+        assert text.startswith('# S\n\nBefore <!--ai id="')
         (p,) = drafts.find_pending(text)
-        assert p.original == "{{expand: describe the rain}}"
+        assert drafts.load_originals(project.root, scene)[p.id] == "{{expand: describe the rain}}"
         assert text.endswith("<!--/ai--> after.\n")
         app.editor.move_cursor((2, 30))
         await pilot.pause()
@@ -323,8 +323,8 @@ async def test_ctrl_g_rewrite_selection(project, monkeypatch):
         assert calls[0].instruction == "Rewrite this in my style."
         text = app.editor.text
         (p,) = drafts.find_pending(text)
-        assert p.original == "Change this bit."
-        assert text.startswith("# S\n\nKeep this. <!--ai replaces=")
+        assert drafts.load_originals(project.root, scene)[p.id] == "Change this bit."
+        assert text.startswith('# S\n\nKeep this. <!--ai id="')
         assert text.endswith("Rewritten line.<!--/ai--> Keep that.\n")
         app.editor.move_cursor((2, 40))
         await pilot.pause()

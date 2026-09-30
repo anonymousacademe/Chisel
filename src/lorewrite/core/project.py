@@ -7,6 +7,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import drafts
 from . import entities as ent
 
 MANUSCRIPT_DIR = "manuscript"
@@ -198,6 +199,7 @@ class Project:
 
     def delete_scene(self, path: Path) -> None:
         path.unlink()
+        drafts.delete_sidecar(self.root, path)
 
     def move_scene(self, path: Path, delta: int) -> Path | None:
         """Swap a scene's numeric prefix with a neighbor's (reorder).
@@ -222,9 +224,19 @@ class Project:
         nb, sb = mb.groups()
         tmp = a.with_name(f".swap-{a.name}")
         a.rename(tmp)
-        b.rename(b.with_name(f"{na}-{sb}"))
+        b_new = b.with_name(f"{na}-{sb}")
+        b.rename(b_new)
         new_path = tmp.with_name(f"{nb}-{sa}")
         tmp.rename(new_path)
+        # pending-draft sidecars follow their scenes (via a temp name: the
+        # two scenes swap prefixes, so the targets can collide)
+        side_a = drafts.sidecar_path(self.root, a)
+        side_tmp = side_a.with_name(f".swap-{side_a.name}")
+        if side_a.is_file():
+            side_a.replace(side_tmp)
+        drafts.move_sidecar(self.root, b, b_new)
+        if side_tmp.is_file():
+            side_tmp.replace(drafts.sidecar_path(self.root, new_path))
         return new_path
 
     # -- entities ------------------------------------------------------------
