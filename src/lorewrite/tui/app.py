@@ -140,7 +140,7 @@ HELP_TEXT = """\
   Research · <note> / New research note / ... from a link — research/ notes
   Ask the assistant (ctrl+r research mode: answers from your notes, citing them;
   ctrl+h saved conversations, ctrl+n new chat, ctrl+s save an answer to notes)
-  Toggle scene/chapter labels (wording only)
+  Call them chapters / Call them scenes (wording only)
   Settings — API key, models, editor preferences, spell check
   Toggle spell check / Add selection to dictionary / Open project dictionary
   Return to main menu — save and switch projects

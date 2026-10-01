@@ -179,8 +179,8 @@ class ActionProvider(_Provider):
          "Move the scene open in the editor to the Trash"),
         ("Open Trash", "open_trash",
          "Restore deleted scenes and research notes, delete them forever, or empty the Trash"),
-        ("Toggle scene/chapter labels", "toggle_unit",
-         "Call the manuscript's units scenes or chapters (labels only)"),
+        ("Call them chapters", "toggle_unit",
+         "Switch the manuscript's wording between scenes and chapters (labels only)"),
         ("Writer mode", "writer_mode", "Hide everything but the editor (f11)"),
         ("New character", "create_entity_prompt_character", "Create a character note"),
         ("New place", "create_entity_prompt_place", "Create a place note"),
@@ -229,7 +229,9 @@ class ActionProvider(_Provider):
             visible = getattr(app, "sync_visible", None)
             if visible is not None and method.startswith("sync_") and not visible(method):
                 continue
-            if chapters:  # the manuscript's unit is a label only
+            if method == "toggle_unit":  # names the switch it performs
+                title = "Call them scenes" if chapters else "Call them chapters"
+            elif chapters:  # the manuscript's unit is a label only
                 title = title.replace("scene", "chapter").replace("Scene", "Chapter")
                 help_text = help_text.replace("scene", "chapter")
             category = self.CATEGORY.get(method, "Action")

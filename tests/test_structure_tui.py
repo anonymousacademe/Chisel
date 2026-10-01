@@ -250,3 +250,17 @@ async def test_chapter_unit_changes_palette_words_only(tmp_path: Path):
     assert any(h.startswith("Chapter · Alpha") for h in scene_hits)
     assert any("New chapter" in h for h in action_hits)
     assert any(h.startswith("Chapter · Edit details") for h in action_hits)
+
+
+async def test_unit_switch_label_names_the_switch(tmp_path: Path):
+    p = _book(tmp_path)
+    app = LorewriteApp(p)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        hits = [str(h.display) async for h in ActionProvider(app.screen).discover()]
+        assert "Action · Call them chapters" in hits
+        app.toggle_unit()
+        await pilot.pause()
+        hits = [str(h.display) async for h in ActionProvider(app.screen).discover()]
+        assert "Action · Call them scenes" in hits
+        assert not any("Toggle" in h and "label" in h or "chapter/chapter" in h for h in hits)

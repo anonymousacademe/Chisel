@@ -267,7 +267,7 @@ open and behave exactly as before.*
   trash.
 - **Display unit.** `project.toml` `[manuscript] unit = "scene" | "chapter"` (default
   `scene`) changes only labels: the kicker ("Chapter 03"), the sidebar heading, palette
-  wording and GUI menus. Terminal: *Toggle scene/chapter labels*; GUI: project menu.
+  wording and GUI menus. Terminal: *Call them chapters* / *Call them scenes* (names the switch it performs); GUI: project menu.
 - **Unplaced Scenes** = `manuscript/_unplaced/`: not counted in the manuscript words, not in
   the reading order (`list_scenes()`), still indexed (backlinks) and openable. *Move scene to
   Unplaced* / *Place scene in the book*.
