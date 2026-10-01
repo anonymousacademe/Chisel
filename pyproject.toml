@@ -24,6 +24,10 @@ dev = [
 gui = [
     "pywebview>=6",
 ]
+export = [
+    "reportlab>=4",
+    "pyphen>=0.14",
+]
 
 [project.scripts]
 lorewrite = "lorewrite.tui.app:main"
