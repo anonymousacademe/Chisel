@@ -21,22 +21,33 @@ class OpenFile(Message):
 class Sidebar(Vertical):
     def __init__(self) -> None:
         super().__init__(id="sidebar")
-        self._scenes: list[tuple[str, Path]] = []
+        #: rows: (kind, title, path) with kind "scene", "part" or "header"
+        self._scenes: list[tuple[str, str, Path | None]] = []
         self._entities: list[tuple[str, Path]] = []
-        self._scene_paths: list[Path] = []
+        self._scene_paths: list[Path | None] = []  # None for header rows
+        self._unit = "scene"
         self._entity_paths: list[Path] = []
 
     def compose(self):
         yield Input(placeholder="filter…", id="filter")
-        yield Label("Scenes", classes="sidebar-heading")
+        yield Label("Scenes", classes="sidebar-heading", id="scenes-heading")
         yield ListView(id="scenes")
         yield Label("Entities", classes="sidebar-heading")
         yield ListView(id="entities")
 
     # -- data -----------------------------------------------------------------
 
-    def set_scenes(self, scenes: list[tuple[str, Path]]) -> None:
-        self._scenes = scenes
+    def set_scenes(self, rows: list[tuple[str, str, Path | None]],
+                   unit: str = "scene") -> None:
+        """*rows*: ("scene", title, path), ("part", title, folder) and
+        ("header", title, None). Parts and headers are not openable."""
+        self._scenes = rows
+        if unit != self._unit:
+            self._unit = unit
+            try:
+                self.query_one("#scenes-heading", Label).update(f"{unit.capitalize()}s")
+            except Exception:
+                pass
         self._render_lists()
 
     def set_entities(self, entities: list[tuple[str, Path]]) -> None:
@@ -52,16 +63,34 @@ class Sidebar(Vertical):
         def matches(title: str) -> bool:
             return not query or query in title.casefold()
 
-        scenes = [(t, p) for t, p in self._scenes if matches(t)]
         entities = [(t, p) for t, p in self._entities if matches(t)]
 
-        self._scene_paths = [p for _, p in scenes]
+        # with a filter, only matching scenes (and the part headers above them)
+        rows: list[tuple[str, str, Path | None]] = []
+        pending: tuple[str, str, Path | None] | None = None
+        for kind, title, path in self._scenes:
+            if kind == "scene":
+                if matches(title):
+                    if pending is not None:
+                        rows.append(pending)
+                        pending = None
+                    rows.append((kind, title, path))
+            elif not query:
+                rows.append((kind, title, path))
+            else:
+                pending = (kind, title, path)
+
+        self._scene_paths = [p if k == "scene" else None for k, _, p in rows]
         scene_lv = self.query_one("#scenes", ListView)
         scene_lv.clear()
-        for title, _ in scenes:
+        for kind, title, _ in rows:
             # Text(): titles may contain Rich markup chars like [
-            scene_lv.append(ListItem(Label(Text(title))))
-        if not scenes and not self._scenes:
+            if kind == "scene":
+                scene_lv.append(ListItem(Label(Text(title))))
+            else:
+                scene_lv.append(ListItem(Label(Text(title.upper(), style="bold dim")),
+                                         classes="part-header"))
+        if not rows and not self._scenes:
             scene_lv.append(
                 ListItem(Label(Text("ctrl+n — your first scene")),
                          classes="empty-hint")
@@ -92,5 +121,5 @@ class Sidebar(Vertical):
         else:
             return
         index = event.list_view.index
-        if index is not None and 0 <= index < len(paths):
+        if index is not None and 0 <= index < len(paths) and paths[index] is not None:
             self.post_message(OpenFile(paths[index]))

@@ -53,13 +53,14 @@ class SceneProvider(_Provider):
 
     def _entries(self):
         app = self.app
-        for path in app.project.list_scenes():
+        unit = app.project.unit
+        for path in app.project.all_scene_files():
             title = app.project.scene_title(path)
             yield (
-                f"Scene · {title}",
+                f"{unit.capitalize()} · {title}",
                 title,
                 partial(app.open_file, path),
-                f"Open scene {path.name}",
+                f"Open {unit} {path.name}",
             )
 
 
@@ -103,11 +104,29 @@ class ActionProvider(_Provider):
         ("Rename current scene", "rename_scene_prompt",
          "Rename the scene open in the editor"),
         ("Move current scene up", "move_scene_up",
-         "Swap with the scene above (renumbers files)"),
+         "Swap with the scene above in its part (renumbers files)"),
         ("Move current scene down", "move_scene_down",
-         "Swap with the scene below (renumbers files)"),
+         "Swap with the scene below in its part (renumbers files)"),
+        ("Edit details", "edit_details",
+         "POV, place, purpose, status and word target (stored in the scene's frontmatter)"),
+        ("New part", "new_part_prompt", "Add a part (a folder under manuscript/)"),
+        ("Rename part", "rename_part_prompt", "Retitle the open scene's part"),
+        ("Move part up", "move_part_up", "Swap the part with the one before it"),
+        ("Move part down", "move_part_down", "Swap the part with the one after it"),
+        ("Delete empty part", "delete_part_confirm",
+         "Remove a part that has no scenes"),
+        ("Move scene to part", "move_scene_to_part_prompt",
+         "Send the open scene to the end of another part"),
+        ("Move scene to Unplaced", "unplace_scene_action",
+         "Take the open scene out of the book (kept, not counted)"),
+        ("Place scene in the book", "place_scene_action",
+         "Bring an unplaced scene back into a part"),
         ("Delete current scene", "delete_scene_confirm",
-         "Delete the scene open in the editor"),
+         "Move the scene open in the editor to the Trash"),
+        ("Open Trash", "open_trash",
+         "Restore deleted scenes, delete them forever, or empty the Trash"),
+        ("Toggle scene/chapter labels", "toggle_unit",
+         "Call the manuscript's units scenes or chapters (labels only)"),
         ("Writer mode", "writer_mode", "Hide everything but the editor (f11)"),
         ("New character", "create_entity_prompt_character", "Create a character note"),
         ("New place", "create_entity_prompt_place", "Create a place note"),
@@ -144,7 +163,17 @@ class ActionProvider(_Provider):
         ("Rebuild index", "rebuild_index", "Rebuild the link/entity index from disk"),
     ]
 
+    #: actions listed under another category than "Action"
+    CATEGORY = {"edit_details": "Scene"}
+
     def _entries(self):
         app = self.app
+        chapters = app.project is not None and app.project.unit == "chapter"
         for title, method, help_text in self.ACTIONS:
-            yield f"Action · {title}", title, getattr(app, method), help_text
+            if chapters:  # the manuscript's unit is a label only
+                title = title.replace("scene", "chapter").replace("Scene", "Chapter")
+                help_text = help_text.replace("scene", "chapter")
+            category = self.CATEGORY.get(method, "Action")
+            if chapters and category == "Scene":
+                category = "Chapter"
+            yield f"{category} · {title}", title, getattr(app, method), help_text

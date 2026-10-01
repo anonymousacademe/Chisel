@@ -22,6 +22,7 @@ from textual.widgets import TextArea
 
 from textual.binding import Binding
 
+from ..core import scenemeta
 from ..core.drafts import find_expand_markers, find_pending
 from ..core.links import find_all_links, offset_to_rowcol
 
@@ -92,6 +93,7 @@ class LinkedTextArea(TextArea):
         #: entity names/aliases recognized without brackets; set by the app
         #: (empty for entity notes, where only explicit links count)
         self.mention_names: list[str] = []
+        self.scene_mode = False  # scene file: details block faded, not scanned
         # row -> [(start_col, end_col, kind, target)], kind in
         # "bracket" | "link" | "mention" | "ai" | "marker"
         self._spans: dict[int, list[tuple[int, int, str, str]]] = {}
@@ -129,7 +131,12 @@ class LinkedTextArea(TextArea):
             add_range(p.body_end, p.end, "marker")
         for marker in find_expand_markers(text):
             add_range(marker.start, marker.end, "marker")
-        for link in find_all_links(text, self.mention_names):
+        if self.scene_mode:  # scene details: faded, and never scanned for names
+            head = scenemeta.body_offset(text)
+            if head:
+                add_range(0, head, "marker")
+        scan = scenemeta.blank(text) if self.scene_mode else text
+        for link in find_all_links(scan, self.mention_names):
             row, col = offset_to_rowcol(text, link.start)
             _, end_col = offset_to_rowcol(text, link.end)
             row_spans = spans.setdefault(row, [])

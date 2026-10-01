@@ -14,7 +14,8 @@ PAGES = [
 A lorewrite project is a plain folder:
 
   project.toml       settings
-  manuscript/        your scenes, numbered 01-, 02-, ...
+  manuscript/        your scenes, numbered 01-, 02-, ... (a folder
+                     inside it is a part: 01-the-recall/01-rain.md)
   entities/          notes on characters, places, ...
 
 Everything is Markdown. You can read, edit, git-commit, or back up
