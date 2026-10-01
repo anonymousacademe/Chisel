@@ -32,6 +32,9 @@ Rules:
   no quotation marks around the whole thing, no Markdown code fences.
 - Never write HTML comments or the text "<!--".
 - Continue naturally at <<CURSOR>>; do not repeat the surrounding text.
+- When passages of the author's own prose are given, they are the voice to
+  match: imitate their sentence rhythm, paragraph shape, diction and
+  punctuation habits. Never copy their events, images or sentences.
 """
 
 
@@ -78,8 +81,10 @@ def build_context(
     style_md: str | None,
     span: tuple[int, int] | None = None,
     originals: dict[str, str] | None = None,
+    voice_samples: list[tuple[str, str]] | None = None,
 ) -> str:
-    """The prompt context: full style guide, ±500 words around the cursor
+    """The prompt context: full style guide, the author's own prose as voice
+    examples (*voice_samples*, from core.style.select_voice_samples), ±500 words around the cursor
     (cut at word boundaries, CURSOR sentinel at the insertion point), and
     notes/canon of the entities the scene mentions (1200 chars each, 6000
     total). Pending AI drafts are stripped (*originals*: the scene's draft
@@ -110,6 +115,11 @@ sidecar, so replaced text counts as the accepted prose)."""
         notes.append(f"### {entity.name} ({entity.type})\n{note}")
     if notes:
         sections.append("CHARACTERS AND PLACES:\n" + "\n\n".join(notes))
+
+    if voice_samples:
+        sections.append(
+            "THE AUTHOR'S OWN PROSE (match this voice; do not reuse its content):\n"
+            + "\n\n".join(para for _, para in voice_samples))
 
     sections.append("SCENE (the new text goes at " + CURSOR + "):\n" + window)
     return "\n\n".join(sections)

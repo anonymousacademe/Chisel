@@ -1,7 +1,7 @@
 import type { Span } from "../editor/spans";
 import type {
   AliasSuggestion, CanonProposal, DocumentPayload, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
-  Issue, ModelKind, ModelOption, RecentProject, SceneMention, SettingsInfo, EditorPrefs, Workspace,
+  Issue, ModelKind, ModelOption, RecentProject, SceneMention, SettingsInfo, EditorPrefs, StyleStatus, Workspace,
 } from "../data/types";
 import { call } from "./transport";
 
@@ -40,6 +40,7 @@ export const api = {
   applyCanon: (updates: { entity: string; facts: string[] }[]) => call<{ applied: number }>("apply_canon", updates),
   learnStyle: () => call<{ markdown: string; replacing: boolean; samples: number; cost: number | null }>("learn_style"),
   ensureStyle: () => call<{ id: string }>("ensure_style"),
+  styleStatus: () => call<StyleStatus>("style_status"),
   saveStyle: (text: string) => call<{ id: string }>("save_style", text),
   generate: (mode: string, instruction: string, id: string, text: string, start: number, end: number) =>
     call<GenerateResult>("generate", mode, instruction, id, text, start, end),

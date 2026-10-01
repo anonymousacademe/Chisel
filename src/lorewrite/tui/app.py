@@ -40,6 +40,8 @@ from ..core.recents import add_recent
 from ..core.style import (
     ensure_style_stub,
     load_style,
+    manuscript_stats,
+    select_voice_samples,
     sample_manuscript,
     save_style,
     style_path,
@@ -986,7 +988,10 @@ class LorewriteApp(App):
         span = (start, end) if end > start else None
         context = build_context(text, start, self.entities, self._canon_map(),
                                 load_style(self.project), span=span,
-                                originals=self._originals(text))
+                                originals=self._originals(text),
+                                voice_samples=select_voice_samples(
+                                    self.project, self.current_path, text,
+                                    self.entities))
         if load_style(self.project) is None and not self._style_tip_shown:
             self._style_tip_shown = True
             self.notify("Tip: learn a style guide first (ctrl+p → learn style)",
@@ -1075,7 +1080,8 @@ class LorewriteApp(App):
         calls = LEDGER.count()
         try:
             proposal = await asyncio.to_thread(
-                learn_style, samples, self._ai_model("writing"))
+                learn_style, samples, self._ai_model("writing"),
+                manuscript=manuscript_stats(self.project))
         except Exception as exc:
             self.notify(f"Style guide failed: {exc}", severity="error",
                         timeout=6)

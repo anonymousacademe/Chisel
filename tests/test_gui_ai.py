@@ -107,7 +107,7 @@ def test_propose_and_apply_canon_adds_only(tmp_path, monkeypatch):
 def test_learn_style_then_save_with_backup(tmp_path, monkeypatch):
     api, root = open_api(tmp_path)
     monkeypatch.setattr(api_module, "learn_style",
-                        lambda samples, model: SimpleNamespace(markdown="# Style guide\n\nDry.\n"))
+                        lambda samples, model, **kw: SimpleNamespace(markdown="# Style guide\n\nDry.\n"))
     r = api.learn_style()
     assert r["markdown"].startswith("# Style guide") and r["replacing"] is False
     assert not (root / "style.md").exists()  # proposal only

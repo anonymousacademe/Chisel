@@ -17,7 +17,9 @@ import json
 import re
 from dataclasses import dataclass, field
 
-from ..core.style import MAX_EXEMPLARS, exemplars_section, style_markdown
+import datetime
+
+from ..core.style import MAX_EXEMPLARS, exemplars_section, learned_note, style_markdown
 from .client import usage_extra_body
 from .usage import record_response
 
@@ -100,19 +102,21 @@ def validate_indexes(raw, count: int) -> list[int]:
     return picks[:MAX_EXEMPLARS]
 
 
-def build_proposal(data: dict, samples: list[tuple[str, str]]) -> StyleProposal:
+def build_proposal(data: dict, samples: list[tuple[str, str]],
+                   learned: str | None = None) -> StyleProposal:
     fields = {k: str(data.get(k) or "").strip()
               for k in ("voice", "rhythm", "diction", "dialogue", "avoid")}
     picks = validate_indexes(data.get("exemplar_indexes"), len(samples))
     return StyleProposal(
         **fields,
         exemplar_indexes=picks,
-        markdown=style_markdown(fields, exemplars_section(samples, picks)),
+        markdown=style_markdown(fields, exemplars_section(samples, picks), learned),
     )
 
 
 def learn_style(samples: list[tuple[str, str]], model: str,
-                client=None) -> StyleProposal:
+                client=None, manuscript: tuple[int, int] | None = None
+                ) -> StyleProposal:
     """Network call: propose a style guide from manuscript samples.
 
     Synchronous — run in a worker thread from the TUI. Raises ValueError if
@@ -141,4 +145,8 @@ def learn_style(samples: list[tuple[str, str]], model: str,
     data = parse_reply(response.choices[0].message.content or "")
     if not data:
         raise ValueError("the model's reply wasn't a usable style guide")
-    return build_proposal(data, samples)
+    learned = None
+    if manuscript is not None:  # provenance: when, and from how much prose
+        learned = learned_note(sum(len(p.split()) for _, p in samples),
+                               manuscript, datetime.date.today().isoformat())
+    return build_proposal(data, samples, learned)

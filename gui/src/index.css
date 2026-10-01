@@ -462,3 +462,6 @@ button.lw-status__item:hover { color: var(--lw-text); }
 .lw-switcher__input input:focus-visible, .lw-launch__input:focus-visible { outline: none; }
 .lw-launch__input:focus-visible { box-shadow: 0 0 0 1px var(--lw-accent); }
 .lw-cork__hint { grid-column: 1 / -1; margin: 0; font-size: 11px; color: var(--lw-text-muted); }
+
+/* "Your style" card: a quiet accent edge while the voice is unlearned or out of date */
+.lw-insight--nudge { box-shadow: inset 2px 0 0 var(--lw-accent); }

@@ -196,7 +196,7 @@ def test_style_stays_out_of_cache_dir(proj):
 # -- TUI ------------------------------------------------------------------------------------
 
 
-def _fake_learn(samples, model):
+def _fake_learn(samples, model, **kw):
     return build_proposal({"voice": "- close third", "rhythm": "r", "diction": "d",
                            "dialogue": "q", "avoid": "a", "exemplar_indexes": [0]},
                           samples)

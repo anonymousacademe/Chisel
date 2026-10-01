@@ -84,6 +84,12 @@ export interface Workspace {
   };
 }
 
+/** What the "Your style" card shows (lorewrite.core.style.style_info). */
+export interface StyleStatus {
+  exists: boolean; learned: string | null; sampledWords: number | null;
+  manuscriptWordsThen: number | null; manuscriptWords: number; scenes: number; stale: boolean;
+}
+
 export interface RecentProject { path: string; title: string; openedAt: number; exists: boolean }
 
 /** One continuity problem the AI reported for a scene. */

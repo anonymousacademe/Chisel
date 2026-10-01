@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./backend/api";
 import type {
-  AliasSuggestion, BinderNode, CanonProposal, ChatMessage, DocumentPayload, EntityInfo, EntityType, Issue, SceneMention, SettingsInfo, Workspace,
+  AliasSuggestion, BinderNode, CanonProposal, ChatMessage, DocumentPayload, EntityInfo, EntityType, Issue, SceneMention, SettingsInfo, StyleStatus, Workspace,
 } from "./data/types";
 import type { BridgeResult } from "./backend/transport";
 import { anchorDraft } from "./editor/drafts";
@@ -45,6 +45,14 @@ const NOTE_TYPES: EntityType[] = ["character", "place", "object", "faction"];
 export default function App() {
   // undefined = still loading, null = no project open (launch screen)
   const [ws, setWs] = useState<Workspace | null | undefined>(undefined);
+  const [styleStatus, setStyleStatus] = useState<StyleStatus | null>(null);
+  // The "Your style" card follows the project (refresh() runs after every save of style.md).
+  useEffect(() => {
+    if (!ws) return;
+    let live = true;
+    void api.styleStatus().then((r) => { if (live) setStyleStatus(r.ok ? r : null); });
+    return () => { live = false; };
+  }, [ws]);
   const [doc, setDoc] = useState<DocumentPayload | null>(null);
   const [docRev, setDocRev] = useState(0);
   const [spansVersion, setSpansVersion] = useState(0);
@@ -373,6 +381,14 @@ export default function App() {
     setNoteVersion((v) => v + 1); void refresh();
   };
 
+  const openStyle = async () => {
+    if (!ws?.status.hasStyle) { // first open creates the stub, as the terminal app does
+      const r = await api.ensureStyle();
+      if (!r.ok) return notify(r.error, "error");
+      await refresh();
+    }
+    void openDoc("style.md");
+  };
   const learnStyle = async () => {
     if (!(await saver.flush())) return notify("Could not save the current document first.", "error");
     const r = await aiCall("Learning your style…", () => api.learnStyle());
@@ -611,7 +627,8 @@ export default function App() {
             issues={issues} onReviewIssue={reviewIssue} onDismissIssue={(i) => void dismissIssue(i)}
             messages={messages} busy={aiBusy} aiReady={aiReady} scope={scope} onScope={() => setScope((c) => (c === "scene" ? "project" : "scene"))}
             onSend={(t) => void sendChat(t)} onRegenerate={regenerate} onInsertDraft={(id) => void insertReplyAsDraft(id)}
-            onQuick={onQuick} onMenu={openAiMenu} canInsert={doc?.kind === "scene"} onClose={() => setAssistantOpen(false)} />
+            onQuick={onQuick} onMenu={openAiMenu} canInsert={doc?.kind === "scene"} onClose={() => setAssistantOpen(false)}
+            style={ws ? styleStatus : null} onLearnStyle={() => void learnStyle()} onOpenStyle={() => void openStyle()} />
         )}
       </div>
       <StatusBar sessionWords={ws.status.sessionWords} projectWords={ws.status.projectWords} aiCost={ws.status.aiCost}

@@ -50,7 +50,10 @@ from ..core.continuity import (
 )
 from ..core.project import Project, default_project_path, write_atomic
 from ..core.spans import compute_spans, from_utf16, index_to_utf16, to_utf16
-from ..core.style import ensure_style_stub, load_style, sample_manuscript, save_style
+from ..core.style import (
+    ensure_style_stub, load_style, manuscript_stats, sample_manuscript, save_style,
+    select_voice_samples, style_info,
+)
 from ..core.recents import add_recent, load_recents
 from ..core.style import style_path
 from . import workspace as ws
@@ -648,10 +651,18 @@ class Api:
                 raise ValueError("Nothing to learn from yet - write some scenes first")
             model = resolve_model("writing", project.meta)
             replacing = style_path(project).is_file()
+            manuscript = manuscript_stats(project)
             calls = LEDGER.count()
-        proposal = learn_style(samples, model)
+        proposal = learn_style(samples, model, manuscript=manuscript)
         return {"markdown": proposal.markdown, "replacing": replacing,
                 "samples": len(samples), "cost": self._spent(calls)}
+
+    @bridge
+    def style_status(self) -> dict:
+        """For the "Your style" card: is there a guide, when was it learned
+        and from how much prose, and has the manuscript grown since."""
+        with self._lock:
+            return style_info(self._require())
 
     @bridge
     def ensure_style(self) -> dict:
@@ -686,7 +697,9 @@ class Api:
             style_md = load_style(project)
             context = build_context(
                 text, lo, inp["entities"], canon_map(inp["entities"]), style_md,
-                span=(lo, hi) if hi > lo else None, originals=inp["originals"])
+                span=(lo, hi) if hi > lo else None, originals=inp["originals"],
+                voice_samples=select_voice_samples(
+                    project, inp.get("path"), text, inp["entities"]))
             model = resolve_model("writing", project.meta)
             calls = LEDGER.count()
         body = generate_text(mode, instruction.strip(), context, model, selection=selection)

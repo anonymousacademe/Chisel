@@ -116,6 +116,8 @@ export function mockCall(method: string, args: unknown[]): object {
     case "set_settings": return { ok: true };
     case "ai_status": return { ok: true, hasKey: false, models: { fast: "", strong: "", writing: "" } };
     case "recent_projects": return { ok: true, recents: [] };
+    case "style_status": return { ok: true, exists: false, learned: null, sampledWords: null,
+      manuscriptWordsThen: null, manuscriptWords: 0, scenes: 0, stale: false };
     case "suggest_project_path": {
       const slug = String(args[0] ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
       return { ok: true, path: slug ? `~/novels/${slug}` : "" };

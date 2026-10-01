@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Sparkles, History, PanelRightClose, Lightbulb, WandSparkles, ScanSearch, BookSearch, LocateFixed, Copy,
-  RefreshCw, ThumbsUp, UserRound, FileText, ArrowUpRight, Paperclip, ArrowUp, Ellipsis, TextCursorInput,
+  RefreshCw, ThumbsUp, UserRound, FileText, ArrowUpRight, Paperclip, ArrowUp, Ellipsis, TextCursorInput, Feather,
   type LucideIcon,
 } from "lucide-react";
-import type { ChatMessage, EntityInfo, Issue, SceneMention } from "../data/types";
+import type { ChatMessage, EntityInfo, Issue, SceneMention, StyleStatus } from "../data/types";
 import { NotesPanel } from "./NotesPanel";
 import { Icon, IconButton, SectionLabel, Tag } from "./primitives";
 import { placeholderProps } from "./placeholder";
@@ -38,6 +38,7 @@ export function Assistant(props: {
   onSend: (text: string) => void; onRegenerate: (id: string) => void; onInsertDraft: (id: string) => void;
   onQuick: (a: QuickAction) => void; onMenu: (anchor: HTMLElement) => void; onClose: () => void;
   canInsert: boolean;
+  style: StyleStatus | null; onLearnStyle: () => void; onOpenStyle: () => void;
 }) {
   const { tab, onTab: setTab } = props;
   const [draft, setDraft] = useState("");
@@ -107,6 +108,8 @@ export function Assistant(props: {
               </div>
               {!props.aiReady && <p className="lw-empty">AI features are off until an OpenRouter API key is set (Settings).</p>}
             </section>
+            {props.style && <StyleCard style={props.style} busy={busy} aiReady={props.aiReady}
+              onLearn={props.onLearnStyle} onOpen={props.onOpenStyle} />}
             <div className="lw-divider" />
 
             {props.issues.length > 1 && <SectionLabel>{props.issues.length} issues in this scene</SectionLabel>}
@@ -200,6 +203,45 @@ function Sources({ mentions, onPick }: { mentions: SceneMention[]; onPick: (name
           <Icon icon={ArrowUpRight} size={13} stroke={1.5} color="var(--lw-text-faint)" />
         </button>
       ))}
+    </section>
+  );
+}
+
+const fmtDate = (iso: string) =>
+  new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+
+/** "Your style": learn the author's voice from their own scenes, in one click. */
+function StyleCard(props: { style: StyleStatus; busy: boolean; aiReady: boolean; onLearn: () => void; onOpen: () => void }) {
+  const { style } = props;
+  const enough = style.manuscriptWords >= 300;
+  let line: string;
+  if (style.learned && style.sampledWords !== null) {
+    line = `Learned ${fmtDate(style.learned)} from ${style.sampledWords.toLocaleString()} words of your prose.`;
+    if (style.stale) line += ` Your manuscript has grown to ${style.manuscriptWords.toLocaleString()} words since; relearn to keep up.`;
+  } else if (style.exists) {
+    line = "You have a style guide. Relearn it from your scenes, or edit it by hand.";
+  } else {
+    line = enough
+      ? "LoreWriter writes in a generic voice until it learns yours from your scenes."
+      : "Write a few hundred words first; then LoreWriter can learn your voice from them.";
+  }
+  return (
+    <section className={"lw-insight" + (style.stale || !style.exists ? " lw-insight--nudge" : "")} aria-label="Your style">
+      <div className="lw-insight__heading">
+        <span className="lw-row lw-gap-6">
+          <Icon icon={Feather} size={14} stroke={1.7} color="var(--lw-accent-text)" />
+          <strong>Your style</strong>
+        </span>
+        {style.stale && <Tag>Out of date</Tag>}
+      </div>
+      <p>{line}</p>
+      <div className="lw-row lw-gap-8">
+        <button className="lw-btn lw-btn--grow" disabled={props.busy || !props.aiReady || !enough} onClick={props.onLearn}
+          title="Read your scenes and propose a style guide; nothing is saved until you review it">
+          <Icon icon={Feather} size={14} stroke={1.8} /> {style.learned || style.exists ? "Relearn my style" : "Learn my style"}
+        </button>
+        {style.exists && <button className="lw-btn" onClick={props.onOpen}>Open guide</button>}
+      </div>
     </section>
   );
 }
