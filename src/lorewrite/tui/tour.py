@@ -31,6 +31,7 @@ the file, saved/modified state, word count, and cursor position.
 
   ctrl+n   new scene        f11   writer mode (hide everything else)
   ctrl+s   save now         f1    all keybindings
+  f6       fix the next misspelled word (underlined in red)
 """,
     """\
 # 3/5 — Links: the heart of lorewrite

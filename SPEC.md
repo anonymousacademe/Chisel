@@ -28,6 +28,7 @@ The niche is open: no existing TUI fiction app has wikilinks, and no wikilink to
 ```
 my-novel/
 ├── project.toml              # title, author, settings
+├── dictionary.txt            # optional: words/phrases spell check never flags
 ├── manuscript/
 │   ├── 01-arrival.md         # scenes; leading number = order
 │   ├── 02-the-tavern.md
@@ -186,7 +187,11 @@ review-gated.*
 *From vault "Additional Items.md". Session stats reverse the M1.5 dashboard
 rejection — the author explicitly wants a lightweight version.*
 
-- **Spell/grammar check**: integrated, on/off toggle; optional live mode (misspellings underlined). aspell/hunspell for spelling (offline, free), LLM pass for grammar on demand.
+- **Spell check** ✅ (implemented; **spelling only — the author decided against grammar checking**). Offline, no AI: `pyspellchecker` (bundled English dictionary) behind `core/spelling.py`, so the engine can be swapped (e.g. Hunspell). Scenes only (entity notes and `style.md` are not checked).
+  - *What is never flagged* (`accepted_terms`): entity names and aliases (each word and the whole name), the project dictionary `<project>/dictionary.txt`, the personal dictionary `<state dir>/dictionary.txt` (all projects; honours `LOREWRITE_STATE_DIR`), and words ignored this session (memory only). Dictionary files are plain UTF-8, one word or phrase per line, `#` comments allowed; they are author data (not in `.lorewrite/`, not a scene, not an entity, not indexed). An entry with a space is a *phrase*: the words inside every occurrence of it (any case/whitespace) are accepted even if a word alone would be flagged. A lowercase entry matches any capitalisation; a capitalised one (`Kessler`) only capitalised forms.
+  - *Tokenizing*: possessives (`Rook's`, `Rook’s`, `dogs'`) and contractions are handled (never `str.strip("'s")`), hyphenated words are checked part by part, and these are skipped: frontmatter, fenced and inline code, URLs and e-mail addresses, tokens with digits, single letters, short ALL-CAPS tokens (`NYPD`, `K-V`), `<!--…-->` comments, `{{expand: …}}` markers, `[[Name]]` link targets (but not the display text of `[[Name|text]]`) and non-Latin scripts. Pending AI drafts are checked (the author reviews that text); only their marker comments are skipped.
+  - *Terminal app*: red underline (lowest-priority span in `LinkedTextArea`, computed in a worker thread on a 0.6 s debounce; stale underlines are dropped as you type); `f6` jumps to the next misspelling after the cursor (wrapping) and opens a small window: `1`–`5`/`enter` replace, `a` add to the project dictionary, `p` add to the personal dictionary, `i` ignore this session, `esc` cancel. `f6` was TextArea's select-line, which the editor now overrides (like `f7`). Setting `spellcheck` (default on; Settings checkbox "Underline misspellings", palette *Action · Toggle spell check*); palette *Add selection to dictionary* (word or phrase, project) and *Open project dictionary*.
+  - *Desktop GUI*: wavy red underline; click a misspelled word, right-click it, or press `ctrl+.` for a popover (suggestions replace as a normal undoable edit, **Add to dictionary**, **Add to my dictionary (all projects)**, **Ignore**); with a multi-word selection the popover (or the toolbar button) offers **Add phrase to dictionary**. Same `spellcheck` setting (Settings dialog); status bar `N spelling` jumps to the next one; the binder lists `Dictionary` next to the Style Guide so `dictionary.txt` can be edited by hand.
 - **Focus timer**: set a sprint length; countdown shown in the status bar; pairs naturally with writer mode (`f11`).
 - **Session stats page**: words written this session, session average, current streak. Read-only summary screen, not a dashboard.
 - **Idea generator**: AI "unstuck" prompts (writing techniques, what-if questions about current scene/characters).
@@ -262,7 +267,8 @@ both edit the same plain-Markdown projects.
   focus mode, `ctrl+j` in the editor: open the note under the cursor / make a note
   for the selected name (elsewhere it focuses the assistant composer, as in the
   design), `ctrl+g` draft / expand / rewrite, `f7`/`f8` accept/reject the draft
-  under the cursor, ctrl-click a name to open its note in the Notes tab.
+  under the cursor, ctrl-click a name to open its note in the Notes tab, `ctrl+.`
+  on a misspelled word (or click / right-click it) for the spelling popover (M6).
 - **Known limits.** Closing the window from the window manager (not the in-app
   button) relies on the 1.5 s autosave and the blur/pagehide flush rather than a
   synchronous final save. Window resizing on a frameless GTK window depends on the

@@ -84,6 +84,8 @@ HELP_TEXT = """\
   f7 / f8         accept / reject the AI draft under the cursor
                   (drafts are marked in color until you accept them)
   f5              select all (f7 is accept)
+  f6              spell check: fix the next misspelled word (suggestions,
+                  add to the project / your dictionary, ignore)
   ctrl+s          save now (autosave is always on)
   ctrl+b          hide/show the sidebar
   f11             writer mode — hide everything but the editor
@@ -93,7 +95,8 @@ HELP_TEXT = """\
 
 # Also in the palette (ctrl+p)
 
-  Settings — API key, models, editor preferences
+  Settings — API key, models, editor preferences, spell check
+  Toggle spell check / Add selection to dictionary / Open project dictionary
   Return to main menu — save and switch projects
 
 # Links

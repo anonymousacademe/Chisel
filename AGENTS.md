@@ -26,6 +26,7 @@ src/lorewrite/
     settings.py         # user settings (tour_seen, ...)
     style.py            # style.md (project root): load/save/backup, manuscript sampling
     drafts.py           # pending AI text markers (<!--ai-->), expand markers
+    spelling.py         # spell check: check/suggestions, accepted terms, dictionary files
   ai/
     client.py           # OpenRouter via openai SDK; keyring/env key resolution
     links.py            # alias finder (ctrl+l): prompt, schema, validate (never edits text)
@@ -42,6 +43,7 @@ src/lorewrite/
     app.py              # LorewriteApp: layout, save, status, actions, AI wiring
     editor.py           # LinkedTextArea — see "fragile spots" below
     sidebar.py panels.py launch.py commands.py linkreview.py (alias review)
+    spellscreen.py (f6 fix window)
     stylereview.py promptscreen.py tour.py theme.py
 gui/                    # React/TS front end (see gui/README.md); src-tauri/ is unused
 tests/                  # pytest; asyncio_mode=auto; Pilot for TUI tests
@@ -110,6 +112,16 @@ PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --
   also the submit key of `PromptScreen`.
 - The writing model may lack structured outputs: `ai/writing.py` and
   `ai/style.py` never send `provider.require_parameters`.
+- **Spell check** (`core/spelling.py`, spelling only — never grammar). The engine
+  (`pyspellchecker`) stays behind `_Engine`. `check` returns code-point offsets; the
+  GUI converts with `core.spans.to_utf16`. Never spell-check on the UI thread for a
+  whole scene: the TUI uses a worker + 0.6 s debounce, the GUI a debounced bridge
+  call (`Api.spelling`, computed outside `self._lock`). `dictionary.txt` (project
+  root) is author data: not a scene/entity, never indexed — `tui/app.py` skips it
+  like `style.md`, `Api._doc_kind` gives it kind `dictionary` (GUI renders it as
+  plain text: no Markdown, title block or reflow). `f6` is TextArea's select-line;
+  `LinkedTextArea.BINDINGS` overrides it. The GUI editor turns the browser's native
+  `spellcheck` off (ours is the only one).
 - **Terminal key limits**: `ctrl+[` IS Escape; `ctrl+enter` doesn't reach most
   terminals. Scene nav is `alt+←/→`, writer mode is `f11`.
 - **Command palette**: providers must implement `discover()` (else the palette
@@ -180,7 +192,7 @@ PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --
   `Scene · / Entity · / Link · / Action ·` text.
 - Commits only when the user asks. Match existing style; minimal diffs.
 
-## Current state & what's next (2026-09-30)
+## Current state & what's next (2026-10-01)
 
 Done: M1 (editor+links), M1.5 (UX polish from the GLM review), M2 (alias
 finder), M3 (continuity + Contextual Tracker), settings screen, bracket-free
@@ -189,5 +201,7 @@ draft/expand/rewrite, pending AI drafts with `f7`/`f8`; see
 docs/plan-m4-ai-writing.md). **Desktop GUI** (branch `gui`, docs/plan-gui.md):
 pywebview shell, real binder/editor/notes/AI over the same core, placeholders for
 the parts of the design LoreWriter does not do yet.
+Spell check (offline, spelling only, personal + project dictionaries) is in both
+front ends (docs/plan-spelling.md, SPEC M6).
 Known concern: user is unconvinced by the command palette as primary UI
 (SPEC §11b) — the GUI is the answer being tried.

@@ -44,6 +44,7 @@ src/
   editor/drafts.ts       where generated text lands if the buffer changed meanwhile
   components/            TitleBar ActivityRail Binder Editor EditorPane Assistant NotesPanel
                          StatusBar Launch QuickSwitcher SettingsDialog ReviewDialogs Dialogs Toast
+                         SpellMenu (misspelling popover; the check itself is core/spelling.py)
   components/placeholder.ts   the one "Not in LoreWriter yet" treatment
   styles/tokens.css      colours, fonts, radii from the Figma file
 src-tauri/               the original Tauri shell from the handoff: kept, unused, not built

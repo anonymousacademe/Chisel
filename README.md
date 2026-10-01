@@ -30,6 +30,14 @@ design and roadmap.
 - Entity panel with note preview and backlinks to every mentioning scene
 - Launch screen with recent projects; command palette with categorized menu
   (`ctrl+p`); scene organization (new / rename / reorder / delete)
+- **Spell check** (offline, spelling only): misspellings are underlined in
+  scenes; `f6` fixes the next one. Names of your characters and places are never
+  flagged, and you can teach it words with two plain-text dictionaries — the
+  project's `dictionary.txt` and a personal one in `~/.local/state/lorewrite/`
+  (one word or phrase per line, `#` comments allowed; edit them by hand or use
+  *Action · Open project dictionary*). Toggle in Settings or the palette. The
+  desktop app underlines too: click a word for suggestions, *Add to dictionary*
+  and *Ignore* (`ctrl+.` also opens it).
 - Writer mode (`f11`), first-run tour, sidebar filter, focus-friendly
   keybindings (`alt+←/→` to flip scenes)
 - **AI alias finder** (`ctrl+l`): finds other ways your prose refers to known
@@ -103,6 +111,7 @@ First launch shows a 4-page tour. Core keys:
 | `ctrl+l` | AI: find aliases ("the old smith") for your characters/places in this scene |
 | `ctrl+g` | AI write: draft at cursor / expand `{{expand: …}}` / rewrite selection |
 | `f7` / `f8` | accept / reject the AI draft under the cursor (`f5` = select all) |
+| `f6` | spell check: fix the next misspelled word (add it to a dictionary, or ignore it) |
 | `alt+←/→` | previous / next scene |
 | `f11` | writer mode |
 | `ctrl+s` | save (autosave is always on) |
