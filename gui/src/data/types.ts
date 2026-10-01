@@ -3,7 +3,7 @@
 // workspace.py; data/fixtures/workspace.json is checked on both sides.
 
 export type BinderKind =
-  | "project" | "folder" | "document" | "entity" | "style" | "dictionary"
+  | "project" | "folder" | "part" | "document" | "entity" | "style" | "dictionary"
   | "characters" | "world" | "research" | "inbox" | "trash";
 
 export interface BinderNode {
@@ -20,14 +20,37 @@ export interface BinderNode {
   expanded?: boolean;
 }
 
+/** A scene's own details, stored as its YAML frontmatter ("" / null = unset). */
+export interface SceneDetails {
+  pov: string; place: string; purpose: string; status: string;
+  target: number | null;
+  collections: string[];
+}
+export type DetailsPatch = Partial<Omit<SceneDetails, "target">> & { target?: number | string | null };
+
 export interface SceneSummary {
   id: string;            // project-relative path: manuscript/02-blue-hour.md
-  number: string;        // "02" (filename prefix, may be empty)
+  number: string;        // "02": global across parts; empty for front matter / unplaced
   title: string;
   words: number;
   excerpt: string;
   headings: string[];
+  part: string | null;   // "part:manuscript/01-the-recall", null = top level or unplaced
+  frontMatter: boolean;
+  unplaced: boolean;
+  details: SceneDetails;
 }
+
+/** A part of the book (a folder under manuscript/), in book order. */
+export interface PartSummary {
+  id: string;            // "part:manuscript/01-the-recall"
+  title: string;
+  frontMatter: boolean;
+  words: number;
+  sceneIds: string[];
+}
+
+export type Unit = "scene" | "chapter";
 
 export type EntityType = "character" | "place" | "object" | "faction";
 
@@ -52,6 +75,13 @@ export interface DocumentPayload {
   mtime: string;         // ns since epoch, as a string (exceeds 2^53)
   words: number;
   mentions: SceneMention[];
+  // scenes only
+  details?: SceneDetails;
+  /** UTF-16 offset where the prose starts: [0, bodyStart) is the hidden frontmatter block. */
+  bodyStart?: number;
+  partId?: string | null;
+  frontMatter?: boolean;
+  unplaced?: boolean;
 }
 
 /** An entity a scene mentions: how often here, and how many lines link to it project-wide. */
@@ -70,9 +100,10 @@ export type EntityInfo =
   };
 
 export interface Workspace {
-  project: { title: string; author: string; initials: string; path: string; documentCount: number };
+  project: { title: string; author: string; initials: string; path: string; documentCount: number; unit: Unit };
   binder: BinderNode[];
   scenes: SceneSummary[];
+  parts: PartSummary[];
   entities: EntitySummary[];
   status: {
     projectWords: number;
@@ -81,6 +112,7 @@ export interface Workspace {
     sessionMinutes: number;
     aiCost: number;
     hasStyle: boolean;
+    trashCount: number;
   };
 }
 
@@ -137,3 +169,9 @@ export interface SettingsInfo {
   spellcheck: boolean;
 }
 export interface ModelOption { id: string; name: string; promptPerM: number | null; completionPerM: number | null; context: number | null }
+
+/** A scene in the Trash. */
+export interface TrashItem { name: string; title: string; original: string; deleted: string }
+
+/** {old id: new id} of files a rename/move touched, so open documents can follow. */
+export type Remap = Record<string, string>;

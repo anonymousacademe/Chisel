@@ -25,7 +25,10 @@ export function IconButton({ icon, label, active, small, stroke, placeholder, cl
   );
 }
 
-export function Tag({ children, tone = "accent", placeholder }: { children: ReactNode; tone?: "accent" | "success"; placeholder?: boolean }) {
+export function Tag({ children, tone = "accent", placeholder, onClick, title }: {
+  children: ReactNode; tone?: "accent" | "success"; placeholder?: boolean; onClick?: () => void; title?: string;
+}) {
+  if (onClick) return <button type="button" className={`lw-tag lw-tag--${tone} lw-tag--button`} onClick={onClick} title={title}>{children}</button>;
   return <span className={`lw-tag lw-tag--${tone}`} {...(placeholder ? placeholderProps : {})}>{children}</span>;
 }
 

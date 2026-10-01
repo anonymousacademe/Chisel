@@ -40,26 +40,29 @@ const ph = (id: string, title: string, kind: BinderNode["kind"] = "folder"): Bin
 function buildWorkspace(): Workspace {
   const scenes: SceneSummary[] = SCENES.map((s) => ({
     id: s.id, number: s.number, title: s.title, words: words(s.text), excerpt: s.text.split("\n\n")[1]?.slice(0, 160) ?? "", headings: [],
+    part: null, frontMatter: false, unplaced: false,
+    details: { pov: "", place: "", purpose: "", status: "", target: null, collections: [] },
   }));
   const total = scenes.reduce((n, s) => n + s.words, 0);
   const ent = (e: EntitySummary): BinderNode => ({ id: e.id, title: e.name, kind: "entity" });
   return {
-    project: { title: "The Meridian Archive", author: "", initials: "LW", path: "/mock", documentCount: scenes.length + ENTITIES.length },
+    project: { title: "The Meridian Archive", author: "", initials: "LW", path: "/mock", documentCount: scenes.length + ENTITIES.length, unit: "scene" },
     binder: [
       { id: "project", title: "The Meridian Archive", kind: "project", meta: k(total), expanded: true, children: [
-        ph("front", "Front Matter"),
         { id: "group:manuscript", title: "Manuscript", kind: "folder", meta: k(total), expanded: true,
           children: scenes.map((s) => ({ id: s.id, title: `${s.number}  ${s.title}`, kind: "document" as const, meta: k(s.words) })) },
-        ph("part1", "Part I"), ph("part2", "Part II"), ph("part3", "Part III"),
       ] },
       { id: "group:characters", title: "Characters", kind: "characters", children: ENTITIES.filter((e) => e.type === "character").map(ent) },
       { id: "group:world", title: "World Bible", kind: "world",
         children: ENTITIES.filter((e) => e.type !== "character").map((e) => ({ ...ent(e), meta: e.type })) },
-      ph("research", "Research", "research"), ph("unplaced", "Unplaced Scenes", "inbox"), ph("trash", "Trash", "trash"),
+      ph("research", "Research", "research"),
+      { id: "group:unplaced", title: "Unplaced Scenes", kind: "inbox", children: [] },
+      { id: "group:trash", title: "Trash", kind: "trash", muted: true },
     ],
     scenes,
+    parts: [],
     entities: ENTITIES.map(({ body: _b, ...e }) => e),
-    status: { projectWords: total, sessionWords: 0, sessionMinutes: 0, aiCost: 0, hasStyle: false },
+    status: { projectWords: total, sessionWords: 0, sessionMinutes: 0, aiCost: 0, hasStyle: false, trashCount: 0 },
   };
 }
 
@@ -81,7 +84,8 @@ function readDocument(id: string): DocumentPayload | null {
   const s = SCENES.find((x) => x.id === id);
   if (s) {
     return { id, kind: "scene", title: s.title, kicker: `SCENE ${s.number}`, parent: "Manuscript", text: s.text,
-      mtime: "0", words: words(s.text), mentions: mentionsOf(s.text) };
+      mtime: "0", words: words(s.text), mentions: mentionsOf(s.text),
+      details: { pov: "", place: "", purpose: "", status: "", target: null, collections: [] }, bodyStart: 0 };
   }
   const e = ENTITIES.find((x) => x.id === id);
   if (e) {

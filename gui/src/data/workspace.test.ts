@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import fixture from "./fixtures/workspace.json";
+import partsFixture from "./fixtures/workspace-parts.json";
 import type { BinderNode, Workspace } from "./types";
-import { allIds, collectExpanded, filterTree, findNode, isOpenable } from "./tree";
+import { allIds, collectExpanded, filterTree, findNode, isActionable, isOpenable } from "./tree";
+import { sceneGroups } from "./reorder";
 import { filterSwitcher, switcherItems } from "./switcher";
 
 // workspace.json is written by the Python side (tests/test_gui_workspace.py
@@ -11,7 +13,7 @@ const ws = fixture as unknown as Workspace;
 
 describe("workspace fixture (shape shared with Python)", () => {
   it("has the top-level keys the UI reads", () => {
-    expect(Object.keys(ws).sort()).toEqual(["binder", "entities", "project", "scenes", "status"]);
+    expect(Object.keys(ws).sort()).toEqual(["binder", "entities", "parts", "project", "scenes", "status"]);
     expect(ws.status).toMatchObject({ projectWords: expect.any(Number), hasStyle: false });
   });
 
@@ -74,5 +76,45 @@ describe("dictionary", () => {
 
   it("is offered by the quick switcher", () => {
     expect(filterSwitcher(switcherItems(ws), "dictionary")[0]).toMatchObject({ id: "dictionary.txt", category: "Dictionary" });
+  });
+});
+
+
+describe("a book with parts (shape shared with Python)", () => {
+  const book = partsFixture as unknown as Workspace;
+
+  it("binder shows real parts, front matter muted and first", () => {
+    const kids = book.binder[0].children!;
+    expect(kids.map((k) => [k.kind, k.title, !!k.muted])).toEqual([
+      ["part", "Front Matter", true], ["part", "The Recall", false], ["part", "Ghost", false]]);
+    expect(kids.some((k) => k.placeholder)).toBe(false);
+    for (const k of kids) expect(isActionable(k)).toBe(true);
+    expect(isOpenable(kids[1].children![0])).toBe(true);
+  });
+
+  it("Unplaced Scenes and Trash are real rows", () => {
+    const un = findNode(book.binder, "group:unplaced")!;
+    expect(un.kind).toBe("inbox");
+    expect(un.children!.map((c) => c.title)).toEqual(["Capsule"]);
+    const trash = findNode(book.binder, "group:trash")!;
+    expect(trash).toMatchObject({ kind: "trash", meta: "1" });
+    expect(isActionable(trash)).toBe(true);
+    expect(isActionable(findNode(book.binder, "ph:research")!)).toBe(false);
+  });
+
+  it("scenes carry part, details and the front-matter / unplaced flags", () => {
+    const byTitle = Object.fromEntries(book.scenes.map((s) => [s.title, s]));
+    expect(byTitle["Title Page"]).toMatchObject({ frontMatter: true, number: "", part: "part:manuscript/00-front-matter" });
+    expect(byTitle["Rain"].details).toMatchObject({ pov: "Mara Vale", place: "Lower Meridian", status: "revising", target: 2400 });
+    expect(byTitle["Rain"].number).toBe("01");
+    expect(byTitle["Capsule"]).toMatchObject({ unplaced: true, part: null });
+    expect(book.status.projectWords).toBe(5);       // only Rain counts
+    expect(book.status.trashCount).toBe(1);
+  });
+
+  it("groups feed the corkboard in book order", () => {
+    const groups = sceneGroups(book.scenes, book.parts, { unplaced: true });
+    expect(groups.map((g) => [g.title, g.scenes.map((s) => s.title)])).toEqual([
+      ["Front Matter", ["Title Page"]], ["The Recall", ["Rain"]], ["Ghost", []], ["Unplaced scenes", ["Capsule"]]]);
   });
 });

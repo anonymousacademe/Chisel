@@ -100,9 +100,10 @@ export function pendingAt(spans: Span[], pos: number): Span | undefined {
   return spans.find((s) => s.kind === "pending" && pos >= s.start && pos <= s.end);
 }
 
-/** A title line: the first non-blank line, if it is a "# " heading. Returns its [from, to) in *text*. */
-export function titleLine(text: string): { from: number; to: number; prefix: number } | null {
-  let pos = 0;
+/** A title line: the first non-blank line at or after *start*, if it is a "# " heading.
+ * Returns its [from, to) in *text*. *start* skips a scene's frontmatter block. */
+export function titleLine(text: string, start = 0): { from: number; to: number; prefix: number } | null {
+  let pos = start;
   for (;;) {
     const nl = text.indexOf("\n", pos);
     const end = nl === -1 ? text.length : nl;
@@ -120,6 +121,22 @@ export function titleLine(text: string): { from: number; to: number; prefix: num
 export function frontmatterRange(text: string): { from: number; to: number } | null {
   const m = /^---\n[\s\S]*?\n---(?:\n|$)/.exec(text);
   return m ? { from: 0, to: m[0].length } : null;
+}
+
+/**
+ * The YAML frontmatter block at the top of a scene (its details), or null. Python
+ * (core.scenemeta) is the authority on the values and reports `bodyStart`; this is
+ * the same recognition rule for the editor, which has to hide the block as the
+ * author types: `---`, then only YAML-looking lines (a `key:` entry, a list item,
+ * a comment or an indented continuation), then `---`. A scene that merely opens
+ * with a horizontal rule is not frontmatter.
+ */
+export function sceneFrontmatter(text: string): { from: number; to: number } | null {
+  const m = /^---[ \t]*\n([\s\S]*?)\n---[ \t]*(?:\n|$)/.exec(text);
+  if (!m) return null;
+  const lines = m[1].split("\n");
+  const yamlish = lines.every((l) => /^(\s*#.*|\s*$|[A-Za-z_][\w-]*\s*:.*|\s*-(\s.*)?|\s+\S.*)$/.test(l));
+  return yamlish && lines.some((l) => /^[A-Za-z_][\w-]*\s*:/.test(l)) ? { from: 0, to: m[0].length } : null;
 }
 
 const BLOCK_START = /^(#{1,6}\s|>|[-*+]\s|\d+[.)]\s|```|~~~|---|\|)/;

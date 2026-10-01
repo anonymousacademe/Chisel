@@ -1,6 +1,6 @@
 import type { Misspelling, Span } from "../editor/spans";
 import type {
-  AliasSuggestion, CanonProposal, DocumentPayload, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
+  AliasSuggestion, CanonProposal, DetailsPatch, DocumentPayload, Remap, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
   Issue, ModelKind, ModelOption, RecentProject, SceneMention, SettingsInfo, EditorPrefs, StyleStatus, Workspace,
 } from "../data/types";
 import { call } from "./transport";
@@ -23,10 +23,27 @@ export const api = {
   addToDictionary: (term: string, scope: "project" | "personal") => call<{ added: boolean }>("add_to_dictionary", term, scope),
   ignoreWord: (word: string) => call("ignore_word", word),
   openDictionary: () => call<{ id: string }>("open_dictionary"),
-  newScene: (title: string) => call<{ id: string }>("new_scene", title),
+  newScene: (title: string, partId: string | null = null, nearId: string | null = null) =>
+    call<{ id: string }>("new_scene", title, partId, nearId),
   renameScene: (id: string, title: string) => call<{ id: string }>("rename_scene", id, title),
-  moveScene: (id: string, delta: number) => call<{ id: string }>("move_scene", id, delta),
+  moveScene: (id: string, delta: number) => call<{ id: string; remap: Remap }>("move_scene", id, delta),
+  /** Move to a part (null = top level) at a 0-based index (null = end), or to Unplaced. */
+  placeScene: (id: string, partId: string | null, index: number | null = null, unplaced = false) =>
+    call<{ id: string; remap: Remap }>("place_scene", id, partId, index, unplaced),
+  /** Moves the scene to the Trash. */
   deleteScene: (id: string) => call("delete_scene", id),
+  newPart: (title: string) => call<{ id: string }>("new_part", title),
+  renamePart: (id: string, title: string) => call<{ id: string }>("rename_part", id, title),
+  movePart: (id: string, delta: number) => call<{ id: string; remap: Remap }>("move_part", id, delta),
+  deletePart: (id: string) => call("delete_part", id),
+  listTrash: () => call<{ items: TrashItem[] }>("list_trash"),
+  restoreTrash: (name: string) => call<{ id: string; unplaced: boolean }>("restore_trash", name),
+  deleteForever: (name: string) => call("delete_forever", name),
+  emptyTrash: () => call<{ deleted: number }>("empty_trash"),
+  /** The edit (UTF-16) that rewrites the frontmatter block of the editor's text; nothing is saved here. */
+  setSceneDetails: (id: string, text: string, fields: DetailsPatch) =>
+    call<{ edit: { from: number; to: number; insert: string }; details: SceneDetails; bodyStart: number }>("set_scene_details", id, text, fields),
+  setUnit: (unit: Unit) => call<{ unit: Unit }>("set_unit", unit),
   rebuildIndex: () => call("rebuild_index"),
   sceneContext: (id: string, text?: string) => call<{ mentions: SceneMention[] }>("scene_context", id, text ?? null),
   listEntities: () => call<{ entities: EntitySummary[] }>("list_entities"),

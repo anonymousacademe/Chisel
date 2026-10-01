@@ -6,7 +6,7 @@ import { Decoration, type DecorationSet, EditorView, WidgetType, drawSelection, 
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { ensureSyntaxTree } from "@codemirror/language";
 import { markdown } from "@codemirror/lang-markdown";
-import { frontmatterRange, misspellingAt, misspellSpecs, softBreaks, specsFor, titleLine, type Misspelling, type Span } from "./spans";
+import { frontmatterRange, misspellingAt, sceneFrontmatter, misspellSpecs, softBreaks, specsFor, titleLine, type Misspelling, type Span } from "./spans";
 
 export const setSpans = StateEffect.define<Span[]>();
 export const setSpelling = StateEffect.define<Misspelling[]>();
@@ -133,10 +133,18 @@ function build(state: EditorState): Built {
 
   // title block: the first "# " line, styled big; its "# " prefix hidden; meta line under it
   const plain = kind === "dictionary"; // one term per line: no title block, no Markdown, no reflow
-  const title = kind !== "entity" && !plain ? titleLine(text) : null;
+  // a scene's details (YAML frontmatter) are edited in the inspector, not here: hide the block
+  const details = kind === "scene" ? sceneFrontmatter(text) : null;
+  if (details) {
+    ranges.push(hide.range(details.from, details.to));
+    atomic.push(hide.range(details.from, details.to));
+  }
+  const title = kind !== "entity" && !plain ? titleLine(text, details?.to ?? 0) : null;
   if (title) {
     const line = doc.lineAt(title.from);
-    ranges.push(Decoration.line({ class: "lw-title-line" }).range(line.from));
+    // the hidden details block merges with the title into one visual line, which takes the
+    // decorations of the line it starts on (line 1)
+    ranges.push(Decoration.line({ class: "lw-title-line" }).range(details ? 0 : line.from));
     ranges.push(hide.range(title.from, title.from + title.prefix));
     atomic.push(hide.range(title.from, title.from + title.prefix));
     // always present: it also carries the violet rule under the title
@@ -144,8 +152,8 @@ function build(state: EditorState): Built {
   }
 
   // YAML frontmatter of entity notes: a muted mono block
-  const fm = kind === "entity" ? frontmatterRange(text) : null;
-  if (fm) {
+  const fm = kind === "entity" ? frontmatterRange(text) : details;
+  if (fm && kind === "entity") {
     const last = doc.lineAt(Math.max(fm.to - 1, 0)).number;
     for (let n = 1; n <= last; n++) ranges.push(Decoration.line({ class: "lw-frontmatter" }).range(doc.line(n).from));
   }

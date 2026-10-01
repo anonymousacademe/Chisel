@@ -4,7 +4,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import type { BinderNode } from "../data/types";
-import { allIds, filterTree, isOpenable } from "../data/tree";
+import { allIds, filterTree, isActionable, isOpenable } from "../data/tree";
 import { Icon, IconButton, SectionLabel } from "./primitives";
 import { placeholderProps } from "./placeholder";
 
@@ -12,7 +12,7 @@ function nodeIcon(node: BinderNode, open: boolean, active: boolean): LucideIcon 
   if (active) return FilePenLine;
   switch (node.kind) {
     case "project": return BookOpen;
-    case "folder": return open ? FolderOpen : Folder;
+    case "folder": case "part": return open ? FolderOpen : Folder;
     case "characters": return Users;
     case "world": return Globe2;
     case "style": return ScrollText;
@@ -24,16 +24,16 @@ function nodeIcon(node: BinderNode, open: boolean, active: boolean): LucideIcon 
   }
 }
 
-function Row({ node, depth, activeId, expanded, onToggle, onSelect }: {
-  node: BinderNode; depth: number; activeId: string | null;
+function Row({ node, depth, activeId, focusId, expanded, onToggle, onSelect }: {
+  node: BinderNode; depth: number; activeId: string | null; focusId: string | null;
   expanded: Set<string>; onToggle: (id: string) => void; onSelect: (n: BinderNode) => void;
 }) {
   const ph = !!node.placeholder;
   const hasChildren = node.children !== undefined && !ph;
   const open = expanded.has(node.id);
   const active = node.id === activeId;
-  const cls = `lw-binder__item${active ? " is-active" : ""}${node.muted ? " is-muted" : ""}`;
-  const activate = () => (isOpenable(node) ? onSelect(node) : hasChildren && onToggle(node.id));
+  const cls = `lw-binder__item${active ? " is-active" : ""}${node.muted ? " is-muted" : ""}${node.id === focusId ? " is-focus" : ""}`;
+  const activate = () => (isOpenable(node) || isActionable(node) ? onSelect(node) : hasChildren && onToggle(node.id));
   return (
     <>
       <div role="treeitem" aria-selected={active} aria-expanded={hasChildren ? open : undefined}
@@ -59,7 +59,7 @@ function Row({ node, depth, activeId, expanded, onToggle, onSelect }: {
         {node.meta && <span className="lw-binder__meta">{node.meta}</span>}
       </div>
       {hasChildren && open && node.children!.map((c) => (
-        <Row key={c.id} node={c} depth={depth + 1} activeId={activeId} expanded={expanded} onToggle={onToggle} onSelect={onSelect} />
+        <Row key={c.id} node={c} depth={depth + 1} activeId={activeId} focusId={focusId} expanded={expanded} onToggle={onToggle} onSelect={onSelect} />
       ))}
     </>
   );
@@ -67,9 +67,11 @@ function Row({ node, depth, activeId, expanded, onToggle, onSelect }: {
 
 const LIBRARY_KINDS = new Set(["characters", "world", "style", "dictionary"]);
 
-export function Binder({ nodes, count, activeId, expanded, onToggle, onSelect, onNew, onMenu, searching, library, canNew, canMenu }: {
+export function Binder({ nodes, count, activeId, focusId, unit, expanded, onToggle, onSelect, onNew, onMenu, searching, library, canNew, canMenu }: {
   searching: boolean; library: boolean; canNew: boolean; canMenu: boolean;
   nodes: BinderNode[]; count: number; activeId: string | null;
+  /** The part folder last clicked: part actions in the menu apply to it. */
+  focusId: string | null; unit: string;
   expanded: Set<string>; onToggle: (id: string) => void; onSelect: (n: BinderNode) => void;
   onNew: () => void; onMenu: (anchor: HTMLElement) => void;
 }) {
@@ -86,8 +88,8 @@ export function Binder({ nodes, count, activeId, expanded, onToggle, onSelect, o
           <span className="lw-mono lw-faint">{count}</span>
         </div>
         <div className="lw-row lw-gap-4">
-          <IconButton icon={FilePlus2} label={library ? "New note" : "New scene"} onClick={onNew} disabled={!canNew} />
-          <IconButton icon={Ellipsis} label="Scene options" onClick={(e) => onMenu(e.currentTarget)} disabled={!canMenu} />
+          <IconButton icon={FilePlus2} label={library ? "New note" : `New ${unit}`} onClick={onNew} disabled={!canNew} />
+          <IconButton icon={Ellipsis} label={`${unit[0].toUpperCase()}${unit.slice(1)} and part options`} onClick={(e) => onMenu(e.currentTarget)} disabled={!canMenu} />
         </div>
       </div>
       <div className="lw-divider" />
@@ -98,7 +100,7 @@ export function Binder({ nodes, count, activeId, expanded, onToggle, onSelect, o
       )}
       <div className="lw-binder__tree" role="tree">
         {shown.map((n) => (
-          <Row key={n.id} node={n} depth={0} activeId={activeId} expanded={open} onToggle={onToggle} onSelect={onSelect} />
+          <Row key={n.id} node={n} depth={0} activeId={activeId} focusId={focusId} expanded={open} onToggle={onToggle} onSelect={onSelect} />
         ))}
         {q && shown.length === 0 && <p className="lw-empty">Nothing matches “{query}”.</p>}
       </div>

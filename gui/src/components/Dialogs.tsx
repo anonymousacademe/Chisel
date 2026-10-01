@@ -41,21 +41,21 @@ export function PromptDialog({ title, label, initial = "", confirm = "OK", onSub
   );
 }
 
-export function ConfirmDialog({ title, message, confirm = "Delete", onConfirm, onClose }: {
-  title: string; message: ReactNode; confirm?: string; onConfirm: () => void; onClose: () => void;
+export function ConfirmDialog({ title, message, confirm = "Delete", tone = "danger", onConfirm, onClose }: {
+  title: string; message: ReactNode; confirm?: string; tone?: "danger" | "primary"; onConfirm: () => void; onClose: () => void;
 }) {
   return (
     <Modal title={title} onClose={onClose}>
       <p className="lw-dialog__message">{message}</p>
       <div className="lw-dialog__buttons">
         <button className="lw-btn" autoFocus onClick={onClose}>Cancel</button>
-        <button className="lw-btn lw-btn--danger" onClick={onConfirm}>{confirm}</button>
+        <button className={`lw-btn lw-btn--${tone}`} onClick={onConfirm}>{confirm}</button>
       </div>
     </Modal>
   );
 }
 
-export interface MenuItem { label: string; onSelect: () => void; disabled?: boolean; danger?: boolean }
+export interface MenuItem { label: string; onSelect: () => void; disabled?: boolean; danger?: boolean; separator?: boolean }
 
 /** A small popover menu anchored under a button. */
 export function Menu({ anchor, items, onClose }: { anchor: HTMLElement; items: MenuItem[]; onClose: () => void }) {
@@ -69,7 +69,7 @@ export function Menu({ anchor, items, onClose }: { anchor: HTMLElement; items: M
     <div className="lw-overlay lw-overlay--clear" onMouseDown={onClose}>
       <div className="lw-menu" role="menu" style={{ top: rect.bottom + 4, left: Math.min(rect.left, window.innerWidth - 220) }}
         onMouseDown={(e) => e.stopPropagation()}>
-        {items.map((it) => (
+        {items.map((it) => it.separator ? <hr key={it.label} className="lw-menu__sep" /> : (
           <button key={it.label} role="menuitem" disabled={it.disabled} className={`lw-menu__item${it.danger ? " is-danger" : ""}`}
             onClick={() => { onClose(); it.onSelect(); }}>{it.label}</button>
         ))}

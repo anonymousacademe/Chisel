@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./backend/api";
 import type {
-  AliasSuggestion, BinderNode, CanonProposal, ChatMessage, DocumentPayload, EntityInfo, EntityType, Issue, SceneMention, SettingsInfo, StyleStatus, Workspace,
+  AliasSuggestion, BinderNode, CanonProposal, ChatMessage, DetailsPatch, DocumentPayload, EntityInfo, EntityType, Issue, Remap, SceneMention, SettingsInfo, StyleStatus, Workspace,
 } from "./data/types";
 import type { BridgeResult } from "./backend/transport";
 import { anchorDraft } from "./editor/drafts";
 import { collectExpanded, isOpenable } from "./data/tree";
+import { follow, type MovePlan } from "./data/reorder";
 import { SaveController, type SaveState } from "./editor/saveController";
 import type { Card, CursorInfo, SpellTarget } from "./editor/cm";
 import type { Span } from "./editor/spans";
@@ -22,6 +23,7 @@ import { StatusBar } from "./components/StatusBar";
 import { Launch } from "./components/Launch";
 import { QuickSwitcher } from "./components/QuickSwitcher";
 import { ConfirmDialog, Menu, PromptDialog, type MenuItem } from "./components/Dialogs";
+import { DetailsDialog, PartPickerDialog, TrashDialog } from "./components/StructureDialogs";
 import { Toasts, type Notice } from "./components/Toast";
 
 const ZOOMS = [90, 100, 110, 125];
@@ -31,6 +33,13 @@ type Dialog =
   | { kind: "new-scene" }
   | { kind: "rename" }
   | { kind: "delete" }
+  | { kind: "new-part" }
+  | { kind: "rename-part"; id: string; title: string }
+  | { kind: "delete-part"; id: string; title: string }
+  | { kind: "pick-part"; sceneId: string; unplaced: boolean }
+  | { kind: "move"; plan: MovePlan }
+  | { kind: "trash" }
+  | { kind: "details" }
   | { kind: "new-note"; name: string; openAfter: boolean }
   | { kind: "generate"; mode: "draft" | "rewrite"; from: number; to: number; title: string; label: string; initial: string }
   | { kind: "aliases"; items: AliasSuggestion[] }
@@ -40,6 +49,7 @@ type Dialog =
   | null;
 
 const uid = () => crypto.randomUUID();
+const sentence = (s: string) => s[0] + s.slice(1).toLowerCase();
 
 const NOTE_TYPES: EntityType[] = ["character", "place", "object", "faction"];
 
@@ -86,6 +96,7 @@ export default function App() {
   const [spellCount, setSpellCount] = useState<number | null>(null);
   const [spellVersion, setSpellVersion] = useState(0);
   const [spellTarget, setSpellTarget] = useState<SpellTarget | null>(null);
+  const [partFocus, setPartFocus] = useState<string | null>(null);
   const noticeId = useRef(0);
   const editorRef = useRef<EditorHandle>(null);
   const focusAfterOpen = useRef(false);
@@ -93,10 +104,10 @@ export default function App() {
   const docRef = useRef<DocumentPayload | null>(null);
   useEffect(() => { docRef.current = doc; });
 
-  const notify = useCallback((text: string, tone: Notice["tone"] = "info") => {
+  const notify = useCallback((text: string, tone: Notice["tone"] = "info", action?: Notice["action"]) => {
     const id = ++noticeId.current;
-    setNotices((n) => [...n, { id, text, tone }]);
-    setTimeout(() => setNotices((n) => n.filter((x) => x.id !== id)), tone === "error" ? 8000 : 3500);
+    setNotices((n) => [...n, { id, text, tone, action }]);
+    setTimeout(() => setNotices((n) => n.filter((x) => x.id !== id)), tone === "error" || action ? 9000 : 3500);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -121,7 +132,7 @@ export default function App() {
     onError: (m) => notify(`Save failed: ${m}`, "error"),
   }), [notify, refresh]);
 
-  const openDoc = useCallback(async (id: string, opts: { force?: boolean } = {}) => {
+  const openDoc = useCallback(async (id: string, opts: { force?: boolean; keepMode?: boolean } = {}) => {
     if (!opts.force) {
       if (saver.state === "conflict") { notify("Resolve the save conflict first (reload or keep your version).", "error"); return; }
       if (!(await saver.flush())) { notify("Could not save the current document; staying here.", "error"); return; }
@@ -135,7 +146,7 @@ export default function App() {
     setWords(r.words);
     setDocRev((n) => n + 1);
     setCursor(NO_CURSOR);
-    setMode("manuscript");
+    if (!opts.keepMode) setMode("manuscript");
   }, [saver, notify]);
 
   const boot = useCallback(async () => {
@@ -146,7 +157,8 @@ export default function App() {
     setExpanded(collectExpanded(w.binder));
     saver.detach();
     setDoc(null);
-    if (w.scenes[0]) void openDoc(w.scenes[0].id, { force: true });
+    const first = w.scenes.find((s) => !s.frontMatter && !s.unplaced) ?? w.scenes[0];
+    if (first) void openDoc(first.id, { force: true });
   }, [refresh, saver, openDoc]);
 
   useEffect(() => { void boot(); }, [boot]);
@@ -211,7 +223,10 @@ export default function App() {
   }
 
   const isScene = doc?.kind === "scene";
+  const unit = ws.project.unit;
   const select = async (n: BinderNode) => {
+    if (n.kind === "part") { setPartFocus(n.id); toggle(n.id); return; }
+    if (n.kind === "trash" && !n.placeholder) { setDialog({ kind: "trash" }); return; }
     if (!isOpenable(n)) return;
     if (n.kind === "dictionary") { // first open creates dictionary.txt with a comment header
       const r = await api.openDictionary();
@@ -229,7 +244,7 @@ export default function App() {
     if (v === "assistant") { setAssistantOpen((o) => !o); return; }
     setRail(v); setFocus(false);
   };
-  const docLabel = doc ? (doc.kind === "scene" ? `${doc.kicker.replace("SCENE", "Scene")} · ${doc.title}` : doc.title) : "";
+  const docLabel = doc ? (doc.kind === "scene" ? `${sentence(doc.kicker)} · ${doc.title}` : doc.title) : "";
   // -- notes ------------------------------------------------------------------
   const showNote = (name: string) => {
     setMissingTarget(null); setNoteName(name); setTab("notes"); setAssistantOpen(true);
@@ -562,6 +577,14 @@ export default function App() {
       await refresh(); setSpansVersion((v) => v + 1); setNoteVersion((v) => v + 1);
       notify("Index rebuilt from the files.");
     } },
+    { label: unit === "scene" ? "Call scenes “chapters”" : "Call chapters “scenes”", onSelect: async () => {
+      const next = unit === "scene" ? "chapter" : "scene";
+      const r = await api.setUnit(next);
+      if (!r.ok) return notify(r.error, "error");
+      await refresh();
+      if (docRef.current) await openDoc(docRef.current.id, { force: true });  // the kicker follows
+      notify(`Labels now say “${next}”. Only the wording changes.`);
+    } },
     { label: "Settings…", onSelect: () => void openSettings() },
   ] });
 
@@ -574,11 +597,13 @@ export default function App() {
     notify(ok ? "Kept your version." : "Could not save your version.", ok ? "info" : "error");
   };
 
-  // -- scene management --------------------------------------------------------
+  // -- scene, part and trash management -------------------------------------------
+  /** Open the document the user was in, at its (possibly renamed) id. */
+  const reopen = async (id: string, remap?: Remap) => { await openDoc(follow(id, remap), { force: true, keepMode: true }); };
   const createScene = async (title: string) => {
     setDialog(null);
     if (!(await saver.flush())) return notify("Could not save the current document first.", "error");
-    const r = await api.newScene(title);
+    const r = await api.newScene(title, null, doc && doc.kind === "scene" ? doc.id : null);
     if (!r.ok) return notify(r.error, "error");
     await refresh();
     focusAfterOpen.current = true;
@@ -599,25 +624,105 @@ export default function App() {
     await refresh();
     await openDoc(r.id, { force: true });
   };
+  /** Move a scene to a part / the top level / Unplaced; keeps the open document open. */
+  const placeScene = async (id: string, partId: string | null, index: number | null, unplaced: boolean) => {
+    if (!(await saver.flush())) { notify("Could not save the current document first.", "error"); return null; }
+    const r = await api.placeScene(id, partId, index, unplaced);
+    if (!r.ok) { notify(r.error, "error"); return null; }
+    await refresh();
+    setExpanded((s) => (partId ? new Set(s).add(partId) : s));
+    if (docRef.current) await reopen(docRef.current.id, r.remap);
+    return r;
+  };
+  /** The confirmed drag-and-drop: move, then offer to move it back. */
+  const performMove = async (plan: MovePlan) => {
+    setDialog(null);
+    const title = ws.scenes.find((s) => s.id === plan.sceneId)?.title ?? "scene";
+    const r = await placeScene(plan.sceneId, plan.partId, plan.index, plan.unplaced);
+    if (!r) return;
+    notify(`Moved “${title}”.`, "info", {
+      label: "Undo",
+      run: () => { void placeScene(r.id, plan.from.partId, plan.from.index, plan.from.unplaced).then((u) => u && notify("Moved back.")); },
+    });
+  };
   const deleteScene = async () => {
     setDialog(null);
     if (!doc) return;
-    const id = doc.id;
+    const id = doc.id, title = doc.title;
     saver.detach(); // before anything else: a pending autosave must not resurrect the file
     setDoc(null);
     const r = await api.deleteScene(id);
     if (!r.ok) { notify(r.error, "error"); await openDoc(id, { force: true }); return; }
     const w = await refresh();
-    if (w?.scenes[0]) await openDoc(w.scenes[0].id, { force: true });
-    notify("Scene deleted.");
+    const next = w?.scenes.find((s) => !s.frontMatter && !s.unplaced) ?? w?.scenes[0];
+    if (next) await openDoc(next.id, { force: true });
+    notify(`Moved “${title}” to the Trash.`);
   };
+  const createPart = async (title: string) => {
+    setDialog(null);
+    const r = await api.newPart(title);
+    if (!r.ok) return notify(r.error, "error");
+    await refresh();
+    setExpanded((s) => new Set(s).add(r.id));
+    setPartFocus(r.id);
+  };
+  const renamePart = async (id: string, title: string) => {
+    setDialog(null);
+    const r = await api.renamePart(id, title);
+    if (!r.ok) return notify(r.error, "error");
+    await refresh();
+  };
+  const movePart = async (id: string, delta: number) => {
+    if (!(await saver.flush())) return notify("Could not save the current document first.", "error");
+    const r = await api.movePart(id, delta);
+    if (!r.ok) return notify(r.error, "error");
+    await refresh();
+    setPartFocus(r.id);
+    setExpanded((s) => new Set(s).add(r.id));
+    if (docRef.current) await reopen(docRef.current.id, r.remap);
+  };
+  const deletePart = async (id: string) => {
+    setDialog(null);
+    const r = await api.deletePart(id);
+    if (!r.ok) return notify(r.error, "error");
+    setPartFocus(null);
+    await refresh();
+  };
+  const saveDetails = async (patch: DetailsPatch) => {
+    setDialog(null);
+    const d = docRef.current, ed = editorRef.current;
+    if (!d || d.kind !== "scene" || !ed) return;
+    const text = ed.getText();
+    const r = await api.setSceneDetails(d.id, text, patch);
+    if (!r.ok) return notify(r.error, "error");
+    if (ed.getText() !== text) return notify("The text changed while saving the details; try again.", "error");
+    ed.applyEdits([r.edit]);  // an ordinary edit: undoable, and autosave writes it
+    setDoc((cur) => (cur && cur.id === d.id
+      ? { ...cur, details: r.details, bodyStart: r.bodyStart, text: r.edit.insert + text.slice(r.edit.to) } : cur));
+    void refresh();
+    const c = await api.sceneContext(d.id, ed.getText());
+    if (c.ok && docRef.current?.id === d.id) setMentions(c.mentions);
+  };
+  const part = ws.parts.find((p) => p.id === (partFocus ?? doc?.partId)) ?? null;
   const openSceneMenu = (anchor: HTMLElement) => setMenu({
     anchor, items: [
-      { label: "New scene", onSelect: () => setDialog({ kind: "new-scene" }) },
-      { label: "Rename scene…", disabled: !isScene, onSelect: () => setDialog({ kind: "rename" }) },
+      { label: `New ${unit}`, onSelect: () => setDialog({ kind: "new-scene" }) },
+      { label: "New part…", onSelect: () => setDialog({ kind: "new-part" }) },
+      { label: `Rename ${unit}…`, disabled: !isScene, onSelect: () => setDialog({ kind: "rename" }) },
       { label: "Move up", disabled: !isScene, onSelect: () => void moveScene(-1) },
       { label: "Move down", disabled: !isScene, onSelect: () => void moveScene(1) },
-      { label: "Delete scene…", disabled: !isScene, danger: true, onSelect: () => setDialog({ kind: "delete" }) },
+      { label: `Move ${unit} to part…`, disabled: !isScene, onSelect: () => doc && setDialog({ kind: "pick-part", sceneId: doc.id, unplaced: !!doc.unplaced }) },
+      doc?.unplaced
+        ? { label: "Place in the book…", onSelect: () => doc && setDialog({ kind: "pick-part", sceneId: doc.id, unplaced: true }) }
+        : { label: "Move to Unplaced Scenes", disabled: !isScene, onSelect: () => doc && void placeScene(doc.id, null, null, true).then((r) => r && notify("Moved to Unplaced Scenes. It no longer counts in the book.")) },
+      { label: `Delete ${unit}…`, disabled: !isScene, danger: true, onSelect: () => setDialog({ kind: "delete" }) },
+      { label: "parts", separator: true, onSelect: () => {} },
+      { label: part ? `Rename part “${part.title}”…` : "Rename part…", disabled: !part, onSelect: () => part && setDialog({ kind: "rename-part", id: part.id, title: part.title }) },
+      { label: "Move part up", disabled: !part, onSelect: () => part && void movePart(part.id, -1) },
+      { label: "Move part down", disabled: !part, onSelect: () => part && void movePart(part.id, 1) },
+      { label: "Delete empty part…", disabled: !part || part.sceneIds.length > 0, danger: true, onSelect: () => part && setDialog({ kind: "delete-part", id: part.id, title: part.title }) },
+      { label: "trash", separator: true, onSelect: () => {} },
+      { label: "Open Trash…", onSelect: () => setDialog({ kind: "trash" }) },
     ],
   });
 
@@ -633,13 +738,14 @@ export default function App() {
         <ActivityRail view={rail} assistantOpen={showAssistant} onView={onRail} onSettings={() => void openSettings()} badge={0}
           initials={ws.project.initials} author={ws.project.author} />
         {showBinder && (
-          <Binder nodes={ws.binder} count={ws.project.documentCount} activeId={doc?.id ?? null}
+          <Binder nodes={ws.binder} count={ws.project.documentCount} activeId={doc?.id ?? null} focusId={part?.id ?? null} unit={unit}
             expanded={expanded} onToggle={toggle} onSelect={(n) => void select(n)} searching={rail === "search"}
             library={rail === "library"} canNew canMenu={rail !== "library"}
             onNew={() => setDialog(rail === "library" ? { kind: "new-note", name: "", openAfter: true } : { kind: "new-scene" })} onMenu={openSceneMenu} />
         )}
-        <Editor doc={doc} scenes={ws.scenes} words={words} mentions={mentions} reflow={reflow}
+        <Editor doc={doc} scenes={ws.scenes} parts={ws.parts} unit={unit} words={words} mentions={mentions} reflow={reflow}
           sessionWords={ws.status.sessionWords} sessionMinutes={ws.status.sessionMinutes}
+          onEditDetails={() => setDialog({ kind: "details" })} onMoveRequest={(plan) => setDialog({ kind: "move", plan })}
           mode={mode} onMode={setMode} focus={focus} onFocus={() => setFocus((f) => !f)} onOpen={(id) => void openDoc(id)}
           editorRef={editorRef} docRev={docRev} spansVersion={spansVersion} cursor={cursor} saveState={saveState}
           onChange={(t) => saver.edit(t)} onCursor={onCursor} onBlur={() => void saver.flush()}
@@ -676,7 +782,7 @@ export default function App() {
       )}
       {menu && <Menu anchor={menu.anchor} items={menu.items} onClose={() => setMenu(null)} />}
       {dialog?.kind === "new-scene" && (
-        <PromptDialog title="New scene" label="Title" confirm="Create" onSubmit={(t) => void createScene(t)} onClose={() => setDialog(null)} />
+        <PromptDialog title={`New ${unit}`} label="Title" confirm="Create" onSubmit={(t) => void createScene(t)} onClose={() => setDialog(null)} />
       )}
       {dialog?.kind === "new-note" && (
         <PromptDialog title="New note" label="Name" initial={dialog.name} confirm="Create"
@@ -698,12 +804,47 @@ export default function App() {
       {dialog?.kind === "style" && <StyleReviewDialog markdown={dialog.markdown} replacing={dialog.replacing} onSave={(t) => void saveStyle(t)} onClose={() => setDialog(null)} />}
       {dialog?.kind === "settings" && <SettingsDialog initial={dialog.info} onClose={() => setDialog(null)} onSaved={settingsSaved} notify={notify} />}
       {dialog?.kind === "rename" && doc && (
-        <PromptDialog title="Rename scene" label="Title" initial={doc.title} confirm="Rename" onSubmit={(t) => void renameScene(t)} onClose={() => setDialog(null)} />
+        <PromptDialog title={`Rename ${unit}`} label="Title" initial={doc.title} confirm="Rename" onSubmit={(t) => void renameScene(t)} onClose={() => setDialog(null)} />
       )}
       {dialog?.kind === "delete" && doc && (
-        <ConfirmDialog title="Delete scene" confirm="Delete"
-          message={<>Delete “{doc.title}”? This removes <code>{doc.id}</code> from disk and cannot be undone.</>}
+        <ConfirmDialog title={`Move ${unit} to the Trash`} confirm="Move to Trash"
+          message={<>Move “{doc.title}” to the Trash? You can restore it from the Trash in the binder. <code>{doc.id}</code></>}
           onConfirm={() => void deleteScene()} onClose={() => setDialog(null)} />
+      )}
+      {dialog?.kind === "new-part" && (
+        <PromptDialog title="New part" label="Title" confirm="Create" onSubmit={(t) => void createPart(t)} onClose={() => setDialog(null)} />
+      )}
+      {dialog?.kind === "rename-part" && (
+        <PromptDialog title="Rename part" label="Title" initial={dialog.title} confirm="Rename"
+          onSubmit={(t) => void renamePart(dialog.id, t)} onClose={() => setDialog(null)} />
+      )}
+      {dialog?.kind === "delete-part" && (
+        <ConfirmDialog title="Delete part" confirm="Delete part"
+          message={<>Delete the empty part “{dialog.title}”?</>}
+          onConfirm={() => void deletePart(dialog.id)} onClose={() => setDialog(null)} />
+      )}
+      {dialog?.kind === "pick-part" && (
+        <PartPickerDialog title={dialog.unplaced ? "Place in the book" : `Move ${unit} to a part`}
+          message="It goes to the end of the part you pick."
+          parts={ws.parts} allowTop
+          onPick={(partId) => {
+            const id = dialog.sceneId;
+            setDialog(null);
+            void placeScene(id, partId, null, false).then((r) => r && notify(dialog.unplaced ? "Placed in the book." : "Moved."));
+          }} onClose={() => setDialog(null)} />
+      )}
+      {dialog?.kind === "move" && (
+        <ConfirmDialog title={`Move ${unit}`} confirm="Move" tone="primary" message={dialog.plan.sentence}
+          onConfirm={() => void performMove(dialog.plan)} onClose={() => setDialog(null)} />
+      )}
+      {dialog?.kind === "trash" && (
+        <TrashDialog onClose={() => setDialog(null)} notify={notify}
+          onChanged={() => void refresh()}
+          onRestored={(id) => { setDialog(null); void openDoc(id); }} />
+      )}
+      {dialog?.kind === "details" && doc?.kind === "scene" && doc.details && (
+        <DetailsDialog details={doc.details} entities={ws.entities} unit={unit}
+          onSave={(patch) => void saveDetails(patch)} onClose={() => setDialog(null)} />
       )}
       <Toasts notices={notices} onDismiss={(id) => setNotices((n) => n.filter((x) => x.id !== id))} />
     </div>

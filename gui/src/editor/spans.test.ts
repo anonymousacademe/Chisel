@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { frontmatterRange, misspellingAt, misspellSpecs, nextMisspelling, softBreaks, specsFor, titleLine, pendingAt, type Span } from "./spans";
+import { frontmatterRange, sceneFrontmatter, misspellingAt, misspellSpecs, nextMisspelling, softBreaks, specsFor, titleLine, pendingAt, type Span } from "./spans";
 
 const span = (s: Partial<Span> & Pick<Span, "kind" | "start" | "end">): Span => s as Span;
 
@@ -112,5 +112,30 @@ describe("misspellings", () => {
 
   it("does not interfere with the span decorations of the same text", () => {
     expect(specsFor([], 0, 50)).toEqual([]);
+  });
+});
+
+describe("scene frontmatter", () => {
+  const block = "---\npov: Mara Vale\nstatus: revising\ntarget: 2400\ncollections: [Needs continuity pass]\n---\n";
+  it("finds the details block at the top of a scene", () => {
+    expect(sceneFrontmatter(`${block}# Title\n\nText.\n`)).toEqual({ from: 0, to: block.length });
+    expect(sceneFrontmatter(block.replace(/\n$/, ""))).toEqual({ from: 0, to: block.length - 1 });
+  });
+  it("accepts list items, comments and continuation lines", () => {
+    const b = "---\n# a note\ncollections:\n  - One\n  - Two\npurpose: First contact\n  with the signal\n---\nBody";
+    expect(sceneFrontmatter(b)?.to).toBe(b.indexOf("Body"));
+  });
+  it("a leading horizontal rule is not frontmatter", () => {
+    expect(sceneFrontmatter("---\nHe waited at the platform.\n---\n# Title\n")).toBeNull();
+    expect(sceneFrontmatter("# Title\n---\npov: x\n---\n")).toBeNull();
+    expect(sceneFrontmatter("---\n---\n# T")).toBeNull();
+    expect(sceneFrontmatter("---\npov: x\n# T\nno closing rule")).toBeNull();
+  });
+  it("the title is found after the block", () => {
+    const text = `${block}\n# A City\n\nProse.`;
+    const fm = sceneFrontmatter(text)!;
+    const t = titleLine(text, fm.to)!;
+    expect(text.slice(t.from, t.to)).toBe("# A City");
+    expect(titleLine(text)).toBeNull();     // without skipping, line 1 is not a heading
   });
 });
