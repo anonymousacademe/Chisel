@@ -84,3 +84,20 @@ def test_facade_exposes_only_bridge_methods(tmp_path):
     assert not {"project", "index", "entities", "resolve_document", "reload_entities"} & public
     assert facade.ping()["pong"] is True
     assert all(callable(getattr(facade, n)) for n in public)
+
+
+def test_mock_ai_matches_the_real_call_signatures(tmp_path, monkeypatch):
+    """devserver --mock-ai must keep working when an Api call gains arguments
+    (learn_style gained `manuscript`, and the mock was left behind)."""
+    from lorewrite.gui import api as api_module
+    from lorewrite.gui import mockai
+    from tests.test_gui_api import open_api
+
+    for name in ("suggest_links", "check_scene", "propose_canon_updates",
+                 "learn_style", "generate_text", "ask_writer"):
+        monkeypatch.setattr(api_module, name, getattr(api_module, name))
+    mockai.install(api_module)
+    api, _ = open_api(tmp_path)
+    r = api.learn_style()
+    assert r["ok"], r
+    assert r["markdown"].startswith("# Style guide")

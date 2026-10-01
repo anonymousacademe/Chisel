@@ -81,7 +81,7 @@ def install(api_module) -> None:
         return [CanonUpdate(e.name, ("Appears in the opening scene of the manuscript",),
                             "from the first paragraphs", "")]
 
-    def learn_style(samples, model):
+    def learn_style(samples, model, client=None, manuscript=None):
         _spend("style")
         fields = {
             "voice": "- Close third person, past tense; dry, wry narrative distance.",
