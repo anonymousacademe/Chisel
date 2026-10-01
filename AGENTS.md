@@ -175,7 +175,8 @@ PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --
   restore!) and `record(key, words)` on save; anything that rewrites a scene's prose behind the editor's
   back must `seen` it or the difference is counted as writing. Accepting an AI draft calls `accepted`
   (AI words; the baseline moves) *before* the text changes. The GUI Api holds one Tracker per open
-  project (`Api.stats`); typing pings arrive through `stats_touch` (throttled client-side).
+  project (`Api.stats`); a Tracker writes only its own deltas merged into the file (`_unsaved`), because the TUI
+  and GUI may both be open on one project; typing pings arrive through `stats_touch` (throttled client-side).
   A focus sprint lives in the Tracker (`start_sprint` / `finish_sprint`); the GUI ends it from a client
   timer (`App.tsx`, hooks above the early returns) and the TUI from a 1 s `set_interval`; both save
   first so the last words count. Tests fake time through `Tracker(clock=...)`.

@@ -187,3 +187,14 @@ def test_close_records_a_running_sprint_as_stopped(tmp_path):
     t.close()
     s = tracker(tmp_path, c).summary()["sprints"]
     assert len(s) == 1 and s[0]["completed"] is False and s[0]["elapsed"] == 300
+
+
+def test_two_processes_on_one_project_do_not_overwrite_each_other(tmp_path):
+    a, b = tracker(tmp_path), tracker(tmp_path)        # e.g. the terminal app and the desktop app
+    a.seen("x", 0); b.seen("y", 0)
+    a.record("x", 100)
+    b.record("y", 40)                                  # b never saw a's words in memory
+    a.record("x", 130)
+    s = tracker(tmp_path).summary()["today"]
+    assert s["words"] == 170                           # 130 + 40, nothing lost
+    assert a.summary()["today"]["words"] == 170        # a picked up b's words when it wrote

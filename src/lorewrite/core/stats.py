@@ -153,6 +153,10 @@ class Tracker:
         self.session_seconds = 0.0
         self.sprint: Sprint | None = None
         self.days: dict[str, dict] = self._load()
+        # what this process added since the last write: flush merges it into whatever is on
+        # disk, so the terminal app and the desktop app open on one project do not overwrite
+        # each other's numbers
+        self._unsaved: dict[str, dict] = {}
 
     # persistence
 
@@ -180,6 +184,14 @@ class Tracker:
             if not self._dirty:
                 return
             self.path.parent.mkdir(parents=True, exist_ok=True)
+            disk = self._load()
+            for key, add in self._unsaved.items():
+                d = disk.setdefault(key, self._blank())
+                for field in ("words", "ai_words", "seconds", "sessions"):
+                    d[field] += add[field]
+                d["sprints"].extend(add["sprints"])
+            self._unsaved.clear()
+            self.days = disk
             payload = {"version": 1, "project": str(self.root.expanduser().resolve()), "days": self.days}
             tmp = self.path.with_name(self.path.name + ".tmp")
             tmp.write_text(json.dumps(payload, indent=1), encoding="utf-8")
@@ -197,23 +209,33 @@ class Tracker:
     def _today(self, now: float | None = None) -> date:
         return datetime.fromtimestamp(self._clock() if now is None else now).date()
 
-    def _day(self, now: float | None = None) -> dict:
+    @staticmethod
+    def _blank() -> dict:
+        return {"words": 0, "ai_words": 0, "seconds": 0, "sessions": 0, "sprints": []}
+
+    def _bump(self, field: str, n: int, now: float | None = None) -> None:
+        """Add *n* to today's *field* (and remember it as unsaved)."""
         key = self._today(now).isoformat()
-        return self.days.setdefault(key, {"words": 0, "ai_words": 0, "seconds": 0,
-                                          "sessions": 0, "sprints": []})
+        self.days.setdefault(key, self._blank())[field] += n
+        self._unsaved.setdefault(key, self._blank())[field] += n
+
+    def _add_sprint(self, rec: dict, now: float) -> None:
+        key = self._today(now).isoformat()
+        self.days.setdefault(key, self._blank())["sprints"].append(rec)
+        self._unsaved.setdefault(key, self._blank())["sprints"].append(rec)
 
     # activity
 
     def _activity(self, now: float) -> None:
         last = self._last_activity
         if last is None or now - last > SESSION_GAP:
-            self._day(now)["sessions"] += 1
+            self._bump("sessions", 1, now)
             if last is not None:           # a new session after a long pause
                 self.session_started = now
                 self.session_words = self.session_ai_words = 0
                 self.session_seconds = 0.0
         elif now - last <= ACTIVE_WINDOW and now > last:
-            self._day(now)["seconds"] += int(round(now - last))
+            self._bump("seconds", int(round(now - last)), now)
             self.session_seconds += now - last
         self._last_activity = now
 
@@ -246,7 +268,7 @@ class Tracker:
             delta = words - old
             now = self._clock()
             self._activity(now)
-            self._day(now)["words"] += delta
+            self._bump("words", delta, now)
             self.session_words += delta
             self._touch_file(force=True)
             return delta
@@ -258,7 +280,7 @@ class Tracker:
             body_words, replaced_words = max(0, int(body_words)), max(0, int(replaced_words))
             now = self._clock()
             self._activity(now)
-            self._day(now)["ai_words"] += body_words
+            self._bump("ai_words", body_words, now)
             self.session_ai_words += body_words
             if key in self._baseline:
                 self._baseline[key] += body_words - replaced_words
@@ -291,7 +313,7 @@ class Tracker:
                    "minutes": sp.minutes, "elapsed": int(min(now, sp.ends) - sp.started),
                    "words": self.session_words - sp.words_at_start,
                    "completed": not cancelled and now >= sp.ends - 1}
-            self._day(now)["sprints"].append(rec)
+            self._add_sprint(rec, now)
             self._touch_file(force=True)
             return rec
 
