@@ -86,7 +86,7 @@ if (stage("window")) {
   // placeholder tooltip target
   await shotEl("placeholders", ".lw-collections", undefined, 0);
   // scene menu
-  await c.click("button[aria-label='Scene options']"); await sleep(400);
+  await c.click("button[aria-label*='options']"); await sleep(400);
   await shotEl("scenemenu", ".lw-menu", undefined, 10);
   await c.key("Escape"); await sleep(300);
   await c.click("button[aria-label='More']"); await sleep(400);
@@ -147,7 +147,7 @@ const scrollEditor = (where) => c.eval(`(() => { const s = document.querySelecto
 const pending = () => c.eval(`document.querySelectorAll('.lw-draft').length`);
 const clickBtn = (label) => c.click("button", label);
 const aiMenu = async (item) => { await c.click("button[aria-label='More AI actions']"); await sleep(300); await c.click(".lw-menu__item", item); };
-const eyes = () => fs.readFileSync(path.join(project, "manuscript", "02-capsule-7-19.md"), "utf8");
+const eyes = () => fs.readFileSync(path.join(project, "manuscript", "01-the-recall", "02-capsule-7-19.md"), "utf8");
 
 // ---------------------------------------------------------------- C: spelling, notes, hover
 if (stage("spell")) {
@@ -195,14 +195,14 @@ if (stage("consistency")) {
   await load();
   // alias finder (scene 3)
   await openScene("The Stairwell");
-  const before = fs.readFileSync(path.join(project, "manuscript", "03-the-stairwell.md"), "utf8");
+  const before = fs.readFileSync(path.join(project, "manuscript", "02-ghost-frequency", "01-the-stairwell.md"), "utf8");
   await aiMenu("Find aliases");
   await waitFor(".lw-dialog");
   await sleep(500);
   await c.click("button", "Select all"); await sleep(300);
   await dialogShot("aliasreview");
   await c.click("button.lw-btn--primary"); await sleep(1200);
-  if (fs.readFileSync(path.join(project, "manuscript", "03-the-stairwell.md"), "utf8") !== before) throw new Error("alias finder edited the scene");
+  if (fs.readFileSync(path.join(project, "manuscript", "02-ghost-frequency", "01-the-stairwell.md"), "utf8") !== before) throw new Error("alias finder edited the scene");
   // continuity (scene 2)
   await openScene("Capsule 7-19");
   await c.click(".lw-tool", "Continuity");
@@ -264,7 +264,7 @@ if (stage("writing")) {
   // expand placeholder (scene 2)
   await openScene("Capsule 7-19");
   await focusEditor();
-  const rl = await reveal("climbed the ladder");
+  const rl = await reveal(" lay on her back");
   await c.clickAt(rl.x0 + 1, rl.y0, { wait: 150 });
   await c.key("Home", { wait: 100 });
   await c.type("{{expand: the lobby of the Meridian at 3 a.m., wet and humming}}");
@@ -311,7 +311,7 @@ if (stage("chat")) {
 if (stage("settings")) {
   await load();
   await openScene("Rain on the Spur");
-  await c.size(W, 1000, 2);
+  await c.size(W, 1300, 2);
   await sleep(500);
   await c.click(".lw-rail__item[aria-label='Settings']"); await waitFor(".lw-dialog"); await sleep(600);
   const dlg = await c.rect(".lw-dialog");
@@ -330,7 +330,7 @@ if (stage("conflict")) {
   await focusEditor();
   await c.key("End", { ctrl: true });
   await c.type(" (typing in the app)");
-  const f = path.join(project, "manuscript", "01-rain-on-the-spur.md");
+  const f = path.join(project, "manuscript", "01-the-recall", "01-rain-on-the-spur.md");
   fs.appendFileSync(f, "\nA line added by the terminal app.\n");
   const t = new Date(Date.now() + 5000); fs.utimesSync(f, t, t);
   await sleep(3500);
@@ -339,4 +339,196 @@ if (stage("conflict")) {
   await shot("conflict_full");
   await c.click("button", "Keep my version"); await sleep(1500);
 }
+
+// ================================================================ Fourth Edition stages
+const menuItem = async (label) => { await c.click(".lw-menu__item", label); await sleep(500); };
+const binderMenu = async () => { await c.click("button[aria-label*='options']"); await sleep(350); };
+const closeDialog = async () => { await c.key("Escape"); await sleep(350); };
+/** HTML5 drag and drop, synthesized: React listens for these events at the document root. */
+const dnd = (fromSel, fromText, toSel, toText, drop = true) => c.eval(`(async () => {
+  const find = (sel, text) => [...document.querySelectorAll(sel)].find((e) => !text || e.textContent.includes(text));
+  const a = find(${JSON.stringify(fromSel)}, ${JSON.stringify(fromText)}), b = find(${JSON.stringify(toSel)}, ${JSON.stringify(toText)});
+  if (!a || !b) return "missing " + (a ? "target" : "source");
+  const dt = new DataTransfer();
+  const fire = (el, type) => el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt }));
+  fire(a, "dragstart"); await new Promise((r) => setTimeout(r, 80));
+  fire(b, "dragenter"); fire(b, "dragover"); await new Promise((r) => setTimeout(r, 120));
+  ${drop ? 'fire(b, "drop"); fire(a, "dragend");' : ""}
+  return "ok";
+})()`);
+
+if (stage("structure")) {
+  await load();
+  await openScene("Capsule 7-19");
+  await c.click(".lw-binder__item", "Front Matter"); await sleep(400);
+  await shotEl("g_binder", ".lw-binder");
+  await shotEl("g_strip", ".lw-inspector");
+  await shotEl("g_context", ".lw-editor__context");
+  // scene details dialog from the status tag
+  await c.click(".lw-editor__context button, .lw-editor__context .lw-tag", "evising"); await sleep(600);
+  if (await c.rect(".lw-dialog")) { await dialogShot("g_details_dialog"); await closeDialog(); }
+  await binderMenu();
+  await shotEl("g_binder_menu", ".lw-menu", undefined, 10);
+  await menuItem("Move scene to part");
+  await dialogShot("g_move_to_part"); await closeDialog();
+  // corkboard in parts, then a drag with its confirm
+  await c.click(".lw-viewmode", "Corkboard"); await sleep(700);
+  await shotEl("g_corkboard", ".lw-editor");
+  console.log("dnd:", await dnd(".lw-card", "Capsule", ".lw-card", "Ghost in the Ice"));
+  await sleep(600);
+  if (await c.rect(".lw-dialog")) { await dialogShot("g_drag_confirm"); await closeDialog(); }
+  await c.click(".lw-viewmode", "Outline"); await sleep(700);
+  await shotEl("g_outline", ".lw-editor");
+  await c.click(".lw-viewmode", "Manuscript"); await sleep(500);
+  // Trash
+  await c.click(".lw-binder__item", "Trash"); await sleep(800);
+  if (await c.rect(".lw-dialog")) { await dialogShot("g_trash"); await closeDialog(); }
+  // collections: manager, filter, per-scene picker
+  await c.click("button", "Edit"); await sleep(600);
+  if (await c.rect(".lw-dialog")) { await dialogShot("g_collections_manager"); await closeDialog(); }
+  await c.click(".lw-collections__row", "Needs continuity"); await sleep(600);
+  await c.click(".lw-viewmode", "Corkboard"); await sleep(600);
+  await shot("g_collection_filter_full");
+  await shotEl("g_collection_filter", ".lw-editor");
+  await c.click(".lw-viewmode", "Manuscript"); await sleep(400);
+  await c.click(".lw-collections__row", "Needs continuity"); await sleep(300);
+  await c.click(".lw-metric--button", "Collections"); await sleep(600);
+  if (await c.rect(".lw-dialog")) { await dialogShot("g_scene_collections"); await closeDialog(); }
+}
+
+
+const sectionShot = async (name, headingText) => {
+  const r = await c.eval(`(() => {
+    const h = [...document.querySelectorAll('.lw-settings__section h3')].find((e) => e.textContent.includes(${JSON.stringify(headingText)}));
+    if (!h) return null; h.scrollIntoView({ block: "center" });
+    const b = h.parentElement.getBoundingClientRect();
+    return { x: b.x, y: b.y, width: b.width, height: b.height };
+  })()`);
+  if (!r) throw new Error("no settings section " + headingText);
+  await sleep(300);
+  const r2 = await c.eval(`(() => { const h = [...document.querySelectorAll('.lw-settings__section h3')].find((e) => e.textContent.includes(${JSON.stringify(headingText)})); const b = h.parentElement.getBoundingClientRect(); return { x: b.x, y: b.y, width: b.width, height: b.height }; })()`);
+  await shot(name, { x: r2.x - 6, y: r2.y - 6, width: r2.width + 12, height: r2.height + 12 });
+};
+/** Replace the temporary paths shown in dialogs by tidy stand-ins (as in the terminal figures). */
+const maskPaths = (pairs) => c.eval(`(() => {
+  const pairs = ${JSON.stringify(pairs)};
+  const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let n; while ((n = w.nextNode())) for (const [a, b] of pairs) if (n.data.includes(a)) n.data = n.data.split(a).join(b);
+})()`);
+const PATHS = () => [[path.join(path.dirname(project), "remote.git"), "git@example.com:writer/residual.git"], [project, "/home/writer/novels/residual"]];
+
+if (stage("history")) {
+  await load();
+  await openScene("Capsule 7-19");
+  await shotEl("g_status_left", ".lw-status .lw-row");
+  await c.click("button[aria-label='History']"); await waitFor(".lw-dialog"); await sleep(700);
+  await c.click("input[placeholder^='Label']");
+  await c.type("before cutting the lobby"); await sleep(200);
+  await dialogShot("g_history");
+  await c.click("button", "Compare"); await sleep(900);
+  await dialogShot("g_compare");
+  await c.click("button", "Back to the list"); await sleep(500);
+  await c.click("button", "Restore"); await sleep(600);
+  await dialogShot("g_restore_confirm");
+  await closeDialog(); await closeDialog();
+  // the Draft badge
+  await c.click(".lw-titlebar .lw-tag, .lw-titlebar button", "Draft 2"); await sleep(500);
+  await shotEl("g_draft_menu", ".lw-menu", undefined, 10);
+  await c.click(".lw-menu__item", "Start draft"); await waitFor(".lw-dialog"); await sleep(400);
+  await dialogShot("g_draft_confirm"); await closeDialog();
+  // sync: menu, commit, push
+  await c.click(".lw-status button", "change"); await sleep(500);
+  await shotEl("g_sync_menu", ".lw-menu", undefined, 10);
+  await c.click(".lw-menu__item", "Commit"); await waitFor(".lw-dialog"); await sleep(500);
+  await maskPaths(PATHS());
+  await dialogShot("g_commit");
+  await c.click("button.lw-btn--primary"); await sleep(1800);
+  await c.click(".lw-status button", "Ahead"); await sleep(500);
+  await shotEl("g_sync_menu_ahead", ".lw-menu", undefined, 10);
+  await c.click(".lw-menu__item", "Push"); await waitFor(".lw-dialog"); await sleep(400);
+  await maskPaths(PATHS());
+  await dialogShot("g_push"); await closeDialog();
+  // settings: the History section
+  await c.size(W, 1300, 2); await sleep(400);
+  await c.click(".lw-rail__item[aria-label='Settings']"); await waitFor(".lw-dialog"); await sleep(600);
+  await sectionShot("g_settings_history", "History");
+  await sectionShot("g_goals", "Writing goals");
+  await closeDialog();
+  await c.size(W, H, 2);
+}
+
+
+if (stage("notes4")) {
+  await load();
+  // comments: Capsule 7-19 has a detached one, the Stairwell an anchored one
+  await openScene("Capsule 7-19");
+  await c.click(".lw-tab", "Notes"); await sleep(700);
+  await shotEl("g_comments_tab", ".lw-assistant");
+  await openScene("The Stairwell"); await sleep(900);
+  await c.click(".lw-tab", "Notes"); await sleep(600);
+  const row = await c.rect(".lw-comments button", "shard");
+  if (row) { await c.clickAt(row.cx, row.cy); await sleep(700); }
+  const pop = await c.rect(".lw-comment-pop");
+  if (pop) await shot("g_comment_popover", { x: Math.max(330, pop.x - 140), y: Math.max(0, pop.y - 130), width: Math.min(560, 905 - Math.max(330, pop.x - 140)), height: pop.h + 200 });
+  await c.key("Escape"); await sleep(300);
+  // add a comment on a selected passage
+  await focusEditor();
+  await reveal("Tell him no, and");
+  await selectText("Tell him no, and", "Tell him no, and mean it, and walk.".length);
+  await c.click("button[aria-label*='comment on']"); await waitFor(".lw-dialog"); await sleep(500);
+  await c.click(".lw-dialog textarea"); await c.type("Does Wren say this twice? Check scene 4."); await sleep(300);
+  await dialogShot("g_comment_add"); await closeDialog();
+  // research: the binder group, a note, a link
+  await c.click(".lw-binder__item", "Research"); await sleep(500);
+  await shotEl("g_research_binder", ".lw-binder");
+  await binderMenu(); await menuItem("from a link");
+  await waitFor(".lw-dialog"); await c.click(".lw-dialog input"); await c.type("https://www.example.com/articles/capsule-hotel-etiquette.html"); await sleep(300);
+  await dialogShot("g_research_link"); await closeDialog();
+  // the research question, with its cited notes
+  await openScene("Rain on the Spur");
+  await c.click(".lw-tab", "Assistant"); await sleep(400);
+  await c.click(".lw-tool", "Research"); await sleep(500);
+  await c.click("textarea"); await c.type("What do real capsule hotels look like?");
+  await c.key("Enter", { wait: 2200 }); await sleep(600);
+  await shotEl("g_research_answer", ".lw-assistant");
+  // save to notes
+  await c.click("button[aria-label^='Save to notes']"); await sleep(700);
+  const toast = await c.rect(".lw-toast");
+  if (toast) await shot("g_save_toast", { x: toast.x - 10, y: toast.y - 10, width: toast.w + 20, height: toast.h + 20 });
+  // conversations and attach
+  await c.click("button[aria-label='Conversation history']"); await waitFor(".lw-dialog"); await sleep(700);
+  await dialogShot("g_chats"); await closeDialog();
+  await c.click("button[aria-label^='Attach']"); await waitFor(".lw-dialog"); await sleep(700);
+  await c.click(".lw-picklist label, .lw-picklist__row", "Capsule 7-19"); await sleep(200);
+  await c.click(".lw-picklist label, .lw-picklist__row", "Capsule hotels"); await sleep(300);
+  await dialogShot("g_attach"); await closeDialog();
+}
+
+if (stage("aids")) {
+  await load();
+  await openScene("Rain on the Spur");
+  await c.click(".lw-status button", "words today"); await waitFor(".lw-dialog"); await sleep(900);
+  await dialogShot("g_stats"); await closeDialog();
+  await c.size(W, 1300, 2); await sleep(300);
+  await c.click(".lw-status button", "Sprint"); await waitFor(".lw-dialog"); await sleep(500);
+  await dialogShot("g_sprint");
+  await c.size(W, H, 2); await sleep(300);
+  await c.click("button.lw-btn--primary"); await sleep(1500);
+  const bar = await c.rect(".lw-status");
+  await shot("g_sprint_bar", { x: bar.x + 520, y: bar.y, width: bar.w - 520, height: bar.h });
+  // stop it: the end notice with its Session stats action
+  await c.click(".lw-status button", "·"); await sleep(500);
+  if (await c.rect(".lw-dialog")) { await c.click("button.lw-btn--danger, button.lw-btn--primary", "Stop sprint"); await sleep(900); }
+  const toast = await c.rect(".lw-toast");
+  if (toast) await shot("g_sprint_toast", { x: toast.x - 10, y: toast.y - 10, width: toast.w + 20, height: toast.h + 20 });
+  // brainstorm
+  await c.click(".lw-tool", "Brainstorm"); await sleep(2200);
+  await shotEl("g_brainstorm", ".lw-assistant");
+  await c.size(W, 1300, 2); await sleep(400);
+  await c.click(".lw-rail__item[aria-label='Settings']"); await waitFor(".lw-dialog"); await sleep(600);
+  await sectionShot("g_goals", "Writing goals");
+  await closeDialog();
+  await c.size(W, H, 2);
+}
+
 c.close();

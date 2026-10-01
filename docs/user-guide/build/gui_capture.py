@@ -27,7 +27,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
 STAGES = ["launch", "window", "spell", "notes", "consistency", "style",
-          "writing", "chat", "settings", "conflict"]
+          "writing", "chat", "settings", "conflict",
+          "structure", "history", "notes4", "aids"]
 
 
 def free_port() -> int:
@@ -72,7 +73,12 @@ def main() -> None:
             state = work / "state"
             project = work / "residual"
             state.mkdir(parents=True)
-            shutil.copytree(REPO / "examples" / "residual", project)
+            # a richer copy of the example: parts, snapshots, comments, research, stats, git
+            project = work / "proj"
+            subprocess.run([sys.executable, str(HERE / "rich_project.py"), str(project), str(state),
+                            "--git", "--remote"], check=True,
+                           env={**os.environ, "PYTHONPATH": str(REPO / "src"),
+                                "PYTHONDONTWRITEBYTECODE": "1"})
             (state / "settings.json").write_text(json.dumps({"tour_seen": True}))
             args = [sys.executable, str(HERE / "gui_server.py")]
             if stage == "launch":

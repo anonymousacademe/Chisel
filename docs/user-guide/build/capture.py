@@ -35,7 +35,7 @@ os.environ.pop("OPENROUTER_API_KEY", None)
 
 def reset_state(tour_seen=True):
     for f in STATE.glob("*"):
-        f.unlink()
+        shutil.rmtree(f) if f.is_dir() else f.unlink()
     (STATE / "settings.json").write_text(json.dumps({"tour_seen": tour_seen}))
     (STATE / "recent.json").write_text(json.dumps([
         {"path": str(DEMO), "title": "Residual", "opened_at": 1790000000.0},
@@ -499,9 +499,9 @@ async def main():
         shot(app, "rewrite_draft")
         files = sorted(p.name for p in (DEMO / ".drafts").glob("*"))
         print("sidecars:", files)
-        print((DEMO / ".drafts" / "03-the-stairwell.md.json").read_text())
+        print((DEMO / ".drafts" / "manuscript__03-the-stairwell.md.json").read_text())
         (OUT / "sidecar_example.txt").write_text(
-            (DEMO / ".drafts" / "03-the-stairwell.md.json").read_text(),
+            (DEMO / ".drafts" / "manuscript__03-the-stairwell.md.json").read_text(),
             encoding="utf-8")
         marker = re.search(r'<!--ai id="[a-z0-9]{6}"-->', app.editor.text)
         (OUT / "marker_example.txt").write_text(marker.group(0))

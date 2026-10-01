@@ -117,6 +117,25 @@ def ask(prompt, context, model, history=None, client=None):
             "3. End the scene on the sound of the caller's line going dead.")
 
 
+def research_answer(prompt, context, model, history=None, client=None):
+    spend("research", 0.0036)
+    if "[1]" not in context:
+        return ("None of your research notes covers that. You could look it up "
+                "and save what you find as a note.")
+    return ("Real capsule hotels stack units two high and guests keep their shoes "
+            "in lockers at the door [1]. The Meridian's forty-high stack is a "
+            "deliberate exaggeration, so lean on the smell and the hum rather "
+            "than the engineering [1].")
+
+
+def brainstorm(context, model, client=None):
+    spend("brainstorm", 0.0039)
+    return ["What if the caller ID did not go dark, but showed Rook's own number?",
+            "Let the rain stop mid-sentence, so the market hears what it was covering.",
+            "Wren is lying about something small; let Rook notice and say nothing.",
+            "The holo koi turns toward the door a beat before anyone walks in."]
+
+
 MODELS = [
     ("anthropic/claude-sonnet-4.5", "Anthropic: Claude Sonnet 4.5", 3.0, 15.0, 1000000, True),
     ("google/gemini-2.5-flash", "Google: Gemini 2.5 Flash", 0.30, 2.50, 1048576, True),
@@ -138,6 +157,8 @@ api_module.learn_style = learn
 api_module.generate_text = generate
 api_module.ask_writer = ask
 api_module._list_models = list_models
+api_module.research_writer = research_answer
+api_module.brainstorm_writer = brainstorm
 
 if __name__ == "__main__":
     project = Path(sys.argv[1]) if len(sys.argv) > 1 else None

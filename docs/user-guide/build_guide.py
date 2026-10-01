@@ -31,6 +31,48 @@ from reportlab.platypus import (  # noqa: E402
 )
 from reportlab.platypus import Image as RLImage  # noqa: E402
 
+sys.path.insert(0, str(HERE / "build" / "chapters"))
+import ch_aids, ch_history, ch_notes, ch_organize  # noqa: E402
+NEW_CHAPTERS = [ch_organize, ch_history, ch_notes, ch_aids]
+
+
+def palette_rows():
+    """The palette's Action entries, read from the program's own table
+    (src/lorewrite/tui/commands.py) so the book cannot drift from it."""
+    import ast
+    src = (HERE.parents[1] / "src" / "lorewrite" / "tui" / "commands.py").read_text()
+    actions, category = None, {}
+    for node in ast.walk(ast.parse(src)):
+        if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name):
+            if node.targets[0].id == "ACTIONS":
+                actions = ast.literal_eval(node.value)
+            elif node.targets[0].id == "CATEGORY":
+                category = ast.literal_eval(node.value)
+    keys = {"New scene": "ctrl+n", "Next scene": "alt+right",
+            "Previous scene": "alt+left", "Writer mode": "f11",
+            "Find aliases in this scene": "ctrl+l",
+            "AI write at cursor / expand / rewrite selection": "ctrl+g",
+            "Accept all AI drafts in this scene": "f7 (one)",
+            "Reject all AI drafts in this scene": "f8 (one)",
+            "Toggle spell check": "f6 fixes", "Rebuild index": "f9"}
+    rows = []
+    for title, method, help_text in actions:
+        entry = f"{category[method]} · {title}" if method in category else title
+        rows.append([entry, help_text.replace(" (ctrl+l)", "").replace(" (ctrl+g)", "")
+                     .replace(" (f11)", "").replace(" (alt+right)", "")
+                     .replace(" (alt+left)", ""), keys.get(title, "")])
+    return rows
+
+
+def extra(attr, key=None):
+    """Rows the new chapter modules add to a shared table (Appendix B, palette, problems)."""
+    rows = []
+    for m in NEW_CHAPTERS:
+        v = getattr(m, attr)
+        rows += v[key] if key else v
+    return rows
+
+
 import guidelib as gl  # noqa: E402
 from guidelib import (  # noqa: E402
     GREY, HAIR, INK, LIGHT, ST, TEXT_W, GuideDoc, Marker, Railroad, Rule,
@@ -55,7 +97,7 @@ def T(s: str) -> str:
     s = esc(s)
     s = re.sub(r"`([^`]+)`", r'<font name="Mono" size="9.4">\1</font>', s)
     s = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", s)
-    s = re.sub(r"//(.+?)//", r"<i>\1</i>", s)
+    s = re.sub(r"(?<![:\w])//(.+?)(?<!:)//", r"<i>\1</i>", s)
     return s
 
 
@@ -191,6 +233,7 @@ class Story:
               keep=False):
         num = self._num("Table") if caption else None
         if key and num:
+            assert key not in self.st["refs"], f"duplicate reference key {key}"
             self.st["refs"][key] = num
         head = [Paragraph(T(h), ST["cellh"]) for h in header]
         body = []
@@ -227,6 +270,7 @@ class Story:
 
     def figure(self, key, shot, caption, width=None):
         num = self._num("Figure")
+        assert key not in self.st["refs"], f"duplicate reference key {key}"
         self.st["refs"][key] = num
         img = fig_image(shot)
         box = Ruled(img, pad=5)
@@ -236,6 +280,7 @@ class Story:
     def gfigure(self, key, shot, caption, width=None, scale=None, crop=None):
         """A figure of the desktop application (a grayscale screenshot)."""
         num = self._num("Figure")
+        assert key not in self.st["refs"], f"duplicate reference key {key}"
         self.st["refs"][key] = num
         img = gui_image(shot, width=width, scale=scale, crop=crop)
         box = Ruled(img, pad=5)
@@ -266,6 +311,7 @@ CROP_OVERRIDES = {
     "styleguide": [27, 0, 64, 31],
     "aliasnote": [27, 0, 64, 20],
     "spell_underline": [27, 0, 64, 24],
+    "tui_statusbar": [0, 29, 124, 32],
 }
 
 
@@ -291,7 +337,7 @@ def fig_image(shot: str, width=None):
     x0, y0, x1, y1 = box
     im = im.crop((round(x0 * cw), round(y0 * rh), round(x1 * cw),
                   round(y1 * rh)))
-    pts_w = (x1 - x0) * PT_PER_COL
+    pts_w = min((x1 - x0) * PT_PER_COL, 418)   # a wide screen is shrunk to the page
     px_w = min(im.width, round(pts_w * 4))     # ~288 dpi is plenty
     im = im.resize((px_w, round(im.height * px_w / im.width)), Image.LANCZOS)
     im.save(dst, optimize=True)
@@ -341,7 +387,7 @@ class Cover(Flowable):
         c.setFillColor(GREY)
         c.drawString(0, h - 4, gl.DOC_NUMBER)
         c.setFont("Sans-Bold", 9)
-        c.drawRightString(w, h - 4, "Third Edition")
+        c.drawRightString(w, h - 4, "Fourth Edition")
         c.setStrokeColor(INK)
         c.setLineWidth(3)
         c.line(0, h - 22, w, h - 22)
@@ -389,17 +435,21 @@ def build_story(st) -> list:
 
     # ------------------------------------------------------------ notice
     s.front("Edition Notice", toc=False)
-    s.p("**Third Edition (October 2026)**", style="notice")
-    s.p("This edition replaces and makes obsolete the Second Edition, "
-        "LW00-0001-1.", style="notice")
+    s.p("**Fourth Edition (October 2026)**", style="notice")
+    s.p("This edition replaces and makes obsolete the Third Edition, "
+        "LW00-0001-2.", style="notice")
     s.p("This edition applies to Version 0.2.0 of Lorewrite, including the "
-        "desktop application (`lorewrite-gui`, whose window is titled "
-        "LoreWriter), spell check, and the AI writing features, and to all "
-        "subsequent releases and modifications until otherwise indicated in "
-        "new editions. Make sure you are using the correct edition for the "
-        "level of the product. The version number is shown in the title bar "
-        "of the terminal application's main window and at the top of its "
-        "launch screen.",
+        "terminal application (`lorewrite`), the desktop application "
+        "(`lorewrite-gui`, whose window is titled LoreWriter), and the "
+        "features added to both since the Third Edition: parts, the "
+        "Trash and scene details; snapshots, drafts and git sync; "
+        "collections, comments, research notes and saved assistant "
+        "conversations; session stats, focus sprints and Brainstorm. It "
+        "applies to all subsequent releases and modifications until "
+        "otherwise indicated in new editions. Make sure you are using the "
+        "correct edition for the level of the product. The version number "
+        "is shown in the title bar of the terminal application's main "
+        "window and at the top of its launch screen.",
         style="notice")
     s.p("Changes are made periodically to the information herein. Where this "
         "book and the program disagree, the program is right; please report "
@@ -446,11 +496,12 @@ def build_story(st) -> list:
         "application//, started with `lorewrite`, and a //desktop "
         "application//, started with `lorewrite-gui`, whose window is "
         "titled LoreWriter. The book explains what Lorewrite does, how to "
-        "install and start it, how to write scenes, how to keep track of "
-        "your characters and places, how to check your spelling, how to use "
-        "its optional AI assistance, and where every key, menu entry and "
-        "setting is. It is both a guide, which you can read from the front, "
-        "and a reference, which you can look things up in.")
+        "install and start it, how to write and organize scenes, how to "
+        "keep track of your characters and places, how to keep a history "
+        "of your work, how to check your spelling, how to use its optional "
+        "AI assistance, and where every key, menu entry and setting is. It "
+        "is both a guide, which you can read from the front, and a "
+        "reference, which you can look things up in.")
     s.h2("Who Should Read This Book")
     s.p("This book is for people who write stories, not for programmers. "
         "You do not need to know how Lorewrite works inside. You should be "
@@ -478,30 +529,40 @@ def build_story(st) -> list:
         "**Chapter 4, Writing Scenes**, covers the editor, saving, the "
         "status bar, writer mode, and creating, renaming, reordering and "
         "deleting scenes.",
-        "**Chapter 5, Characters, Places and Mentions**, explains how to "
+        "**Chapter 5, Organizing the Manuscript**, covers parts and front "
+        "matter, unplaced scenes, the Trash, scene details, chapter labels, "
+        "dragging scenes into order, and collections.",
+        "**Chapter 6, Characters, Places and Mentions**, explains how to "
         "make notes for your characters and places and how Lorewrite "
         "recognizes them in your text.",
-        "**Chapter 6, Spelling**, describes the spell checker, what it "
+        "**Chapter 7, Spelling**, describes the spell checker, what it "
         "never flags, and the two dictionaries you can teach it.",
-        "**Chapter 7, AI Assistance**, describes how to set up an AI "
+        "**Chapter 8, History and Versions**, describes snapshots, the "
+        "draft counter, and the optional git sync.",
+        "**Chapter 9, Notes, Comments and Research**, describes comments "
+        "on passages, research notes, and the assistant's saved "
+        "conversations.",
+        "**Chapter 10, AI Assistance**, describes how to set up an AI "
         "service and the three features that keep your story consistent: "
         "finding aliases, continuity checks and story-bible updates, "
         "with what they cost and send.",
-        "**Chapter 8, Writing with AI**, describes the features that "
+        "**Chapter 11, Writing with AI**, describes the features that "
         "write: the style guide, drafting at the cursor, expanding "
         "placeholders, rewriting a selection, and reviewing pending AI "
         "text.",
-        "**Chapter 9, Settings Reference**, lists every setting, where it "
+        "**Chapter 12, Writing Aids**, describes your session stats, the "
+        "streak and daily target, focus sprints and Brainstorm.",
+        "**Chapter 13, Settings Reference**, lists every setting, where it "
         "is stored, and its default.",
-        "**Chapter 10, Command and Key Reference**, lists every key and "
+        "**Chapter 14, Command and Key Reference**, lists every key and "
         "every entry in the command palette and the desktop application's "
         "menus.",
-        "**Appendix A, File Formats**, describes the files Lorewrite reads "
-        "and writes.",
+        "**Appendix A, File Formats**, shows what is in your project folder "
+        "and describes every file Lorewrite reads and writes.",
         "**Appendix B, Messages and Problem Solving**, lists the messages "
         "the programs show and what to do about them.",
-        "**Appendix C, Tutorial**, walks through the sample project, once "
-        "in the terminal application and once in the desktop application.",
+        "**Appendix C, Tutorial**, walks through the sample project, in "
+        "the terminal application and in the desktop application.",
         "The **Glossary** defines the terms used in this book, and the "
         "**Index** helps you find things.",
     ])
@@ -521,7 +582,9 @@ def build_story(st) -> list:
         ["`alt+left`", "The Alt key together with the left arrow key. "
          "`alt+right` is the right arrow.", ""],
         ["**Action · Name**", "A command in the terminal application's "
-         "command palette (`ctrl+p`).", "**Action · New scene**"],
+         "command palette (`ctrl+p`). Some entries begin **Scene ·** "
+         "(**Chapter ·** when the manuscript's unit is chapters) or "
+         "**Research ·**.", "**Action · New scene**"],
         ["**Menu \u203a Item**", "An entry of a menu in the desktop "
          "application, reached from the button named first.",
          "**AI menu \u203a Find aliases**"],
@@ -532,8 +595,8 @@ def build_story(st) -> list:
     s.p("Screens are shown as figures with a ruled border. Procedures are "
         "numbered lists; do the steps in order. Tables and figures are "
         "numbered by chapter, so //Figure 4-1// is the first figure in "
-        "Chapter 4. Page numbers also carry the chapter: page //5-2// is "
-        "the second page of Chapter 5, and //B-1// is the first page of "
+        "Chapter 4. Page numbers also carry the chapter: page //6-2// is "
+        "the second page of Chapter 6, and //B-1// is the first page of "
         "Appendix B. In figures of the terminal application the colors "
         "depend on your theme; figures of the desktop application are "
         "printed in shades of gray.")
@@ -546,58 +609,58 @@ def build_story(st) -> list:
 
     # ------------------------------------------------------------ changes
     s.front("Summary of Changes")
-    s.p("This Third Edition (LW00-0001-2) covers Version 0.2.0 of "
-        "Lorewrite as it is now on its main line, which has gained a "
-        "desktop application and a spell checker since the Second "
-        "Edition. The changes are listed below; each is described in the "
-        "chapter shown. Chapters 3 to 5 of the Second Edition (Writing "
-        "Scenes, Characters, Places and Mentions, AI Assistance) are now "
-        "Chapters 4, 5 and 7, and its Chapters 6 to 8 are now Chapters 8 to "
-        "10.")
+    s.p("This Fourth Edition (LW00-0001-3) covers Version 0.2.0 of "
+        "Lorewrite as it is now on its main line. Four groups of features "
+        "have been added to both applications since the Third Edition. "
+        "Each change is listed below with the chapter that describes it. "
+        "Chapter 5 (Organizing the Manuscript), Chapter 8 (History and "
+        "Versions), Chapter 9 (Notes, Comments and Research) and Chapter "
+        "12 (Writing Aids) are new, and the chapters after Chapter 4 are "
+        "renumbered: the Third Edition's Chapters 5 to 10 are now "
+        "Chapters 6, 7, 10, 11, 13 and 14.")
     s.table(None, None, ["Change", "Where described"], [
-        ["**The desktop application.** `lorewrite-gui` opens a window "
-         "with a binder, a live-preview editor, a corkboard and an outline, "
-         "notes with backlinks, an AI assistant panel, a quick switcher "
-         "and a settings dialog. It works on the same project files as "
-         "the terminal application. A new chapter tours it, and every "
-         "feature chapter now gives the terminal keys and the desktop "
-         "controls side by side.", "Chapters 2 and 3, and throughout"],
-        ["**Spell check**, in both applications: underlined "
-         "misspellings, a fix window (`f6`) or popover, a project "
-         "dictionary (`dictionary.txt`) and a personal dictionary, "
-         "phrases, ignore, and a list of what is never flagged.",
-         "Chapter 6"],
-        ["**Learn my style.** The assistant's //Your style// card learns "
-         "or relearns the style guide in one click and says when it was "
-         "learned and whether it is out of date. The learned `style.md` "
-         "now begins with a provenance line.", "Chapters 3 and 8, and "
-         "Appendix A"],
-        ["**`ctrl+g` sends samples of your own prose** (about 2,000 words "
-         "from your other scenes) as examples of your voice, as well as "
-         "the style guide.", "Chapter 8"],
-        ["**Continuity pre-screen repaired.** When the optional helper "
-         "Jev is installed, the continuity check now really uses it to "
-         "skip entities the scene cannot contradict. **AI requests now "
-         "give up after 180 seconds** instead of waiting for many "
-         "minutes.", "Chapters 7 and 8, and Appendix B"],
-        ["**Both commands** (`lorewrite`, `lorewrite-gui`) are on your "
-         "PATH, and the desktop application has an application-menu entry "
-         "and a top-bar button on Omarchy.", "Chapter 2"],
-        ["**Keys.** `f6` (fix the next misspelling) in the terminal "
-         "application; `ctrl+k`, `ctrl+.` and click-to-open in the "
-         "desktop application. New palette actions: **Toggle spell "
-         "check**, **Add selection to dictionary**, **Open project "
-         "dictionary**. The key reference now has a table for each "
-         "application.", "Chapter 10"],
-        ["**Settings.** The terminal Settings screen has an //Underline "
-         "misspellings// box; the desktop Settings dialog has the key, "
-         "the three models, text size, flowing paragraphs and the same "
-         "spelling box.", "Chapter 9"],
-        ["**Appendixes.** `dictionary.txt` and the personal dictionary "
-         "(Appendix A); the messages of the desktop application and of "
-         "spell check, and new problems and answers (Appendix B); a "
-         "second path through the Residual tutorial for the desktop "
-         "application (Appendix C).", "Appendixes A, B, C"],
+        ["**Parts and front matter.** A folder under `manuscript/` is a "
+         "part; the binder and the sidebar group scenes under it. A part "
+         "named //front-matter// is not counted as the book. Scenes are "
+         "numbered across parts.", "Chapter 5"],
+        ["**Unplaced scenes and the Trash.** Scenes you wrote but kept out "
+         "of the book live in `manuscript/_unplaced/`. Deleting a scene or a "
+         "research note now moves it to `.trash/`, from which it can be "
+         "restored, deleted forever or the whole Trash emptied. Nothing is "
+         "deleted outright any more.", "Chapters 4 and 5"],
+        ["**Scene details.** POV, place, purpose, status and a word target "
+         "are kept in the scene's own frontmatter, edited with a form "
+         "(terminal) or the inspector and a dialog (desktop). The "
+         "manuscript can say //chapter// instead of //scene//.",
+         "Chapter 5"],
+        ["**Drag to reorder** in the desktop corkboard and outline, with a "
+         "confirmation and an Undo.", "Chapter 5"],
+        ["**Collections** group scenes; they filter the binder, corkboard "
+         "and outline (desktop) or the sidebar (`#name`, terminal).",
+         "Chapter 5"],
+        ["**Snapshots.** Verbatim copies of a scene that you can compare "
+         "word by word and restore; taken by you, once a day before the "
+         "first edit, and before a restore, an accept-all or a reject-all. "
+         "**Draft N** counts the drafts of the book; **Start new draft** "
+         "snapshots every scene. Optional **git sync** (status, commit, "
+         "push, initialize), only on explicit request.", "Chapter 8"],
+        ["**Comments** anchored to a passage and kept beside the scene, "
+         "never in the text; **research notes** in `research/`, with a "
+         "Research question that cites the notes it used; **saved "
+         "conversations** with the assistant, **attach**, and **Save to "
+         "notes**.", "Chapter 9"],
+        ["**Session stats, daily target and streak; focus sprints; "
+         "Brainstorm.**", "Chapter 12"],
+        ["**Placeholders are gone.** Every control of the desktop window "
+         "that was dimmed in the Third Edition now works. Only the list of "
+         "what is still planned remains.", "Chapter 3"],
+        ["**New settings:** the daily word target and the automatic daily "
+         "snapshot. New palette entries, desktop menu items and files "
+         "are listed in the reference chapters and in Appendix A, which "
+         "now begins with a map of the project folder.",
+         "Chapters 13 and 14, Appendix A"],
+        ["**Tutorial.** A new section uses parts, a snapshot and a sprint "
+         "on the Residual copy.", "Appendix C"],
     ], [0.78, 0.22])
 
     # ============================================================ CH 1
@@ -651,7 +714,10 @@ def build_story(st) -> list:
         "Scenes are played in the order of their file names, which start "
         "with a number: `01-rain-on-the-spur.md`, `02-capsule-7-19.md`, and "
         "so on. Lorewrite numbers new scenes for you and renumbers them "
-        "when you move one.")
+        "when you move one. You can gather scenes into //parts// (a folder "
+        "each), keep scenes you have written but not placed in the book "
+        "aside, and set details such as the point of view and a word "
+        "target on each scene; Chapter 5 describes all of this.")
     s.h3("Entities and notes",
          idx=["entity", "note (entity)", "character", "place", "object",
               "faction"])
@@ -676,17 +742,29 @@ def build_story(st) -> list:
         "entity. Whenever the name or an alias appears in a scene, "
         "Lorewrite recognizes it as a //mention// and colors it so that you "
         "can see, at a glance, that the program knows who or what you mean. "
-        "You do not have to type anything special; see Chapter 5.")
+        "You do not have to type anything special; see Chapter 6.")
     s.h3("Links and backlinks", idx=["link", "backlink"])
     s.p("You may also mark a name explicitly by wrapping it in double "
         "square brackets, like `[[Rook Tanaka]]`. This is a //link//. Links "
         "were how earlier versions of Lorewrite worked; they are now "
         "optional, but they still work and are useful in a few cases "
-        "described in Chapter 5.")
+        "described in Chapter 6.")
     s.p("The other side of a link is a //backlink//. When the cursor is on "
         "a name, Lorewrite shows the note for that entity and lists every "
         "line in your book that mentions it, so that you can jump straight "
         "to any of them.")
+    s.h3("History and notes live beside your work",
+         idx=["snapshot", "comment", "research note"])
+    s.p("Everything else Lorewrite keeps for you is plain files in the same "
+        "folder, so it travels with the book. Snapshots of your scenes "
+        "(Chapter 8), comments you attach to passages and conversations "
+        "with the assistant (Chapter 9) each have a folder of their own, "
+        "and your research notes are ordinary Markdown files you may edit "
+        "anywhere. Deleting a scene moves it to a Trash folder first. The "
+        "only exceptions are your personal numbers (Chapter 12) and your "
+        "personal dictionary, which belong to you rather than to a book "
+        "and live in Lorewrite's own state folder. Appendix A has a map "
+        "of everything in a project folder.")
     s.h3("The index is a cache", idx=["index (cache)", "cache"])
     s.p("To find mentions quickly, Lorewrite keeps a small search index in "
         "a hidden folder inside the project. The index can always be "
@@ -705,13 +783,13 @@ def build_story(st) -> list:
         "scene as a clearly marked //pending draft// that stays marked "
         "until you accept it, and rejecting it puts back exactly what was "
         "there. If you never set up an AI service, Lorewrite works "
-        "exactly as described in Chapters 2 to 6 and makes no network "
+        "exactly as described in Chapters 2 to 9 and makes no network "
         "connections while you write.")
     s.attention("Accepting a proposal does change your files: accepted "
                 "aliases and canon facts are written into your notes, and "
                 "an accepted draft becomes part of your scene. The review "
                 "screens and the accept and reject keys are where you stay "
-                "in control. Chapters 7 and 8 describe what each one "
+                "in control. Chapters 10 and 11 describe what each one "
                 "will do.")
 
     s.h2("What You Need")
@@ -719,8 +797,10 @@ def build_story(st) -> list:
         "A computer with Python 3.11 or later and a terminal window "
         "(Chapter 2). For the desktop application, also the WebKitGTK "
         "libraries it draws with (Chapter 2).",
+        "For the optional git sync only: git, installed on your computer "
+        "(Chapter 8).",
         "For the AI features only: an OpenRouter account and an API key, "
-        "and a network connection when you use them (Chapters 7 and 8).",
+        "and a network connection when you use them (Chapters 10 and 11).",
         "Nothing else. The terminal application runs in a terminal of at "
         "least about 100 columns by 30 rows; larger is more comfortable. "
         "The desktop window asks for 1600 by 1000 pixels and is not "
@@ -849,7 +929,7 @@ def build_story(st) -> list:
         ["enter", "Resume the highlighted project."],
         ["o", "Open a folder: type the path of a project."],
         ["n", "Start a new project."],
-        ["s", "Open the Settings screen (Chapter 9)."],
+        ["s", "Open the Settings screen (Chapter 13)."],
         ["q", "Quit Lorewrite. (If you reached the launch screen with "
          "//Return to main menu//, `q` instead returns to the project you "
          "were in.)"],
@@ -941,8 +1021,11 @@ the-salt-road/
         "`~/.local/state/lorewrite`: `recent.json` (the list on the launch "
         "screen), `settings.json` (whether you have seen the tour, your "
         "chosen AI models, whether spelling is underlined, and the desktop "
-        "window's text size) and, once you have made one, `dictionary.txt` "
-        "(your personal dictionary; Chapter 6). The first two can be "
+        "window's text size, your daily word target and whether a snapshot is "
+        "taken the first time a scene is edited each day), `stats/` (your "
+        "writing numbers, Chapter 12) and, once you have made one, "
+        "`dictionary.txt` "
+        "(your personal dictionary; Chapter 7). The first two can be "
         "deleted safely; Lorewrite recreates them. Both applications read "
         "and write the same files. If you set the environment variable "
         "`LOREWRITE_STATE_DIR` to a folder, Lorewrite keeps them there "
@@ -1003,24 +1086,26 @@ the-salt-road/
     s.p(f"{R('fig_gmain')} shows the window with the Residual project "
         f"open on its first scene. {R('t_gareas')} names its areas.")
     s.gfigure("fig_gmain", "main", "The desktop window: the Residual project "
-              "at its first scene", width=418)
+              "at its first scene, with front matter and two parts", width=418)
     s.table("t_gareas", "Areas of the desktop window",
             ["Area", "What it holds"], [
-        ["Title bar (top)", "Window buttons, the project and scene, whether "
-         "the file is saved, and three buttons: quick switcher, assistant "
-         "panel, and a menu."],
+        ["Title bar (top)", "Window buttons, the project and scene, the "
+         "//Draft N// badge, whether the file is saved, and three buttons: "
+         "quick switcher, assistant panel, and a menu."],
         ["Activity rail (far left)", "Four views (Binder, Search, Assistant, "
-         "Library) and, below, Settings."],
-        ["Binder (left)", "The tree of your scenes and notes, with a button "
-         "to make a new scene and a menu of scene commands."],
+         "Library) and, below, History and Settings."],
+        ["Binder (left)", "The tree of your parts, scenes, notes, research "
+         "notes, unplaced scenes and Trash, with a button to make a new "
+         "scene, a menu of scene and part commands, and your collections."],
         ["Editor (center)", "A toolbar, the three views of the manuscript, "
-         "and the page you write on. Under it, a strip with the session's "
-         "words."],
+         "and the page you write on. Under it, a strip with the scene's "
+         "details."],
         ["Assistant (right)", "Three tabs: Assistant, Context and Notes. "
-         "The AI features, the style card and the notes live here."],
-        ["Status bar (bottom)", "Words written this session, project "
-         "words, AI cost, misspellings, the cursor position and the "
-         "text size."],
+         "The AI features, the style card, the conversation and the notes "
+         "and comments live here."],
+        ["Status bar (bottom)", "The draft, the latest snapshot, the git "
+         "state, your sprint, streak and words today, project words, AI "
+         "cost, misspellings, the cursor position and the text size."],
     ], [0.27, 0.73])
     s.p("The window asks for 1600 by 1000 pixels and will not shrink below "
         "1280 by 760. It has no frame of its own: the title bar is part of "
@@ -1034,9 +1119,10 @@ the-salt-road/
               crop=(0.38, 1.0), width=418)
     s.p("At the left are three colored dots: close, minimize and maximize. "
         "Next come the project's title and, after a slash, the open file "
-        "(for a scene, //Scene 01 · Rain on the Spur//). The dimmed //Draft// "
-        "tag is a placeholder (see “Parts Not Built Yet” below). At the "
-        "right, a label says whether your work is safe:")
+        "(for a scene, //Scene 01 · Rain on the Spur//). The //Draft 2// "
+        "badge says which draft of the book this is; click it to start "
+        "the next draft (Chapter 8). At the right, a label says whether "
+        "your work is safe:")
     s.table("t_gsave", "The save label in the title bar",
             ["Label", "Meaning"], [
         ["Saved", "The open file on disk matches the page."],
@@ -1051,50 +1137,55 @@ the-salt-road/
     s.p("The three buttons after the label are the //quick switcher// (the "
         "magnifying glass, `ctrl+k`), the //assistant panel// toggle, and "
         "the **More** (three dots) menu, whose entries are **Switch "
-        "project…**, **Rebuild the link index** and **Settings…**. "
-        "**Switch project…** saves your work and returns to the launch "
-        "screen. **Rebuild the link index** is the desktop's `f9` "
+        "project…**, **Rebuild the link index**, **Call scenes “chapters”** "
+        "(or **Call chapters “scenes”**) and **Settings…**. **Switch "
+        "project…** saves your work and returns to the launch screen. "
+        "**Rebuild the link index** is the desktop's `f9` (Chapter 6). "
+        "The chapters entry changes only the wording of labels "
         "(Chapter 5).")
     s.p("The rail, at the far left, chooses what the left column shows. "
-        "From the top: **Binder** (your scenes and notes); **Search** "
+        "From the top: **Binder** (your manuscript and notes); **Search** "
         "(the binder with a filter box above it); **Assistant** (opens or "
-        "closes the right panel); and **Library** (only the "
-        "notes, the style guide and the dictionary). At the bottom are a "
-        "dimmed //Snapshots// button, **Settings**, and a round badge with "
-        "your initials, taken from the `author` line of `project.toml`.")
+        "closes the right panel); and **Library** (only the notes, the "
+        "style guide and the dictionary). At the bottom are **History** "
+        "(the snapshots of the open scene, Chapter 8), **Settings**, and a "
+        "round badge with your initials, taken from the `author` line of "
+        "`project.toml`.")
 
     s.h2("The Binder", idx=["binder"])
-    s.gfigure("fig_gbinder", "binder", "The binder", width=150,
-              crop=(0, 1, 0, 0.8))
+    s.gfigure("fig_gbinder", "binder", "The binder, with the Front Matter "
+              "part opened", width=150)
     s.p(f"The binder ({R('fig_gbinder')}) lists the whole project as a "
         "tree. Click the little arrow beside a folder to open or close it; "
         "click a scene or note to open it in the editor, and use the "
         "arrow keys and `enter` to move through it from the keyboard. "
-        "Beside each scene is its word count (without pending AI text), "
-        "and beside the project and **Manuscript** the total, written "
-        "like //1.5k//.")
+        "Beside each scene is its word count (without pending AI text or "
+        "scene details), and beside the project the total of the book, "
+        "written like //1.5k//. The rows are, from the top:")
     s.bullets([
-        "**Manuscript** holds your scenes in order, each shown with its "
-        "number. **Characters** holds the notes whose kind is //character//; "
+        "**Front Matter**, shown dimmed, and each **part** (for example "
+        "//The Recall//) with its scenes. Scenes that belong to no part "
+        "are listed under **Manuscript**. Parts, front matter and how "
+        "scenes are numbered are the subject of Chapter 5.",
+        "**Characters** holds the notes whose kind is //character//; "
         "**World Bible** holds places, objects and factions, with the kind "
         "beside each name.",
         "**Style Guide** opens `style.md`. Before the file exists it is "
         "marked //new//; opening it creates it with the six headings of "
-        "Chapter 8. **Dictionary** opens your project dictionary "
-        "`dictionary.txt` (Chapter 6), creating it with a short comment if "
+        "Chapter 11. **Dictionary** opens your project dictionary "
+        "`dictionary.txt` (Chapter 7), creating it with a short comment if "
         "need be. Both open as plain text, without a title block.",
-        "The dimmed rows (//Front Matter//, //Part I// to //III//, "
-        "//Research//, //Unplaced Scenes//, //Trash// and the "
-        "//Collections// list below the tree) are placeholders.",
+        "**Research** holds your reference notes (Chapter 9); **Unplaced "
+        "Scenes** holds scenes you kept out of the book; **Trash** holds "
+        "what you deleted (Chapter 5). Each shows a count.",
     ])
-    s.p("The **New scene** button at the top of the binder (a page with "
-        "a plus) asks for a title and makes a scene, like `ctrl+n`. The "
-        "three-dots button opens the //scene options// menu: **New "
-        "scene**, **Rename scene…**, **Move up**, **Move down** and "
-        "**Delete scene…**. They work as in Chapter 4; deleting asks you "
-        "to confirm, and the confirmation names the file it will remove. "
-        "Move up and Move down renumber the files exactly as the terminal "
-        "application does.")
+    s.p("Below the tree is the list of your **collections** with a count "
+        "for each and an **Edit** link (Chapter 5). The **New scene** "
+        "button at the top of the binder (a page with a plus) asks for a "
+        "title and makes a scene, like `ctrl+n`. The three-dots button "
+        "opens the //scene and part options// menu, which has the commands "
+        "for scenes, parts, research notes and the Trash; Chapters 5, 8 "
+        "and 9 describe them, and Chapter 14 lists them all.")
     s.p("The **Search** view puts a //Filter binder…// box above the tree; "
         "typing narrows it to titles that contain what you typed. The "
         "**Library** view shows only characters, world notes, the style "
@@ -1105,10 +1196,13 @@ the-salt-road/
 
     s.h2("The Editor", idx=["editor (desktop)", "live preview"])
     s.p("The editor is the middle of the window. At the top is a toolbar; "
-        "below it a thin line with the path (//Manuscript › Scene 01//) and "
-        "the scene's word count; then the page; and at the foot a strip "
-        "of figures about the scene (see “Parts Not Built Yet”) of which "
-        "only //Session// is live.")
+        "below it a thin line with the path (//The Recall › Scene 01//), "
+        "the scene's status tag and its word count (with the target, if "
+        "you set one); then the page; and at the foot the //inspector//, "
+        "a strip with the scene's status, POV and place, purpose, "
+        "collections and the words and minutes of this session. The tag, "
+        "the target and the strip are where you edit the scene's details "
+        "(Chapter 5).")
     s.gfigure("fig_gtoolbar", "toolbar", "The editor toolbar", width=418)
     s.table("t_gtoolbar", "The editor toolbar",
             ["Control", "What it does"], [
@@ -1121,11 +1215,12 @@ the-salt-road/
          "off again. With nothing selected, they insert a pair of marks "
          "and put the cursor between them."],
         ["Link", "Make a note from the selection: the desktop's `ctrl+j` "
-         "(Chapter 5)."],
+         "(Chapter 6)."],
         ["Add to dictionary", "Add the selected word or phrase to the "
-         "project dictionary (Chapter 6). Dimmed until something is "
+         "project dictionary (Chapter 7). Dimmed until something is "
          "selected."],
-        ["Comment", "A placeholder."],
+        ["Comment", "Attach a comment to the selected passage "
+         "(Chapter 9). Dimmed until something is selected."],
         ["Focus mode", "Hide the binder, the assistant and the bars, as "
          "`f11` does."],
     ], [0.34, 0.66])
@@ -1141,9 +1236,13 @@ the-salt-road/
         "appear so that you can edit them.",
         "The `<!--ai-->` markers that surround pending AI text are hidden. "
         "The pending text is shown in color and italics, and followed by "
-        "small **Accept** and **Reject** buttons (Chapter 8).",
+        "small **Accept** and **Reject** buttons (Chapter 11).",
         "`{{expand: ...}}` placeholders are shown as a rounded tag.",
-        "Misspelled words have a wavy red underline (Chapter 6).",
+        "Misspelled words have a wavy red underline (Chapter 7).",
+        "A passage with an open comment has a faint highlight and a "
+        "marker in the margin (Chapter 9).",
+        "The scene's details (its frontmatter) are hidden; you edit them "
+        "with the inspector (Chapter 5).",
         "Hard-wrapped lines (a scene typed in an editor that broke lines "
         "at 70 columns) are shown as flowing paragraphs. This is only a "
         "display; the file is not changed, and you can turn it off in "
@@ -1155,25 +1254,29 @@ the-salt-road/
         "note in the **Notes** tab of the assistant. Put the cursor on a "
         "name and press `ctrl+j` to do the same from the keyboard; with a "
         "name selected, or on a link that has no note, `ctrl+j` makes the "
-        "note (Chapter 5).")
+        "note (Chapter 6).")
     s.gfigure("fig_ghover", "hovercard", "A hover card over a mention",
               width=300)
     s.h3("Corkboard and Outline", idx=["corkboard", "outline"])
     s.p("The **Corkboard** view shows each scene as a card with its "
-        "number, title, the opening of its text and its word count; click "
-        "a card to open the scene. The **Outline** view lists the scenes "
-        "in order with their word counts, and under each scene any headings "
-        "(lines beginning with `#`) that follow its title. Dragging cards to reorder "
-        "them is not built yet; use **Move up** and **Move down** in the "
-        "binder menu.")
+        "number, title, the opening of its text, its status and POV, and "
+        "its word count; the cards are grouped under the headings of your "
+        "parts, with front matter first and unplaced scenes last. Click "
+        "a card to open the scene. The **Outline** view lists the same "
+        "groups as rows with their word counts, and under each scene any "
+        "headings (lines beginning with `#`) that follow its title. In "
+        "both views you can drag a scene to a new place; you are asked to "
+        "confirm and can undo the move (Chapter 5).")
     s.gfigure("fig_gcork", "corkboard", "The corkboard view", width=300)
 
     s.h2("The Assistant", idx=["assistant panel"])
     s.p("The panel at the right is called LoreWriter and carries a green "
         "//Project aware// tag, meaning that it reads your notes. Close "
         "it with the button at its top right or with the title bar's "
-        "panel button; the three dots at its top open the //AI menu//, "
-        "which has every AI command (Chapters 7 and 8). The panel's "
+        "panel button. The clock button opens your saved conversations "
+        "(Chapter 9); the three dots open the //AI menu//, which starts "
+        "with **New chat** and **Conversation history…** and has every "
+        "other AI command (Chapters 10 and 11). The panel's "
         "three tabs are listed in " + R("t_gtabs") + ".")
     s.gfigure("fig_gassist", "assistant", "The Assistant tab", width=215)
     s.table("t_gtabs", "Tabs of the assistant panel",
@@ -1185,32 +1288,55 @@ the-salt-road/
          "the open scene mentions, how many times, and how many lines "
          "of the project mention each. Click one to read it."],
         ["Notes", "The note under the cursor (or the one you opened), with "
-         "its aliases and backlinks; see Chapter 5."],
+         "its aliases and backlinks (Chapter 6), and below it the "
+         "comments on the open scene (Chapter 9)."],
     ], [0.20, 0.80])
-    s.p("The //Quick actions// are four buttons. **Rewrite** rewrites "
-        "the selected passage (Chapter 8), **Continuity** checks the scene "
-        "(Chapter 7), and **Brainstorm** and **Research** are "
-        "placeholders. `ctrl+j` outside the editor moves the cursor to the "
-        "question box at the foot of the panel.")
-    s.p("Below the quick actions is the //Your style// card (Chapter 8), "
+    s.p("The //Quick actions// are four buttons: **Brainstorm** asks for "
+        "ideas to get unstuck (Chapter 12), **Rewrite** rewrites the "
+        "selected passage (Chapter 11), **Continuity** checks the scene "
+        "(Chapter 10), and **Research** switches the question box to "
+        "answer from your research notes (Chapter 9). `ctrl+j` outside the "
+        "editor moves the cursor to the question box at the foot of the "
+        "panel.")
+    s.p("Below the quick actions is the //Your style// card (Chapter 11), "
         "then any continuity cards, then the conversation, then the "
         "retrieved context. At the foot, the question box lets you ask "
-        "about the scene; the small tag beside the paperclip switches "
-        "between **Current scene** and **Project**, which decides how much "
-        "of your book the assistant reads for that question. Answers "
-        "appear in the panel only. They never change your text unless you "
-        "choose **Insert as a draft at the cursor** under an answer, which "
-        "puts it in the scene as a pending draft you must accept (Chapter 8). "
-        "Without an API key the AI parts of the panel are off and say so.")
+        "about the scene; the paperclip beside it attaches scenes, notes, "
+        "research notes or comments to the question (Chapter 9), and the "
+        "small tag beside the paperclip switches between **Current scene** "
+        "and **Project**, which decides how much of your book the "
+        "assistant reads for that question. Answers appear in the panel "
+        "only. They never change your text unless you choose **Insert as "
+        "a draft at the cursor** under an answer, which puts it in the "
+        "scene as a pending draft you must accept (Chapter 11). Without "
+        "an API key the AI parts of the panel are off and say so.")
 
     s.h2("The Status Bar", idx=["status bar (desktop)"])
+    s.p("The status bar has two ends. The left end holds the draft, the "
+        "latest snapshot and the git state (Chapter 8); the right end "
+        f"({R('fig_gstatus')}) holds your writing numbers and the "
+        "cursor.")
     s.gfigure("fig_gstatus", "statusbar", "The right half of the status "
               "bar", crop=(0.42, 1.0), width=418)
     s.table("t_gstatus", "Items of the desktop status bar",
             ["Item", "Meaning"], [
-        ["+120 session words", "Words gained (or lost, shown with a minus) "
-         "since the project was opened, not counting pending AI text."],
-        ["1,502 project words", "Words in all scenes together."],
+        ["Draft 2", "Which draft of the book this is. Click it to start "
+         "the next draft (Chapter 8)."],
+        ["Snapshot 1 min ago", "How long ago the open scene was last "
+         "snapshotted, or //No snapshot//. Click it for the history "
+         "(Chapter 8)."],
+        ["1 change, Ahead 2, Synced", "The git state of the project, "
+         "shown only when git is installed. Click it for the menu "
+         "(Chapter 8)."],
+        ["Sprint", "Start a focus sprint; while one runs it reads "
+         "//24:05 · +120//, the time left and the words written. Click "
+         "to stop it (Chapter 12)."],
+        ["Streak 8", "Days in a row that met your daily word target. "
+         "Click it for the stats (Chapter 12)."],
+        ["+240 / 500 words today", "Words you wrote today across "
+         "sessions, against your daily target. Click it for the stats."],
+        ["1,502 project words", "Words in the book: all scenes except "
+         "front matter and unplaced scenes."],
         ["AI $0.0269", "What the AI calls of this session cost, as "
          "reported by OpenRouter."],
         ["3 spelling", "Misspelled words in the open scene. Click it to "
@@ -1230,10 +1356,10 @@ the-salt-road/
     s.gfigure("fig_gswitch", "switcher", "The quick switcher, searching "
               "for //sal//", width=300)
     s.p("Other dialogs are described where their task is: new scene and "
-        "rename (Chapter 4), new note (Chapter 5), the spelling popover "
-        "(Chapter 6), the review of alias and story-bible suggestions and "
-        "the style guide (Chapters 7 and 8), the prompt for drafting "
-        "(Chapter 8) and Settings (Chapter 9).")
+        "rename (Chapter 4), new note (Chapter 6), the spelling popover "
+        "(Chapter 7), the review of alias and story-bible suggestions and "
+        "the style guide (Chapters 10 and 11), the prompt for drafting "
+        "(Chapter 11) and Settings (Chapter 13).")
 
     s.h2("Saving and Conflicts", idx=["autosave|desktop", "conflict banner"])
     s.p("The window saves the open file 1.5 seconds after you stop typing, "
@@ -1252,28 +1378,33 @@ the-salt-road/
         "window simply reloads it and says //Reloaded: the file changed on "
         "disk.//")
 
-    s.h2("Parts Not Built Yet", idx=["placeholders"])
-    s.p("The desktop window was designed with more in it than Lorewrite "
-        "does yet. Those parts are drawn dimmed, do nothing when clicked, "
-        "and say //Not in LoreWriter yet// when you rest the pointer on "
-        "them. They show no invented data. Among them are the //Draft// "
-        "tag in the title bar, the //Snapshots//, //Draft// and //Sync// "
-        "and //Streak// items of the status bar, the history button, "
-        "the //Front Matter//, //Parts//, //Research//, //Unplaced "
-        "Scenes// and //Trash// rows and //Collections// of the binder, "
-        "the comment button, the status tag and word target of a scene, "
-        "the //Status//, //POV / Place// and //Scene purpose// fields, "
-        "the //Brainstorm// and //Research// quick actions, "
-        "conversation history, //Attach context// and the //Helpful// "
-        "button under an answer.")
-    s.gfigure("fig_gplace", "placeholders", "Placeholders: the "
-              "//Collections// list is drawn but not built", width=200)
-    s.attention("A dimmed control is a promise, not a feature. If it is "
-                "dimmed, nothing you do with it is saved.")
+    s.h2("What Is Still Planned", idx=["planned features"])
+    s.p("An earlier edition of this book listed parts of the window that "
+        "were drawn dimmed and did nothing, with the tooltip //Not in "
+        "LoreWriter yet//. All of them now work: the draft badge, "
+        "snapshots, sync, streak, the parts of the binder, collections, "
+        "comments, the details strip and the status tag, the word target, "
+        "Brainstorm, Research, conversation history and attaching. No "
+        "control in the desktop window is a placeholder.")
+    s.p("What the program does not do yet:")
+    s.bullets([
+        "**Export.** There is no command that turns the manuscript into a "
+        "typeset book or a double-spaced review copy; the files are plain "
+        "Markdown and any converter will read them.",
+        "**Inspiration images** (a picture made from a described setting, "
+        "kept on screen while you write) are planned, not built.",
+        "**Dragging scenes** works in the desktop application only; the "
+        "terminal application moves scenes with palette commands.",
+        "**Attaching material to a chat** works in the desktop "
+        "application only.",
+        "**Keys.** The terminal application reaches the session stats, "
+        "focus sprints and Brainstorm only through the command palette; "
+        "they have no key of their own.",
+    ])
 
     s.h2("Keys in the Desktop Window", idx=["keys|desktop"])
     s.p(f"The desktop window has few keys of its own ({R('t_gkeys')}); "
-        "the full list for both applications is in Chapter 10.")
+        "the full list for both applications is in Chapter 14.")
     s.table("t_gkeys", "Keys of the desktop window",
             ["Key", "Action"], [
         ["ctrl+k", "Quick switcher."],
@@ -1314,7 +1445,7 @@ the-salt-road/
          "of entities with their kinds."],
         ["Editor (center)", "The open scene or note, with line numbers."],
         ["Entity panel (right)", "The note for the name under the cursor, "
-         "and a list of backlinks. See Chapter 5."],
+         "and a list of backlinks. See Chapter 6."],
         ["Status bar", "Details of the open file. See "
          "//The Status Bar// below."],
         ["Footer", "The most useful keys. What fits depends on the width "
@@ -1326,7 +1457,7 @@ the-salt-road/
     s.h2("Typing and Markdown", idx=["editor", "Markdown|headings"])
     s.p("The editor is an ordinary text editor with a few conveniences. "
         "It wraps long lines to the width of the window, shows line "
-        "numbers (which you can turn off; see Chapter 9), and colors "
+        "numbers (which you can turn off; see Chapter 13), and colors "
         "Markdown as you type: headings, //italic// text between single "
         "asterisks, and **bold** text between double asterisks.")
     s.p("Begin each scene with a heading line, for example "
@@ -1342,8 +1473,8 @@ the-salt-road/
         ["pageup, pagedown", "Move by a screenful."],
         ["shift + any movement key", "Select text."],
         ["f5", "Select everything. (`f6` fixes the next misspelled word, "
-         "Chapter 6; `f7` and `f8` accept and reject AI drafts, "
-         "Chapter 8.)"],
+         "Chapter 7; `f7` and `f8` accept and reject AI drafts, "
+         "Chapter 11.)"],
         ["ctrl+c, ctrl+x, ctrl+v", "Copy, cut and paste."],
         ["ctrl+z, ctrl+y", "Undo and redo."],
         ["backspace, delete", "Delete a character. `ctrl+w` deletes the "
@@ -1385,14 +1516,24 @@ the-salt-road/
             ["Field", "Meaning"], [
         ["`manuscript/02-capsule-7-19.md`",
          "The open file, relative to the project folder."],
+        ["`Draft 2`", "Which draft of the book this is (Chapter 8)."],
+        ["`3 changes`, `Ahead 2`, `Synced`", "The git state of the project, "
+         "shown only when it is under git (Chapter 8)."],
+        ["`SPRINT 24:05 (+120)`", "A focus sprint is running: time left "
+         "and the words written in it (Chapter 12)."],
         ["`● modified`", "You have typed since the last save."],
         ["`saved 23:10`", "The time of the last save. Until you have saved "
          "something in the session it reads simply `saved`."],
         ["`391 words (1502 project)`",
          "Words in the open file, and words in all scenes together. Words "
          "are runs of characters separated by spaces or line breaks. The "
-         "project total is refreshed each time a file is saved. Text in "
-         "pending AI drafts (Chapter 8) is not counted."],
+         "project total is refreshed each time a file is saved. It counts "
+         "the book: front matter and unplaced scenes (Chapter 5), scene "
+         "details and text in pending AI drafts (Chapter 11) are not "
+         "counted."],
+        ["`+240 / 500 today`, `streak 8`", "Words you wrote today against "
+         "your daily target, and the days in a row that met it "
+         "(Chapter 12). The streak is shown only when it is above zero."],
         ["`Ln 11, Col 42`", "The line and column of the cursor."],
         ["A link hint", "When the cursor is on a name, the name and what "
          "`ctrl+j` will do: //to open// its note, or //no note, ctrl+j "
@@ -1401,6 +1542,8 @@ the-salt-road/
         ["`AI $0.0153`", "The cost of the AI calls made since you started "
          "Lorewrite, as reported by OpenRouter. It appears after the "
          "first AI call that reports a cost and is not shown before."],
+        ["`Snapshot 12 min ago`", "How long ago the open scene was last "
+         "snapshotted; absent if it never was (Chapter 8)."],
     ], [0.36, 0.64])
     s.p("With no file open, the status bar says //no file open — ctrl+p to "
         "open a scene//.")
@@ -1425,10 +1568,13 @@ the-salt-road/
     s.p("Press `alt+right` for the next scene and `alt+left` for the "
         "previous one. A brief message shows the title of the scene you "
         "have moved to. At the first or last scene, the message //No more "
-        "scenes this way// appears. If you are looking at an entity note "
+        "scenes this way// appears. The keys follow the order of the book, "
+        "so they carry you from the last scene of one part into the first "
+        "of the next (front matter comes first, and unplaced scenes are "
+        "skipped; Chapter 5). If you are looking at an entity note "
         "when you press either key, Lorewrite takes you back to the first "
         "scene. You can also click a scene in the sidebar, or use the "
-        "command palette (Chapter 10) to open a scene by title.")
+        "command palette (Chapter 14) to open a scene by title.")
 
     s.h2("Creating a Scene", idx=["scene|creating", "new scene", "ctrl+n"])
     s.proc("To create a scene:", [
@@ -1436,8 +1582,10 @@ the-salt-road/
         "Type a title and press `enter`. (`esc` cancels.)",
     ])
     s.figure("fig_newscene", "newscene", "Creating a scene")
-    s.p("Lorewrite makes a new file at the end of the manuscript, named "
-        "with the next number and a version of the title, for example "
+    s.p("Lorewrite makes a new file at the end of the part you are working "
+        "in (or at the end of the last part, or of the manuscript folder, "
+        "if the project has no parts or the open file is not a scene), "
+        "named with the next number and a version of the title, for example "
         "`05-neon-lullaby.md`. It contains just the heading `# Neon "
         "Lullaby` and a blank line, and opens ready for you to type.")
 
@@ -1453,20 +1601,23 @@ the-salt-road/
         "first// if you are looking at an entity note.")
 
     s.h2("Reordering Scenes", idx=["scene|reordering", "moving a scene"])
-    s.p("Scenes are ordered by the number at the start of the file name. To "
+    s.p("Scenes are ordered by the number at the start of the file name, "
+        "within their part. To "
         "move the open scene, choose **Action · Move current scene up** or "
         "**Action · Move current scene down** from the command palette. "
-        "Lorewrite swaps the numbers of the scene and its neighbor, so "
+        "Lorewrite swaps the numbers of the scene and its neighbor in the "
+        "same part, so "
         "both files are renamed. A message says //Moved to// and the new "
-        "file name. At the top or bottom of the book it says //Scene is "
-        "already at the edge//.")
-    s.p("If the scene has pending AI drafts (Chapter 8), the file that "
+        "file name. At the top or bottom of the part it says //Already at "
+        "the edge of its part//. To send a scene to another part, see "
+        "Chapter 5.")
+    s.p("If the scene has pending AI drafts (Chapter 11), the file that "
         "holds their originals moves along with it.")
     s.attention("Moving a scene renames files. If your project is under "
                 "version control, the change appears as two renames. A "
                 "scene whose file name does not start with a number (a "
                 "file you added yourself) cannot be moved; in that case "
-                "Lorewrite also says //Scene is already at the edge//. "
+                "Lorewrite also says it is at the edge. "
                 "Rename such files yourself, following the pattern "
                 "`NN-name.md`.")
 
@@ -1475,19 +1626,21 @@ the-salt-road/
         "Choose **Action · Delete current scene** from the command "
         "palette.",
         f"Read the confirmation ({R('fig_delete')}). Press `y` or click "
-        "**Delete** to go ahead; press `n` or `esc`, or click **Cancel**, "
-        "to keep the scene.",
+        "**Move to Trash** to go ahead; press `n` or `esc`, or click "
+        "**Cancel**, to keep the scene.",
     ])
-    s.figure("fig_delete", "deleteconfirm", "Confirming the deletion of a "
-             "scene")
-    s.attention("Deleting a scene removes its file from the disk at once. "
-                "It is not moved to a trash folder. Lorewrite has no undo "
-                "for this; if you keep your project under version control "
-                "or in a backed-up folder, you can recover the file from "
-                "there.")
-    s.p("Afterward, Lorewrite opens the first remaining scene and says "
-        "//Deleted// followed by the title. The scene's file of pending-draft "
-        "originals, if it has one (Chapter 8), is deleted with it.")
+    s.figure("fig_delete", "deleteconfirm", "Confirming that a scene "
+             "goes to the Trash")
+    s.p("Deleting a scene does not destroy it. The file is moved into the "
+        "project's `.trash` folder together with its drafts, snapshots "
+        "and comments, and **Action · Open Trash** brings it back, or "
+        "deletes it for good, after a confirmation (Chapter 5). Afterward, "
+        "Lorewrite opens the first scene of the book and says //Moved "
+        "'Title' to the Trash//.")
+    s.attention("Only the Trash view deletes a scene for good, and it "
+                "asks first. An emptied Trash cannot be recovered; if your "
+                "project is under version control or in a backed-up folder "
+                "you can still get a file back from there.")
 
     s.h2("Finding a Scene or Note: the Sidebar Filter",
          idx=["filter", "sidebar|filter"])
@@ -1518,19 +1671,24 @@ the-salt-road/
          "(three dots) \u203a **Rename scene…**."],
         ["Move", "**Action · Move current scene up**, **down**.",
          "Binder menu \u203a **Move up**, **Move down**."],
-        ["Delete", "**Action · Delete current scene**, then `y`.",
-         "Binder menu \u203a **Delete scene…**, then **Delete**."],
+        ["Delete (to the Trash)", "**Action · Delete current scene**, then "
+         "`y`.", "Binder menu \u203a **Delete scene…**, then **Move to "
+         "Trash**."],
+        ["Move to another part", "**Action · Move scene to part**.",
+         "Binder menu \u203a **Move scene to part…**, or drag a card "
+         "(Chapter 5)."],
         ["Save now", "`ctrl+s`.", "`ctrl+s`."],
         ["Hide everything but the page", "`f11` (writer mode).",
          "`f11` (focus mode)."],
         ["Undo", "`ctrl+z`.", "`ctrl+z`, or the Undo button."],
     ], [0.20, 0.38, 0.42])
-    s.p("Deleting a scene removes its file at once in both applications; "
-        "neither has a trash. The desktop confirmation names the file it "
-        "is about to delete.")
+    s.p("Deleting a scene moves it to the Trash in both applications; "
+        "the desktop confirmation names the file it is about to move.")
+
+    ch_organize.build(s, R)
 
     # ============================================================ CH 4
-    s.chapter("5", "Characters, Places and Mentions",
+    s.chapter("6", "Characters, Places and Mentions",
               "How to tell Lorewrite about the people and places in your "
               "story, and how it recognizes them in your writing.")
     s.h2("Making a Note", idx=["note (entity)|creating", "ctrl+j"])
@@ -1590,7 +1748,7 @@ the-salt-road/
     ], [0.20, 0.80], mono_cols=(0,))
     s.p(f"Everything below the frontmatter is yours. The note shown in "
         f"{R('fig_note')} also has a section headed `## Canon (auto)`; that is "
-        "managed by the story-bible feature described in Chapter 7, and "
+        "managed by the story-bible feature described in Chapter 10, and "
         "you can ignore it until then.")
     s.h3("Adding aliases", idx=["alias|adding"])
     s.p("Open the note (put the cursor on the name and press `ctrl+j`, or "
@@ -1599,7 +1757,7 @@ the-salt-road/
         "quotation marks. When the note is saved (a moment after you "
         "stop typing), Lorewrite reloads its list of names, recolors your "
         "scenes and updates the backlinks. Lorewrite can also suggest "
-        "aliases for you; see //Find Aliases// in Chapter 7.")
+        "aliases for you; see //Find Aliases// in Chapter 10.")
     s.p("In the desktop application you can also add an alias without "
         "opening the file: in the **Notes** tab, type it into the //Add "
         "alias// box under the name and press `enter`. The colors and the "
@@ -1680,7 +1838,7 @@ the-salt-road/
     ]), "Syntax of a link")
     s.p("The //name// may be an entity's name or one of its aliases; "
         "capital letters do not matter here. Lorewrite never adds "
-        "brackets to your text: not even the AI features do (Chapters 7 "
+        "brackets to your text: not even the AI features do (Chapters 10 "
         "and 6).")
 
     s.h2("Opening a Note from Your Text", idx=["ctrl+j|opening a note"])
@@ -1698,7 +1856,7 @@ the-salt-road/
         "name that has no note, it says //no note yet//. Below the note is "
         "the //Backlinks// list.")
     s.p("Each backlink is one line of your book that names the entity. "
-        "Names inside pending AI drafts (Chapter 8) are not counted. It "
+        "Names inside pending AI drafts (Chapter 11) are not counted. It "
         "shows the file, the line number and the beginning of the line, "
         "like `manuscript/03-the-stairwell.md:22`. Backlinks count "
         "mentions and links, by name or by any alias. Select one and press "
@@ -1740,7 +1898,7 @@ the-salt-road/
         "which is harmless.")
 
     # ============================================================ CH 6 (spelling)
-    s.chapter("6", "Spelling",
+    s.chapter("7", "Spelling",
               "Underlined misspellings, how to fix them, and how to teach "
               "Lorewrite the words of your world.")
     s.p("Lorewrite checks the spelling of your scenes as you write, in both "
@@ -1798,7 +1956,7 @@ the-salt-road/
         "a name you added with a capital letter is accepted only with "
         "one: after adding //Kowloon//, the lower-case //kowloon// is "
         "still underlined. Text inside a pending AI draft //is// checked "
-        "(Chapter 8), because you are about to decide whether to keep it.")
+        "(Chapter 11), because you are about to decide whether to keep it.")
 
     s.h2("Fixing a Word in the Terminal Application", idx=["f6", "spell check|terminal"])
     s.p(f"Press `f6`. Lorewrite moves the cursor to the end of the next "
@@ -1917,7 +2075,7 @@ sweet rot""")
 
     s.h2("Turning It Off", idx=["spell check|turning off"])
     s.p("In the terminal application, tick or untick //Underline "
-        "misspellings// in Settings (Chapter 9), or choose **Action · "
+        "misspellings// in Settings (Chapter 13), or choose **Action · "
         "Toggle spell check**. In the desktop application, use the same "
         "box in the Settings dialog. The setting, `spellcheck`, is kept in "
         "`settings.json` and is shared: turning it off in one application "
@@ -1942,8 +2100,11 @@ sweet rot""")
         "lower-case entry accepts any capitalization.",
     ])
 
+    ch_history.build(s, R)
+    ch_notes.build(s, R)
+
     # ============================================================ CH 5
-    s.chapter("7", "AI Assistance",
+    s.chapter("10", "AI Assistance",
               "Setting up an AI service, and the three features that help "
               "you keep your story consistent. All are proposals you "
               "confirm.")
@@ -1951,7 +2112,7 @@ sweet rot""")
     s.p("Lorewrite can use an AI service, called OpenRouter, to help with "
         "your story. This chapter describes how to set it up and the three "
         f"features summarized in {R('t_ai')}, which check and record "
-        "consistency. The features that write prose are in Chapter 8. "
+        "consistency. The features that write prose are in Chapter 11. "
         "None of them is needed to write. None runs unless you start it. "
         "And none changes anything until you have reviewed its proposals "
         "and pressed `enter`.")
@@ -1989,7 +2150,7 @@ sweet rot""")
         "//fast// model). Judging whether a scene contradicts your notes "
         "takes a more capable one (the //strong// model). Writing prose "
         "is a third kind of job, with its own //writing// model "
-        "(Chapter 8).")
+        "(Chapter 11).")
     s.attention("When you start an AI feature, text from your scene "
                 "leaves your computer. See //Costs and Privacy// at the "
                 "end of this chapter before you use it on anything "
@@ -2069,7 +2230,7 @@ sweet rot""")
     s.p("In the desktop Settings dialog the three rows are //Fast "
         "model//, //Strong model// and //Writing model//, each with a "
         "**Choose…** button that opens a searchable list of the same "
-        "catalog under the row (Chapter 9). An empty box means the "
+        "catalog under the row (Chapter 13). An empty box means the "
         "default, which is shown in the box in gray; a project that "
         "overrides a model in `project.toml` says so under the row.")
     s.table("t_models", "Which model is used",
@@ -2088,7 +2249,7 @@ sweet rot""")
         "character named Borin. It reads the scene and proposes each one "
         "as a new //alias// for that entity's note. Once an alias is in "
         "the note, it is recognized everywhere, in every scene, without "
-        "further help (Chapter 5).")
+        "further help (Chapter 6).")
     s.attention("Find aliases never changes your scene. In earlier "
                 "versions `ctrl+l` wrapped words in `[[brackets]]`; it "
                 "does not any more. Accepting a suggestion only adds "
@@ -2119,7 +2280,7 @@ sweet rot""")
         "for Kessler-Voss.")
     s.figure("fig_aliasnote", "aliasnote", "The note for Kessler-Voss after "
              "accepting //The flyers//: the alias is added to the list")
-    s.p("Text in pending AI drafts (Chapter 8) is ignored, so the line "
+    s.p("Text in pending AI drafts (Chapter 11) is ignored, so the line "
         "numbers in the review are always the real line numbers of your "
         "scene.")
     s.h3("In the desktop application")
@@ -2199,7 +2360,7 @@ sweet rot""")
         "cannot be restored this way; to reinstate one, edit "
         "`.lorewrite/waivers.json` and remove its code from the list.")
     s.figure("fig_waived", "continuity_waived", "A waived issue")
-    s.p("Pending AI drafts (Chapter 8) are removed from the scene before "
+    s.p("Pending AI drafts (Chapter 11) are removed from the scene before "
         "it is checked: unaccepted AI text is not part of your story yet.")
     s.h3("In the desktop application")
     s.p("Click **Continuity** in the quick actions. A message says how "
@@ -2268,7 +2429,7 @@ sweet rot""")
     s.gfigure("fig_gcanon", "canonreview", "The story-bible dialog: new "
               "facts, ticked one by one", width=330)
     s.note("Facts in the review are wrapped, so a long fact is shown in "
-           "full. Pending AI drafts (Chapter 8) are removed from the scene "
+           "full. Pending AI drafts (Chapter 11) are removed from the scene "
            "before it is read, so text the AI wrote but you have not "
            "accepted does not become canon.")
 
@@ -2297,7 +2458,7 @@ sweet rot""")
         "continuity check: the scene and the canon of the entities "
         "being checked. For a story-bible update: the scene, and each "
         "entity's name, kind, aliases and existing canon. The writing "
-        "features send other text; see Chapter 8. Pending AI drafts are "
+        "features send other text; see Chapter 11. Pending AI drafts are "
         "never sent as part of your scene. OpenRouter passes the text to "
         "the company that runs the model you chose; read their terms.",
         "**What it costs.** OpenRouter charges your account for the amount "
@@ -2314,7 +2475,7 @@ sweet rot""")
         "writing failed//, followed by the error. Appendix B lists them.")
 
     # ============================================================ CH 6
-    s.chapter("8", "Writing with AI",
+    s.chapter("11", "Writing with AI",
               "Teach Lorewrite your style, then have it draft, expand and "
               "rewrite prose. Everything it writes is a draft you accept "
               "or reject.")
@@ -2331,7 +2492,7 @@ sweet rot""")
         "Rejecting puts back exactly what was there before.")
     s.h3("The writing model")
     s.p("Writing uses its own model, the //writing model//, separate from "
-        "the fast and strong models of Chapter 7. It is a separate "
+        "the fast and strong models of Chapter 10. It is a separate "
         "choice because writing is a different kind of job: what matters "
         "is the quality of the prose and the price per word, and what "
         "comes back is ordinary text, not the strict structured answer "
@@ -2339,9 +2500,9 @@ sweet rot""")
         "will do, and the picker for this model lists the whole catalog. "
         "The writing model is also the one that learns your style guide. "
         "Its built-in default is `anthropic/claude-sonnet-4.5`; set "
-        "your own with **Choose…** in Settings (Chapter 9) or with "
+        "your own with **Choose…** in Settings (Chapter 13) or with "
         "`writing_model` in the `[ai]` section of `project.toml` "
-        "(Appendix A). You need an API key first (Chapter 7).")
+        "(Appendix A). You need an API key first (Chapter 10).")
 
     s.p("Most of this chapter describes the terminal application's keys. "
         "The desktop application does the same things with buttons and "
@@ -2527,7 +2688,7 @@ sweet rot""")
                 "rewriting request larger by roughly two thousand words, "
                 "which OpenRouter charges for like any other input. The "
                 "cost still appears in the status bar and after each "
-                "call (Chapter 7). The examples leave your computer along "
+                "call (Chapter 10). The examples leave your computer along "
                 "with the rest of the request, like the style guide does.")
     s.h3("Draft at the cursor", idx=["draft at cursor"])
     s.proc("To draft new prose:", [
@@ -2653,8 +2814,10 @@ the koi holo.<!--/ai-->""")
 <!--ai id="k3f9q2"-->The shard sat in Rook's pocket, cold and exact.<!--/ai-->""")
     s.p("The text that was replaced is kept in a small file named for the "
         "scene, in a folder called `.drafts` at the top of the project: "
-        "`.drafts/03-the-stairwell.md.json` for the scene "
-        "`03-the-stairwell.md`. It maps each id to the original words:")
+        "`.drafts/manuscript__03-the-stairwell.md.json` for the scene "
+        "`manuscript/03-the-stairwell.md` (in a project with parts the "
+        "part's folder is in the name too). It maps each id to the "
+        "original words:")
     s.code("""\
 {
   "k3f9q2": "The shard sat in Rook's pocket like a coin from another country."
@@ -2729,7 +2892,7 @@ the koi holo.<!--/ai-->""")
     s.p("Once you accept a draft, all of these treat it as ordinary text.")
 
     s.h2("What the Writing Features Send", idx=["privacy|writing"])
-    s.p("Like the features of Chapter 7, these send text to OpenRouter, "
+    s.p("Like the features of Chapter 10, these send text to OpenRouter, "
         "and to the company that runs the writing model, when you start "
         "them, and to no one otherwise. Learning a style guide sends about "
         "six thousand words of your prose, as numbered paragraphs with "
@@ -2737,20 +2900,20 @@ the koi holo.<!--/ai-->""")
         "a thousand words of the scene around the cursor, the notes of the "
         "characters and places the scene mentions, and your instruction; "
         "about two thousand words of your other scenes as examples of "
-        "your voice (see “Your own prose as examples” in Chapter 8); "
+        "your voice (see “Your own prose as examples” in Chapter 11); "
         "for a rewrite, it also sends the selected passage. The desktop "
         "assistant's question box sends your question, the style guide, "
         "the notes, and the text of the open scene or, in //Project// "
         "scope, the titles of all scenes and the canon of every note, "
         "plus the last few turns of the conversation. Each call's "
         "cost appears in the message that follows it and in the status "
-        "bar (Chapter 7).")
+        "bar (Chapter 10).")
 
     s.h2("Walkthrough: Writing in the Residual Project",
          idx=["tutorial|writing"])
     s.p("This walkthrough uses the Residual example that is supplied with "
         "Lorewrite (Appendix C says how to open a copy of it). You need "
-        "an API key set up (Chapter 7). The figures in this chapter were "
+        "an API key set up (Chapter 10). The figures in this chapter were "
         "made with it, so what you see should look much like them, though "
         "the AI's words will differ.")
     s.proc("Teach Lorewrite your style:", [
@@ -2788,17 +2951,19 @@ the koi holo.<!--/ai-->""")
         "and see that the folder disappears and your sentence is back.",
     ])
 
+    ch_aids.build(s, R)
+
     # ============================================================ CH 7
-    s.chapter("9", "Settings Reference",
+    s.chapter("13", "Settings Reference",
               "Every setting, where it is kept, and what it does.")
     s.h2("The Settings Screen", idx=["Settings screen"])
     s.p(f"Open the Settings screen ({R('fig_settings')}) from the command "
         "palette (**Action · Settings**), or by pressing `s` on the launch "
         "screen. It has the fields listed in "
         f"{R('t_settings')}.")
-    s.figure("fig_settings", "settings_v3", "The Settings screen with a "
-             "project open, showing the three model rows and the Spelling "
-             "box")
+    s.figure("fig_settings", "settings_v4", "The Settings screen with a "
+             "project open, showing the model rows, the Spelling box, the "
+             "writing goal and the History box")
     s.table("t_settings", "Fields of the Settings screen",
             ["Field", "Effect", "Stored in"], [
         ["API key status", "Shows whether a key is found, and its last "
@@ -2812,7 +2977,7 @@ the koi holo.<!--/ai-->""")
          "and story-bible updates. Empty means the default.",
          "`settings.json`"],
         ["Writing model (drafting & rewrites)", "Model used by `ctrl+g` and "
-         "by learning the style guide (Chapter 8). Empty means the "
+         "by learning the style guide (Chapter 11). Empty means the "
          "default.", "`settings.json`"],
         ["Choose…", "Opens the model picker to fill in the box beside "
          "it. The picker for the writing model lists the whole catalog; "
@@ -2825,28 +2990,39 @@ the koi holo.<!--/ai-->""")
         ["Line numbers", "Show line numbers in the editor. Shown only "
          "when a project is open.", "`project.toml`"],
         ["Underline misspellings", "Underline misspelled words in scenes "
-         "(Chapter 6). Ticked by default. Shown only when a project is "
+         "(Chapter 7). Ticked by default. Shown only when a project is "
          "open.", "`settings.json`"],
-        ["Save", "Stores the models, the spelling box and, if a project is "
+        ["Daily word target (0 = off)", "How many words you aim to write "
+         "each day; 0 turns the target off. A whole number from 0 to "
+         "100,000. It decides what counts toward your streak (Chapter 12). "
+         "A bad entry gives //The daily target must be a number from 0 to "
+         "100,000//.", "`settings.json`"],
+        ["Snapshot a scene the first time it is edited each day", "A safety "
+         "net: before the first change you save to a scene on a given day, "
+         "its earlier text is kept as a snapshot (Chapter 8). Ticked by "
+         "default.", "`settings.json`"],
+        ["Save", "Stores the models, the spelling box, the goal and "
+         "the snapshot box and, if a project is "
          "open, the editor settings, and closes the screen. A message says "
          "//Settings saved//.", ""],
     ], [0.24, 0.52, 0.24])
     s.p("The screen is compact: the boxes are one line tall so that all "
         "three model rows, the editor settings, the Spelling box and the "
-        "buttons fit in a window about 44 rows high. **Save** applies every field at once; the padding and line "
+        "buttons fit in a window about 48 rows high. **Save** applies every field at once; the padding and line "
         "numbers change immediately. Pressing `esc` closes the screen and "
         "discards changes to the boxes. (The key buttons act at once and "
         "are not undone by `esc`.) From the launch screen, with no "
-        "project open, only the AI settings are shown.")
+        "project open, the editor settings (side padding and line numbers) are left out; the rest is shown.")
     s.figure("fig_settings2", "settings_nokey_launch",
              "The Settings screen when no project is open (from the launch "
-             "screen): only the AI settings appear")
+             "screen): the editor settings are left out")
     s.h2("The Settings Dialog of the Desktop Application",
          idx=["Settings dialog"])
     s.p(f"Open the Settings dialog ({R('fig_gsettings')}) with the gear at "
         "the foot of the activity rail, with **More \u203a Settings…** in the "
         "title bar, or by trying an AI feature before you have a key. It "
-        f"has three sections ({R('t_gsettings')}). **Save** applies "
+        f"has sections for the key, the models, the editor (with the "
+        f"spelling box), your writing goals and history ({R('t_gsettings')}). **Save** applies "
         "everything at once and closes the dialog; **Cancel** or `esc` "
         "discards your changes to the boxes. (**Save key** and **Clear** "
         "act at once.)")
@@ -2866,9 +3042,18 @@ the koi holo.<!--/ai-->""")
         ["Show hard-wrapped lines as flowing paragraphs", "Display only; "
          "files are never changed. Ticked by default.",
          "`settings.json` (`gui_reflow`)"],
-        ["Underline misspellings", "Spell check on or off (Chapter 6). "
+        ["Underline misspellings", "Spell check on or off (Chapter 7). "
          "Shared with the terminal application.",
          "`settings.json` (`spellcheck`)"],
+        ["Daily word target", "Words per day you aim for; 0 turns the "
+         "target off. A whole number from 0 to 100,000; otherwise the "
+         "message is //The daily target must be a whole number from 0 to "
+         "100,000.// Shared with the terminal application (Chapter 12).",
+         "`settings.json` (`daily_target`)"],
+        ["Snapshot a scene the first time it is edited each day", "The "
+         "automatic daily snapshot of Chapter 8. Shared with the terminal "
+         "application. Ticked by default.",
+         "`settings.json` (`auto_snapshot`)"],
     ], [0.30, 0.46, 0.24])
     s.gfigure("fig_gpicker", "settings_picker", "The list opened by "
               "**Choose…** on the writing model, filtered by //llama//. "
@@ -2890,13 +3075,18 @@ the koi holo.<!--/ai-->""")
     s.p("Settings live in three places, according to what they affect.")
     s.table("t_where", "Where settings are stored",
             ["Location", "Holds", "Affects"], [
-        ["`project.toml` in the project", "Title, author, `[editor]` "
-         "and `[ai]` sections.", "That project only."],
+        ["`project.toml` in the project", "Title, author, and the `[editor]`, "
+         "`[ai]`, `[manuscript]` and `[collections]` sections.",
+         "That project only."],
         ["`~/.local/state/lorewrite/settings.json`", "`tour_seen`, "
          "`fast_model`, `strong_model`, `writing_model`, `spellcheck`, "
-         "`gui_zoom`, `gui_reflow`.", "All projects."],
+         "`daily_target`, `auto_snapshot`, `gui_zoom`, `gui_reflow`.",
+         "All projects."],
+        ["`~/.local/state/lorewrite/stats/<id>.json`", "Your writing "
+         "numbers for one project (Chapter 12).", "That project, on this "
+         "computer."],
         ["`~/.local/state/lorewrite/dictionary.txt`", "Your personal "
-         "dictionary (Chapter 6).", "All projects."],
+         "dictionary (Chapter 7).", "All projects."],
         ["System keyring", "Your OpenRouter API key.", "All projects."],
     ], [0.36, 0.38, 0.26])
     s.table("t_env", "Environment variables",
@@ -2910,7 +3100,7 @@ the koi holo.<!--/ai-->""")
         "Appendix A.")
 
     # ============================================================ CH 8
-    s.chapter("10", "Command and Key Reference",
+    s.chapter("14", "Command and Key Reference",
               "Every key, every command-palette entry, and the keys of "
               "every dialog.")
     s.h2("Keys in the Main Window", idx=["keys|main window",
@@ -2924,23 +3114,23 @@ the koi holo.<!--/ai-->""")
         ["ctrl+p", "Open the command palette.", "This chapter"],
         ["ctrl+j", "Open the note for the name under the cursor; with a "
          "name selected, or on a link with no note, create the note.",
-         "Chapter 5"],
+         "Chapter 6"],
         ["ctrl+l", "AI: find other names your prose uses for your "
          "characters and places, and add them as aliases (never edits "
-         "the scene).", "Chapter 7"],
+         "the scene).", "Chapter 10"],
         ["ctrl+g", "AI write: draft at the cursor (prompt window), expand "
          "the `{{expand: ...}}` placeholder under the cursor, or rewrite "
-         "the selection. Also submits the prompt window.", "Chapter 8"],
-        ["f7", "Accept the AI draft under the cursor.", "Chapter 8"],
-        ["f8", "Reject the AI draft under the cursor.", "Chapter 8"],
+         "the selection. Also submits the prompt window.", "Chapter 11"],
+        ["f7", "Accept the AI draft under the cursor.", "Chapter 11"],
+        ["f8", "Reject the AI draft under the cursor.", "Chapter 11"],
         ["f6", "Spell check: go to the next misspelled word and open the "
-         "fix window.", "Chapter 6"],
+         "fix window.", "Chapter 7"],
         ["f5", "Select all text in the editor. (It was `f7` before "
          "AI drafts.)", "Chapter 4"],
         ["ctrl+s", "Save now.", "Chapter 4"],
         ["ctrl+b", "Hide or show the sidebar.", "Chapter 4"],
         ["f11", "Writer mode.", "Chapter 4"],
-        ["f9", "Rebuild the index from disk.", "Chapter 5"],
+        ["f9", "Rebuild the index from disk.", "Chapter 6"],
         ["f1", "Show the help screen. Works everywhere, including while "
          "you type in the editor.", "This chapter"],
         ["?", "Also shows the help screen, but only when the focus is not "
@@ -2975,7 +3165,11 @@ the koi holo.<!--/ai-->""")
          "`Entity · Dace Kuroda (character)`"],
         ["Link ·", "Types the entity's name into your text at the "
          "cursor.", "`Link · Wren`"],
-        ["Action ·", "Runs a command; see the next table.",
+        ["Research ·", "Opens that research note (Chapter 9).",
+         "`Research · Capsule hotels`"],
+        ["Action ·", "Runs a command; see the next table. A few commands "
+         "about the open scene carry the category //Scene · // instead "
+         "(//Chapter · // when the manuscript's unit is chapters).",
          "`Action · New scene`"],
     ], [0.16, 0.44, 0.40])
     s.p("Among the scenes and before the entities, the palette also lists "
@@ -2984,56 +3178,18 @@ the koi holo.<!--/ai-->""")
         "//Maximize//, //Quit//, //Screenshot// and //Theme// (change "
         "the color theme). They are not part of Lorewrite and are not "
         "described further here.")
+    s.add(CondPageBreak(160))
     s.table("t_actions", "Palette actions",
-            ["Entry", "What it does", "Key"], [
-        ["New scene", "Create a new manuscript scene.", "ctrl+n"],
-        ["Next scene", "Open the next scene.", "alt+right"],
-        ["Previous scene", "Open the previous scene.", "alt+left"],
-        ["Rename current scene", "Change the title of the open scene.",
-         ""],
-        ["Move current scene up", "Swap with the scene above (renumbers "
-         "files).", ""],
-        ["Move current scene down", "Swap with the scene below (renumbers "
-         "files).", ""],
-        ["Delete current scene", "Delete the open scene, after "
-         "confirmation.", ""],
-        ["Writer mode", "Hide everything but the editor.", "f11"],
-        ["New character", "Create a character note.", ""],
-        ["New place", "Create a place note.", ""],
-        ["Find aliases in this scene", "AI: find other ways the prose "
-         "refers to your entities, and add them as aliases.", "ctrl+l"],
-        ["Check scene for continuity issues", "AI: flag contradictions "
-         "with the story bible.", ""],
-        ["Restore waived continuity issues (this scene)", "Un-waive this "
-         "scene's continuity flags so the next check reports them.", ""],
-        ["Update story bible from scene", "AI: propose new canon facts "
-         "for notes from this scene.", ""],
-        ["AI: learn style guide from manuscript", "Describe your voice "
-         "from your own prose; review before saving `style.md`.", ""],
-        ["Open style guide", "Edit `style.md`, the style guide the AI "
-         "writing features follow.", ""],
-        ["AI write at cursor / expand / rewrite selection", "Draft "
-         "prose (prompt window), expand a `{{expand: ...}}` placeholder, "
-         "or rewrite the selection.", "ctrl+g"],
-        ["Accept all AI drafts in this scene", "Keep every pending AI "
-         "draft as normal text.", "f7 (one)"],
-        ["Reject all AI drafts in this scene", "Restore the original "
-         "text for every pending AI draft.", "f8 (one)"],
-        ["Toggle spell check", "Turn the underlining of misspelled words "
-         "on or off.", "f6 fixes"],
-        ["Add selection to dictionary", "Never flag the selected word or "
-         "phrase in this project.", ""],
-        ["Open project dictionary", "Edit `dictionary.txt`, the words this "
-         "project never flags.", ""],
-        ["Set OpenRouter API key", "Store the key for AI features in the "
-         "system keyring.", ""],
-        ["Settings", "API key, models and editor preferences.", ""],
-        ["Return to main menu", "Save, and go back to the launch screen "
-         "to switch projects.", ""],
-        ["Rebuild index", "Rebuild the link and entity index from disk.",
-         "f9"],
-    ], [0.36, 0.46, 0.18], mono_cols=(2,))
-    s.p("Each is shown in the palette with the prefix //Action ·//. "
+            ["Entry", "What it does", "Key"], palette_rows(),
+            [0.33, 0.49, 0.18], mono_cols=(2,))
+    s.p("Each is shown in the palette with the prefix //Action ·// unless "
+        "the table names another category. When the manuscript's unit is "
+        "//chapter// (Chapter 5) the words //scene// and //Scene// in the "
+        "palette become //chapter// and //Chapter//; the table gives the "
+        "scene wording. The git entries appear only when they apply: "
+        "**Commit changes** for a project that is in a repository, "
+        "**Push** when it also has a remote, **Initialize git for this "
+        "project** when it is not in one yet. "
         "//Return to main menu// saves your work and shows the launch "
         "screen; choose another project, or press `q` to stay where you "
         "were.")
@@ -3054,6 +3210,30 @@ the koi holo.<!--/ai-->""")
          "to the line and close the report; `esc` close."],
         ["Story-bible review", "`space` tick or untick a fact; `a` tick "
          "all; `enter` apply; `esc` cancel."],
+        ["Scene details form", "`tab` next field; right arrow accepts a "
+         "suggested name; `enter` or `ctrl+s` saves; `esc` cancels "
+         "(Chapter 5)."],
+        ["Trash", "`enter` or `r` restore; `d` delete forever; `e` empty "
+         "the Trash; `esc` close (Chapter 5)."],
+        ["Collections", "`space` or `enter` tick; `n` new; `r` rename; `c` "
+         "next colour; `d` delete; `esc` close (Chapter 5)."],
+        ["Snapshots", "`enter` or `c` compare; `r` restore; `d` delete; "
+         "`n` new snapshot; `a` snapshot all; `esc` close (Chapter 8)."],
+        ["Compare", "`r` restore this snapshot; `esc` back to the list "
+         "(Chapter 8)."],
+        ["Comments", "`enter` jump to it; `r` resolve or reopen; `e` edit; "
+         "`d` delete; `esc` close (Chapter 9)."],
+        ["Assistant window", "`enter` send; `ctrl+r` chat or research "
+         "mode; `ctrl+o` open a cited note; `ctrl+s` save the answer to "
+         "notes; `ctrl+h` saved conversations; `ctrl+n` new chat; `esc` "
+         "close (Chapter 9)."],
+        ["Saved conversations", "`enter` open; `r` rename; `d` delete; "
+         "`n` new chat; `esc` back (Chapter 9)."],
+        ["Brainstorm", "`enter` or `d` draft from the idea; `s` save it to "
+         "notes; `esc` close (Chapter 12)."],
+        ["Session stats", "`esc` or `enter` close (Chapter 12)."],
+        ["Choice lists (sprint length, which part)", "`up`, `down`, "
+         "`enter` choose; `esc` cancel."],
         ["Spelling window (`f6`)", "`1` to `5` or `enter` replace; `a` add "
          "to the project dictionary; `p` add to your dictionary; `i` "
          "ignore; `esc` cancel."],
@@ -3095,15 +3275,15 @@ the koi holo.<!--/ai-->""")
         ["f11", "Focus mode.", "Chapter 4"],
         ["ctrl+j", "In the editor: open the note under the cursor, or "
          "make one for the selected name. Anywhere else: put the cursor "
-         "in the assistant's question box.", "Chapter 5"],
+         "in the assistant's question box.", "Chapter 6"],
         ["ctrl+click", "Open the note under the pointer in the Notes tab.",
-         "Chapter 5"],
+         "Chapter 6"],
         ["ctrl+g", "AI: draft at the cursor, expand the placeholder under "
-         "it, or rewrite the selection.", "Chapter 8"],
+         "it, or rewrite the selection.", "Chapter 11"],
         ["f7, f8", "Accept, reject the AI draft under the cursor.",
-         "Chapter 8"],
+         "Chapter 11"],
         ["ctrl+.", "Spelling popover for the word under the cursor, or "
-         "for the selected phrase.", "Chapter 6"],
+         "for the selected phrase.", "Chapter 7"],
         ["ctrl+z, ctrl+y", "Undo, redo.", "Chapter 3"],
         ["enter (quick switcher)", "Open the highlighted row; `up` and "
          "`down` move, `esc` closes.", "Chapter 3"],
@@ -3118,16 +3298,31 @@ the koi holo.<!--/ai-->""")
     s.h2("Menus of the Desktop Application", idx=["menus (desktop)"])
     s.table("t_gmenus", "Menus and what is in them",
             ["Menu (how to open it)", "Entries"], [
-        ["Scene options (three dots at the top of the binder)",
-         "**New scene**, **Rename scene…**, **Move up**, **Move down**, "
-         "**Delete scene…**. The last four are dimmed when no scene is "
-         "open."],
+        ["Scene and part options (three dots at the top of the binder)",
+         "**New scene**, **New part…**, **Rename scene…**, **Move up**, "
+         "**Move down**, **Move scene to part…**, **Move to Unplaced "
+         "Scenes** (**Place in the book…** for an unplaced scene), "
+         "**Collections…**, **History (snapshots)…**, **Delete scene…**; "
+         "then, under //parts//: **Rename part…**, **Move part up**, "
+         "**Move part down**, **Delete empty part…**; under //research//: "
+         "**New research note…**, **New research note from a link…**, "
+         "**Move this research note to the Trash…**; and **Open Trash…**. "
+         "Scene entries are dimmed when no scene is open, part entries "
+         "when no part is in focus. With the unit set to chapters, "
+         "//scene// reads //chapter//."],
         ["More (three dots in the title bar)", "**Switch project…**, "
-         "**Rebuild the link index**, **Settings…**."],
-        ["AI menu (three dots at the top of the assistant)", "**Draft at "
-         "the cursor…**, **Find aliases**, **Update story bible**, **Learn "
-         "style guide**, **Accept all drafts**, **Reject all drafts**, "
-         "**Restore waived issues**."],
+         "**Rebuild the link index**, **Call scenes “chapters”** (or "
+         "**Call chapters “scenes”**), **Settings…**."],
+        ["AI menu (three dots at the top of the assistant)", "**New chat**, "
+         "**Conversation history…**, **Draft at the cursor…**, **Find "
+         "aliases**, **Update story bible**, **Learn style guide**, "
+         "**Accept all drafts**, **Reject all drafts**, **Restore waived "
+         "issues**."],
+        ["Draft badge (title bar or status bar)", "**Start draft N…** "
+         "(Chapter 8)."],
+        ["Git state (status bar)", "**Initialize git for this project…**; "
+         "or **Commit N changes…**, **Push N commits to the remote…**, "
+         "**Refresh** (Chapter 8)."],
         ["Spelling popover (click a misspelled word, or `ctrl+.`)",
          "Suggestions; **Add to dictionary**; **Add to my dictionary (all "
          "projects)**; **Ignore**. For a selected phrase, only the two "
@@ -3138,27 +3333,82 @@ the koi holo.<!--/ai-->""")
     # ============================================================ APP A
     s.chapter("A", "File Formats",
               "What Lorewrite reads and writes on disk.")
-    s.h2("Project Layout", idx=["project|layout", "manuscript folder", "entities folder"])
+    s.h2("What Is in My Project Folder", idx=["project|layout",
+                                              "manuscript folder",
+                                              "entities folder",
+                                              "project folder map"])
+    s.p("A project is one folder. Everything in it is plain text that you "
+        "can read and edit; the listing below shows all of it, and "
+        f"{R('t_projmap')} says who writes each part and whether you may "
+        "edit it by hand. The folder below is the Residual example after "
+        "some use.")
     s.code("""\
-my-novel/
-  project.toml               title, author, [editor], [ai]
-  .gitignore                 excludes .lorewrite/
-  style.md                   your style guide (optional; you or the AI)
-  style.md.bak               the guide before the last replacement
-  dictionary.txt             words and phrases never flagged (optional)
-  manuscript/                scenes: 01-opening.md, 02-tavern.md, ...
-  entities/                  entity notes, one folder for each kind
-    characters/  places/  objects/  factions/
-  .drafts/                   originals behind pending AI drafts
-    02-tavern.md.json        one file per scene that has such drafts
-  .lorewrite/                cache; safe to delete
-    index.sqlite             the backlink index
-    waivers.json             waived continuity issues""")
-    s.p("Lorewrite only reads `manuscript/*.md` for scenes and "
-        "`entities/*/*.md` for notes (the note's folder name does not "
-        "matter; its `type:` line does), plus `style.md`, `dictionary.txt` "
-        "and the `.drafts` folder described below. Everything else in the project "
-        "folder is ignored, so you may keep research files beside them.")
+residual/
+  project.toml          title, author and the [editor] [ai] [manuscript]
+  .gitignore            hides .lorewrite/ (and nothing else)
+  style.md, style.md.bak  your style guide, and the one before the last
+  dictionary.txt        words this project never flags
+  manuscript/
+    00-front-matter/    a part named front-matter: not counted in the book
+      _part.md            its title
+      01-title-page.md
+    01-the-recall/      a part: a folder of scenes
+      _part.md            "# The Recall" and notes on the part
+      01-rain-on-the-spur.md
+      02-capsule-7-19.md  (starts with scene details between --- lines)
+    02-ghost-frequency/
+    _unplaced/          scenes written but kept out of the book
+      01-the-night-market.md
+  entities/             characters/ places/ objects/ factions/  (the notes)
+  research/             reference notes: capsule-hotels.md, assistant-notes.md
+  .drafts/              what pending AI drafts replaced, one file per scene
+  .snapshots/           history: one folder per scene, one file per snapshot
+  .comments/            your comments on passages, one file per scene
+  .trash/               deleted scenes and research notes
+  .assistant/chats/     saved conversations with the assistant
+  .lorewrite/           cache: index.sqlite, waivers.json (safe to delete)""")
+    s.table("t_projmap", "What is in the project folder",
+            ["Path", "What it holds", "Written by", "Edit by hand?"], [
+        ["`project.toml`", "Title, author and settings of this project.",
+         "Lorewrite and you", "Yes"],
+        ["`manuscript/`", "Your scenes, directly or in parts.",
+         "You", "Yes"],
+        ["`manuscript/NN-name/`", "A part; `_part.md` inside holds its "
+         "title.", "Lorewrite (New part)", "Title and notes, yes"],
+        ["`manuscript/_unplaced/`", "Scenes kept out of the book.",
+         "Lorewrite (Move to Unplaced)", "Yes"],
+        ["`entities/`", "Notes on characters, places, objects and "
+         "factions.", "You and Lorewrite", "Yes"],
+        ["`research/`", "Reference notes, plain Markdown, any "
+         "subfolders.", "You and Lorewrite", "Yes"],
+        ["`style.md`, `dictionary.txt`", "Your style guide; the words "
+         "spell check accepts.", "You and Lorewrite", "Yes"],
+        ["`.drafts/`", "The original text behind each pending AI draft.",
+         "Lorewrite", "No"],
+        ["`.snapshots/`", "Verbatim copies of scenes (history).",
+         "Lorewrite", "No; delete in the History screen"],
+        ["`.comments/`", "Your comments on passages.", "Lorewrite",
+         "Possible, not needed"],
+        ["`.trash/`", "Deleted scenes and research notes.", "Lorewrite",
+         "No; use the Trash screen"],
+        ["`.assistant/chats/`", "Saved conversations.", "Lorewrite",
+         "No"],
+        ["`.lorewrite/`", "The link index and waived continuity issues.",
+         "Lorewrite", "No; safe to delete"],
+    ], [0.27, 0.37, 0.18, 0.18])
+    s.p("Lorewrite reads scenes from `manuscript/` (directly in it, in a "
+        "part folder directly under it, and in `_unplaced/`; only one "
+        "level of folders counts), notes from `entities/*/*.md` (the "
+        "note's folder name does not matter; its `type:` line does), "
+        "research notes from `research/`, plus `style.md`, "
+        "`dictionary.txt` and the folders above. Everything else in the "
+        "project folder is ignored, so you may keep other files beside "
+        "them. Only `.lorewrite/` is hidden from git by the `.gitignore` "
+        "of a new project; everything else is yours and is committed.")
+    s.p("Not in the folder, because they are about you rather than the "
+        "book, are your personal dictionary, your settings and your "
+        "writing numbers, which live in Lorewrite's state folder "
+        "(see “Lorewrite's State Files” below).")
     s.h2("project.toml", idx=["project.toml", "TOML"])
     s.p("A small file in TOML format. Lorewrite writes `title` and "
         f"`author` when it creates the project; the other keys are "
@@ -3174,7 +3424,15 @@ line_numbers = true
 [ai]
 fast_model = "google/gemini-2.5-flash"
 strong_model = "anthropic/claude-sonnet-4.5"
-writing_model = "anthropic/claude-sonnet-4.5\"""")
+writing_model = "anthropic/claude-sonnet-4.5"
+
+[manuscript]
+unit = "scene"
+draft = 2
+
+[collections]
+"Needs continuity pass" = "amber"
+"Rook's arc" = "violet\"""")
     s.table("t_toml", "Keys of project.toml",
             ["Key", "Meaning", "Default"], [
         ["title", "The project's title, shown in the title bar and on the "
@@ -3191,15 +3449,29 @@ writing_model = "anthropic/claude-sonnet-4.5\"""")
          "story-bible updates, for this project.", "same"],
         ["[ai] writing_model", "Model for `ctrl+g` and for learning the "
          "style guide, for this project.", "same"],
+        ["[manuscript] unit", "`\"scene\"` or `\"chapter\"`: what the "
+         "program calls the units of the book. Wording only (Chapter 5).",
+         "scene"],
+        ["[manuscript] draft", "Which draft of the book this is; **Start "
+         "new draft** raises it by one (Chapter 8).", "1"],
+        ["[collections]", "One line for each collection: its name, then "
+         "its colour: violet, amber, green, red or gray (Chapter 5). Which "
+         "scenes belong to it is kept in the scenes themselves.",
+         "none"],
     ], [0.27, 0.48, 0.25], mono_cols=(0,))
     s.p("When you press **Save** in Settings, Lorewrite rewrites only the "
-        "`[editor]` section and leaves the rest of the file as it was.")
+        "`[editor]` section and leaves the rest of the file as it was; "
+        "the draft, the unit and the collections are written by the "
+        "commands that change them. Everything else you put in the file "
+        "is kept.")
     s.h2("Scene Files", idx=["scene|file format"])
     s.p("A scene is a Markdown file named `NN-slug.md`, where //NN// is a "
-        "two-digit number and //slug// is the title in lowercase with "
-        "hyphens. The order of the scenes is the alphabetical order of "
-        "the file names. The title is the first line that begins `# `; if "
-        "there is none, the file name is used. Nothing else is required.")
+        "number of at least two digits and //slug// is the title in "
+        "lowercase with hyphens. The order of the scenes within a folder is "
+        "the order of the numbers (`2-` comes before `10-`). The title is "
+        "the first line that begins `# `, after the scene details if there "
+        "are any; if there is none, the file name is used. Nothing else "
+        "is required.")
     s.code("""\
 # Capsule 7-19
 
@@ -3207,6 +3479,80 @@ The Meridian stacked its sleepers forty high under the spur, a
 honeycomb of fiberglass coffins lit the color of weak tea.
 
 Rook climbed the ladder and looked in.""")
+    s.h2("Parts, Unplaced Scenes and Front Matter",
+         idx=["part|folder", "_part.md", "_unplaced folder",
+              "front matter"])
+    s.p("A //part// is a folder directly under `manuscript/`. Its name "
+        "begins with a number, like a scene's: `01-the-recall`. The "
+        "optional file `_part.md` in it holds the part's title as its "
+        "first `# ` line, and anything you want to write about the part "
+        "below that; without it the title is the folder's name with the "
+        "hyphens turned into spaces. **New part** makes the folder with "
+        "the next free number and writes `# Title` into `_part.md`. "
+        "Renaming a part rewrites that heading only; the folder keeps its "
+        "name.")
+    s.code("""\
+manuscript/
+  00-front-matter/        slug front-matter: shown first, not in the count
+    _part.md              # Front Matter
+    01-title-page.md
+  01-the-recall/
+    _part.md              # The Recall
+    01-rain-on-the-spur.md
+    02-capsule-7-19.md
+  _unplaced/              not a part: scenes kept out of the book
+    01-the-night-market.md""")
+    s.p("A part whose folder name, without its number, is "
+        "`front-matter` is the front matter: it comes first, is shown "
+        "dimmed, and its words are not counted as the book. There is no "
+        "button for it; make a part called //Front Matter// and move it to "
+        "the top, or name the folder yourself. Scenes may also sit "
+        "directly in `manuscript/`; they are read before the parts. "
+        "Names that begin with `_` or `.` are never scenes or parts, and "
+        "only one level of folders is understood. Moving a scene into a "
+        "folder renumbers that folder so the order is what you asked for "
+        "(`01-`, `02-`, ...); the folder it left keeps its numbers, "
+        "leaving a gap, which is harmless. The numbers shown in the desktop "
+        "application (//SCENE 03//) are the positions in the whole book "
+        "once it has parts, not the file numbers.")
+    s.h2("Scene Details: Frontmatter", idx=["frontmatter|scene details",
+                                            "scene details|format"])
+    s.p("The details of a scene (Chapter 5) are the scene's own YAML "
+        "frontmatter: a block between two lines of three hyphens at the "
+        "very top of the file, before the `# ` title. It is written only "
+        "when you set a field, and removed again when none is left, so a "
+        "scene you never gave details has none.")
+    s.code("""\
+---
+pov: Rook Tanaka
+place: The Meridian
+purpose: Rook finds the body and the shard
+status: revising
+target: 600
+collections: [Needs continuity pass]
+---
+# Capsule 7-19""")
+    s.table("t_scenekeys", "Keys of the scene details",
+            ["Key", "Meaning"], [
+        ["pov", "The point-of-view character. A name that is one of your "
+         "notes counts as a mention."],
+        ["place", "Where the scene happens. A name that is one of your "
+         "notes counts as a mention."],
+        ["purpose", "What the scene is for, in a line."],
+        ["status", "Free text. Suggested: idea, draft, revising, done."],
+        ["target", "A number of words."],
+        ["collections", "The collections the scene belongs to, in square "
+         "brackets, separated by commas."],
+    ], [0.20, 0.80], mono_cols=(0,))
+    s.p("Keys that Lorewrite does not know (an Obsidian `tags:` line, for "
+        "instance) are kept when it rewrites the block. A block is "
+        "frontmatter only if it is a YAML mapping: a scene that begins "
+        "with a horizontal rule of three hyphens is left alone. The block "
+        "is not prose: it is not counted as words, not spell-checked, not "
+        "scanned for names (except //pov// and //place//), not used as "
+        "evidence by the continuity check, and not sampled for your "
+        "style. The AI is told the details in one line "
+        "(//SCENE DETAILS//) instead of being shown the raw block.")
     s.h2("Entity Notes", idx=["entity|file format", "YAML"])
     s.p("An entity note is a Markdown file with a YAML header. The file "
         "name is the entity's name in lowercase with hyphens, for example "
@@ -3234,7 +3580,7 @@ favor and resents it.
         "there.")
     s.h2("The Style Guide: style.md", idx=["style.md|format"])
     s.p("`style.md` is a plain Markdown file at the top of the project, "
-        "created by //learn style guide// (Chapter 8) or, with the "
+        "created by //learn style guide// (Chapter 11) or, with the "
         "headings and a hint under each, by //Open style guide//. It is "
         "yours to edit. Lorewrite reads it whole and sends it with every "
         "writing request; a file that is empty or only blanks counts as "
@@ -3266,13 +3612,13 @@ favor and resents it.
         "your prose the AI was shown, and the size of the manuscript then, "
         "in words and scenes. The desktop application reads it to say "
         "when the guide was learned and when it has become out of date "
-        "(Chapter 8). Delete it if you do not want that; nothing else "
+        "(Chapter 11). Delete it if you do not want that; nothing else "
         "depends on it. When a new guide replaces an old one, the old file is "
         "first copied to `style.md.bak`, next to it. Both files are "
         "written safely, with a temporary copy swapped into place.")
     s.h2("Pending AI Text: the Marker and .drafts",
          idx=["marker (AI)|format", ".drafts folder|format"])
-    s.p("A pending AI draft (Chapter 8) is stored in the scene file "
+    s.p("A pending AI draft (Chapter 11) is stored in the scene file "
         "itself, between two HTML comments:")
     s.code("""\
 <!--ai-->text the AI wrote<!--/ai-->
@@ -3280,9 +3626,12 @@ favor and resents it.
     s.p("The first form is an insertion. The second replaced text (a "
         "selection that was rewritten, or an expanded placeholder). Its "
         "//id// is six lower-case letters and digits, unique in the "
-        "project. The replaced text is stored in "
-        "`.drafts/<scene file name>.json`, for example "
-        "`.drafts/02-tavern.md.json`, as a JSON object from ids to "
+        "project. The replaced text is stored in a file named for the "
+        "scene's path in the project, with each `/` written as `__`: "
+        "`.drafts/manuscript__01-the-recall__02-tavern.md.json` for "
+        "`manuscript/01-the-recall/02-tavern.md`. (Older projects kept "
+        "these under the file name alone; Lorewrite renames them when it "
+        "opens the project.) The file is a JSON object from ids to "
         "original text:")
     s.code("""\
 {
@@ -3294,16 +3643,107 @@ favor and resents it.
         "under `.lorewrite`, and the `.gitignore` of a new project does "
         "not list it. Accepting a draft removes the markers and the "
         "entry; rejecting restores the original and removes the entry. If "
-        "an id has no entry, reject refuses (Chapter 8). A body that "
+        "an id has no entry, reject refuses (Chapter 11). A body that "
         "contains `<!--` has it changed to `<!-` when written, so a "
         "draft cannot contain a marker of its own. Markers that are "
         "nested, or missing one half, are not drafts; they are ordinary "
         "text. Moving a scene (which renames its file) carries its `.drafts` "
         "file along, and deleting a scene deletes it.")
+    s.h2("The Trash: .trash", idx=[".trash folder"])
+    s.p("Deleting a scene moves its file to `.trash/` under a name made of "
+        "the time, then the scene's path with `/` written as `__`: "
+        "`.trash/20261001-102200-manuscript__01-the-recall__03-a.md`. "
+        "(If that name is taken, a `-2` follows the time.) What belongs "
+        "to the scene travels with it, beside it, as "
+        "`...md.drafts.json`, `...md.comments.json` and a folder "
+        "`...md.snapshots/`. A research note goes the same way, as "
+        "`.trash/20261001-102200-research__tides__almanac.md`. The folder "
+        "is created by the first deletion and removed when it is empty "
+        "again. **Restore** puts a scene back at the end of its original "
+        "part (or in `_unplaced/` if that part is gone) under the next "
+        "free number, and a research note at its original path (or in "
+        "`research/`). **Delete forever** and **Empty Trash** remove the "
+        "files. Only names of this form are listed; anything else you "
+        "drop into `.trash/` is invisible to the Trash screen, and "
+        "**Empty Trash** removes the whole folder.")
+    s.h2("History: .snapshots", idx=[".snapshots folder"])
+    s.p("Each scene with snapshots has a folder in `.snapshots/` named by "
+        "the same rule as its draft file (the path with `/` written as "
+        "`__`). In it, each snapshot is a copy of the scene file, "
+        "frontmatter included, named by the time and an optional label:")
+    s.code("""\
+.snapshots/manuscript__01-the-recall__02-capsule-7-19.md/
+  20260929-093231--before the rewrite.md
+  20260930-113231.md
+  20261001-123231--end-of-draft-1.md
+  20261001-123231--end-of-draft-1.json   the draft originals, if any""")
+    s.p("The labels the program gives are //auto// (the first-edit-of-the-"
+        "day snapshot), //before-restore//, //before-accept-all//, "
+        "//before-reject-all// and //end-of-draft-N//. A name taken in the "
+        "same second gets a `-2`. A `.json` file with the same name holds "
+        "the scene's pending-draft originals at that moment, and comes "
+        "back with a restore. Nothing is ever pruned: the folder grows "
+        "until you delete snapshots in the History screen. A scene's "
+        "snapshot folder follows it when the scene is renamed or moved, "
+        "and goes to the Trash with it.")
+    s.h2("Comments: .comments", idx=[".comments folder"])
+    s.p("Comments on a scene are one JSON file, `.comments/` followed by "
+        "the scene's path with `/` written as `__`, a list of comments. A "
+        "comment holds the quoted words, up to forty characters around "
+        "them, your note and whether it is resolved:")
+    s.code("""\
+[
+  {
+    "id": "d86d64f2",
+    "quote": "Rook climbed the ladder and looked in.",
+    "prefix": "ager about who would pay for the tape.\\n\\n",
+    "suffix": "\\n\\nImogen Sallow lay on her back with her",
+    "body": "Check how many tiers up this is.",
+    "created": "2026-10-01T12:32:31",
+    "resolved": false
+  }
+]""")
+    s.p("Lorewrite finds the passage again by its words and what "
+        "surrounds them, not by its position, so the comment survives "
+        "edits around it. If the words are gone it is //detached//: still "
+        "in the file and still listed, never deleted. The file is removed "
+        "when its last comment is.")
+    s.h2("Research Notes and Saved Conversations",
+         idx=["research folder|format", ".assistant folder"])
+    s.p("`research/` holds ordinary Markdown files, in any subfolders; "
+        "files and folders that begin with a dot are ignored. A note's "
+        "title is its first `# ` line, or else its file name. **Save to "
+        "notes** appends to `research/assistant-notes.md`, which is "
+        "created on first use:")
+    s.code("""\
+# Assistant notes
+
+Answers saved from the assistant, newest last.
+
+## 2026-10-01 - How can I make the stairwell scene more tense?
+
+**Prompt:** How can I make the stairwell scene more tense?
+
+Three options: ...""")
+    s.p("A note made from a web link holds a title built from the address "
+        "and the address itself; the page is not fetched:")
+    s.code("""\
+# example.com - capsule hotel etiquette
+
+https://www.example.com/articles/capsule-hotel-etiquette.html""")
+    s.p("Conversations are `.assistant/chats/<id>.json`, where the "
+        "identifier is a `c` and ten hexadecimal digits. A chat holds its "
+        "title (the first question, cut at 60 characters), when it was "
+        "made and last changed, whether it was about the scene or the "
+        "project, what was attached, and the messages in order; answers "
+        "from the research question carry the notes they cited and "
+        "Brainstorm answers their ideas. At most 400 messages are kept, and "
+        "failed answers are not saved. The files hold no key and no "
+        "settings.")
     s.h2("The Dictionaries: dictionary.txt", idx=["dictionary.txt|format",
                                                   "personal dictionary|format"])
     s.p("Two files of the same plain format hold the words that spell check "
-        "never flags (Chapter 6). The project dictionary is "
+        "never flags (Chapter 7). The project dictionary is "
         "`dictionary.txt` at the top of the project; the personal "
         "dictionary is `dictionary.txt` in Lorewrite's state folder. Each "
         "is UTF-8 text with one word or phrase per line; blank lines and "
@@ -3319,7 +3759,7 @@ favor and resents it.
 hundered
 maglev spur""")
     s.h2("The .lorewrite Folder", idx=[".lorewrite folder"])
-    s.p("`index.sqlite` is the backlink index (see Chapter 5); it is "
+    s.p("`index.sqlite` is the backlink index (see Chapter 6); it is "
         "rebuilt when the project opens and by `f9`. `waivers.json` "
         "records waived continuity issues as a list of short codes, with, "
         "in the `scenes` object, the scene each was waived in (used by "
@@ -3342,8 +3782,25 @@ maglev spur""")
 ~/.local/state/lorewrite/
   recent.json      recent projects: path, title, time opened (max 10)
   settings.json    {"tour_seen": true, "fast_model": null, "spellcheck": true,
+                    "daily_target": 500, "auto_snapshot": true,
                     "gui_zoom": 100, "gui_reflow": true, ...}
-  dictionary.txt   your personal dictionary (created when first used)""")
+  dictionary.txt   your personal dictionary (created when first used)
+  stats/           your writing numbers, one file for each project""")
+    s.p("Your writing numbers are personal, not part of the book, so they "
+        "are kept here and not in the project. The file is named by the "
+        "first sixteen characters of a hash of the project folder's full "
+        "path, which means that moving or renaming the folder starts a "
+        "fresh file. It records, for each day, the words you wrote net of "
+        "cuts, the words of AI drafts you accepted, the seconds you were "
+        "active, the sessions, and your focus sprints:")
+    s.code("""\
+{"version": 1, "project": "/home/writer/novels/residual", "days": {
+ "2026-10-01": {"words": 420, "ai_words": 60, "seconds": 3100, "sessions": 2,
+  "sprints": [{"at": "2026-10-01T09:30:00", "minutes": 25, "elapsed": 1500,
+               "words": 310, "completed": true}]}}}""")
+    s.p("When both applications are open on one project, each adds only "
+        "what it counted itself, so neither overwrites the other's "
+        "numbers.")
 
     # ============================================================ APP B
     s.chapter("B", "Messages and Problem Solving",
@@ -3417,10 +3874,11 @@ maglev spur""")
         ["Settings saved", "You pressed **Save** in Settings."],
         ["Renamed to '//title//'", "A scene was renamed."],
         ["Moved to //file name//", "A scene was reordered."],
-        ["Deleted '//title//'", "A scene was deleted."],
+        ["Moved '//title//' to the Trash", "A scene was deleted to the "
+         "Trash (Chapter 5)."],
         ["(a scene title)", "Shown briefly when you move to another "
          "scene with `alt+left` or `alt+right`."],
-    ], [0.42, 0.58])
+    ] + extra('MSG_TUI','info'), [0.42, 0.58])
     s.table("t_msgs_warn", "Warnings",
             ["Message", "Cause and action"], [
         ["Open a scene first", "The command needs an open scene. Rename, "
@@ -3429,11 +3887,11 @@ maglev spur""")
         ["No scenes yet — ctrl+n to create one", "The project has no "
          "scenes. Press `ctrl+n`."],
         ["No more scenes this way", "You are at the first or last scene."],
-        ["Scene is already at the edge", "The scene cannot move further "
-         "in that direction, or its file name has no leading number "
-         "(rename the file to `NN-name.md`)."],
+        ["Already at the edge of its part", "The scene cannot move further "
+         "in that direction within its part, or its file name has no "
+         "leading number (rename the file to `NN-name.md`)."],
         ["No entities yet — create some notes first", "Find aliases and "
-         "the story-bible update need at least one note. See Chapter 5."],
+         "the story-bible update need at least one note. See Chapter 6."],
         ["No AI draft under the cursor", "`f7` or `f8` was pressed with "
          "the cursor outside any pending draft."],
         ["Empty {{expand: }} marker — say what to write", "The "
@@ -3451,7 +3909,7 @@ maglev spur""")
          "draft could not be placed safely."],
         ["//N// AI draft(s) rejected; //M// left because the original "
          "text is missing — accept them or edit by hand", "Some drafts "
-         "have no entry in `.drafts`; see Chapter 8."],
+         "have no entry in `.drafts`; see Chapter 11."],
         ["No entities yet — nothing to check against", "The continuity "
          "check needs at least one note."],
         ["No misspellings", "`f6` found nothing to fix in this scene."],
@@ -3462,7 +3920,7 @@ maglev spur""")
         ["Select a name and press ctrl+j to make a note for it",
          "`ctrl+j` was pressed with nothing selected and the cursor not "
          "on a name."],
-    ], [0.42, 0.58])
+    ] + extra('MSG_TUI','warn'), [0.42, 0.58])
     s.table("t_msgs_err", "Errors",
             ["Message", "Cause and action"], [
         ["Alias search failed: //reason//", "The request to the AI "
@@ -3477,7 +3935,7 @@ maglev spur""")
          "writing model."],
         ["Original text for this draft is missing — accept it or edit by "
          "hand", "`f8` was pressed on a draft whose original is not in "
-         "`.drafts`. Nothing was changed. See Chapter 8."],
+         "`.drafts`. Nothing was changed. See Chapter 11."],
         ["Continuity check failed: //reason//", "Same, for the continuity "
          "check."],
         ["Story-bible update failed: //reason//", "Same, for the "
@@ -3501,9 +3959,9 @@ maglev spur""")
         ["No OpenRouter API key. Set OPENROUTER_API_KEY or store one via "
          "lorewrite.ai.client.set_api_key().",
          "Shown after //failed:// when no key is found. Store a key "
-         "(Chapter 7); you do not need to use the technical name in the "
+         "(Chapter 10); you do not need to use the technical name in the "
          "message."],
-    ], [0.42, 0.58])
+    ] + extra('MSG_TUI','err'), [0.42, 0.58])
     s.table("t_msgs_gui", "Messages of the desktop application",
             ["Message", "Meaning and action"], [
         ["Saved", "You pressed `ctrl+s` and the file was saved."],
@@ -3561,7 +4019,7 @@ maglev spur""")
          "There was nothing pending where you pressed."],
         ["//N// draft(s) left: the original text is missing. Accept it or "
          "edit by hand.", "A reject was refused for lack of the original "
-         "in `.drafts` (Chapter 8)."],
+         "in `.drafts` (Chapter 11)."],
         ["Scene changed while drafting; draft discarded. / The text "
          "changed while drafting; draft discarded.", "You moved or edited "
          "the words the draft was for before the AI finished. The call is "
@@ -3576,11 +4034,12 @@ maglev spur""")
          "exists; it was opened."],
         ["Added “//word//” to the project dictionary. / ... to your "
          "dictionary. / “//word//” is already in the dictionary.",
-         "Results of the spelling commands (Chapter 6)."],
+         "Results of the spelling commands (Chapter 7)."],
         ["No misspelled words.", "You jumped to the next misspelling and "
          "there is none."],
-        ["Scene deleted.", "A scene was deleted."],
-    ], [0.46, 0.54])
+        ["Moved “//title//” to the Trash.", "A scene was deleted to the "
+         "Trash. Also: //Moved the research note “title” to the Trash.//"],
+    ] + extra('MSG_GUI'), [0.46, 0.54])
     s.add(CondPageBreak(330))
     s.h2("Problem Solving", idx=["problem solving", "troubleshooting"])
     s.p("Use this table for troubleshooting the everyday problems. "
@@ -3600,7 +4059,7 @@ maglev spur""")
         ["`f7` no longer selects all.", "It accepts an AI draft now. "
          "Select all is `f5`."],
         ["A reject says the original is missing.", "The draft's entry in "
-         "the `.drafts` folder is gone (Chapter 8). Accept the draft and "
+         "the `.drafts` folder is gone (Chapter 11). Accept the draft and "
          "edit it by hand, or restore the `.drafts` file from a backup."],
         ["`ctrl+g` does nothing in a note.", "It works in scenes only. "
          "Open a scene."],
@@ -3628,7 +4087,7 @@ maglev spur""")
         ["The screen is garbled after a crash.", "Type `reset` in the "
          "terminal. Your files are safe; Lorewrite saves as you work."],
         ["A word of my story's world is underlined.", "Add it to a "
-         "dictionary (Chapter 6): `a` or `p` in the `f6` window, or **Add "
+         "dictionary (Chapter 7): `a` or `p` in the `f6` window, or **Add "
          "to dictionary** in the popover of the desktop application. "
          "Names of your notes are never flagged; add an alias or a note "
          "instead if it is a character or place."],
@@ -3648,8 +4107,6 @@ maglev spur""")
          "application, or another program, saved the same file. Choose "
          "**Reload from disk** or **Keep my version** in the banner "
          "(Chapter 3)."],
-        ["A dimmed button does nothing.", "It is a part of the design "
-         "that is not built yet (Chapter 3)."],
         ["An AI request seems stuck.", "Requests give up after 180 "
          "seconds with an error. Start the feature again, or check your "
          "network."],
@@ -3657,7 +4114,7 @@ maglev spur""")
          "while you type), or `ctrl+p` and type what you want to do."],
         ["I want to see the tour again.", "Set `tour_seen` to `false` "
          "in `settings.json` (Chapter 2)."],
-    ], [0.36, 0.64])
+    ] + extra('PROBLEMS'), [0.36, 0.64])
 
     # ============================================================ APP C
     s.chapter("C", "Tutorial: The Residual Project",
@@ -3686,7 +4143,7 @@ maglev spur""")
                 "into the project, so the original would no longer be "
                 "the clean example. If you start a second run, delete "
                 "`/tmp/residual` and copy it again. The steps that use AI "
-                "need an API key (Chapter 7).")
+                "need an API key (Chapter 10).")
     s.table("t_residual", "The cast of the Residual project",
             ["Name", "Kind", "Aliases"], [
         ["Rook Tanaka", "character", "Rook, Tanaka"],
@@ -3709,7 +4166,7 @@ maglev spur""")
         "Read the first paragraphs. Names such as //Hollow Market//, "
         "//Rook// and //Kessler-Voss// are colored, though they are "
         "written without brackets. That is mention recognition "
-        "(Chapter 5).",
+        "(Chapter 6).",
     ])
     s.h2("Step 2. Look Around a Name")
     s.proc("Inspect a character:", [
@@ -3810,7 +4267,7 @@ maglev spur""")
         "example again (a fresh copy shows the same results as the "
         "figures), and start `lorewrite-gui --project /tmp/residual`. "
         f"The window opens as in {R('fig_gmain')}. The steps that use AI "
-        "need an API key (Chapter 7).")
+        "need an API key (Chapter 10).")
     s.proc("Look around:", [
         "In the binder, open //Manuscript// if it is closed. Click //02 "
         "Capsule 7-19//. The title bar reads //Scene 02 · Capsule 7-19//.",
@@ -3867,9 +4324,69 @@ maglev spur""")
         "returns.",
     ])
 
+    s.h2("Parts, a Snapshot and a Sprint")
+    s.p("This last section uses a fresh copy of the example (delete "
+        "`/tmp/residual` and copy it again). It shows the newest features "
+        "on the four scenes: dividing the book into parts, keeping a "
+        "snapshot you can come back to, and timing a sprint.")
+    s.proc("Divide the book into two parts (terminal application):", [
+        "Open the project. Press `ctrl+p` and choose **Action · New part**. "
+        "Type //The Recall// and press `enter`. Make a second part, "
+        "//Ghost Frequency//.",
+        "Open //Rain on the Spur// and choose **Action · Move scene to "
+        "part**. In the list, choose //The Recall//. Do the same for "
+        "//Capsule 7-19//. Send //The Stairwell// and //Ghost in the Ice// "
+        "to //Ghost Frequency//.",
+        "Look at the sidebar: part headers in capitals now group the "
+        "scenes. Press `alt+right` from //Capsule 7-19//; it carries you "
+        "into the next part.",
+        "Look in the project folder: `manuscript/01-the-recall/`, "
+        "`manuscript/02-ghost-frequency/`, and a `_part.md` in each. The "
+        "scenes were renumbered inside their new parts.",
+    ])
+    s.proc("The same, in the desktop application:", [
+        "Open the binder's options menu (the three dots) and choose **New "
+        "part…**; type //The Recall// and click **Create**. Make //Ghost "
+        "Frequency// the same way.",
+        "Click the corkboard. Drag the //Rain on the Spur// card onto the "
+        "//The Recall// heading, or open a scene and choose **Move scene "
+        "to part…** in the options menu. When asked, click **Move**; the "
+        "toast has an **Undo** button.",
+        "Open the corkboard again: the cards are grouped by part.",
+    ])
+    s.proc("Keep a snapshot:", [
+        "Open //Capsule 7-19//. Choose **Scene · Snapshot scene**, type "
+        "//before the rewrite// and press `enter`. In the desktop "
+        "application click the clock (**History**) in the rail, type the "
+        "label and click **Snapshot this scene**.",
+        "Delete the sentence //Rook climbed the ladder and looked in.// "
+        "from the scene.",
+        "Open the history: **Scene · Snapshots** in the terminal "
+        f"application ({R('fig_snaps')}), or the **History** button in the "
+        f"desktop one ({R('fig_ghist')}). Compare the snapshot with the "
+        "scene: the sentence shows as removed. Restore the snapshot. The "
+        "sentence is back, and the text you had just before is kept as "
+        "//before a restore//, so you can undo the restore, too.",
+    ])
+    s.proc("Time a sprint:", [
+        "Choose **Action · Focus sprint**, then //15 minutes//, then keep "
+        "the screen as it is. In the desktop application click **Sprint** "
+        "in the status bar and **Start sprint**.",
+        "Write a paragraph. The countdown in the status bar shows the "
+        "time left and the words you have added.",
+        "Stop the sprint (run the command again, or click the countdown). "
+        "A notice says how many words you wrote. Open **Action · Session "
+        "stats** (or click //words today// in the desktop status bar): "
+        "today's numbers and the sprint are in it.",
+    ])
+
     # ============================================================ GLOSSARY
     s.chapter("G", "Glossary", mode="back", numbered=False)
+    seen_terms = set()
     for term, d in sorted(GLOSSARY, key=lambda g: g[0].lower()):
+        if term.lower() in seen_terms:      # a term defined by two chapters: first wins
+            continue
+        seen_terms.add(term.lower())
         s.add(Paragraph(T(term), ST["gloss_t"]),
               Paragraph(T(d), ST["gloss_d"]))
 
@@ -3908,22 +4425,21 @@ def _parts_diagram():
   +-- project.toml                   title and settings
   |
   +-- manuscript/                    your scenes, in order
-  |     +-- 01-opening.md
-  |     +-- 02-tavern.md
-  |
-  +-- style.md                       your style guide (optional)
-  |
-  +-- dictionary.txt                 words this project never flags (optional)
+  |     +-- 01-opening.md              a scene outside any part
+  |     +-- 01-the-recall/             a part is a folder of scenes
+  |     |     +-- _part.md             its title and notes
+  |     |     +-- 01-rain.md
+  |     +-- _unplaced/                 written, but not in the book
   |
   +-- entities/                      notes on your story's things
-  |     +-- characters/
-  |     |     +-- elara-vance.md     name, type, aliases + free text
-  |     +-- places/
-  |     |     +-- thornwick.md
-  |     +-- objects/   factions/     (the same idea)
+  |     +-- characters/  places/  objects/  factions/
   |
-  +-- .drafts/                       originals behind pending AI drafts
+  +-- research/                      reference notes, plain Markdown
+  +-- style.md  dictionary.txt       your style guide, your word list
   |
+  +-- .trash/  .snapshots/          deleted scenes; history
+  +-- .comments/  .drafts/           comments; AI draft originals
+  +-- .assistant/chats/              saved conversations
   +-- .lorewrite/                    cache, rebuilt at any time"""
     for ln in txt.split("\n"):
         assert len(ln) <= 78
@@ -3955,8 +4471,6 @@ GLOSSARY = [
      "their headings."),
     ("phrase (dictionary)", "A dictionary entry of two or more words; it "
      "accepts the words inside every occurrence of the phrase."),
-    ("placeholder (desktop)", "A dimmed control for a feature that is not "
-     "built yet; its tooltip says //Not in LoreWriter yet//."),
     ("provenance line", "The comment under the title of a learned "
      "`style.md` that records when it was learned and from how much "
      "prose."),
@@ -4040,6 +4554,10 @@ GLOSSARY = [
     ("writer mode", "The view, opened with `f11`, that hides everything "
      "but the editor and status bar."),
 ]
+
+
+for _m in NEW_CHAPTERS:
+    GLOSSARY.extend(_m.GLOSSARY)
 
 
 # ---------------------------------------------------------------------------
