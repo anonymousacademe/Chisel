@@ -661,6 +661,15 @@ def build_story(st) -> list:
          "Chapters 13 and 14, Appendix A"],
         ["**Tutorial.** A new section uses parts, a snapshot and a sprint "
          "on the Residual copy.", "Appendix C"],
+        ["**Corrected after the polish pass.** The restore toast now says "
+         "where a scene went; the terminal Compare title shows the label "
+         "and time; word changes read +12, \u22125 and \u00b10 with "
+         "thousands separated, in both applications; the terminal part "
+         "commands always ask which part; the palette entry that switches "
+         "wording is //Call them chapters// or //Call them scenes//; "
+         "saved conversations in the terminal assistant are on `ctrl+t`; "
+         "and unplaced scenes are described accurately with regard to the "
+         "continuity check.", "Chapters 5, 8, 9, 12, 14"],
     ], [0.78, 0.22])
 
     # ============================================================ CH 1
@@ -3225,7 +3234,7 @@ the koi holo.<!--/ai-->""")
          "`d` delete; `esc` close (Chapter 9)."],
         ["Assistant window", "`enter` send; `ctrl+r` chat or research "
          "mode; `ctrl+o` open a cited note; `ctrl+s` save the answer to "
-         "notes; `ctrl+h` saved conversations; `ctrl+n` new chat; `esc` "
+         "notes; `ctrl+t` saved conversations; `ctrl+n` new chat; `esc` "
          "close (Chapter 9)."],
         ["Saved conversations", "`enter` open; `r` rename; `d` delete; "
          "`n` new chat; `esc` back (Chapter 9)."],

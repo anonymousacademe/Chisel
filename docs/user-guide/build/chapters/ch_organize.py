@@ -133,11 +133,12 @@ my-novel/
     ], [0.22, 0.38, 0.40])
     s.p("Some details are worth knowing.")
     s.bullets([
-        "The part actions of the terminal application work on the part of "
-        "the //open scene//. If the open file is not in a part (a loose "
-        "scene, an unplaced scene or a note), a picker asks //Rename "
-        "which part?//, //Move which part?// or //Delete which (empty) "
-        "part?//. In the desktop application the part actions work on the "
+        "The part actions of the terminal application always ask which "
+        "part: a picker titled //Rename which part?//, //Move which "
+        "part?// or //Delete which (empty) part?// lists the parts, with "
+        "the part of the open scene already chosen. It works with no "
+        "scene open, and with a note or an unplaced scene open. In the "
+        "desktop application the part actions work on the "
         "part you last clicked in the binder, or else the part of the "
         "open scene.",
         "Renaming a part changes only its title (the heading in "
@@ -276,8 +277,10 @@ my-novel/
     s.p("A scene returns to the end of the folder it was deleted from. If "
         "that part has since been deleted or renumbered away, the scene "
         "goes to Unplaced Scenes instead, and the desktop application "
-        "says so (//Restored “//title//” to Unplaced scenes (its part is "
-        "gone).//). It is given the next free number in that folder; its "
+        "says so: //Restored “Rain”: its part is gone, so it went to Unplaced "
+        "Scenes.// When the part still exists the toast names it (//Restored "
+        "“Rain” to The Recall.//), and a scene that was unplaced to begin "
+        "with is reported as //Restored “Rain” to Unplaced Scenes.// It is given the next free number in that folder; its "
         "neighbors are not renumbered, so it may differ from its old "
         "number. Its snapshots, comments and pending AI drafts come back "
         "with it. A research note returns to `research/` under its "
@@ -307,9 +310,10 @@ my-novel/
     s.code("""\
 [manuscript]
 unit = "chapter"        # "scene" (the default) or "chapter\"""")
-    s.p("In the terminal application run **Action · Toggle scene/chapter "
-        "labels**; it flips each time and says //Labels now say "
-        "'chapter'// (or //'scene'//). The palette then reads "
+    s.p("In the terminal application run **Action · Call them chapters** "
+        "(when the wording is scenes) or **Action · Call them scenes** "
+        "(when it is chapters); each time it flips, and says //Labels now "
+        "say 'chapter'// (or //'scene'//). The palette then reads "
         "**Chapter · Edit details**, **Action · New chapter**, **Action · "
         "Move current chapter up**, and so on, and the sidebar heading "
         "becomes //Chapters//. In the desktop application open the "
@@ -321,9 +325,8 @@ unit = "chapter"        # "scene" (the default) or "chapter\"""")
         "for it.")
     s.p("Some texts do not change: the //Unplaced Scenes// group names, a "
         "few messages such as //Open a scene first//, and the Trash's "
-        "wording. In the terminal palette, once the setting is "
-        "//chapter//, the toggle's own name turns into the odd "
-        "//Toggle chapter/chapter labels//; it still works.")
+        "wording. The palette entry that switches the setting keeps a "
+        "clear name of its own in both states.")
 
     # ------------------------------------------------------------------
     s.h2("Scene Details", idx=["scene details", "status", "point of view",
@@ -594,9 +597,9 @@ collections: [Needs continuity pass]
         "**Loose scenes always read first,** before every part, "
         "regardless of their numbers.",
         "**One level of folders.** A folder inside a part is ignored.",
-        "**The terminal part commands pick the open scene's part.** To "
-        "delete an empty part you need a scene open that is not in a "
-        "part (or a note), so that the picker appears.",
+        "**The terminal part commands ask which part,** with the open "
+        "scene's part preselected, so you can rename, move or delete any "
+        "part whatever is open.",
         "**The Trash and `_unplaced` are not hidden from version "
         "control.** Only `.lorewrite/` (the index cache) is ignored by the "
         "project's own ignore list, so a version-control sync includes "
@@ -607,9 +610,10 @@ collections: [Needs continuity pass]
         "my version**. Edits you make in a file manager are picked up "
         "the next time you open the project; **Rebuild the link index** "
         "(`f9` in the terminal) refreshes the cache.",
-        "**The restore toast.** The desktop application says “its part "
-        "is gone” whenever a restored scene lands in Unplaced Scenes, "
-        "even if it was unplaced to begin with.",
+        "**Unplaced scenes and the AI.** The continuity check, like "
+        "every AI feature, looks only at the scene you have open, so it "
+        "runs on an unplaced scene if you open one. Unplaced scenes are "
+        "simply not part of the book's order or word totals.",
     ])
 
     # ------------------------------------------------------------------
@@ -713,8 +717,11 @@ MSG_GUI = [
     ["Moved “//title//” to the Trash.", "A scene was deleted to the "
      "Trash."],
     ["Restored “//title//”.", "A scene was restored."],
-    ["Restored “//title//” to Unplaced scenes (its part is gone).",
-     "The scene's old place no longer exists, or it was unplaced."],
+    ["Restored “//title//” to //part//.", "A scene returned to its part."],
+    ["Restored “//title//” to Unplaced Scenes.", "A scene that was "
+     "unplaced went back to Unplaced Scenes."],
+    ["Restored “//title//”: its part is gone, so it went to Unplaced "
+     "Scenes.", "The scene's part no longer exists."],
     ["Emptied the Trash (//n//).", "Everything in the Trash is gone."],
     ["Labels now say “chapter”. Only the wording changes.",
      "The unit label was toggled."],
@@ -738,7 +745,8 @@ MSG_GUI = [
 
 PALETTE = [
     ["New part", "Add a part (a folder under manuscript/).", ""],
-    ["Rename part", "Retitle the open scene's part.", ""],
+    ["Rename part", "Retitle a part (asks which, the open scene's part "
+     "first).", ""],
     ["Move part up", "Swap the part with the one before it.", ""],
     ["Move part down", "Swap the part with the one after it.", ""],
     ["Delete empty part", "Remove a part that has no scenes.", ""],
@@ -755,8 +763,9 @@ PALETTE = [
     ["Delete current scene", "Move the open scene to the Trash.", ""],
     ["Open Trash", "Restore deleted scenes and research notes, delete "
      "them forever, or empty the Trash.", ""],
-    ["Toggle scene/chapter labels", "Call the manuscript's units scenes "
-     "or chapters (labels only).", ""],
+    ["Call them chapters (or Call them scenes)", "Switch the "
+     "manuscript's wording between scenes and chapters (labels only).",
+     ""],
     ["Edit details", "POV, place, purpose, status and word target "
      "(category Scene).", ""],
     ["Collections", "Tick the open scene's collections; add, rename, "
@@ -771,8 +780,9 @@ PROBLEMS = [
      "first, or name its folder 00-front-matter."],
     ["Delete empty part says the part still has scenes, or targets the "
      "wrong part (terminal).",
-     "It works on the part of the open scene. Move the scenes out, then "
-     "open a loose scene or a note so the picker lets you choose."],
+     "Choose the right part in the picker (the open scene's part is "
+     "preselected). A part with scenes cannot be deleted: move them out "
+     "first."],
     ["The scene numbers have gaps, or restored scenes have new numbers.",
      "Harmless. Only the destination of a move is renumbered, and a "
      "restored scene takes the next free number in its folder."],

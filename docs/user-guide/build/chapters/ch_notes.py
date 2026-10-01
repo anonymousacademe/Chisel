@@ -468,14 +468,14 @@ https://www.example.com/articles/tide-tables-explained.html
          "none: //No answer here cites a research note//."],
         ["ctrl+s", "Save the latest answer to your notes (below). If "
          "there is none: //There is no answer to save yet//."],
-        ["ctrl+h", "Open the Saved conversations window."],
+        ["ctrl+t", "Open the Saved conversations window."],
         ["ctrl+n", "Start a new chat."],
         ["esc", "Close the window. The conversation stays in memory while "
          "Lorewrite runs, and reopening the window shows it again."],
     ], [0.2, 0.8], mono_cols=(0,))
-    s.note("Some terminals treat `ctrl+h` as the backspace key, and then "
-           "it will do nothing in the window. Use the palette entry "
-           "**Action · Saved conversations** instead, which always works.")
+    s.note("The history key is `ctrl+t`, not `ctrl+h`: many terminals send "
+           "`ctrl+h` as the backspace key. The palette entry **Action · "
+           "Saved conversations** opens the same window.")
     s.p(f"The **Saved conversations** window ({R('fig_tui_chats')}) lists "
         "each chat as its title, the date and time and the number of "
         "messages, with //- open now// after the current one. Its keys "
@@ -823,7 +823,8 @@ PROBLEMS = [
      "Read the //Not attached// message: the item may be empty, may be "
      "over the limit of 12 items or about 24,000 characters, or its "
      "file may be gone."],
-    ["The history key does nothing in the terminal assistant.",
-     "Your terminal may treat ctrl+h as backspace. Use Action · Saved "
-     "conversations from the palette."],
+    ["I pressed ctrl+h in the terminal assistant and it deleted a "
+     "letter.", "The history key is ctrl+t. (Many terminals send ctrl+h "
+     "as backspace.) Action · Saved conversations in the palette opens "
+     "the same window."],
 ]

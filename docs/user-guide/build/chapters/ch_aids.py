@@ -264,6 +264,9 @@ def build(s, R):
         ["Desktop", "`Sprint done: 25 minutes, +310 words.`",
          "`Sprint stopped: 12 minutes, +120 words.`"],
     ], [0.16, 0.42, 0.42], mono_cols=(1, 2))
+    s.p("Word changes are written the same way everywhere in Lorewrite: "
+        "//+310//, //\u22125// (with a true minus sign) and //\u00b10//, "
+        "and thousands are separated, as in //+1,240//.")
     s.p("The terminal notice for a stopped sprint gives the length you "
         "//planned// (25 minutes), not the time it ran; the desktop "
         "notice, too, names the planned minutes. The record in your stats "

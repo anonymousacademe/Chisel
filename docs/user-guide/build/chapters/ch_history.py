@@ -124,7 +124,9 @@ def build(s, R):
         "gives the label, the date and time with how long ago it was, "
         "and the number of words in the snapshot, followed by how many "
         "words more or fewer the scene has now (for example //1,240 "
-        "words (+85 now)//). The word counts leave out any AI text you "
+        "words (+85 now)//; //−5// with a true minus sign for fewer, //±0// "
+        "for no change, and thousands separated as in //+1,240//). The word "
+        "counts leave out any AI text you "
         "have not accepted. The hint line along the bottom of the "
         "screen lists the keys.")
     s.figure("fig_snaps", "tui_snapshots", "The Snapshots screen of the "
@@ -151,9 +153,11 @@ def build(s, R):
     s.figure("fig_compare", "tui_compare", "The Compare screen: removed "
              "words in red and struck through, added words in green and "
              "underlined")
-    s.note("The title of the Compare screen shows the snapshot's file "
-           "name, such as //20261001-101500--auto//, not its friendly "
-           "label. The two are the same snapshot (see “On Disk” below).")
+    s.note("The title of the Compare screen names the snapshot as the "
+           "list does: its label, the date and time, and how long ago, "
+           "for example //Compare: first take, 2026-10-01 14:05 (just "
+           "now)//. The file name behind it is described under “On "
+           "Disk” below.")
     s.p("When any snapshot exists for the open scene, the status bar "
         "ends with an item such as //Snapshot 12 min ago//. It is "
         "absent if the scene has none.")
@@ -492,9 +496,8 @@ draft = 2
         "**Git commits everything**, including research notes, "
         "`.snapshots/` and `.drafts/`, not just scenes. The count in "
         "the suggested message counts scenes only.",
-        "**The terminal and desktop wording differ slightly** (for "
-        "example, //+-0// versus //±0// for no change in the word "
-        "count); the meaning is the same.",
+        "**Word changes are written one way** in both applications: "
+        "//+12//, //−5// and //±0//, with thousands separated.",
     ])
 
 
