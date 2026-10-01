@@ -81,3 +81,49 @@ async def test_daily_target_is_saved_from_settings(tmp_path: Path):
 
 def test_palette_lists_session_stats():
     assert any(a[0] == "Session stats" for a in ActionProvider.ACTIONS)
+
+
+async def test_focus_sprint_counts_down_ends_and_is_recorded(tmp_path: Path):
+    p = _project(tmp_path)
+    app = LorewriteApp(p)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        now = [app.stats._clock()]
+        app.stats._clock = lambda: now[0]
+        app._start_sprint(25, writer=True)
+        await pilot.pause()
+        assert app._writer_mode and app.stats.sprint is not None
+        assert "SPRINT 25:00" in app._status_text
+        app.editor.insert("four fresh words here\n", app.editor.document.end)
+        await pilot.pause()
+        app.save_current()
+        now[0] += 600
+        app._sprint_tick()
+        assert "SPRINT 15:00 (+4)" in app._status_text
+        now[0] += 900
+        app._sprint_tick()                     # time is up
+        await pilot.pause()
+        assert app.stats.sprint is None and not app._writer_mode
+        rec = app.stats.summary()["sprints"][0]
+        assert rec["words"] == 4 and rec["completed"] and rec["minutes"] == 25
+        assert "SPRINT" not in app._status_text
+
+
+async def test_focus_sprint_can_be_stopped_early(tmp_path: Path):
+    app = LorewriteApp(_project(tmp_path))
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app._start_sprint(15, writer=False)
+        assert not app._writer_mode
+        app.focus_sprint()                    # running: offers to stop
+        await pilot.pause()
+        from lorewrite.tui.structurescreens import ChoiceScreen
+        assert isinstance(app.screen, ChoiceScreen)
+        app.screen.dismiss("stop")
+        await pilot.pause()
+        assert app.stats.sprint is None
+        assert app.stats.summary()["sprints"][0]["completed"] is False
+
+
+def test_palette_lists_focus_sprint():
+    assert any(a[0] == "Focus sprint" for a in ActionProvider.ACTIONS)

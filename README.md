@@ -85,6 +85,9 @@ design and roadmap.
   ones not at all), active minutes, sessions, a 30-day chart and a streak of days that met your daily
   word target (Settings; default 500, 0 = off). The status bar shows the streak and
   `+N / target words today`; click it (desktop) or pick *Action · Session stats* (terminal).
+- **Focus sprints**: 15 / 25 / 45 / custom minutes with a countdown in the status bar, optional
+  writer / focus mode, a quiet notice (no sound) with the words you wrote, recorded in your stats.
+  Desktop: the timer button in the status bar; terminal: *Action · Focus sprint*.
 - Writer mode (`f11`), first-run tour, sidebar filter, focus-friendly
   keybindings (`alt+←/→` to flip scenes)
 - **AI alias finder** (`ctrl+l`): finds other ways your prose refers to known

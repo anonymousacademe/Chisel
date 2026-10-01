@@ -20,7 +20,8 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { AliasReviewDialog, CanonReviewDialog, StyleReviewDialog } from "./components/ReviewDialogs";
 import { SpellMenu } from "./components/SpellMenu";
 import { StatusBar } from "./components/StatusBar";
-import { StatsDialog } from "./components/StatsDialog";
+import { SprintDialog, StatsDialog } from "./components/StatsDialog";
+import { remaining, sprintNotice } from "./data/stats";
 import { Launch } from "./components/Launch";
 import { QuickSwitcher } from "./components/QuickSwitcher";
 import { ConfirmDialog, Menu, PromptDialog, type MenuItem } from "./components/Dialogs";
@@ -49,6 +50,8 @@ type Dialog =
   | { kind: "details" }
   | { kind: "snapshots" }
   | { kind: "stats" }
+  | { kind: "sprint" }
+  | { kind: "stop-sprint" }
   | { kind: "collections" }
   | { kind: "new-research" }
   | { kind: "chats" }
@@ -79,6 +82,10 @@ export default function App() {
   const [ws, setWs] = useState<Workspace | null | undefined>(undefined);
   const [styleStatus, setStyleStatus] = useState<StyleStatus | null>(null);
   const lastPing = useRef(0);   // writing stats: last typing ping (ms)
+  const sprintFocusStarted = useRef(false);   // the sprint turned focus mode on, so it turns it off
+  const [sprintFocus, setSprintFocus] = useState(() => {
+    try { return localStorage.getItem("lw-sprint-focus") === "1"; } catch { return false; }
+  });
   // The "Your style" card follows the project (refresh() runs after every save of style.md).
   useEffect(() => {
     if (!ws) return;
@@ -276,6 +283,41 @@ export default function App() {
     };
   }, [saver, openDoc, notify]);
 
+  // -- focus sprint (the countdown is client-side; the server keeps the start/end and counts the words) --
+  const sprint = ws?.status.stats?.sprint ?? null;
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const sprintStart = sprint ? sprint.startedAt : null;
+  useEffect(() => {
+    if (sprintStart === null) return;
+    const t = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [sprintStart]);   // one timer per sprint
+  const startSprint = async (minutes: number, focusMode: boolean) => {
+    setDialog(null);
+    const r = await api.sprintStart(minutes);
+    if (!r.ok) return notify(r.error, "error");
+    sprintFocusStarted.current = focusMode && !focus;
+    try { localStorage.setItem("lw-sprint-focus", focusMode ? "1" : "0"); } catch { /* storage may be blocked */ }
+    setSprintFocus(focusMode);
+    if (focusMode) setFocus(true);
+    setNowMs(Date.now());
+    await refresh();
+  };
+  const endSprint = async (cancelled: boolean) => {
+    await saver.flush();   // the last words count
+    const r = await api.sprintEnd(cancelled);
+    if (sprintFocusStarted.current) { sprintFocusStarted.current = false; setFocus(false); }
+    await refresh();
+    if (!r.ok) return notify(r.error, "error");
+    notify(sprintNotice(r.sprint.minutes, r.sprint.words, cancelled),
+      "info", { label: "Session stats", run: () => setDialog({ kind: "stats" }) });
+  };
+  const sprintEnded = useRef(false);
+  const sprintDue = !!sprint && remaining(sprint, nowMs) <= 0;
+  useEffect(() => {
+    if (!sprint) { sprintEnded.current = false; return; }
+    if (sprintDue && !sprintEnded.current) { sprintEnded.current = true; void endSprint(false); }
+  });   // fires once per sprint, when its time is up
   if (ws === undefined) return <div className="lw-app lw-loading">Loading project…</div>;
   if (ws === null) {
     return (
@@ -1110,7 +1152,8 @@ export default function App() {
             style={ws ? styleStatus : null} onLearnStyle={() => void learnStyle()} onOpenStyle={() => void openStyle()} />
         )}
       </div>
-      <StatusBar stats={ws.status.stats} onStats={() => setDialog({ kind: "stats" })} projectWords={ws.status.projectWords} aiCost={ws.status.aiCost}
+      <StatusBar stats={ws.status.stats} onStats={() => setDialog({ kind: "stats" })}
+        sprintLeft={sprint ? remaining(sprint, nowMs) : null} onSprint={() => setDialog(sprint ? { kind: "stop-sprint" } : { kind: "sprint" })} projectWords={ws.status.projectWords} aiCost={ws.status.aiCost}
         line={cursor.line} col={cursor.col} zoom={zoom} onZoom={cycleZoom}
         spelling={isScene ? spellCount : null} onSpelling={jumpToMisspelling}
         snapshotAt={isScene ? snapshotAt : undefined} onSnapshots={openHistory}
@@ -1180,6 +1223,12 @@ export default function App() {
           onConfirm={() => void performMove(dialog.plan)} onClose={() => setDialog(null)} />
       )}
       {dialog?.kind === "stats" && <StatsDialog onClose={() => setDialog(null)} notify={notify} />}
+      {dialog?.kind === "sprint" && <SprintDialog initialFocus={sprintFocus} onClose={() => setDialog(null)} onStart={(m, f) => void startSprint(m, f)} />}
+      {dialog?.kind === "stop-sprint" && (
+        <ConfirmDialog title="Stop the sprint" confirm="Stop sprint"
+          message={<>Stop the focus sprint now? What you wrote so far is still recorded in today’s stats.</>}
+          onConfirm={() => { setDialog(null); void endSprint(true); }} onClose={() => setDialog(null)} />
+      )}
       {dialog?.kind === "trash" && (
         <TrashDialog onClose={() => setDialog(null)} notify={notify}
           onChanged={() => void refresh()}

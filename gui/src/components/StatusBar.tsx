@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { GitBranch, Clock3, CloudCheck, CloudUpload, CloudOff, Target, ChevronsUpDown, Coins, SpellCheck } from "lucide-react";
+import { Timer, GitBranch, Clock3, CloudCheck, CloudUpload, CloudOff, Target, ChevronsUpDown, Coins, SpellCheck } from "lucide-react";
 import { Icon } from "./primitives";
 import type { StatsBrief, SyncInfo } from "../data/types";
 import { syncTip } from "../data/syncText";
 import { fmt } from "../data/tree";
 import { agoText } from "../data/snapshots";
+import { clock } from "../data/stats";
 
 export function StatusBar(props: {
   projectWords: number; aiCost: number;
@@ -18,6 +19,8 @@ export function StatusBar(props: {
   sync: SyncInfo | null; onSync: (anchor: HTMLElement) => void;
   /** Writing stats (null: no project); the buttons open the Session stats page. */
   stats: StatsBrief | null; onStats: () => void;
+  /** Seconds left in the running sprint (null: none); the button starts one or stops it. */
+  sprintLeft: number | null; onSprint: () => void;
 }) {
   const [, tick] = useState(0);
   useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 30_000); return () => clearInterval(t); }, []);
@@ -51,6 +54,12 @@ export function StatusBar(props: {
       <div className="lw-row">
         {stats && (
           <>
+            <button className={`lw-status__item${props.sprintLeft !== null ? " is-accent" : ""}`} onClick={props.onSprint}
+              title={props.sprintLeft !== null ? "A focus sprint is running: click to stop it" : "Start a focus sprint"}>
+              <Icon icon={Timer} size={12} stroke={1.5} color="currentColor" />
+              {props.sprintLeft !== null ? `${clock(props.sprintLeft)} · ${stats.sprint ? (stats.sprint.words >= 0 ? "+" : "−") + Math.abs(stats.sprint.words) : ""}` : "Sprint"}
+            </button>
+            <span className="lw-status__div" />
             <button className="lw-status__item" onClick={props.onStats}
               title={stats.streak ? `${stats.streak} day${stats.streak === 1 ? "" : "s"} in a row${stats.target ? ` at ${fmt(stats.target)}+ words` : ""}` : "No streak yet: write to the daily target to start one"}>
               <span className="lw-dot" />Streak {stats.streak}

@@ -167,3 +167,23 @@ def test_cancelled_sprint_is_recorded_unfinished(tmp_path):
         except ValueError:
             continue
         raise AssertionError("bad sprint length accepted")
+
+
+def test_clock_text():
+    assert stats.clock(1500) == "25:00"
+    assert stats.clock(61.2) == "1:02"
+    assert stats.clock(-4) == "0:00"
+
+
+def test_close_records_a_running_sprint_as_stopped(tmp_path):
+    c = Clock()
+    t = tracker(tmp_path, c)
+    t.start_sprint(25)
+    t.close()                      # barely begun, nothing written: dropped
+    assert tracker(tmp_path, c).summary()["sprints"] == []
+    t = tracker(tmp_path, c)
+    t.start_sprint(25)
+    c.advance(300)
+    t.close()
+    s = tracker(tmp_path, c).summary()["sprints"]
+    assert len(s) == 1 and s[0]["completed"] is False and s[0]["elapsed"] == 300

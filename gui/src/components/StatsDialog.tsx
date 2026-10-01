@@ -51,3 +51,42 @@ export function StatsDialog({ onClose, notify }: { onClose: () => void; notify: 
     </Modal>
   );
 }
+
+const SPRINT_LENGTHS = [15, 25, 45];
+
+/** Pick a sprint length (15 / 25 / 45 / custom) and whether to hide the chrome while it runs. */
+export function SprintDialog({ initialFocus, onStart, onClose }: {
+  initialFocus: boolean; onStart: (minutes: number, focusMode: boolean) => void; onClose: () => void;
+}) {
+  const [choice, setChoice] = useState<number | "custom">(25);
+  const [custom, setCustom] = useState("30");
+  const [focus, setFocus] = useState(initialFocus);
+  const minutes = choice === "custom" ? Number(custom) : choice;
+  const valid = Number.isInteger(minutes) && minutes >= 1 && minutes <= 240;
+  const go = () => { if (valid) onStart(minutes, focus); };
+  return (
+    <Modal title="Focus sprint" onClose={onClose}>
+      <p className="lw-dialog__message">Write against the clock. The countdown sits in the status bar; when it ends you get a quiet notice with the words you wrote. Nothing is sent anywhere.</p>
+      <div className="lw-dialog__types" role="radiogroup" aria-label="Sprint length">
+        {SPRINT_LENGTHS.map((m) => (
+          <button key={m} role="radio" aria-checked={choice === m} className={`lw-chip lw-chip--pick${choice === m ? " is-on" : ""}`}
+            onClick={() => setChoice(m)}>{m} min</button>
+        ))}
+        <button role="radio" aria-checked={choice === "custom"} className={`lw-chip lw-chip--pick${choice === "custom" ? " is-on" : ""}`}
+          onClick={() => setChoice("custom")}>Custom</button>
+        {choice === "custom" && (
+          <input className="lw-launch__input lw-settings__narrow" autoFocus inputMode="numeric" aria-label="Sprint minutes" value={custom}
+            onChange={(e) => setCustom(e.target.value.replace(/[^\d]/g, ""))} onKeyDown={(e) => { if (e.key === "Enter") go(); }} />
+        )}
+      </div>
+      <label className="lw-check">
+        <input type="checkbox" checked={focus} onChange={(e) => setFocus(e.target.checked)} />
+        Hide everything but the page while it runs <span className="lw-faint">(focus mode, F11)</span>
+      </label>
+      <div className="lw-dialog__buttons">
+        <button className="lw-btn" onClick={onClose}>Cancel</button>
+        <button className="lw-btn lw-btn--primary" disabled={!valid} onClick={go}>Start sprint</button>
+      </div>
+    </Modal>
+  );
+}

@@ -101,6 +101,12 @@ def streak(days: dict[str, dict], target: int, today: date) -> int:
     return n
 
 
+def clock(seconds: float) -> str:
+    """``24:05`` for a countdown (whole seconds, rounded up)."""
+    s = max(0, int(-(-seconds // 1)))
+    return f"{s // 60}:{s % 60:02d}"
+
+
 SPARK = "▁▂▃▄▅▆▇█"
 
 
@@ -337,7 +343,13 @@ class Tracker:
             }
 
     def close(self) -> None:
+        """Flush. A sprint still running (the app is closing) is recorded as
+        stopped early, unless it has barely begun and written nothing."""
         with self._lock:
+            sp = self.sprint
+            if sp is not None and (self._clock() - sp.started >= 60 or self.sprint_words()):
+                self.finish_sprint(cancelled=True)
+            self.sprint = None
             self.flush()
 
 

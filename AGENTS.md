@@ -171,6 +171,9 @@ PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --
   back must `seen` it or the difference is counted as writing. Accepting an AI draft calls `accepted`
   (AI words; the baseline moves) *before* the text changes. The GUI Api holds one Tracker per open
   project (`Api.stats`); typing pings arrive through `stats_touch` (throttled client-side).
+  A focus sprint lives in the Tracker (`start_sprint` / `finish_sprint`); the GUI ends it from a client
+  timer (`App.tsx`, hooks above the early returns) and the TUI from a 1 s `set_interval`; both save
+  first so the last words count. Tests fake time through `Tracker(clock=...)`.
 - **Git sync is explicit** (`core/sync.py`). `status()` is the only call that may run by itself
   (read-only, 5 s timeout, never on the UI thread: TUI worker, GUI debounced bridge call outside
   `self._lock`; `get_workspace` must not call it). `commit` / `push` / `init` run only from a

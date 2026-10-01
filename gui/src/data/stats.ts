@@ -32,3 +32,9 @@ export function clock(seconds: number): string {
 export function remaining(sprint: Pick<SprintState, "endsAt">, nowMs: number): number {
   return Math.max(0, sprint.endsAt - nowMs / 1000);
 }
+
+/** "Sprint done: 25 minutes, +312 words." (or stopped). */
+export function sprintNotice(minutes: number, words: number, cancelled: boolean): string {
+  const w = Math.abs(words);
+  return `${cancelled ? "Sprint stopped" : "Sprint done"}: ${minutes} minute${minutes === 1 ? "" : "s"}, ${words < 0 ? "−" : "+"}${w.toLocaleString("en-US")} word${w === 1 ? "" : "s"}.`;
+}

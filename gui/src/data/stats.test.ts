@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chartBars, clock, dayLabel, remaining, signedWords } from "./stats";
+import { chartBars, clock, dayLabel, remaining, signedWords, sprintNotice } from "./stats";
 
 describe("stats helpers", () => {
   it("signs words", () => {
@@ -26,5 +26,10 @@ describe("stats helpers", () => {
   it("computes remaining from the server's end time", () => {
     expect(remaining({ endsAt: 1000 }, 400_000)).toBe(600);
     expect(remaining({ endsAt: 1000 }, 2_000_000)).toBe(0);
+  });
+  it("words the sprint notice", () => {
+    expect(sprintNotice(25, 1312, false)).toBe("Sprint done: 25 minutes, +1,312 words.");
+    expect(sprintNotice(1, 1, true)).toBe("Sprint stopped: 1 minute, +1 word.");
+    expect(sprintNotice(15, -4, false)).toBe("Sprint done: 15 minutes, −4 words.");
   });
 });

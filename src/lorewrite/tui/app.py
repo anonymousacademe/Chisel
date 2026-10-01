@@ -126,6 +126,7 @@ HELP_TEXT = """\
   Scene · Edit details — POV, place, purpose, status, word target
   Open Trash — restore deleted scenes, delete forever, empty the Trash
   Scene · Snapshots / Snapshot scene / Snapshot all scenes — compare and restore
+  Focus sprint — 15 / 25 / 45 / custom minutes, countdown in the status bar, optional writer mode
   Session stats — today, this session, 30-day sparkline, streak, daily target (Settings)
   Start new draft — snapshot the whole book as "end of draft N", then count up
   Commit changes / Push / Initialize git — only when you pick them; the status
@@ -466,6 +467,8 @@ class LorewriteApp(App):
         self._spell_ignores = spelling.SessionIgnores()
         self.stats: writing_stats.Tracker | None = None   # personal writing stats (state dir)
         self._stats_brief: dict | None = None
+        self._sprint_timer = None
+        self._sprint_writer = False   # the sprint switched writer mode on, so it switches it off
         self._skip_touch = False   # the Changed event of a programmatic load is not typing
 
     # -- layout ---------------------------------------------------------------
@@ -560,6 +563,8 @@ class LorewriteApp(App):
         if self.stats is not None:
             self.stats.close()
         self.stats = writing_stats.Tracker(project.root)
+        if self._sprint_timer is None:
+            self._sprint_timer = self.set_interval(1.0, self._sprint_tick)
         self._recount_project_words()
         self._refresh_stats()
         scenes = project.list_scenes()
@@ -614,6 +619,88 @@ class LorewriteApp(App):
         self._stats_brief = {"target": s["target"], "streak": s["streak"],
                              "todayWords": s["today"]["words"], "sprint": s["sprint"]}
 
+    # -- focus sprint (Wave 4.2): a countdown in the status bar, optionally in writer mode ---
+
+    SPRINT_CHOICES = [("15 minutes", 15), ("25 minutes", 25), ("45 minutes", 45), ("Custom length…", 0)]
+
+    def focus_sprint(self) -> None:
+        """Action · Focus sprint: start a timed writing sprint, or stop the running one."""
+        if self.stats is None:
+            return
+        if self.stats.sprint is not None:
+            def _stop(choice) -> None:
+                if choice == "stop":
+                    self._end_sprint(cancelled=True)
+
+            self.push_screen(ChoiceScreen(
+                f"Sprint running: {writing_stats.clock(self.stats.sprint_state()['remaining'])} left",
+                [("Stop the sprint (keeps what you wrote)", "stop"), ("Keep going", "keep")]), _stop)
+            return
+
+        def _length(minutes) -> None:
+            if minutes is None:
+                return
+            if minutes == 0:
+                def _custom(raw) -> None:
+                    try:
+                        self._ask_sprint_mode(int(raw or 0))
+                    except ValueError:
+                        self.notify("A sprint length is a whole number of minutes", severity="warning")
+
+                self.push_screen(NamePrompt("Sprint length in minutes (1-240):", "30"), _custom)
+            else:
+                self._ask_sprint_mode(minutes)
+
+        self.push_screen(ChoiceScreen("Focus sprint - how long?", self.SPRINT_CHOICES), _length)
+
+    def _ask_sprint_mode(self, minutes: int) -> None:
+        def _go(writer) -> None:
+            if writer is not None:
+                self._start_sprint(minutes, bool(writer))
+
+        self.push_screen(ChoiceScreen(
+            f"{minutes}-minute sprint", [("Start, keep the screen as it is", False),
+                                         ("Start in writer mode (hides everything but the editor)", True)]), _go)
+
+    def _start_sprint(self, minutes: int, writer: bool) -> None:
+        try:
+            self.stats.start_sprint(minutes)
+        except ValueError as exc:
+            self.notify(str(exc), severity="warning")
+            return
+        self._sprint_writer = writer and not self._writer_mode
+        if self._sprint_writer:
+            self.writer_mode()
+        self._refresh_stats()
+        self.update_status()
+        self.notify(f"Sprint started: {minutes} minutes", timeout=2)
+
+    def _sprint_tick(self) -> None:
+        if self.stats is None or self.stats.sprint is None:
+            return
+        state = self.stats.sprint_state()
+        if state["done"]:
+            self._end_sprint(cancelled=False)
+        else:
+            self._refresh_stats()
+            self.update_status()
+
+    def _end_sprint(self, cancelled: bool) -> None:
+        if self.stats is None or self.stats.sprint is None:
+            return
+        self.save_current()   # the last words count
+        rec = self.stats.finish_sprint(cancelled=cancelled)
+        if getattr(self, "_sprint_writer", False):
+            self._sprint_writer = False
+            if self._writer_mode:
+                self.writer_mode()
+        self._refresh_stats()
+        self.update_status()
+        if rec is not None:
+            verb = "stopped" if cancelled else "done"
+            self.notify(f"Sprint {verb}: {rec['minutes']} minutes, {rec['words']:+} words "
+                        f"(today {self._stats_brief['todayWords']:+})", timeout=12)
+
     def open_stats(self) -> None:
         """Action · Session stats: today, this session, the last 30 days, streak."""
         if self.stats is None:
@@ -642,6 +729,8 @@ class LorewriteApp(App):
             self._spell_timer.stop()
         if self._sync_timer is not None:
             self._sync_timer.stop()
+        if self._sprint_timer is not None:
+            self._sprint_timer.stop()
         try:
             self._write_to_disk()  # final flush; UI updates skipped on teardown
         except Exception:
@@ -829,6 +918,9 @@ class LorewriteApp(App):
             parts.insert(3, goal)
             if b["streak"]:
                 parts.insert(4, f"streak {b['streak']}")
+            if b["sprint"]:
+                sp = b["sprint"]
+                parts.insert(1, f"SPRINT {writing_stats.clock(sp['remaining'])} ({sp['words']:+})")
         parts.insert(1, f"Draft {self.project.draft}")
         if self._sync is not None:
             parts.insert(2, self._sync.label)

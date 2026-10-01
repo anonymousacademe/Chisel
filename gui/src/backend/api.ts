@@ -1,7 +1,7 @@
 import type { Misspelling, Span } from "../editor/spans";
 import type {
   AliasSuggestion, AttachItem, AttachKind, AttachReport, CanonProposal, ChatSummary, CollectionColor, CommentRow, SavedChat, CollectionSummary, DiffSegment, SnapshotRow, SyncInfo, DetailsPatch, DocumentPayload, Remap, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
-  Issue, ModelKind, ModelOption, RecentProject, SceneMention, SettingsInfo, EditorPrefs, StatsSummary, StyleStatus, Workspace,
+  Issue, ModelKind, ModelOption, RecentProject, SceneMention, SettingsInfo, EditorPrefs, SprintRecord, SprintState, StatsSummary, StyleStatus, Workspace,
 } from "../data/types";
 import { call } from "./transport";
 
@@ -129,6 +129,9 @@ export const api = {
     call("set_settings", models ?? null, editor ?? null, spellcheck ?? null, autoSnapshot ?? null, dailyTarget ?? null),
   /** Session stats page data; stats live in the user state dir, not the project. */
   statsSummary: () => call<{ stats: StatsSummary }>("stats_summary"),
+  /** Focus sprint: start (1-240 minutes) / end (the words written are recorded in today's stats). */
+  sprintStart: (minutes: number) => call<{ sprint: SprintState }>("sprint_start", minutes),
+  sprintEnd: (cancelled = false) => call<{ sprint: SprintRecord }>("sprint_end", cancelled),
   /** The author is typing (active-time ping, throttled by the caller). */
   statsTouch: () => call("stats_touch"),
   setApiKey: (key: string) => call("set_api_key", key),

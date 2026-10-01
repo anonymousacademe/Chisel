@@ -1481,6 +1481,8 @@ class Api:
 
     @bridge
     def close(self) -> dict:
+        if self.stats is not None:  # flush the writing stats (a running sprint is recorded as stopped)
+            self.stats.close()
         if self._window is not None:
             self._window.destroy()
         return {}
