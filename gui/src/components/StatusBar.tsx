@@ -12,6 +12,7 @@ export function StatusBar(props: {
   spelling: number | null; onSpelling: () => void;
   /** Latest snapshot of the open scene (ISO local time); undefined = no scene is open. */
   snapshotAt: string | null | undefined; onSnapshots: () => void;
+  draft: number; onDraft: (anchor: HTMLElement) => void;
 }) {
   const [, tick] = useState(0);
   useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 30_000); return () => clearInterval(t); }, []);
@@ -19,7 +20,9 @@ export function StatusBar(props: {
   return (
     <footer className="lw-status">
       <div className="lw-row">
-        <span className="lw-status__item" {...placeholderProps}><Icon icon={GitBranch} size={12} stroke={1.5} color="var(--lw-text-faint)" />Draft</span>
+        <button className="lw-status__item" title="Which draft of the book this is: click to start the next one" onClick={(e) => props.onDraft(e.currentTarget)}>
+          <Icon icon={GitBranch} size={12} stroke={1.5} color="var(--lw-text-faint)" />Draft {props.draft}
+        </button>
         <span className="lw-status__div" />
         {props.snapshotAt === undefined
           ? <span className="lw-status__item" title="Open a scene to see its snapshots"><Icon icon={Clock3} size={12} stroke={1.5} color="var(--lw-text-faint)" />Snapshots</span>

@@ -42,6 +42,7 @@ type Dialog =
   | { kind: "trash" }
   | { kind: "details" }
   | { kind: "snapshots" }
+  | { kind: "new-draft" }
   | { kind: "new-note"; name: string; openAfter: boolean }
   | { kind: "generate"; mode: "draft" | "rewrite"; from: number; to: number; title: string; label: string; initial: string }
   | { kind: "aliases"; items: AliasSuggestion[] }
@@ -725,6 +726,20 @@ export default function App() {
     notify("Snapshot restored. The text from before is kept as “Before a restore”.");
     return true;
   };
+  const openDraftMenu = (anchor: HTMLElement) => setMenu({ anchor, items: [
+    { label: `Draft ${ws.project.draft}`, separator: true, onSelect: () => {} },
+    { label: `Start draft ${ws.project.draft + 1}…`, onSelect: () => setDialog({ kind: "new-draft" }) },
+  ] });
+  const startNewDraft = async () => {
+    setDialog(null);
+    if (!(await saver.flush())) return notify("Could not save the current document first.", "error");
+    const r = await api.startNewDraft();
+    if (!r.ok) return notify(r.error, "error");
+    await refresh();
+    const d = docRef.current;
+    if (d?.kind === "scene") { const s = await api.listSnapshots(d.id); if (s.ok) setSnapshotAt(s.snapshotAt); }
+    notify(`Draft ${r.previous} is saved as snapshots (“End of draft ${r.previous}”). You are now on draft ${r.draft}.`);
+  };
   const part = ws.parts.find((p) => p.id === (partFocus ?? doc?.partId)) ?? null;
   const openSceneMenu = (anchor: HTMLElement) => setMenu({
     anchor, items: [
@@ -756,7 +771,8 @@ export default function App() {
     <div className="lw-app" style={{ ["--lw-zoom" as string]: zoom / 100 }}>
       <TitleBar projectTitle={ws.project.title} documentLabel={docLabel} saveState={saveState}
         assistantOpen={showAssistant} onToggleAssistant={() => setAssistantOpen((o) => !o)}
-        onSearch={() => setSwitcher(true)} onClose={() => void closeWindow()} onMore={openProjectMenu} />
+        onSearch={() => setSwitcher(true)} onClose={() => void closeWindow()} onMore={openProjectMenu}
+        draft={ws.project.draft} onDraft={openDraftMenu} />
       <div className="lw-workspace">
         <ActivityRail view={rail} assistantOpen={showAssistant} onView={onRail} onSettings={() => void openSettings()} onHistory={openHistory} badge={0}
           initials={ws.project.initials} author={ws.project.author} />
@@ -796,7 +812,8 @@ export default function App() {
       <StatusBar sessionWords={ws.status.sessionWords} projectWords={ws.status.projectWords} aiCost={ws.status.aiCost}
         line={cursor.line} col={cursor.col} zoom={zoom} onZoom={cycleZoom}
         spelling={isScene ? spellCount : null} onSpelling={jumpToMisspelling}
-        snapshotAt={isScene ? snapshotAt : undefined} onSnapshots={openHistory} />
+        snapshotAt={isScene ? snapshotAt : undefined} onSnapshots={openHistory}
+        draft={ws.project.draft} onDraft={openDraftMenu} />
       {switcher && <QuickSwitcher ws={ws} onClose={() => setSwitcher(false)}
         onPick={(id) => { setSwitcher(false); void openDoc(id); }} />}
       {spellTarget && (
@@ -869,6 +886,11 @@ export default function App() {
       {dialog?.kind === "snapshots" && doc?.kind === "scene" && (
         <SnapshotsDialog docId={doc.id} title={doc.title} unit={unit} getText={liveText} notify={notify}
           onChanged={setSnapshotAt} onRestore={restoreSnapshot} onClose={() => setDialog(null)} />
+      )}
+      {dialog?.kind === "new-draft" && (
+        <ConfirmDialog title={`Start draft ${ws.project.draft + 1}`} confirm="Start new draft" tone="primary"
+          message={<>Every {unit} is snapshotted now as “End of draft {ws.project.draft}” (look for it under History), then the book counts as draft {ws.project.draft + 1}. Your text is not changed.</>}
+          onConfirm={() => void startNewDraft()} onClose={() => setDialog(null)} />
       )}
       {dialog?.kind === "details" && doc?.kind === "scene" && doc.details && (
         <DetailsDialog details={doc.details} entities={ws.entities} unit={unit}

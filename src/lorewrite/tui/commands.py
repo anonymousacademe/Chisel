@@ -115,6 +115,8 @@ class ActionProvider(_Provider):
          "Keep a verbatim copy of the open scene you can compare and restore"),
         ("Snapshot all scenes", "snapshot_all_prompt",
          "One snapshot of every scene in the project, with one label"),
+        ("Start new draft", "start_new_draft",
+         "Snapshot every scene as the end of this draft, then count up to the next draft"),
         ("New part", "new_part_prompt", "Add a part (a folder under manuscript/)"),
         ("Rename part", "rename_part_prompt", "Retitle the open scene's part"),
         ("Move part up", "move_part_up", "Swap the part with the one before it"),

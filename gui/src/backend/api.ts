@@ -51,6 +51,8 @@ export const api = {
   /** Rewrites the scene file: detach the save controller and reopen the document afterwards. */
   restoreSnapshot: (id: string, snapshotId: string, text?: string) => call<{ snapshotAt: string | null }>("restore_snapshot", id, snapshotId, text ?? null),
   deleteSnapshot: (id: string, snapshotId: string) => call<{ snapshotAt: string | null }>("delete_snapshot", id, snapshotId),
+  /** Snapshots every scene as end-of-draft-N and counts up. */
+  startNewDraft: () => call<{ draft: number; previous: number }>("start_new_draft"),
   snapshotAll: (label: string) => call<{ count: number }>("snapshot_all", label),
   setUnit: (unit: Unit) => call<{ unit: Unit }>("set_unit", unit),
   rebuildIndex: () => call("rebuild_index"),

@@ -176,3 +176,31 @@ async def test_accept_all_drafts_snapshots_first(tmp_path: Path):
         assert [s.label for s in snaps] == ["before-accept-all"]
         assert snaps[0].path.read_text() == text
         assert "<!--ai" not in app.editor.text
+
+
+async def test_start_new_draft_confirms_snapshots_and_counts_up(tmp_path: Path):
+    from textual.widgets import Label
+    p, scene = _project(tmp_path)
+    app = LorewriteApp(p)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.open_file(scene)
+        await pilot.pause()
+        assert "Draft 1" in app._status_text
+        app.start_new_draft()
+        await pilot.pause()
+        await pilot.press("n")              # decline: nothing happens
+        await pilot.pause()
+        assert p.draft == 1 and snapshots.list_snapshots(p, scene) == []
+        app.start_new_draft()
+        await pilot.pause()
+        await pilot.press("y")
+        await pilot.pause()
+        assert p.draft == 2 and "Draft 2" in app._status_text
+        for s in p.all_scene_files():
+            assert [x.label for x in snapshots.list_snapshots(p, s)] == ["end-of-draft-1"]
+        assert Project.open(p.root).draft == 2
+
+
+def test_palette_has_start_new_draft():
+    assert "start_new_draft" in {m for _, m, _ in ActionProvider.ACTIONS}

@@ -41,6 +41,9 @@ design and roadmap.
   first. One is also taken before *Accept/Reject all drafts* and, once a day, before the
   first edit of a scene (Settings → History). *Scene · Snapshots* in the palette; the History
   button in the desktop app.
+- **Drafts**: *Start new draft* snapshots the whole book as "end of draft N" and counts
+  up (`[manuscript] draft = N` in `project.toml`); the desktop title bar and both status bars
+  show "Draft N".
 - **Scene details** (POV, place, purpose, status, word target) are the scene's own
   YAML frontmatter — Obsidian-compatible, written only when you set a field, and
   never counted as prose, spell-checked, or sent to the AI as text (the AI does get

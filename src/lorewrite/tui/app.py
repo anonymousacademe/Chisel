@@ -102,6 +102,7 @@ HELP_TEXT = """\
   Scene · Edit details — POV, place, purpose, status, word target
   Open Trash — restore deleted scenes, delete forever, empty the Trash
   Scene · Snapshots / Snapshot scene / Snapshot all scenes — compare and restore
+  Start new draft — snapshot the whole book as "end of draft N", then count up
   Toggle scene/chapter labels (wording only)
   Settings — API key, models, editor preferences, spell check
   Toggle spell check / Add selection to dictionary / Open project dictionary
@@ -699,6 +700,7 @@ class LorewriteApp(App):
             parts.append(hint)
         if LEDGER.session_total() > 0:
             parts.append(format_cost(LEDGER.session_total()))
+        parts.insert(1, f"Draft {self.project.draft}")
         if self._snapshot_at is not None and self._is_scene(self.current_path):
             parts.append(f"Snapshot {snapshots.ago(self._snapshot_at)}")
         self._status_text = "  |  ".join(parts)
@@ -1925,6 +1927,31 @@ class LorewriteApp(App):
             "Replace this scene with the snapshot?\n"
             "The text as it is now is snapshotted first, so you can come back to it.",
             confirm_label="Restore"), _go)
+
+    def start_new_draft(self) -> None:
+        """Action · Start new draft: snapshot every scene as end-of-draft-N, count up."""
+        if self.project is None:
+            return
+        n = self.project.draft
+
+        def _go(ok: bool) -> None:
+            if not ok:
+                return
+            self.save_current()
+            try:
+                new = self.project.start_new_draft()
+            except OSError as exc:
+                self.notify(f"Could not start a new draft: {exc}", severity="error")
+                return
+            self._refresh_snapshot_time()
+            self.update_status()
+            self.notify(f"Draft {n} is saved as snapshots ('end of draft {n}'). "
+                        f"You are now on draft {new}.", timeout=5)
+
+        self.push_screen(ConfirmScreen(
+            f"Start draft {n + 1}?\n"
+            f"Every scene is snapshotted now as 'end of draft {n}'; your text is not changed.",
+            confirm_label="Start new draft"), _go)
 
     def edit_details(self) -> None:
         """Scene · Edit details: POV, place, purpose, status, target."""

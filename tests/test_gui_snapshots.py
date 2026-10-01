@@ -138,3 +138,24 @@ def test_moving_a_scene_keeps_its_snapshots_in_the_api(tmp_path):
     assert moved["ok"]
     new_id = moved["id"]
     assert [i["label"] for i in api.list_snapshots(new_id)["items"]] == ["mine"]
+
+
+def test_example_project_opens_unchanged_and_creates_nothing(tmp_path):
+    """Migration rule: an existing project (examples/residual) opens, reads and
+    reports 'draft 1' without writing a single file."""
+    import shutil
+    root = tmp_path / "residual"
+    shutil.copytree(Path(__file__).resolve().parents[1] / "examples" / "residual", root)
+    before = {p: p.read_bytes() for p in root.rglob("*") if p.is_file()}
+    api = Api()
+    assert api.open_project(str(root))["ok"]
+    w = api.get_workspace()["workspace"]
+    assert w["project"]["draft"] == 1
+    first = w["scenes"][0]["id"]
+    assert api.read_document(first)["snapshotAt"] is None
+    assert api.list_snapshots(first)["items"] == []
+    after = {p: p.read_bytes() for p in root.rglob("*")
+             if p.is_file() and ".lorewrite" not in p.parts}
+    before = {p: b for p, b in before.items() if ".lorewrite" not in p.parts}
+    assert after == before
+    assert not (root / ".snapshots").exists()

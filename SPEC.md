@@ -331,6 +331,14 @@ open and behave exactly as before.*
     pre-restore snapshot keeps the old originals). The GUI flushes the editor, calls
     `restore_snapshot`, detaches the save controller and reopens the scene.
 
+- **Drafts** (2.2). `project.toml` `[manuscript] draft = N` (default 1 when absent or invalid;
+  `Project.draft`). *Start new draft* (GUI: the title-bar "Draft N" badge or the status-bar item
+  opens a menu, then a confirmation; terminal: palette *Action · Start new draft*, confirmed)
+  snapshots every scene (book and Unplaced) as `end-of-draft-N`, then writes `draft = N + 1`
+  (`Project.start_new_draft`; if a snapshot fails the counter is not advanced). Scene text is not
+  changed. The badge and the status bar say "Draft N" (the terminal puts it in its status line).
+  The `end-of-draft-N` snapshots appear in History as "End of draft N".
+
 ### Desktop GUI (pywebview + the React design) ✅ (implemented; merged to main 2026-10-01)
 
 An Obsidian-style desktop front end over the same `core/` and `ai/`: a native
@@ -374,8 +382,9 @@ both edit the same plain-Markdown projects.
   chat (`ask`) answers in the panel only, with *Insert as draft*.
 - **Placeholders.** Parts of the design that LoreWriter does not do yet are drawn
   as designed but dimmed, non-interactive, tooltip "Not in LoreWriter yet"
-  (`gui/src/components/placeholder.ts`): the "Draft" badge and status-bar Draft /
-  Sync / Streak items, the Research row,
+  (`gui/src/components/placeholder.ts`): the status-bar Sync / Streak
+  items (the Draft badge and status item, Snapshots and the History button are real since Wave 2),
+  the Research row,
   Collections, the comment button, the Brainstorm and Research quick actions, conversation history, attach-context
   and the reply "Helpful" button. No fake data is shown for them.
 - **Keys.** `ctrl+k` quick switcher, `ctrl+s` save, `ctrl+n` new scene, `f11`

@@ -1,5 +1,5 @@
 import { BookOpen, CloudCheck, CloudUpload, CloudAlert, Search, PanelRight, Ellipsis } from "lucide-react";
-import { Icon, IconButton, Tag } from "./primitives";
+import { Icon, IconButton } from "./primitives";
 import { api } from "../backend/api";
 
 import type { SaveState } from "../editor/saveController";
@@ -9,7 +9,7 @@ const SAVE_LABEL: Record<SaveState, string> = {
 };
 
 export function TitleBar(props: {
-  projectTitle: string; documentLabel: string; saveState: SaveState;
+  projectTitle: string; documentLabel: string; saveState: SaveState; draft: number; onDraft: (anchor: HTMLElement) => void;
   assistantOpen: boolean; onToggleAssistant: () => void; onSearch: () => void;
   onMore?: (anchor: HTMLElement) => void; onClose: () => void;
 }) {
@@ -30,7 +30,8 @@ export function TitleBar(props: {
           <span className="lw-titlebar__sep">/</span>
           <span className="lw-titlebar__doc">{props.documentLabel}</span>
         </>}
-        <Tag placeholder>Draft</Tag>
+        <button type="button" className="lw-tag lw-tag--accent lw-tag--button" title="Which draft of the book this is: click to start the next one"
+          onClick={(e) => props.onDraft(e.currentTarget)}>Draft {props.draft}</button>
       </div>
 
       <div className="lw-titlebar__actions">
