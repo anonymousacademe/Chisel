@@ -24,6 +24,7 @@ import { Launch } from "./components/Launch";
 import { QuickSwitcher } from "./components/QuickSwitcher";
 import { ConfirmDialog, Menu, PromptDialog, type MenuItem } from "./components/Dialogs";
 import { DetailsDialog, PartPickerDialog, TrashDialog } from "./components/StructureDialogs";
+import { SnapshotsDialog } from "./components/SnapshotsDialog";
 import { Toasts, type Notice } from "./components/Toast";
 
 const ZOOMS = [90, 100, 110, 125];
@@ -40,6 +41,7 @@ type Dialog =
   | { kind: "move"; plan: MovePlan }
   | { kind: "trash" }
   | { kind: "details" }
+  | { kind: "snapshots" }
   | { kind: "new-note"; name: string; openAfter: boolean }
   | { kind: "generate"; mode: "draft" | "rewrite"; from: number; to: number; title: string; label: string; initial: string }
   | { kind: "aliases"; items: AliasSuggestion[] }
@@ -79,6 +81,7 @@ export default function App() {
   const [notices, setNotices] = useState<Notice[]>([]);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [words, setWords] = useState(0);
+  const [snapshotAt, setSnapshotAt] = useState<string | null>(null);
   const [cursor, setCursor] = useState<CursorInfo>(NO_CURSOR);
   const [mentions, setMentions] = useState<SceneMention[]>([]);
   const [tab, setTab] = useState<AssistantTab>("assistant");
@@ -123,6 +126,7 @@ export default function App() {
     onState: setSaveState,
     onSaved: (r) => {
       if (r.words !== undefined) setWords(r.words);
+      if (r.snapshotAt !== undefined) setSnapshotAt(r.snapshotAt);
       void refresh();
       const id = saver.documentId; // the retrieved-context list follows what was just saved
       if (id?.startsWith("manuscript/")) {
@@ -144,6 +148,7 @@ export default function App() {
     setIssues([]);
     setMentions(r.mentions);
     setWords(r.words);
+    setSnapshotAt(r.snapshotAt ?? null);
     setDocRev((n) => n + 1);
     setCursor(NO_CURSOR);
     if (!opts.keepMode) setMode("manuscript");
@@ -703,6 +708,23 @@ export default function App() {
     const c = await api.sceneContext(d.id, ed.getText());
     if (c.ok && docRef.current?.id === d.id) setMentions(c.mentions);
   };
+  const openHistory = () => {
+    if (docRef.current?.kind !== "scene") return notify(`Open a ${unit} to see its history.`);
+    setDialog({ kind: "snapshots" });
+  };
+  /** Restore a snapshot: the buffer is flushed first, then the file is rewritten and reopened. */
+  const restoreSnapshot = async (snapshotId: string): Promise<boolean> => {
+    const d = docRef.current, ed = editorRef.current;
+    if (!d || d.kind !== "scene" || !ed) return false;
+    if (!(await saver.flush())) { notify("Could not save the current text first; nothing was restored.", "error"); return false; }
+    const r = await api.restoreSnapshot(d.id, snapshotId, ed.getText());
+    if (!r.ok) { notify(r.error, "error"); return false; }
+    saver.detach(); // the file was rewritten: a stale buffer must not be saved over it
+    await openDoc(d.id, { force: true, keepMode: true });
+    await refresh();
+    notify("Snapshot restored. The text from before is kept as “Before a restore”.");
+    return true;
+  };
   const part = ws.parts.find((p) => p.id === (partFocus ?? doc?.partId)) ?? null;
   const openSceneMenu = (anchor: HTMLElement) => setMenu({
     anchor, items: [
@@ -715,6 +737,7 @@ export default function App() {
       doc?.unplaced
         ? { label: "Place in the book…", onSelect: () => doc && setDialog({ kind: "pick-part", sceneId: doc.id, unplaced: true }) }
         : { label: "Move to Unplaced Scenes", disabled: !isScene, onSelect: () => doc && void placeScene(doc.id, null, null, true).then((r) => r && notify("Moved to Unplaced Scenes. It no longer counts in the book.")) },
+      { label: "History (snapshots)…", disabled: !isScene, onSelect: openHistory },
       { label: `Delete ${unit}…`, disabled: !isScene, danger: true, onSelect: () => setDialog({ kind: "delete" }) },
       { label: "parts", separator: true, onSelect: () => {} },
       { label: part ? `Rename part “${part.title}”…` : "Rename part…", disabled: !part, onSelect: () => part && setDialog({ kind: "rename-part", id: part.id, title: part.title }) },
@@ -735,7 +758,7 @@ export default function App() {
         assistantOpen={showAssistant} onToggleAssistant={() => setAssistantOpen((o) => !o)}
         onSearch={() => setSwitcher(true)} onClose={() => void closeWindow()} onMore={openProjectMenu} />
       <div className="lw-workspace">
-        <ActivityRail view={rail} assistantOpen={showAssistant} onView={onRail} onSettings={() => void openSettings()} badge={0}
+        <ActivityRail view={rail} assistantOpen={showAssistant} onView={onRail} onSettings={() => void openSettings()} onHistory={openHistory} badge={0}
           initials={ws.project.initials} author={ws.project.author} />
         {showBinder && (
           <Binder nodes={ws.binder} count={ws.project.documentCount} activeId={doc?.id ?? null} focusId={part?.id ?? null} unit={unit}
@@ -772,7 +795,8 @@ export default function App() {
       </div>
       <StatusBar sessionWords={ws.status.sessionWords} projectWords={ws.status.projectWords} aiCost={ws.status.aiCost}
         line={cursor.line} col={cursor.col} zoom={zoom} onZoom={cycleZoom}
-        spelling={isScene ? spellCount : null} onSpelling={jumpToMisspelling} />
+        spelling={isScene ? spellCount : null} onSpelling={jumpToMisspelling}
+        snapshotAt={isScene ? snapshotAt : undefined} onSnapshots={openHistory} />
       {switcher && <QuickSwitcher ws={ws} onClose={() => setSwitcher(false)}
         onPick={(id) => { setSwitcher(false); void openDoc(id); }} />}
       {spellTarget && (
@@ -841,6 +865,10 @@ export default function App() {
         <TrashDialog onClose={() => setDialog(null)} notify={notify}
           onChanged={() => void refresh()}
           onRestored={(id) => { setDialog(null); void openDoc(id); }} />
+      )}
+      {dialog?.kind === "snapshots" && doc?.kind === "scene" && (
+        <SnapshotsDialog docId={doc.id} title={doc.title} unit={unit} getText={liveText} notify={notify}
+          onChanged={setSnapshotAt} onRestore={restoreSnapshot} onClose={() => setDialog(null)} />
       )}
       {dialog?.kind === "details" && doc?.kind === "scene" && doc.details && (
         <DetailsDialog details={doc.details} entities={ws.entities} unit={unit}

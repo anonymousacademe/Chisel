@@ -9,7 +9,7 @@ from pathlib import Path
 
 from . import drafts
 from . import entities as ent
-from . import scenemeta
+from . import scenemeta, snapshots
 from .structure import Structure
 
 MANUSCRIPT_DIR = "manuscript"
@@ -146,12 +146,33 @@ class Project(Structure):
             f"line_numbers = {'true' if new_ln else 'false'}\n"
         ))
 
-    def update_manuscript_settings(self, unit: str | None = None) -> None:
-        """Write [manuscript] prefs (unit = "scene" | "chapter") into project.toml."""
+    @property
+    def draft(self) -> int:
+        """Which draft of the book this is (project.toml [manuscript] draft,
+        default 1)."""
+        try:
+            return max(1, int((self.meta.get("manuscript") or {}).get("draft", 1)))
+        except (TypeError, ValueError):
+            return 1
+
+    def start_new_draft(self) -> int:
+        """Snapshot every scene as ``end-of-draft-N``, then count up. Returns
+        the new draft number. Nothing is counted if a snapshot fails."""
+        n = self.draft
+        snapshots.snapshot_all(self, f"end-of-draft-{n}")
+        self.update_manuscript_settings(draft=n + 1)
+        return n + 1
+
+    def update_manuscript_settings(self, unit: str | None = None,
+                                   draft: int | None = None) -> None:
+        """Write [manuscript] prefs (unit = "scene" | "chapter", draft = N)
+        into project.toml."""
         if unit is not None and unit not in ("scene", "chapter"):
             raise ValueError("unit must be 'scene' or 'chapter'")
         raw = dict(self.meta.get("manuscript") or {})
         raw["unit"] = unit or self.unit
+        if draft is not None:
+            raw["draft"] = max(1, int(draft))
         body = "".join(
             f'{k} = "{v}"\n' if isinstance(v, str) else f"{k} = {v}\n"
             for k, v in raw.items() if isinstance(v, (str, int)) and not isinstance(v, bool))

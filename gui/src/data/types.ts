@@ -82,6 +82,8 @@ export interface DocumentPayload {
   partId?: string | null;
   frontMatter?: boolean;
   unplaced?: boolean;
+  /** ISO local time of the scene's latest snapshot, null if none. */
+  snapshotAt?: string | null;
 }
 
 /** An entity a scene mentions: how often here, and how many lines link to it project-wide. */
@@ -100,7 +102,7 @@ export type EntityInfo =
   };
 
 export interface Workspace {
-  project: { title: string; author: string; initials: string; path: string; documentCount: number; unit: Unit };
+  project: { title: string; author: string; initials: string; path: string; documentCount: number; unit: Unit; draft: number };
   binder: BinderNode[];
   scenes: SceneSummary[];
   parts: PartSummary[];
@@ -167,11 +169,19 @@ export interface SettingsInfo {
   editor: EditorPrefs;
   /** Underline misspellings (shared with the terminal app). */
   spellcheck: boolean;
+  /** Snapshot a scene the first time it is edited each day. */
+  autoSnapshot: boolean;
 }
 export interface ModelOption { id: string; name: string; promptPerM: number | null; completionPerM: number | null; context: number | null }
 
 /** A scene in the Trash. */
 export interface TrashItem { name: string; title: string; original: string; deleted: string }
+
+/** One snapshot of a scene (`delta` = words now minus words then). */
+export interface SnapshotRow { id: string; label: string; when: string; words: number; delta: number }
+
+/** A run of a word diff (`old` joined = the snapshot, `new` joined = the current text). */
+export interface DiffSegment { op: "equal" | "delete" | "insert" | "replace"; old: string; new: string }
 
 /** {old id: new id} of files a rename/move touched, so open documents can follow. */
 export type Remap = Record<string, string>;

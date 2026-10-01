@@ -1,21 +1,32 @@
+import { useEffect, useState } from "react";
 import { GitBranch, Clock3, CloudCheck, Target, ChevronsUpDown, Coins, SpellCheck } from "lucide-react";
 import { Icon } from "./primitives";
 import { placeholderProps } from "./placeholder";
 import { fmt } from "../data/tree";
+import { agoText } from "../data/snapshots";
 
 export function StatusBar(props: {
   sessionWords: number; projectWords: number; aiCost: number;
   line: number; col: number; zoom: number; onZoom: () => void;
   /** Misspellings in the open scene (null: spell check does not apply here). */
   spelling: number | null; onSpelling: () => void;
+  /** Latest snapshot of the open scene (ISO local time); undefined = no scene is open. */
+  snapshotAt: string | null | undefined; onSnapshots: () => void;
 }) {
+  const [, tick] = useState(0);
+  useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 30_000); return () => clearInterval(t); }, []);
   const signed = props.sessionWords >= 0 ? `+${fmt(props.sessionWords)}` : `−${fmt(-props.sessionWords)}`;
   return (
     <footer className="lw-status">
       <div className="lw-row">
         <span className="lw-status__item" {...placeholderProps}><Icon icon={GitBranch} size={12} stroke={1.5} color="var(--lw-text-faint)" />Draft</span>
         <span className="lw-status__div" />
-        <span className="lw-status__item" {...placeholderProps}><Icon icon={Clock3} size={12} stroke={1.5} color="var(--lw-text-faint)" />Snapshots</span>
+        {props.snapshotAt === undefined
+          ? <span className="lw-status__item" title="Open a scene to see its snapshots"><Icon icon={Clock3} size={12} stroke={1.5} color="var(--lw-text-faint)" />Snapshots</span>
+          : <button className="lw-status__item" title="Snapshots of this scene" onClick={props.onSnapshots}>
+            <Icon icon={Clock3} size={12} stroke={1.5} color="var(--lw-text-faint)" />
+            {props.snapshotAt ? `Snapshot ${agoText(props.snapshotAt)}` : "No snapshot"}
+          </button>}
         <span className="lw-status__div" />
         <span className="lw-status__item" {...placeholderProps}><Icon icon={CloudCheck} size={12} stroke={1.5} color="var(--lw-text-faint)" />Sync</span>
       </div>

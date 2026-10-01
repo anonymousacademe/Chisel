@@ -36,6 +36,7 @@ my-novel/
 │   ├── 01-the-recall/        #   _part.md = title + notes; scenes 01-…md inside
 │   └── _unplaced/            # written, but not in the book
 ├── .trash/                   # deleted scenes (restorable); .drafts/ = AI draft originals
+├── .snapshots/               # verbatim copies of scenes, one folder per scene (History)
 └── entities/
     ├── characters/
     │   ├── elara-vance.md
@@ -291,6 +292,45 @@ open and behave exactly as before.*
 - **Not done / limits.** Collections, comments and Research are later waves (still
   placeholders). The terminal has no drag. Part folders are not renamed with their title.
 
+### History and drafts ✅ (Wave 2, implemented 2026-10-01; plan: docs/plan-workspace.md)
+
+*Snapshots, the draft counter and git sync. Plain files again; `.lorewrite/` stays a cache.*
+
+- **Snapshots** (2.1, `core/snapshots.py`). `<project>/.snapshots/<scene's project-relative path,
+  "/" as "__">/<YYYYMMDD-HHMMSS>[-n][--label].md` is a verbatim copy of the scene file
+  (frontmatter included); if the scene had pending-draft originals they sit beside it as
+  `<same stem>.json`. Author data like `.drafts/`: committed with the project, never under
+  `.lorewrite/`. Labels are made file-safe (no `/ \ : * ? " < > |`, 60 characters); `-n`
+  disambiguates snapshots taken in the same second; nothing is ever overwritten. The folder
+  travels with its scene on every rename / move / part swap (`Structure._apply_renames`,
+  `move_part`) and into the Trash (`.trash/<name>.md.snapshots/`, restored with the scene,
+  removed by *delete forever* / *empty Trash*).
+  - *Created* by hand (**Snapshot scene**, optional label; **Snapshot all scenes**, one label for
+    book and Unplaced), and automatically (labels `auto`, `before-restore`, `before-accept-all`,
+    `before-reject-all`, `end-of-draft-N`): before a restore, before *Accept all* / *Reject all*
+    drafts (not for a single draft), when a new draft starts (2.2), and — setting `auto_snapshot`,
+    default **on**, user settings (Settings dialog in both front ends) — before the first save that
+    changes a scene on a given day (the file as it was; skipped when a snapshot from today exists or
+    the latest snapshot already holds exactly that text). Deleting to the Trash and alias/canon
+    changes take none (the trash copy suffices / they are not scene text). Snapshots take the
+    editor's buffer when given, so unsaved words are kept.
+  - *Browse*: GUI — the rail **History** button, the status-bar item "Snapshot 12 min ago", or the
+    scene menu open the **History** dialog (list: label, time, words, ± words against the current
+    text; **Compare**: side by side, snapshot with removed words struck through on the left, the
+    current text with added words highlighted on the right, opening at the first change;
+    **Restore**; **Delete**, each destructive step confirmed). Terminal — palette
+    *Scene · Snapshots* (enter compares, `r` restores, `d` deletes, `n` new, `a` all scenes),
+    *Scene · Snapshot scene*, *Action · Snapshot all scenes*; compare is one unified word-level
+    stream (removed red + struck, added green + underlined), and the status bar says
+    `Snapshot 12 min ago`.
+  - *Compare* is `difflib` on lines, then on words inside changed lines
+    (`snapshots.diff_words`; whitespace travels with its word so each side re-concatenates to the
+    original; a hunk over 40M token pairs degrades to one replace).
+  - *Restore* snapshots the current text first (`before-restore`), writes the snapshot atomically and
+    puts its draft originals back as the scene's `.drafts` sidecar (replacing it; the
+    pre-restore snapshot keeps the old originals). The GUI flushes the editor, calls
+    `restore_snapshot`, detaches the save controller and reopens the scene.
+
 ### Desktop GUI (pywebview + the React design) ✅ (implemented; merged to main 2026-10-01)
 
 An Obsidian-style desktop front end over the same `core/` and `ai/`: a native
@@ -335,7 +375,7 @@ both edit the same plain-Markdown projects.
 - **Placeholders.** Parts of the design that LoreWriter does not do yet are drawn
   as designed but dimmed, non-interactive, tooltip "Not in LoreWriter yet"
   (`gui/src/components/placeholder.ts`): the "Draft" badge and status-bar Draft /
-  Snapshots / Sync / Streak items, the history rail button, the Research row,
+  Sync / Streak items, the Research row,
   Collections, the comment button, the Brainstorm and Research quick actions, conversation history, attach-context
   and the reply "Helpful" button. No fake data is shown for them.
 - **Keys.** `ctrl+k` quick switcher, `ctrl+s` save, `ctrl+n` new scene, `f11`

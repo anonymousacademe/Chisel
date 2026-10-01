@@ -35,7 +35,7 @@ from ..ai.writing import (
     build_project_context,
     generate as generate_text,
 )
-from ..core import drafts, scenemeta
+from ..core import drafts, scenemeta, snapshots
 from ..core import settings as user_settings
 from ..core import spelling
 from ..core import entities as ent
@@ -226,6 +226,7 @@ class Api:
                     "partId": ws.part_id(project, part) if part else None,
                     "frontMatter": project.is_front_matter(path),
                     "unplaced": project.is_unplaced(path),
+                    "snapshotAt": self._snapshot_at(path),
                 }
             elif kind == "entity":
                 title, kicker, parent = entity.name, entity.type.upper(), "Notes"
@@ -282,12 +283,15 @@ class Api:
                 if path.read_text(encoding="utf-8") != text:
                     return {"saved": False, "conflict": True, "mtime": current}
             else:
+                if kind == "scene" and snapshots.auto_enabled():
+                    snapshots.ensure_daily(project, path, text)
                 write_atomic(path, text)
                 current = str(path.stat().st_mtime_ns)
             self._index_file(path, kind, text)
             _, originals = ws.read_text(project, path)
             return {"saved": True, "mtime": current,
-                    "words": drafts.count_words(text, originals)}
+                    "words": drafts.count_words(text, originals),
+                    **({"snapshotAt": self._snapshot_at(path)} if kind == "scene" else {})}
 
     @bridge
     def link_spans(self, doc_id: str, text: str) -> dict:
@@ -586,6 +590,97 @@ class Api:
         with self._lock:
             return {"deleted": self._require().empty_trash()}
 
+    # -- snapshots and drafts -----------------------------------------------------
+
+    @staticmethod
+    def _iso(when) -> str:
+        return when.isoformat(timespec="seconds")
+
+    def _snapshot_at(self, path: Path) -> str | None:
+        """ISO local time of the scene's latest snapshot (status bar), or None."""
+        when = snapshots.latest_time(self._require(), path)
+        return self._iso(when) if when else None
+
+    def _snapshot_row(self, snap, current_words: int) -> dict:
+        return {"id": snap.name, "label": snap.label, "when": self._iso(snap.when),
+                "words": snap.words,
+                "delta": current_words - snap.words}
+
+    @bridge
+    def list_snapshots(self, doc_id: str, text: str | None = None) -> dict:
+        """The open scene's snapshots, newest first, with words and the change
+        in words against the current text (the editor's buffer if given)."""
+        with self._lock:
+            project = self._require()
+            path = self._scene_path(doc_id)
+            if text is None:
+                text, originals = ws.read_text(project, path)
+            else:
+                originals = drafts.load_originals(project.root, path)
+            now = drafts.count_words(text, originals)
+            return {"items": [self._snapshot_row(s, now)
+                              for s in snapshots.list_snapshots(project, path)],
+                    "words": now, "snapshotAt": self._snapshot_at(path)}
+
+    @bridge
+    def create_snapshot(self, doc_id: str, label: str = "", text: str | None = None) -> dict:
+        """Snapshot the scene now (the editor's buffer if given, so unsaved
+        words are kept too)."""
+        with self._lock:
+            project = self._require()
+            path = self._scene_path(doc_id)
+            snap = snapshots.create(project, path, label, text)
+            return {"id": snap.name, "snapshotAt": self._iso(snap.when)}
+
+    @bridge
+    def compare_snapshot(self, doc_id: str, snapshot_id: str, text: str | None = None) -> dict:
+        """Word-level diff of snapshot -> current text, as segments
+        ``{op, old, new}`` (concatenating ``old`` gives the snapshot back,
+        ``new`` the current text)."""
+        with self._lock:
+            project = self._require()
+            path = self._scene_path(doc_id)
+            old = snapshots.read_text(project, path, snapshot_id)
+            new = text if text is not None else path.read_text(encoding="utf-8")
+            segs = snapshots.diff_words(old, new)
+            added, removed = snapshots.diff_stats(segs)
+            return {"segments": [{"op": s.op, "old": s.old, "new": s.new} for s in segs],
+                    "added": added, "removed": removed}
+
+    @bridge
+    def restore_snapshot(self, doc_id: str, snapshot_id: str,
+                         text: str | None = None) -> dict:
+        """Make the scene read as the snapshot. The current text (the editor's
+        buffer) is snapshotted first. Writes the file: the client must detach
+        its save controller and reopen the document."""
+        with self._lock:
+            project = self._require()
+            path = self._scene_path(doc_id)
+            restored = snapshots.restore(project, path, snapshot_id, text)
+            self._index_file(path, "scene", restored)
+            return {"snapshotAt": self._snapshot_at(path)}
+
+    @bridge
+    def delete_snapshot(self, doc_id: str, snapshot_id: str) -> dict:
+        with self._lock:
+            path = self._scene_path(doc_id)
+            snapshots.delete(self._require(), path, snapshot_id)
+            return {"snapshotAt": self._snapshot_at(path)}
+
+    @bridge
+    def snapshot_all(self, label: str = "") -> dict:
+        """One snapshot per scene (book and Unplaced), all with one label."""
+        with self._lock:
+            return {"count": snapshots.snapshot_all(self._require(), label)}
+
+    @bridge
+    def start_new_draft(self) -> dict:
+        """Snapshot every scene as ``end-of-draft-N`` and count up to the next draft."""
+        with self._lock:
+            project = self._require()
+            previous = project.draft
+            return {"draft": project.start_new_draft(), "previous": previous}
+
     # -- scene details ----------------------------------------------------------
 
     @bridge
@@ -647,11 +742,13 @@ class Api:
             }
         editor = {k: user_settings.get(f"gui_{k}", v) for k, v in self.EDITOR_DEFAULTS.items()}
         return {"hasKey": source != "none", "keySource": source, "models": models, "editor": editor,
-                "spellcheck": self.spellcheck_enabled()}
+                "spellcheck": self.spellcheck_enabled(),
+                "autoSnapshot": snapshots.auto_enabled()}
 
     @bridge
     def set_settings(self, models: dict | None = None, editor: dict | None = None,
-                     spellcheck: bool | None = None) -> dict:
+                     spellcheck: bool | None = None,
+                     auto_snapshot: bool | None = None) -> dict:
         """Save model choices ("" resets to the default), GUI editor prefs and
         the spell-check toggle (shared with the TUI)."""
         with self._lock:
@@ -672,6 +769,8 @@ class Api:
                 user_settings.set(f"gui_{key}", value)
             if spellcheck is not None:
                 user_settings.set("spellcheck", bool(spellcheck))
+            if auto_snapshot is not None:
+                user_settings.set("auto_snapshot", bool(auto_snapshot))
         return {}
 
     @bridge
@@ -971,6 +1070,9 @@ class Api:
                 chosen = [found[index]]
             else:
                 chosen = found
+            if index is None and chosen:  # whole-scene operation: keep a way back
+                snapshots.create(project, path,
+                                 "before-accept-all" if accept else "before-reject-all", text)
             originals = drafts.load_originals(project.root, path)
             edits, skipped = [], 0
             for p in reversed(chosen):  # back to front so offsets hold

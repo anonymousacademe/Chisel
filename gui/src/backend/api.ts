@@ -1,6 +1,6 @@
 import type { Misspelling, Span } from "../editor/spans";
 import type {
-  AliasSuggestion, CanonProposal, DetailsPatch, DocumentPayload, Remap, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
+  AliasSuggestion, CanonProposal, DiffSegment, SnapshotRow, DetailsPatch, DocumentPayload, Remap, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
   Issue, ModelKind, ModelOption, RecentProject, SceneMention, SettingsInfo, EditorPrefs, StyleStatus, Workspace,
 } from "../data/types";
 import { call } from "./transport";
@@ -15,7 +15,7 @@ export const api = {
   recentProjects: () => call<{ recents: RecentProject[] }>("recent_projects"),
   chooseFolder: () => call<{ path: string | null }>("choose_folder"),
   saveDocument: (id: string, text: string, baseMtime: string | null, force = false) =>
-    call<{ saved: boolean; conflict?: boolean; mtime: string; words?: number }>("save_document", id, text, baseMtime, force),
+    call<{ saved: boolean; conflict?: boolean; mtime: string; words?: number; snapshotAt?: string | null }>("save_document", id, text, baseMtime, force),
   documentMtime: (id: string) => call<{ mtime: string }>("document_mtime", id),
   linkSpans: (id: string, text: string) => call<{ spans: Span[] }>("link_spans", id, text),
   spelling: (id: string, text: string) => call<{ enabled: boolean; spans: Misspelling[] }>("spelling", id, text),
@@ -43,6 +43,15 @@ export const api = {
   /** The edit (UTF-16) that rewrites the frontmatter block of the editor's text; nothing is saved here. */
   setSceneDetails: (id: string, text: string, fields: DetailsPatch) =>
     call<{ edit: { from: number; to: number; insert: string }; details: SceneDetails; bodyStart: number }>("set_scene_details", id, text, fields),
+  // snapshots: `text` is the editor buffer, so unsaved words are kept and compared too
+  listSnapshots: (id: string, text?: string) => call<{ items: SnapshotRow[]; words: number; snapshotAt: string | null }>("list_snapshots", id, text ?? null),
+  createSnapshot: (id: string, label: string, text?: string) => call<{ id: string; snapshotAt: string }>("create_snapshot", id, label, text ?? null),
+  compareSnapshot: (id: string, snapshotId: string, text?: string) =>
+    call<{ segments: DiffSegment[]; added: number; removed: number }>("compare_snapshot", id, snapshotId, text ?? null),
+  /** Rewrites the scene file: detach the save controller and reopen the document afterwards. */
+  restoreSnapshot: (id: string, snapshotId: string, text?: string) => call<{ snapshotAt: string | null }>("restore_snapshot", id, snapshotId, text ?? null),
+  deleteSnapshot: (id: string, snapshotId: string) => call<{ snapshotAt: string | null }>("delete_snapshot", id, snapshotId),
+  snapshotAll: (label: string) => call<{ count: number }>("snapshot_all", label),
   setUnit: (unit: Unit) => call<{ unit: Unit }>("set_unit", unit),
   rebuildIndex: () => call("rebuild_index"),
   sceneContext: (id: string, text?: string) => call<{ mentions: SceneMention[] }>("scene_context", id, text ?? null),
@@ -75,8 +84,8 @@ export const api = {
     history: { role: string; text: string }[]) =>
     call<{ reply: string; cost: number | null }>("ask", prompt, scope, id, text, cursor, history),
   getSettings: () => call<SettingsInfo>("get_settings"),
-  setSettings: (models?: Partial<Record<ModelKind, string>>, editor?: Partial<EditorPrefs>, spellcheck?: boolean) =>
-    call("set_settings", models ?? null, editor ?? null, spellcheck ?? null),
+  setSettings: (models?: Partial<Record<ModelKind, string>>, editor?: Partial<EditorPrefs>, spellcheck?: boolean, autoSnapshot?: boolean) =>
+    call("set_settings", models ?? null, editor ?? null, spellcheck ?? null, autoSnapshot ?? null),
   setApiKey: (key: string) => call("set_api_key", key),
   clearApiKey: () => call<{ stillSet: boolean; note: string }>("clear_api_key"),
   listModels: (structuredOnly: boolean) => call<{ models: ModelOption[] }>("list_models", structuredOnly),

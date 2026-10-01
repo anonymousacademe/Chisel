@@ -27,6 +27,7 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
   });
   const [editor, setEditor] = useState(initial.editor);
   const [spellcheck, setSpellcheck] = useState(initial.spellcheck);
+  const [autoSnapshot, setAutoSnapshot] = useState(initial.autoSnapshot);
   const [picking, setPicking] = useState<ModelKind | null>(null);
 
   const reload = async () => { const r = await api.getSettings(); if (r.ok) setInfo(r); };
@@ -41,7 +42,7 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
     notify(r.note || "API key removed."); await reload();
   };
   const save = async () => {
-    const r = await api.setSettings(models, editor, spellcheck);
+    const r = await api.setSettings(models, editor, spellcheck, autoSnapshot);
     if (!r.ok) return notify(r.error, "error");
     onSaved(editor, spellcheck); onClose();
   };
@@ -103,6 +104,13 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
           <label className="lw-check">
             <input type="checkbox" checked={spellcheck} onChange={(e) => setSpellcheck(e.target.checked)} />
             Underline misspellings <span className="lw-faint">(scenes only; names in your notes and your dictionaries are never flagged)</span>
+          </label>
+        </section>
+        <section className="lw-settings__section">
+          <h3>History</h3>
+          <label className="lw-check">
+            <input type="checkbox" checked={autoSnapshot} onChange={(e) => setAutoSnapshot(e.target.checked)} />
+            Snapshot a scene the first time it is edited each day <span className="lw-faint">(a safety net; you can always take your own from the History button)</span>
           </label>
         </section>
       </div>

@@ -21,7 +21,7 @@ from ..ai.links import Suggestion, alias_form, suggest_links
 from ..ai.style import learn_style
 from ..ai.usage import LEDGER, format_cost
 from ..ai.writing import build_context, generate
-from ..core import drafts, scenemeta
+from ..core import drafts, scenemeta, snapshots
 from ..core import entities as ent
 from ..core import settings as user_settings
 from ..core import spelling
@@ -57,6 +57,7 @@ from .promptscreen import PromptScreen
 from .settingscreen import KeyPrompt
 from .sidebar import OpenFile, Sidebar
 from .spellscreen import SpellScreen
+from .snapshotscreens import CompareScreen, LabelPrompt, SnapshotsScreen, label_text
 from .structurescreens import ChoiceScreen, DetailsScreen, TrashScreen
 from .stylereview import StyleReviewScreen
 from .theme import (
@@ -100,6 +101,7 @@ HELP_TEXT = """\
   Move scene to part / Move scene to Unplaced / Place scene in the book
   Scene · Edit details — POV, place, purpose, status, word target
   Open Trash — restore deleted scenes, delete forever, empty the Trash
+  Scene · Snapshots / Snapshot scene / Snapshot all scenes — compare and restore
   Toggle scene/chapter labels (wording only)
   Settings — API key, models, editor preferences, spell check
   Toggle spell check / Add selection to dictionary / Open project dictionary
@@ -295,13 +297,15 @@ class LorewriteApp(App):
     NamePrompt Input { border: solid $primary; }
     EntityTypePrompt Button { border: solid $primary; }
     ChoiceScreen, TrashScreen, DetailsScreen { align: center middle; }
-    #choice-box, #trash-box, #details-box {
+    #choice-box, #trash-box, #details-box, #snap-box, #compare-box {
         width: 76; height: auto; max-height: 80%;
         background: $surface; border: solid $primary; padding: 1 2;
     }
-    #choice-header, #trash-header, #details-header { text-style: bold; padding-bottom: 1; }
-    #choice-list, #trash-list { height: auto; max-height: 16; }
-    #choice-hint, #trash-hint, #details-hint { color: $text-muted; padding-top: 1; }
+    #choice-header, #trash-header, #details-header, #snap-header, #compare-header { text-style: bold; padding-bottom: 1; }
+    #choice-list, #trash-list, #snap-list { height: auto; max-height: 16; }
+    #choice-hint, #trash-hint, #details-hint, #snap-hint, #compare-hint { color: $text-muted; padding-top: 1; }
+    #compare-box { width: 110; height: 80%; }
+    #compare-scroll { height: 1fr; border: round $primary-darken-2; padding: 0 1; }
     .details-label { color: $text-muted; padding-top: 1; }
     #sidebar .part-header { background: $boost; }
     ConfirmScreen { align: center middle; }
@@ -404,6 +408,7 @@ class LorewriteApp(App):
         self._status_text = ""
         self._writer_mode = False
         self._last_save: float | None = None
+        self._snapshot_at = None  # datetime of the open scene's latest snapshot
         self._project_words = 0
         self._editor_padding = 0
         # direct widget refs, set in compose(); safe to use during teardown
@@ -598,6 +603,7 @@ class LorewriteApp(App):
         self.current_path = path
         self._dirty = False
         self._sync_mention_names()
+        self._refresh_snapshot_time()
         self.editor.load_text(path.read_text(encoding="utf-8"))
         self.editor.refresh_links()
         self.editor.set_misspellings(None)
@@ -609,6 +615,11 @@ class LorewriteApp(App):
         if self.current_path is None or self._editor is None:
             return
         text = self._editor.text
+        if self._is_scene(self.current_path) and snapshots.auto_enabled():
+            try:  # the daily safety net must never block a save
+                snapshots.ensure_daily(self.project, self.current_path, text)
+            except Exception:
+                pass
         write_atomic(self.current_path, text)
         if self.current_path in (style_path(self.project),
                                  spelling.project_dictionary_path(self.project)):
@@ -628,6 +639,7 @@ class LorewriteApp(App):
             self._entities_changed()
         self._dirty = False
         self._last_save = time.time()
+        self._refresh_snapshot_time()
         self._recount_project_words()
         self.update_panel_for_cursor()
         self.update_status()
@@ -687,6 +699,8 @@ class LorewriteApp(App):
             parts.append(hint)
         if LEDGER.session_total() > 0:
             parts.append(format_cost(LEDGER.session_total()))
+        if self._snapshot_at is not None and self._is_scene(self.current_path):
+            parts.append(f"Snapshot {snapshots.ago(self._snapshot_at)}")
         self._status_text = "  |  ".join(parts)
         self._status.update(self._status_text)
 
@@ -1108,6 +1122,11 @@ class LorewriteApp(App):
             self.notify("No AI drafts in this scene", timeout=2)
             return
         skipped = 0
+        if self._is_scene(self.current_path):  # whole-scene operation: keep a way back
+            snapshots.create(self.project, self.current_path,
+                             "before-accept-all" if accept else "before-reject-all",
+                             self.editor.text)
+            self._refresh_snapshot_time()
         for p in reversed(found):  # back to front so offsets hold
             if accept:
                 text = self.editor.text
@@ -1794,6 +1813,118 @@ class LorewriteApp(App):
                     "This cannot be undone.", confirm_label="Empty Trash"), _empty)
 
         self.push_screen(TrashScreen(items), _act)
+
+    # -- snapshots (Wave 2.1) -----------------------------------------------------
+
+    def _refresh_snapshot_time(self) -> None:
+        path = self.current_path
+        self._snapshot_at = (snapshots.latest_time(self.project, path)
+                             if path is not None and self._is_scene(path) else None)
+
+    def snapshot_scene_prompt(self) -> None:
+        """Scene · Snapshot scene: a verbatim copy you can compare and restore."""
+        path = self._current_scene_path()
+        if path is None:
+            self.notify("Open a scene first", severity="warning")
+            return
+
+        def _take(label: str | None) -> None:
+            if label is None:
+                return
+            snapshots.create(self.project, path, label, self.editor.text)
+            self._refresh_snapshot_time()
+            self.update_status()
+            self.notify("Snapshot taken" + (f": {label}" if label else ""), timeout=2)
+
+        self.push_screen(LabelPrompt("Snapshot this scene (the text as it is now)"), _take)
+
+    def snapshot_all_prompt(self) -> None:
+        """Action · Snapshot all scenes: one label for every scene."""
+        if self.project is None:
+            return
+        self.save_current()
+
+        def _take(label: str | None) -> None:
+            if label is None:
+                return
+            n = snapshots.snapshot_all(self.project, label)
+            self._refresh_snapshot_time()
+            self.update_status()
+            self.notify(f"Snapshot taken of {n} scene(s)", timeout=2)
+
+        self.push_screen(LabelPrompt("Snapshot every scene in the project"), _take)
+
+    def open_snapshots(self) -> None:
+        """Scene · Snapshots: list, compare, restore, delete."""
+        path = self._current_scene_path()
+        if path is None:
+            self.notify("Open a scene first", severity="warning")
+            return
+        self.save_current()
+        text = self.editor.text
+        words = _word_count(text, self._originals(text))
+        items = snapshots.list_snapshots(self.project, path)
+        title = self.project.scene_title(path)
+
+        def _act(result) -> None:
+            if result is None:
+                return
+            what, name = result
+            if what == "new":
+                self.snapshot_scene_prompt()
+            elif what == "all":
+                self.snapshot_all_prompt()
+            elif what == "compare":
+                self._compare_snapshot(path, name)
+            elif what == "restore":
+                self._confirm_restore(path, name)
+            elif what == "delete":
+                snap = next((s for s in items if s.name == name), None)
+
+                def _gone(ok: bool) -> None:
+                    if ok:
+                        snapshots.delete(self.project, path, name)
+                        self._refresh_snapshot_time()
+                        self.update_status()
+                    self.open_snapshots()
+
+                self.push_screen(ConfirmScreen(
+                    f"Delete the snapshot '{label_text(snap.label) if snap else name}'?\n"
+                    "This cannot be undone.", confirm_label="Delete"), _gone)
+
+        self.push_screen(SnapshotsScreen(title, items, words), _act)
+
+    def _compare_snapshot(self, path: Path, name: str) -> None:
+        old = snapshots.read_text(self.project, path, name)
+        segs = snapshots.diff_words(old, self.editor.text)
+
+        def _back(result) -> None:
+            if result == "restore":
+                self._confirm_restore(path, name)
+            else:
+                self.open_snapshots()
+
+        self.push_screen(CompareScreen(name, segs), _back)
+
+    def _confirm_restore(self, path: Path, name: str) -> None:
+        def _go(ok: bool) -> None:
+            if not ok:
+                self.open_snapshots()
+                return
+            self.save_current()
+            # the current text is snapshotted first (before-restore), then replaced
+            text = snapshots.restore(self.project, path, name, self.editor.text)
+            self.editor.load_text(text)
+            self.save_current()
+            self.editor.refresh_links()
+            self.schedule_spelling(0.05)
+            self.notify("Snapshot restored; the text from before is kept as "
+                        "'before a restore'", timeout=4)
+
+        self.push_screen(ConfirmScreen(
+            "Replace this scene with the snapshot?\n"
+            "The text as it is now is snapshotted first, so you can come back to it.",
+            confirm_label="Restore"), _go)
 
     def edit_details(self) -> None:
         """Scene · Edit details: POV, place, purpose, status, target."""

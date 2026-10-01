@@ -25,6 +25,7 @@ from pathlib import Path
 
 from . import drafts
 from . import entities as ent
+from . import snapshots
 
 UNPLACED_DIR = "_unplaced"
 PART_FILE = "_part.md"
@@ -246,14 +247,17 @@ class Structure:
             if side_old.is_file():
                 side_tmp = side_old.with_name(f".mv{k}-{side_old.name}")
                 side_old.replace(side_tmp)
-            staged.append((tmp, new, side_tmp))
-        for tmp, new, side_tmp in staged:
+            snap_tmp = snapshots.stage(self.root, old, str(k))
+            staged.append((tmp, new, side_tmp, snap_tmp))
+        for tmp, new, side_tmp, snap_tmp in staged:
             new.parent.mkdir(parents=True, exist_ok=True)
             tmp.rename(new)
             if side_tmp is not None:
                 side_new = drafts.sidecar_path(self.root, new)
                 side_new.parent.mkdir(parents=True, exist_ok=True)
                 side_tmp.replace(side_new)
+            if snap_tmp is not None:
+                snapshots.unstage(self.root, snap_tmp, new)
 
     def move_scene(self, path: Path, delta: int) -> Path | None:
         """Swap a scene's numeric prefix with a neighbor's within its part
@@ -356,12 +360,16 @@ class Structure:
         moves = [(p, new_a / p.name) for p in self._scene_files(a)]
         moves += [(p, new_b / p.name) for p in self._scene_files(b)]
         staged = []
+        snap_staged = []
         for k, (old, new) in enumerate(moves):
             side = drafts.sidecar_path(self.root, old)
             if side.is_file():
                 tmp = side.with_name(f".mv{k}-{side.name}")
                 side.replace(tmp)
                 staged.append((tmp, drafts.sidecar_path(self.root, new)))
+            snap = snapshots.stage(self.root, old, str(k))
+            if snap is not None:
+                snap_staged.append((snap, new))
         self.last_renames = {**dict(moves), a: new_a, b: new_b}
         tmp_a = a.with_name(f".swap-{a.name}")
         a.rename(tmp_a)
@@ -370,6 +378,8 @@ class Structure:
         for tmp, dest in staged:
             dest.parent.mkdir(parents=True, exist_ok=True)
             tmp.replace(dest)
+        for snap, new in snap_staged:
+            snapshots.unstage(self.root, snap, new)
         return new_a
 
     def delete_part(self, part: Path) -> None:
@@ -403,6 +413,7 @@ class Structure:
                 side.parent.rmdir()
             except OSError:
                 pass
+        snapshots.archive(self.root, path, dest.with_name(dest.name + ".snapshots"))
         path.replace(dest)
         return dest
 
@@ -450,6 +461,7 @@ class Structure:
             target = drafts.sidecar_path(self.root, final)
             target.parent.mkdir(parents=True, exist_ok=True)
             side.replace(target)
+        snapshots.unarchive(self.root, item.path.with_name(item.path.name + ".snapshots"), final)
         self._tidy_trash()
         return final
 
@@ -462,6 +474,7 @@ class Structure:
         item = self._trash_item(name)
         item.path.unlink(missing_ok=True)
         item.path.with_name(item.path.name + ".drafts.json").unlink(missing_ok=True)
+        shutil.rmtree(item.path.with_name(item.path.name + ".snapshots"), ignore_errors=True)
         self._tidy_trash()
 
     def empty_trash(self) -> int:

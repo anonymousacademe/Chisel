@@ -10,6 +10,7 @@ export interface SaveResult {
   conflict?: boolean;
   mtime?: string;
   words?: number;
+  snapshotAt?: string | null;
 }
 
 export interface SaveDeps {

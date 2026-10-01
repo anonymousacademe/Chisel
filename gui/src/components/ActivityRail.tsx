@@ -1,6 +1,5 @@
 import { Library, Search, Sparkles, BookMarked, History, Settings, type LucideIcon } from "lucide-react";
 import { Icon } from "./primitives";
-import { placeholderProps } from "./placeholder";
 
 export type RailView = "binder" | "search" | "assistant" | "library";
 
@@ -11,8 +10,8 @@ const primary: { id: RailView; icon: LucideIcon; label: string }[] = [
   { id: "library", icon: BookMarked, label: "Library" },
 ];
 
-export function ActivityRail({ view, assistantOpen, onView, onSettings, badge, initials, author }:
-  { view: RailView; assistantOpen: boolean; onView: (v: RailView) => void; onSettings?: () => void; badge: number; initials: string; author: string }) {
+export function ActivityRail({ view, assistantOpen, onView, onSettings, onHistory, badge, initials, author }:
+  { view: RailView; assistantOpen: boolean; onView: (v: RailView) => void; onSettings?: () => void; onHistory: () => void; badge: number; initials: string; author: string }) {
   return (
     <nav className="lw-rail" aria-label="Primary">
       <div className="lw-rail__group lw-rail__group--top">
@@ -32,8 +31,8 @@ export function ActivityRail({ view, assistantOpen, onView, onSettings, badge, i
         <span className="lw-rail__item lw-rail__item--empty" aria-hidden />
       </div>
       <div className="lw-rail__group lw-rail__group--bottom">
-        <button className="lw-rail__item" aria-label="Snapshots" {...placeholderProps}><Icon icon={History} size={19} /></button>
-        <button className="lw-rail__item" aria-label="Settings" {...(onSettings ? { title: "Settings", onClick: onSettings } : placeholderProps)}><Icon icon={Settings} size={19} /></button>
+        <button className="lw-rail__item" aria-label="History" title="History: snapshots of this scene" onClick={onHistory}><Icon icon={History} size={19} /></button>
+        <button className="lw-rail__item" aria-label="Settings" title="Settings" onClick={onSettings}><Icon icon={Settings} size={19} /></button>
         <button className="lw-rail__profile" aria-label="Author profile" title={author || "Author (set `author` in project.toml)"}>
           <span className="lw-rail__avatar">{initials}</span>
           <span className="lw-rail__online" />

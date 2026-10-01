@@ -22,6 +22,7 @@ src/lorewrite/
     entities.py         # entity notes: frontmatter, aliases, resolve, add_alias
     project.py          # project layout, entities, settings (Project mixes in Structure)
     structure.py        # parts (folders), unplaced scenes, trash, scene moves/renumbering
+    snapshots.py        # .snapshots/: create/list/restore/delete, daily auto, word diff
     scenemeta.py        # scene details = YAML frontmatter: find/strip/blank/set_details
     index.py            # SQLite backlink index; no-ops after close()
     recents.py          # recent projects; LOREWRITE_STATE_DIR env override
@@ -119,6 +120,15 @@ PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --
   - `place_scene(path, part, index)` renumbers only the destination; ids of other scenes in it
     change, so the GUI's `place_scene` / `move_scene` / `move_part` return a `remap`
     ({old id: new id}) and the client reopens the open document through it.
+- **Snapshots are author data** (`.snapshots/<sidecar key>/<stamp>[--label].md` + optional
+  `.json` of draft originals; `core/snapshots.py`). Everything that moves or trashes a scene must
+  carry the folder (`snapshots.stage/unstage/archive/unarchive`, already wired into
+  `Structure._apply_renames`, `move_part`, `delete_scene`, `restore_scene`). Never build the path
+  by hand (`snapshots.scene_dir`); snapshot ids come over the GUI bridge, so go through
+  `snapshots._file` (it refuses anything that is not a plain id). Whole-scene destructive ops
+  (restore, accept/reject-all) call `snapshots.create` with the editor buffer first; the daily
+  auto snapshot (`ensure_daily`, setting `auto_snapshot`) runs in both save paths *before* the
+  write and must never block a save. `snapshots._daily_done` is a per-process cache — tests clear it.
 - **Scene details are frontmatter, not prose.** Anything that counts words, scans names,
   spell-checks, samples style or sends scene text to an AI must skip the block:
   `scenemeta.strip` (drop), `scenemeta.blank` (same-length whitespace so offsets and rows

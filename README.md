@@ -36,6 +36,11 @@ design and roadmap.
   of the book (not counted, not in continuity, still indexed for backlinks).
   Deleting a scene moves it to `.trash/` — *Open Trash* restores it, deletes it
   forever or empties the Trash, always after a confirmation.
+- **Snapshots**: keep a verbatim copy of a scene (`.snapshots/`), compare it with the
+  text as it is now (word by word) and restore it — the text you replace is snapshotted
+  first. One is also taken before *Accept/Reject all drafts* and, once a day, before the
+  first edit of a scene (Settings → History). *Scene · Snapshots* in the palette; the History
+  button in the desktop app.
 - **Scene details** (POV, place, purpose, status, word target) are the scene's own
   YAML frontmatter — Obsidian-compatible, written only when you set a field, and
   never counted as prose, spell-checked, or sent to the AI as text (the AI does get
@@ -184,6 +189,7 @@ my-novel/
 │   └── _unplaced/        # optional: written, but not in the book
 ├── .trash/               # deleted scenes wait here (restore from the app)
 ├── .drafts/              # text pending AI drafts replaced, one file per scene
+├── .snapshots/           # History: a folder of snapshots per scene (plain copies)
 └── entities/
     ├── characters/elara-vance.md   # free-text note + YAML frontmatter
     └── places/thornwick.md         #   (name, type, aliases)

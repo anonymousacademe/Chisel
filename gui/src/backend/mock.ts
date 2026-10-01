@@ -46,7 +46,7 @@ function buildWorkspace(): Workspace {
   const total = scenes.reduce((n, s) => n + s.words, 0);
   const ent = (e: EntitySummary): BinderNode => ({ id: e.id, title: e.name, kind: "entity" });
   return {
-    project: { title: "The Meridian Archive", author: "", initials: "LW", path: "/mock", documentCount: scenes.length + ENTITIES.length, unit: "scene" },
+    project: { title: "The Meridian Archive", author: "", initials: "LW", path: "/mock", documentCount: scenes.length + ENTITIES.length, unit: "scene", draft: 1 },
     binder: [
       { id: "project", title: "The Meridian Archive", kind: "project", meta: k(total), expanded: true, children: [
         { id: "group:manuscript", title: "Manuscript", kind: "folder", meta: k(total), expanded: true,

@@ -109,6 +109,12 @@ class ActionProvider(_Provider):
          "Swap with the scene below in its part (renumbers files)"),
         ("Edit details", "edit_details",
          "POV, place, purpose, status and word target (stored in the scene's frontmatter)"),
+        ("Snapshots", "open_snapshots",
+         "List, compare, restore or delete snapshots of the open scene"),
+        ("Snapshot scene", "snapshot_scene_prompt",
+         "Keep a verbatim copy of the open scene you can compare and restore"),
+        ("Snapshot all scenes", "snapshot_all_prompt",
+         "One snapshot of every scene in the project, with one label"),
         ("New part", "new_part_prompt", "Add a part (a folder under manuscript/)"),
         ("Rename part", "rename_part_prompt", "Retitle the open scene's part"),
         ("Move part up", "move_part_up", "Swap the part with the one before it"),
@@ -164,7 +170,8 @@ class ActionProvider(_Provider):
     ]
 
     #: actions listed under another category than "Action"
-    CATEGORY = {"edit_details": "Scene"}
+    CATEGORY = {"edit_details": "Scene", "open_snapshots": "Scene",
+                "snapshot_scene_prompt": "Scene"}
 
     def _entries(self):
         app = self.app

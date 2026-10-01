@@ -63,6 +63,9 @@ class SettingsScreen(ModalScreen[None]):
                 yield Checkbox("Line numbers", id="line-numbers")
             yield Label("Spelling", classes="settings-heading")
             yield Checkbox("Underline misspellings", id="spellcheck")
+            yield Label("History", classes="settings-heading")
+            yield Checkbox("Snapshot a scene the first time it is edited each day",
+                           id="auto-snapshot")
             yield Button("Save", id="save", variant="primary")
             yield Label("enter a field, then Save · esc closes without saving",
                         id="settings-hint")
@@ -78,6 +81,8 @@ class SettingsScreen(ModalScreen[None]):
             user_settings.get("writing_model") or "")
         self.query_one("#spellcheck", Checkbox).value = bool(
             user_settings.get("spellcheck", True))
+        self.query_one("#auto-snapshot", Checkbox).value = bool(
+            user_settings.get("auto_snapshot", True))
         if self._project is not None:
             prefs = self._project.editor_settings()
             self.query_one("#padding", Input).value = str(prefs["padding"])
@@ -144,6 +149,8 @@ class SettingsScreen(ModalScreen[None]):
         user_settings.set("writing_model", writing or None)
         user_settings.set("spellcheck",
                           self.query_one("#spellcheck", Checkbox).value)
+        user_settings.set("auto_snapshot",
+                          self.query_one("#auto-snapshot", Checkbox).value)
         if self._project is not None:
             raw = self.query_one("#padding", Input).value.strip()
             try:
