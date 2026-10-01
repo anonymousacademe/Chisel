@@ -31,6 +31,7 @@ from ..ai.style import learn_style
 from ..ai.usage import LEDGER
 from ..ai.writing import (
     ask as ask_writer,
+    brainstorm as brainstorm_writer,
     build_context,
     build_project_context,
     research_context,
@@ -1397,6 +1398,34 @@ class Api:
             calls = LEDGER.count()
         reply = ask_writer(prompt, context, model, history=history)
         return {"reply": reply, "attached": attached, "cost": self._spent(calls)}
+
+    @bridge
+    def brainstorm(self, doc_id: str | None = None, text: str | None = None, cursor: int = 0,
+                   attachments: list | None = None) -> dict:
+        """Chat: 3-5 "unstuck" ideas for the open scene (or the project when no scene is
+        open) from the scene around the cursor, the canon and the style guide. The reply
+        is chat text (a numbered list) plus the ideas as a list, for per-idea actions;
+        the manuscript is never touched."""
+        with self._lock:
+            project = self._require()
+            entities = list(self.entities)
+            canon = canon_map(entities)
+            style_md = load_style(project)
+            model = resolve_model("writing", project.meta)
+            if not doc_id:
+                context = build_project_context(
+                    [ws.split_title(p.read_text(encoding="utf-8"))[0] or p.stem
+                     for p in project.list_scenes()], entities, canon, style_md)
+            else:
+                inp = self._scene_inputs(doc_id, text)
+                context = build_context(
+                    inp["text"], from_utf16(inp["text"], cursor), entities, canon,
+                    style_md, originals=inp["originals"])
+            context, attached = self._with_attachments(project, context, attachments)
+            calls = LEDGER.count()
+        ideas = brainstorm_writer(context, model)
+        reply = "\n".join(f"{i}. {idea}" for i, idea in enumerate(ideas, 1))
+        return {"reply": reply, "ideas": ideas, "attached": attached, "cost": self._spent(calls)}
 
     @staticmethod
     def _with_attachments(project: Project, context: str, attachments: list | None) -> tuple[str, list]:

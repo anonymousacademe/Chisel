@@ -124,6 +124,9 @@ export const api = {
   deleteChat: (id: string) => call<{ chats: ChatSummary[] }>("delete_chat", id),
   /** Appends the reply, with the date and the prompt, to research/assistant-notes.md. */
   saveReplyToNotes: (prompt: string, reply: string) => call<{ id: string }>("save_reply_to_notes", prompt, reply),
+  /** Brainstorm: 3-5 "unstuck" ideas for the open scene (null: the whole project); chat text only. */
+  brainstorm: (docId: string | null, text: string | null, cursor: number, attachments: { kind: AttachKind; id: string }[] = []) =>
+    call<{ reply: string; ideas: string[]; attached: AttachReport[]; cost: number | null }>("brainstorm", docId, text, cursor, attachments),
   getSettings: () => call<SettingsInfo>("get_settings"),
   setSettings: (models?: Partial<Record<ModelKind, string>>, editor?: Partial<EditorPrefs>, spellcheck?: boolean, autoSnapshot?: boolean, dailyTarget?: number) =>
     call("set_settings", models ?? null, editor ?? null, spellcheck ?? null, autoSnapshot ?? null, dailyTarget ?? null),

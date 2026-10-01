@@ -11,12 +11,12 @@ import { Icon, IconButton, SectionLabel, Tag } from "./primitives";
 import { placeholderProps } from "./placeholder";
 
 export type AssistantTab = "assistant" | "context" | "notes";
-export type QuickAction = "rewrite" | "continuity" | "research";
+export type QuickAction = "brainstorm" | "rewrite" | "continuity" | "research";
 type Tab = AssistantTab;
 const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 
 const tools: { icon: LucideIcon; title: string; detail: string; action?: QuickAction }[] = [
-  { icon: Lightbulb, title: "Brainstorm", detail: "Plot, character, image" },
+  { icon: Lightbulb, title: "Brainstorm", detail: "Plot, character, image", action: "brainstorm" },
   { icon: WandSparkles, title: "Rewrite", detail: "Tone, clarity, rhythm", action: "rewrite" },
   { icon: ScanSearch, title: "Continuity", detail: "Facts, timeline, logic", action: "continuity" },
   { icon: BookSearch, title: "Research", detail: "Your notes + canon", action: "research" },
@@ -42,6 +42,8 @@ export function Assistant(props: {
   /** Conversation history, attach and Save to notes (Wave 3.4). */
   onHistory: () => void; onAttach: () => void; attachments: Attachment[]; onRemoveAttachment: (a: Attachment) => void;
   onSaveReply: (id: string) => void;
+  /** Brainstorm ideas: write from one (opens the draft prompt prefilled) or keep it in the notes. */
+  onDraftIdea: (idea: string) => void; onSaveIdea: (idea: string) => void;
   onQuick: (a: QuickAction) => void; onMenu: (anchor: HTMLElement) => void; onClose: () => void;
   canInsert: boolean;
   /** Shown under the note in the Notes tab (the scene's comments). */
@@ -149,7 +151,27 @@ export function Assistant(props: {
               <div key={m.id} className="lw-msg-ai">
                 <span className="lw-mark"><Icon icon={Sparkles} size={12} stroke={1.7} /></span>
                 <div className="lw-msg-ai__body">
-                  <p className={`lw-msg-ai__text${m.error ? " is-error" : ""}`}>{m.text}</p>
+                  {m.ideas && m.ideas.length > 0 ? (
+                    <ol className="lw-ideas" aria-label="Brainstorm ideas">
+                      {m.ideas.map((idea, i) => (
+                        <li key={i} className="lw-idea">
+                          <p>{idea}</p>
+                          <div className="lw-row lw-gap-6">
+                            <button className="lw-btn" disabled={!props.canInsert || busy} onClick={() => props.onDraftIdea(idea)}
+                              title="Open the draft prompt with this idea filled in">
+                              <Icon icon={Feather} size={13} stroke={1.8} /> Draft from this
+                            </button>
+                            <button className="lw-btn" onClick={() => props.onSaveIdea(idea)}
+                              title="Add this idea to research/assistant-notes.md">
+                              <Icon icon={BookmarkPlus} size={13} stroke={1.8} /> Save to notes
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  ) : (
+                    <p className={`lw-msg-ai__text${m.error ? " is-error" : ""}`}>{m.text}</p>
+                  )}
                   {m.sources && m.sources.length > 0 && (
                     <div className="lw-sources-line" aria-label="Research notes used">
                       <span className="lw-faint">Notes:</span>
@@ -162,8 +184,8 @@ export function Assistant(props: {
                     <div className="lw-row lw-gap-4">
                       <IconButton icon={Copy} label="Copy" onClick={() => navigator.clipboard?.writeText(m.text)} />
                       <IconButton icon={RefreshCw} label="Regenerate" disabled={busy} onClick={() => props.onRegenerate(m.id)} />
-                      <IconButton icon={TextCursorInput} label="Insert as a draft at the cursor" disabled={!props.canInsert || busy} onClick={() => props.onInsertDraft(m.id)} />
-                      <IconButton icon={BookmarkPlus} label="Save to notes (research/assistant-notes.md)" onClick={() => props.onSaveReply(m.id)} />
+                      {!m.ideas && <IconButton icon={TextCursorInput} label="Insert as a draft at the cursor" disabled={!props.canInsert || busy} onClick={() => props.onInsertDraft(m.id)} />}
+                      <IconButton icon={BookmarkPlus} label={m.ideas ? "Save all the ideas to notes (research/assistant-notes.md)" : "Save to notes (research/assistant-notes.md)"} onClick={() => props.onSaveReply(m.id)} />
                     </div>
                   )}
                 </div>

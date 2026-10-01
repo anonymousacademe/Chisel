@@ -23,6 +23,7 @@ from ..ai.style import learn_style
 from ..ai.usage import LEDGER, format_cost
 from ..ai.writing import (
     ask as ask_writer,
+    brainstorm as brainstorm_ideas,
     build_context,
     build_project_context,
     generate,
@@ -75,6 +76,7 @@ from .editor import LinkedTextArea
 from .launch import LaunchScreen
 from .linkreview import AliasReviewScreen
 from .panels import BacklinkSelected, EntityPanel
+from .brainstormscreen import BrainstormScreen
 from .promptscreen import PromptScreen
 from .settingscreen import KeyPrompt
 from .sidebar import OpenFile, Sidebar
@@ -126,6 +128,7 @@ HELP_TEXT = """\
   Scene · Edit details — POV, place, purpose, status, word target
   Open Trash — restore deleted scenes, delete forever, empty the Trash
   Scene · Snapshots / Snapshot scene / Snapshot all scenes — compare and restore
+  Brainstorm — AI "unstuck" ideas for the open scene; draft from one or save it to notes
   Focus sprint — 15 / 25 / 45 / custom minutes, countdown in the status bar, optional writer mode
   Session stats — today, this session, 30-day sparkline, streak, daily target (Settings)
   Start new draft — snapshot the whole book as "end of draft N", then count up
@@ -332,7 +335,12 @@ class LorewriteApp(App):
     }
     NamePrompt Input { border: solid $primary; }
     EntityTypePrompt Button { border: solid $primary; }
-    ChoiceScreen, TrashScreen, DetailsScreen, StatsScreen { align: center middle; }
+    ChoiceScreen, TrashScreen, DetailsScreen, StatsScreen, BrainstormScreen { align: center middle; }
+    #idea-box { width: 90; height: auto; max-height: 85%; background: $surface; border: solid $primary; padding: 1 2; }
+    #idea-header { text-style: bold; padding-bottom: 1; }
+    #idea-list { height: auto; max-height: 22; }
+    #idea-list ListItem Label { width: 100%; padding-bottom: 1; }
+    #idea-hint { color: $text-muted; padding-top: 1; }
     #choice-box, #trash-box, #details-box, #snap-box, #compare-box, #stats-box {
         width: 76; height: auto; max-height: 80%;
         background: $surface; border: solid $primary; padding: 1 2;
@@ -2499,6 +2507,65 @@ class LorewriteApp(App):
         self._save_chat()
         if cost:
             self.notify(f"Answered{cost}", timeout=3)
+
+    # -- brainstorm (Wave 4.3): "unstuck" ideas, never written into the prose ----------------
+
+    def brainstorm(self) -> None:
+        """Action · Brainstorm: 3-5 ideas from the scene around the cursor, the canon and the
+        style guide, in a list with Draft from this / Save to notes."""
+        if self.project is None:
+            return
+        entities, canon = list(self.entities), self._canon_map()
+        scene = self._current_scene_path()
+        if scene is not None:
+            text = self.editor.text
+            offset = self._cursor_offset()
+            context = build_context(text, offset, entities, canon, load_style(self.project),
+                                    originals=self._originals(text))
+        else:
+            offset = 0
+            titles = [self.project.scene_title(p) for p in self.project.list_scenes()]
+            context = build_project_context(titles, entities, canon, load_style(self.project))
+        self.notify("Brainstorming…", timeout=3)
+        self._brainstorm_worker(context, self._ai_model("writing"), scene, offset)
+
+    @work(exclusive=True, group="brainstorm")
+    async def _brainstorm_worker(self, context, model, scene, offset) -> None:
+        calls = LEDGER.count()
+        try:
+            ideas = await asyncio.to_thread(brainstorm_ideas, context, model)
+        except Exception as exc:
+            self.notify(f"Brainstorm failed: {exc}", severity="error", timeout=6)
+            return
+        cost = self._cost_note(calls)
+        self._show_ideas(ideas, scene, offset)
+        if cost:
+            self.notify(f"Ideas ready{cost}", timeout=3)
+
+    def _show_ideas(self, ideas: list[str], scene: Path | None, offset: int) -> None:
+        def _act(result) -> None:
+            if result is None:
+                return
+            what, idea = result
+            if what == "save":
+                try:
+                    where = research_notes.append_assistant_note(
+                        self.project, f"Brainstorm idea - {self.project.scene_title(scene)}"
+                        if scene else "Brainstorm idea", idea)
+                    self.notify(f"Saved to {where.relative_to(self.project.root)}", timeout=3)
+                except (OSError, ValueError) as exc:
+                    self.notify(f"Could not save the idea: {exc}", severity="error")
+                self._show_ideas(ideas, scene, offset)
+            elif what == "draft":
+                if scene is None or self.current_path != scene:
+                    self.notify("Open the scene you want to draft into first", severity="warning")
+                    return
+                pos = min(offset, len(self.editor.text))
+                self.push_screen(
+                    PromptScreen("What should the AI write here? (edit the idea if you like)", idea),
+                    lambda instruction: self._start_generate("draft", instruction, pos, pos))
+
+        self.push_screen(BrainstormScreen(ideas), _act)
 
     # -- comments (Wave 3.2): author notes in .comments/, never in the prose ----------
 

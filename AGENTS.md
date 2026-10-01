@@ -163,7 +163,9 @@ PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --
   an AI **only** through an explicit attachment. Attachments are capped and every trim/skip is in
   the `attached` report the UI shows - do not add a silent cap. The terminal chat window
   (`tui/assistantscreen.py`) has no attach in v1; its AI calls are `lorewrite.tui.app.ask_writer` /
-  `research_answer` (mock those names).
+  `research_answer` (mock those names). Brainstorm is `lorewrite.tui.app.brainstorm_ideas` (terminal) and
+  `lorewrite.gui.api.brainstorm_writer` (GUI; `gui/mockai.py` fakes it, and the signature test in
+  `tests/test_gui_shell.py` lists it); a brainstorm reply is a chat message carrying `ideas`.
 - **Writing stats** (`core/stats.py`) are personal: `<state dir>/stats/<project-id>.json`, never in the
   project folder, and they MUST honour `LOREWRITE_STATE_DIR` (tests/screenshots point it at a temp dir).
   Both front ends call `Tracker.seen(key, words)` when a scene is opened or replaced wholesale (snapshot
@@ -295,6 +297,7 @@ front ends (docs/plan-spelling.md, SPEC M6).
 **Waves 1-3 of docs/plan-workspace.md** (branch `features`): parts, Unplaced Scenes,
 Trash, scene details (frontmatter), GUI drag-to-reorder; snapshots, drafts, git sync;
 collections, comments, research notes, assistant chat history / attach / save to notes.
-Wave 4 (stats/streak, focus timer, brainstorm) is not built.
+**Wave 4** (branch `features`): session stats/streak/daily target and focus sprints (`core/stats.py`), Brainstorm
+(`ai.writing.brainstorm`), research notes go to the Trash (4.4).
 Known concern: user is unconvinced by the command palette as primary UI
 (SPEC §11b) — the GUI is the answer being tried.

@@ -85,6 +85,11 @@ design and roadmap.
   ones not at all), active minutes, sessions, a 30-day chart and a streak of days that met your daily
   word target (Settings; default 500, 0 = off). The status bar shows the streak and
   `+N / target words today`; click it (desktop) or pick *Action · Session stats* (terminal).
+- **Brainstorm** (AI): when you are stuck, ask for 3-5 ideas drawn from the scene around the cursor,
+  your canon and your style — what-ifs, complications, a sense you have not used, a pressure on a
+  character. They are suggestions only: *Draft from this* opens the draft prompt with the idea filled
+  in (the result is still a pending draft you accept or reject), *Save to notes* keeps it in
+  `research/assistant-notes.md`. Desktop: the Brainstorm quick action; terminal: *Action · Brainstorm*.
 - **Focus sprints**: 15 / 25 / 45 / custom minutes with a countdown in the status bar, optional
   writer / focus mode, a quiet notice (no sound) with the words you wrote, recorded in your stats.
   Desktop: the timer button in the status bar; terminal: *Action · Focus sprint*.

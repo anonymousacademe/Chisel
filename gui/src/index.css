@@ -608,3 +608,10 @@ button.lw-picklist__row:hover { border-color: var(--lw-accent); background: var(
 .lw-stats__col.is-met .lw-stats__bar { background: var(--lw-accent); }
 .lw-stats__axis { display: flex; justify-content: space-between; font-size: 10px; color: var(--lw-text-faint); }
 .lw-stats__sprints { margin: 0; padding-left: 18px; font-size: 12px; color: var(--lw-text); }
+
+/* -- brainstorm ideas (Wave 4.3) ------------------------------------------------------- */
+.lw-ideas { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; counter-reset: idea; }
+.lw-idea { counter-increment: idea; background: var(--lw-bg-raised); border: 1px solid var(--lw-border); border-radius: var(--lw-radius-md); padding: 8px 10px; display: flex; flex-direction: column; gap: 8px; }
+.lw-idea p { margin: 0; font-size: 12px; line-height: 1.5; color: var(--lw-text); user-select: text; }
+.lw-idea p::before { content: counter(idea) ". "; color: var(--lw-accent-text); font-weight: 600; }
+.lw-idea .lw-btn { height: 26px; font-size: 11px; display: inline-flex; align-items: center; gap: 5px; padding: 0 9px; }

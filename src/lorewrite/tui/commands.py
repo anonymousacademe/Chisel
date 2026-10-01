@@ -157,6 +157,8 @@ class ActionProvider(_Provider):
          "Make the project folder a git repository (.gitignore hides .lorewrite/)"),
         ("Session stats", "open_stats",
          "Today, this session, the last 30 days, your streak and daily target"),
+        ("Brainstorm", "brainstorm",
+         "AI: 3-5 ideas to get unstuck from this scene, the canon and your style (draft from one, or save it)"),
         ("Focus sprint", "focus_sprint",
          "Timed writing sprint (15 / 25 / 45 / custom minutes): countdown in the status bar, optional writer mode"),
         ("Start new draft", "start_new_draft",

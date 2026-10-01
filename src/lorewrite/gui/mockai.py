@@ -114,6 +114,13 @@ def install(api_module) -> None:
         return ("Your notes say the spur floods when the tide table and the storm drains disagree [1]. "
                 "That fits the way the canon has the market built under it.")
 
+    def brainstorm_writer(context, model, client=None):
+        _spend("brainstorm")
+        return ["What if the caller ID did not go dark, but showed Rook's own number?",
+                "Let the rain stop mid-sentence, so the market hears what it was covering.",
+                "Wren is lying about something small; let Rook notice and say nothing.",
+                "The holo koi turns toward the door a beat before anyone walks in."]
+
     api_module.get_api_key = get_api_key
     api_module._set_api_key = lambda k: keys.__setitem__("key", k)
     api_module._clear_api_key = lambda: keys.pop("key", None)
@@ -125,3 +132,4 @@ def install(api_module) -> None:
     api_module.generate_text = generate_text
     api_module.ask_writer = ask_writer
     api_module.research_writer = research_writer
+    api_module.brainstorm_writer = brainstorm_writer

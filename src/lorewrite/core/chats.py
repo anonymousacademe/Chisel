@@ -4,7 +4,8 @@
      "updated": "2026-10-01T10:20:41", "scope": "scene",
      "attachments": [{"kind": "scene", "id": "manuscript/01-rain.md"}],
      "messages": [{"id": "...", "role": "user" | "assistant", "text": "...",
-                   "error": false, "sources": [{"id": "research/tides.md", "title": "Tides"}]}]}
+                   "error": false, "sources": [{"id": "research/tides.md", "title": "Tides"}],
+                   "ideas": ["What if the tram never stopped?"]}]}   # ideas: a Brainstorm reply
 
 Plain JSON, author data (committed with the project, never under ``.lorewrite/``).
 The title is the first prompt. Chat ids arrive over the GUI bridge, so every
@@ -24,6 +25,8 @@ CHATS_DIR = ".assistant/chats"
 TITLE_MAX = 60
 MAX_MESSAGES = 400
 MAX_TEXT = 20000
+MAX_IDEAS = 8        # a Brainstorm reply carries 3-5 ideas
+MAX_IDEA = 1000
 SCOPES = ("scene", "project")
 _ID_RE = re.compile(r"^c[0-9a-f]{10}$")
 
@@ -85,6 +88,9 @@ def _clean_message(m: object) -> dict | None:
                for s in m.get("sources") or [] if isinstance(s, dict) and s.get("id")]
     if sources:
         out["sources"] = sources
+    ideas = [i.strip()[:MAX_IDEA] for i in m.get("ideas") or [] if isinstance(i, str) and i.strip()]
+    if ideas:
+        out["ideas"] = ideas[:MAX_IDEAS]
     return out
 
 

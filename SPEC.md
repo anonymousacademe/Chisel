@@ -206,7 +206,7 @@ rejection — the author explicitly wants a lightweight version.*
   - *Active minutes*: each typing ping adds the gap since the previous one if it is at most 2 minutes. A *session* starts at the first activity after 30 idle minutes (or in a new process); sessions are counted on the day they start. Per-day totals and "this session" (since the tracker started or the last 30 idle minutes) are both shown.
   - *Daily target* (user setting `daily_target`, default 500, 0 = off; Settings in both front ends). *Streak* = consecutive days with words >= target (>= 1 when off), counted back from today; today only breaks it once the day is over.
   - *Status bar* (both): `Streak N` and `+N / target words today` (today's words across sessions, not the net change since opening; with the target off, `+N words today`). Desktop: click either for the **Session stats** dialog (today, this session, streak, best day, average per session, project words, 30-day bar chart with days that met the target highlighted). Terminal: palette *Action · Session stats* (text plus a 30-day sparkline).
-- **Idea generator**: AI "unstuck" prompts (writing techniques, what-if questions about current scene/characters).
+- **Idea generator (Brainstorm)** ✅ (Wave 4.3, `ai.writing.brainstorm`). The *writing* model gets the scene around the cursor (`build_context`: pending AI drafts excluded, `<<CURSOR>>` marked), the canon of the characters and places it mentions and the style guide - or, with no scene open, the project context (titles + canon) - and returns 3-5 ideas from different angles (what-if questions, complications, sensory angles, character pressure points, unused canon), each one or two sentences. `parse_ideas` reads the numbered list (at most five; `<!--` stripped). Ideas are suggestions in a list, never prose in the scene. Each has **Draft from this** (opens the `ctrl+g` prompt prefilled with the idea, at the cursor; the result is the usual pending draft) and **Save to notes** (appends it under `## date - Brainstorm idea - <scene>` to `research/assistant-notes.md`). Desktop: the Brainstorm quick action posts a chat turn whose reply is the idea list (per-idea buttons; *Regenerate* asks again; the reply is saved with the conversation, `ideas` in `.assistant/chats/<id>.json`; attachments are honoured). Terminal: palette *Action · Brainstorm* opens a list (`enter`/`d` draft from this, `s` save to notes, `esc`). No attach in the terminal; the usual cost note shows.
 
 ### M7 — Manuscript organization + export
 
@@ -524,11 +524,12 @@ both edit the same plain-Markdown projects.
   chat (`ask`) answers in the panel only, with *Insert as draft*.
 - **Placeholders.** Parts of the design that LoreWriter does not do yet are drawn
   as designed but dimmed, non-interactive, tooltip "Not in LoreWriter yet"
-  (`gui/src/components/placeholder.ts`): nothing but the Brainstorm quick action since Wave 4
-  (the status-bar Streak and `session words / target` are real since 4.1; the Draft badge and status item, Snapshots, Sync and the History button are real since Wave 2;
-  the Research row, Collections, the comment button, the Research quick action, conversation history,
-  attach-context and the reply's Save to notes since Wave 3), and the Brainstorm quick action.
-  No fake data is shown for them.
+  (`gui/src/components/placeholder.ts`): nothing is left as a placeholder since Wave 4 (the Draft
+  badge and status item, Snapshots, Sync and the History button became real in Wave 2; the Research
+  row, Collections, the comment button, the Research quick action, conversation history, attach-context
+  and the reply's Save to notes in Wave 3; the status-bar Streak and `session words / target`, the focus
+  timer and the Brainstorm quick action in Wave 4). The helper stays for future design elements.
+  No fake data is ever shown in one.
 - **Keys.** `ctrl+k` quick switcher, `ctrl+s` save, `ctrl+n` new scene, `f11`
   focus mode, `ctrl+j` in the editor: open the note under the cursor / make a note
   for the selected name (elsewhere it focuses the assistant composer, as in the

@@ -202,13 +202,13 @@ export interface DraftEdit { from: number; to: number; insert: string }
 
 export type ChatMessage =
   | { id: string; role: "user"; text: string }
-  | { id: string; role: "assistant"; text: string; error?: boolean; sources?: ChatSource[] };
+  | { id: string; role: "assistant"; text: string; error?: boolean; sources?: ChatSource[]; ideas?: string[] };
 /** A saved conversation (.assistant/chats/), newest activity first in lists. */
 export interface ChatSummary { id: string; title: string; created: string; updated: string; count: number }
 export interface SavedChat {
   id: string; title: string; created: string; updated: string; scope: "scene" | "project";
   attachments: { kind: AttachKind; id: string }[];
-  messages: { id: string; role: "user" | "assistant"; text: string; error?: boolean; sources?: ChatSource[] }[];
+  messages: { id: string; role: "user" | "assistant"; text: string; error?: boolean; sources?: ChatSource[]; ideas?: string[] }[];
 }
 export type AttachKind = "scene" | "note" | "research" | "comments";
 /** Something the paperclip can add to a chat's context; `words` is approximate. */

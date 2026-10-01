@@ -626,8 +626,39 @@ export default function App() {
     persistChat.current = !!r;
     setMessages((m) => [...m, r ? { id: uid(), role: "assistant", text: r.reply } : { id: uid(), role: "assistant", text: "That request failed. Nothing was changed.", error: true }]);
   };
+  /** Brainstorm quick action: ideas to get unstuck, from the scene around the cursor + canon + style. */
+  const runBrainstorm = async (replaceId?: string) => {
+    const ed = editorRef.current, d = docRef.current;
+    if (!requireAi()) return;
+    const attached = attachments.map(({ kind, id }) => ({ kind, id }));
+    if (replaceId) setMessages((m) => m.filter((x) => x.id !== replaceId));
+    else setMessages((m) => [...m, { id: uid(), role: "user", text: "Brainstorm: ideas to get unstuck." }]);
+    const r = await aiCall("Brainstorming…", () => api.brainstorm(d?.kind === "scene" ? d.id : null, ed ? ed.getText() : null, ed?.head() ?? 0, attached));
+    if (r) reportAttached(r.attached);
+    persistChat.current = !!r;
+    setMessages((m) => [...m, r ? { id: uid(), role: "assistant", text: r.reply, ideas: r.ideas }
+      : { id: uid(), role: "assistant", text: "That request failed. Nothing was changed.", error: true }]);
+  };
+  /** "Draft from this": the ctrl+g prompt, prefilled with the idea, at the cursor. */
+  const draftFromIdea = (idea: string) => {
+    const ed = editorRef.current;
+    if (!ed || docRef.current?.kind !== "scene") return notify("Open a scene to draft into.");
+    if (!requireAi()) return;
+    const head = ed.head();
+    setDialog({ kind: "generate", mode: "draft", from: head, to: head, title: "Draft from this idea",
+      label: "What should the AI write? (edit the idea if you like)", initial: idea });
+  };
+  const saveIdeaToNotes = async (idea: string) => {
+    const scene = docRef.current?.kind === "scene" ? docRef.current.title : "";
+    const r = await api.saveReplyToNotes(scene ? `Brainstorm idea - ${scene}` : "Brainstorm idea", idea);
+    if (!r.ok) return notify(r.error, "error");
+    await refresh();
+    setExpanded((s) => new Set(s).add("group:research"));
+    notify("Idea saved to research/assistant-notes.md", "info", { label: "Open", run: () => { void openDoc(r.id); } });
+  };
   const regenerate = (id: string) => {
     const i = messages.findIndex((m) => m.id === id);
+    if (messages[i]?.role === "assistant" && (messages[i] as { ideas?: string[] }).ideas) { void runBrainstorm(id); return; }
     const prompt = messages.slice(0, i).reverse().find((m) => m.role === "user");
     if (prompt) void sendChat(prompt.text, id);
   };
@@ -640,7 +671,8 @@ export default function App() {
     notify("Inserted as an AI draft: F7 accept, F8 reject.");
   };
   const onQuick = (a: QuickAction) => {
-    if (a === "rewrite") rewriteSelection();
+    if (a === "brainstorm") void runBrainstorm();
+    else if (a === "rewrite") rewriteSelection();
     else if (a === "research") {
       setResearchMode((on) => !on);
       if (!researchMode && !ws?.research.length) notify("Research answers come from your research notes. Add some under Research in the binder first (a new note, or paste a link).");
@@ -855,7 +887,7 @@ export default function App() {
     const known = new Map((items.ok ? items.items : []).map((i) => [`${i.kind}:${i.id}`, i]));
     setChat(c.id); persistChat.current = false;
     setMessages(c.messages.map((m) => (m.role === "user" ? { id: m.id, role: "user" as const, text: m.text }
-      : { id: m.id, role: "assistant" as const, text: m.text, ...(m.sources ? { sources: m.sources } : {}) })));
+      : { id: m.id, role: "assistant" as const, text: m.text, ...(m.sources ? { sources: m.sources } : {}), ...(m.ideas ? { ideas: m.ideas } : {}) })));
     setScope(c.scope);
     setAttachments(c.attachments.flatMap((a) => {
       const hit = known.get(`${a.kind}:${a.id}`);
@@ -1143,7 +1175,7 @@ export default function App() {
             researchMode={researchMode} onOpenSource={(id) => void openDoc(id)}
             onHistory={() => void openChatHistory()} onAttach={() => void openAttach()} attachments={attachments}
             onRemoveAttachment={(a) => { if (chatIdRef.current) persistChat.current = true; setAttachments((l) => l.filter((x) => !(x.kind === a.kind && x.id === a.id))); }}
-            onSaveReply={(id) => void saveReplyToNotes(id)}
+            onSaveReply={(id) => void saveReplyToNotes(id)} onDraftIdea={draftFromIdea} onSaveIdea={(idea) => void saveIdeaToNotes(idea)}
             onQuick={onQuick} onMenu={openAiMenu} canInsert={doc?.kind === "scene"} onClose={() => setAssistantOpen(false)}
             notesExtra={doc?.kind === "scene" ? (
               <CommentsPanel comments={comments} onOpen={openComment}

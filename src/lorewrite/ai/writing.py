@@ -398,3 +398,76 @@ def research_answer(
     if not reply:
         raise ValueError("the model returned no text")
     return reply
+
+
+# -- brainstorm: "unstuck" ideas (Wave 4.3) ---------------------------------------------
+
+BRAINSTORM_SYSTEM_PROMPT = """\
+You help a novelist who is stuck in the middle of a scene. Using the style guide,
+the story notes and the scene text you are given (<<CURSOR>> marks the author's
+cursor), propose between 3 and 5 ideas to get the writing moving again.
+
+Make the ideas different from each other. Draw them from angles such as:
+- a what-if question about this moment;
+- a complication or reversal the scene could take;
+- a sensory detail or image the scene has not used;
+- a pressure point on one of the characters (what they want, fear or hide);
+- something from the story notes that has not come into play yet.
+
+Rules:
+- Be concrete and specific to THIS scene and THESE characters; no generic
+  writing advice.
+- One or two sentences per idea. Do not write the scene's prose and do not
+  continue the text; the author decides what to use.
+- Reply as a numbered list ("1. ..."), nothing before or after it.
+- Never write HTML comments or the text "<!--".
+"""
+
+BRAINSTORM_MIN, BRAINSTORM_MAX = 3, 5
+IDEA_CHARS = 600
+_NUMBERED = re.compile(r"^\s*(?:\d{1,2}[.)]|[-*•])\s+(.*\S)\s*$")
+
+
+def parse_ideas(raw: str) -> list[str]:
+    """The ideas in a model reply: numbered (or bulleted) items, continuation
+    lines joined, at most five. Without any list markers each paragraph is an
+    idea. Markdown emphasis and ``<!--`` are stripped."""
+    ideas: list[str] = []
+    for line in (raw or "").replace("<!--", "<!-").splitlines():
+        m = _NUMBERED.match(line)
+        if m:
+            ideas.append(m.group(1).strip())
+        elif line.strip() and ideas and not ideas[-1].endswith(":") and not line.lstrip().startswith("#"):
+            ideas[-1] += " " + line.strip()
+    if not ideas:
+        ideas = [" ".join(p.split()) for p in re.split(r"\n\s*\n", raw or "") if p.strip()]
+    cleaned = []
+    for idea in ideas:
+        idea = re.sub(r"\*\*(.+?)\*\*", r"\1", idea).strip()
+        if idea:
+            cleaned.append(idea[:IDEA_CHARS])
+    return cleaned[:BRAINSTORM_MAX]
+
+
+def brainstorm(context: str, model: str, client=None) -> list[str]:
+    """Network call: 3-5 "unstuck" ideas for the scene in *context* (see
+    ``build_context`` / ``build_project_context``). Chat text only; never
+    touches the manuscript. Synchronous - run it off the UI thread. Raises
+    ValueError when the model returns nothing usable."""
+    if client is None:
+        from .client import make_client
+
+        client = make_client()
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": BRAINSTORM_SYSTEM_PROMPT},
+            {"role": "user", "content": f"{context}\n\nGive me ideas to get unstuck."},
+        ],
+        extra_body=usage_extra_body(),
+    )
+    record_response(response, model, "brainstorm")
+    ideas = parse_ideas(response.choices[0].message.content or "")
+    if not ideas:
+        raise ValueError("the model returned no ideas")
+    return ideas
