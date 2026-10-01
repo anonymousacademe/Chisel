@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./backend/api";
 import type {
-  AliasSuggestion, BinderNode, CanonProposal, ChatMessage, DetailsPatch, DocumentPayload, EntityInfo, EntityType, Issue, Remap, SceneMention, SettingsInfo, StyleStatus, Workspace,
+  AliasSuggestion, BinderNode, CanonProposal, ChatMessage, DetailsPatch, DocumentPayload, EntityInfo, EntityType, Issue, Remap, SceneMention, SettingsInfo, StyleStatus, SyncInfo, Workspace,
 } from "./data/types";
 import type { BridgeResult } from "./backend/transport";
 import { anchorDraft } from "./editor/drafts";
@@ -43,6 +43,9 @@ type Dialog =
   | { kind: "details" }
   | { kind: "snapshots" }
   | { kind: "new-draft" }
+  | { kind: "sync-commit"; info: Extract<SyncInfo, { repo: true }> }
+  | { kind: "sync-push"; info: Extract<SyncInfo, { repo: true }> }
+  | { kind: "sync-init" }
   | { kind: "new-note"; name: string; openAfter: boolean }
   | { kind: "generate"; mode: "draft" | "rewrite"; from: number; to: number; title: string; label: string; initial: string }
   | { kind: "aliases"; items: AliasSuggestion[] }
@@ -83,6 +86,8 @@ export default function App() {
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [words, setWords] = useState(0);
   const [snapshotAt, setSnapshotAt] = useState<string | null>(null);
+  const [sync, setSync] = useState<SyncInfo | null>(null);
+  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [cursor, setCursor] = useState<CursorInfo>(NO_CURSOR);
   const [mentions, setMentions] = useState<SceneMention[]>([]);
   const [tab, setTab] = useState<AssistantTab>("assistant");
@@ -121,6 +126,13 @@ export default function App() {
     return r.workspace;
   }, [notify]);
 
+  /** Read-only git status. Trailing-throttled (2.5 s) so autosaves do not spawn git every time. */
+  const refreshSync = useCallback((now = false) => {
+    const run = () => { syncTimer.current = null; void api.syncStatus().then((r) => { if (r.ok) setSync(r.sync); }); };
+    if (now) { if (syncTimer.current) clearTimeout(syncTimer.current); run(); return; }
+    if (!syncTimer.current) syncTimer.current = setTimeout(run, 2500);
+  }, []);
+
   // The autosave state machine for whichever document is open.
   const saver: SaveController = useMemo(() => new SaveController({
     save: (id, text, mtime, force) => api.saveDocument(id, text, mtime, force),
@@ -129,13 +141,14 @@ export default function App() {
       if (r.words !== undefined) setWords(r.words);
       if (r.snapshotAt !== undefined) setSnapshotAt(r.snapshotAt);
       void refresh();
+      refreshSync();
       const id = saver.documentId; // the retrieved-context list follows what was just saved
       if (id?.startsWith("manuscript/")) {
         void api.sceneContext(id).then((c) => { if (c.ok && saver.documentId === id) setMentions(c.mentions); });
       }
     },
     onError: (m) => notify(`Save failed: ${m}`, "error"),
-  }), [notify, refresh]);
+  }), [notify, refresh, refreshSync]);
 
   const openDoc = useCallback(async (id: string, opts: { force?: boolean; keepMode?: boolean } = {}) => {
     if (!opts.force) {
@@ -160,12 +173,13 @@ export default function App() {
     void api.getSettings().then((r) => { if (r.ok) { setZoom(r.editor.zoom); setReflow(r.editor.reflow); } });
     const w = await refresh();
     if (!w) return;
+    refreshSync(true);
     setExpanded(collectExpanded(w.binder));
     saver.detach();
     setDoc(null);
     const first = w.scenes.find((s) => !s.frontMatter && !s.unplaced) ?? w.scenes[0];
     if (first) void openDoc(first.id, { force: true });
-  }, [refresh, saver, openDoc]);
+  }, [refresh, refreshSync, saver, openDoc]);
 
   useEffect(() => { void boot(); }, [boot]);
 
@@ -740,6 +754,43 @@ export default function App() {
     if (d?.kind === "scene") { const s = await api.listSnapshots(d.id); if (s.ok) setSnapshotAt(s.snapshotAt); }
     notify(`Draft ${r.previous} is saved as snapshots (“End of draft ${r.previous}”). You are now on draft ${r.draft}.`);
   };
+  // -- git sync: every action below runs only because the author clicked it ----------
+  const openSyncMenu = (anchor: HTMLElement) => {
+    if (!sync) return;
+    if (!sync.repo) {
+      return setMenu({ anchor, items: [
+        { label: "Initialize git for this project…", disabled: !sync.canInit, onSelect: () => setDialog({ kind: "sync-init" }) },
+      ] });
+    }
+    const info = sync;
+    setMenu({ anchor, items: [
+      { label: `Commit ${info.changes} change${info.changes === 1 ? "" : "s"}…`, disabled: info.changes === 0, onSelect: () => setDialog({ kind: "sync-commit", info }) },
+      ...(info.canPush ? [{ label: info.ahead ? `Push ${info.ahead} commit${info.ahead === 1 ? "" : "s"} to ${info.remote}…` : `Push to ${info.remote} (nothing to push)`,
+        disabled: info.ahead === 0, onSelect: () => setDialog({ kind: "sync-push", info }) }] : []),
+      { label: "Refresh", onSelect: () => refreshSync(true) },
+    ] });
+  };
+  const syncDone = (r: { sync: SyncInfo | null }, text: string) => { setSync(r.sync); notify(text); };
+  const syncCommit = async (message: string) => {
+    setDialog(null);
+    if (!(await saver.flush())) return notify("Could not save the current document first; nothing was committed.", "error");
+    const r = await api.syncCommit(message);
+    if (!r.ok) { notify(r.error, "error"); return refreshSync(true); }
+    syncDone(r, `Committed: ${r.summary}`);
+  };
+  const syncPush = async () => {
+    setDialog(null);
+    notify("Pushing…");
+    const r = await api.syncPush();
+    if (!r.ok) { notify(r.error, "error"); return refreshSync(true); }
+    syncDone(r, r.summary);
+  };
+  const syncInit = async () => {
+    setDialog(null);
+    const r = await api.syncInit();
+    if (!r.ok) { notify(r.error, "error"); return refreshSync(true); }
+    syncDone(r, "This folder is now a git repository. Nothing is committed yet.");
+  };
   const part = ws.parts.find((p) => p.id === (partFocus ?? doc?.partId)) ?? null;
   const openSceneMenu = (anchor: HTMLElement) => setMenu({
     anchor, items: [
@@ -813,7 +864,7 @@ export default function App() {
         line={cursor.line} col={cursor.col} zoom={zoom} onZoom={cycleZoom}
         spelling={isScene ? spellCount : null} onSpelling={jumpToMisspelling}
         snapshotAt={isScene ? snapshotAt : undefined} onSnapshots={openHistory}
-        draft={ws.project.draft} onDraft={openDraftMenu} />
+        draft={ws.project.draft} onDraft={openDraftMenu} sync={sync} onSync={openSyncMenu} />
       {switcher && <QuickSwitcher ws={ws} onClose={() => setSwitcher(false)}
         onPick={(id) => { setSwitcher(false); void openDoc(id); }} />}
       {spellTarget && (
@@ -891,6 +942,26 @@ export default function App() {
         <ConfirmDialog title={`Start draft ${ws.project.draft + 1}`} confirm="Start new draft" tone="primary"
           message={<>Every {unit} is snapshotted now as “End of draft {ws.project.draft}” (look for it under History), then the book counts as draft {ws.project.draft + 1}. Your text is not changed.</>}
           onConfirm={() => void startNewDraft()} onClose={() => setDialog(null)} />
+      )}
+      {dialog?.kind === "sync-commit" && (
+        <PromptDialog title="Commit changes" label="Message" initial={dialog.info.defaultMessage} confirm="Commit"
+          onSubmit={(m) => void syncCommit(m)} onClose={() => setDialog(null)}>
+          <p className="lw-dialog__message">
+            Commits the {dialog.info.changes} change{dialog.info.changes === 1 ? "" : "s"} in this project folder only
+            (repository <code>{dialog.info.toplevel}</code>). Nothing is pushed.
+          </p>
+        </PromptDialog>
+      )}
+      {dialog?.kind === "sync-push" && (
+        <ConfirmDialog title="Push" confirm="Push" tone="primary"
+          message={<>Push branch <code>{dialog.info.branch}</code> ({dialog.info.ahead} commit{dialog.info.ahead === 1 ? "" : "s"}) to the remote <code>{dialog.info.remote}</code>
+            {dialog.info.remoteUrl && <> (<code>{dialog.info.remoteUrl}</code>)</>}? This sends your manuscript to that remote. It is never forced.</>}
+          onConfirm={() => void syncPush()} onClose={() => setDialog(null)} />
+      )}
+      {dialog?.kind === "sync-init" && (
+        <ConfirmDialog title="Initialize git" confirm="Initialize" tone="primary"
+          message={<>Turn this project folder into a git repository? A <code>.gitignore</code> hides the rebuildable index cache (<code>.lorewrite/</code>). Nothing is committed or pushed.</>}
+          onConfirm={() => void syncInit()} onClose={() => setDialog(null)} />
       )}
       {dialog?.kind === "details" && doc?.kind === "scene" && doc.details && (
         <DetailsDialog details={doc.details} entities={ws.entities} unit={unit}

@@ -23,6 +23,7 @@ src/lorewrite/
     project.py          # project layout, entities, settings (Project mixes in Structure)
     structure.py        # parts (folders), unplaced scenes, trash, scene moves/renumbering
     snapshots.py        # .snapshots/: create/list/restore/delete, daily auto, word diff
+    sync.py             # optional git: status (read-only), commit, push, init — explicit only
     scenemeta.py        # scene details = YAML frontmatter: find/strip/blank/set_details
     index.py            # SQLite backlink index; no-ops after close()
     recents.py          # recent projects; LOREWRITE_STATE_DIR env override
@@ -129,6 +130,13 @@ PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --
   (restore, accept/reject-all) call `snapshots.create` with the editor buffer first; the daily
   auto snapshot (`ensure_daily`, setting `auto_snapshot`) runs in both save paths *before* the
   write and must never block a save. `snapshots._daily_done` is a per-process cache — tests clear it.
+- **Git sync is explicit** (`core/sync.py`). `status()` is the only call that may run by itself
+  (read-only, 5 s timeout, never on the UI thread: TUI worker, GUI debounced bridge call outside
+  `self._lock`; `get_workspace` must not call it). `commit` / `push` / `init` run only from a
+  click or palette pick; push never forces and the UI confirms it, naming the remote. Always
+  run git with `cwd=project root` and pathspec `.`. Tests must use a temp repo + local bare
+  remote and the `isolated_git` fixture (`GIT_CONFIG_GLOBAL/SYSTEM=/dev/null`, identity from
+  env) — never the real repository the tests run in.
 - **Scene details are frontmatter, not prose.** Anything that counts words, scans names,
   spell-checks, samples style or sends scene text to an AI must skip the block:
   `scenemeta.strip` (drop), `scenemeta.blank` (same-length whitespace so offsets and rows

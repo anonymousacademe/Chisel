@@ -1,6 +1,6 @@
 import type { Misspelling, Span } from "../editor/spans";
 import type {
-  AliasSuggestion, CanonProposal, DiffSegment, SnapshotRow, DetailsPatch, DocumentPayload, Remap, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
+  AliasSuggestion, CanonProposal, DiffSegment, SnapshotRow, SyncInfo, DetailsPatch, DocumentPayload, Remap, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
   Issue, ModelKind, ModelOption, RecentProject, SceneMention, SettingsInfo, EditorPrefs, StyleStatus, Workspace,
 } from "../data/types";
 import { call } from "./transport";
@@ -54,6 +54,11 @@ export const api = {
   /** Snapshots every scene as end-of-draft-N and counts up. */
   startNewDraft: () => call<{ draft: number; previous: number }>("start_new_draft"),
   snapshotAll: (label: string) => call<{ count: number }>("snapshot_all", label),
+  // git sync: status is read-only; the three actions run only when the author clicks them
+  syncStatus: () => call<{ sync: SyncInfo | null }>("sync_status"),
+  syncCommit: (message: string) => call<{ summary: string; sync: SyncInfo | null }>("sync_commit", message),
+  syncPush: () => call<{ summary: string; sync: SyncInfo | null }>("sync_push"),
+  syncInit: () => call<{ sync: SyncInfo | null }>("sync_init"),
   setUnit: (unit: Unit) => call<{ unit: Unit }>("set_unit", unit),
   rebuildIndex: () => call("rebuild_index"),
   sceneContext: (id: string, text?: string) => call<{ mentions: SceneMention[] }>("scene_context", id, text ?? null),

@@ -19,7 +19,8 @@ The niche is open: no existing TUI fiction app has wikilinks, and no wikilink to
 ## 3. Non-goals (v1)
 
 - No publishing/export pipeline (Markdown files are already exportable).
-- No collaboration or sync (plain files + user's own git/Syncthing).
+- No collaboration or automatic sync (plain files + user's own git/Syncthing). Optional, explicit
+  git commit / push from the app exists (see *History and drafts*); nothing is ever sent on its own.
 - No block references, embeds, or `[[Note#Section]]` links (consider later).
 - No auto-applied AI edits of any kind.
 
@@ -339,6 +340,32 @@ open and behave exactly as before.*
   changed. The badge and the status bar say "Draft N" (the terminal puts it in its status line).
   The `end-of-draft-N` snapshots appear in History as "End of draft N".
 
+- **Sync** (2.3, `core/sync.py`; git, explicit only). If the project folder is (inside) a git
+  repository — `git` itself is optional — the status bar shows `Synced` (clean and not ahead),
+  `N changes` (uncommitted: modified, staged or untracked files inside the project; changes win over
+  ahead) or `Ahead N` (committed, not pushed; for a branch that was never pushed, commits not on any
+  remote). One read-only `git status --porcelain=v2 --branch -z --untracked-files=all -- .` (5 s
+  timeout, `GIT_OPTIONAL_LOCKS=0`, so it never blocks or alters the repo) runs when the project
+  opens and 2.5 s after a save (trailing throttle; the workspace refresh does not run git). A hung or
+  failing git hides the item rather than freezing the app. No git installed: the item is hidden. No
+  repository: the GUI shows a muted `Sync` whose menu offers only *Initialize git*; the terminal
+  offers the palette action.
+  - Actions, **only on an explicit click / palette pick** (GUI: status-bar menu; terminal: palette
+    *Commit changes*, *Push* — listed only when a remote is configured — and *Initialize git for this
+    project*): **Commit changes** — message prefilled `lorewrite: 2026-10-01 — 3 scenes changed`
+    (files when no scene changed), editable, multi-line allowed; stages and commits the project folder
+    only (`git add -A -- .` then `git commit -- .`, so a project inside a bigger repository never
+    commits anything outside itself and files staged elsewhere stay staged; the dialog names the
+    repository); the editor is flushed first. **Push** — a confirmation naming the branch, the remote
+    and its URL; plain `git push` (or `-u <remote> <branch>` the first time); never `--force`, never
+    automatic, `GIT_TERMINAL_PROMPT=0` and `ssh -o BatchMode=yes` so it fails instead of waiting for a
+    password. A diverged remote is refused with git's message. **Initialize git** — `git init` plus a
+    `.gitignore` containing `.lorewrite/` (appended if missing, never duplicated); refuses inside an
+    existing repository; commits nothing. Everything under `.snapshots/`, `.drafts/`, `.trash/` and
+    `style.md` is committed (none is ignored). Errors are git's own words, shown as a notice.
+  - Not done: pull / fetch / merge (the status shows `behind` internally but nothing acts on it),
+    branches, credentials management, a commit history view.
+
 ### Desktop GUI (pywebview + the React design) ✅ (implemented; merged to main 2026-10-01)
 
 An Obsidian-style desktop front end over the same `core/` and `ai/`: a native
@@ -382,8 +409,8 @@ both edit the same plain-Markdown projects.
   chat (`ask`) answers in the panel only, with *Insert as draft*.
 - **Placeholders.** Parts of the design that LoreWriter does not do yet are drawn
   as designed but dimmed, non-interactive, tooltip "Not in LoreWriter yet"
-  (`gui/src/components/placeholder.ts`): the status-bar Sync / Streak
-  items (the Draft badge and status item, Snapshots and the History button are real since Wave 2),
+  (`gui/src/components/placeholder.ts`): the status-bar Streak item
+  (the Draft badge and status item, Snapshots, Sync and the History button are real since Wave 2),
   the Research row,
   Collections, the comment button, the Brainstorm and Research quick actions, conversation history, attach-context
   and the reply "Helpful" button. No fake data is shown for them.

@@ -41,6 +41,11 @@ design and roadmap.
   first. One is also taken before *Accept/Reject all drafts* and, once a day, before the
   first edit of a scene (Settings → History). *Scene · Snapshots* in the palette; the History
   button in the desktop app.
+- **Sync with git (optional, never automatic)**: if the project folder is in a git
+  repository the status bar shows `Synced`, `N changes` or `Ahead N`. *Commit changes*
+  (message prefilled, editable), *Push* (asks first, names the remote, never forced) and
+  *Initialize git for this project* run only when you pick them — palette in the terminal,
+  the status-bar item in the desktop app. Needs `git` installed; without it nothing shows.
 - **Drafts**: *Start new draft* snapshots the whole book as "end of draft N" and counts
   up (`[manuscript] draft = N` in `project.toml`); the desktop title bar and both status bars
   show "Draft N".

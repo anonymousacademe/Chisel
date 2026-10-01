@@ -111,7 +111,11 @@ async def test_palette_search_empty_query_matches_all(tmp_path: Path):
         await pilot.pause()
         hits = [h async for h in ActionProvider(app.screen).search("")]
         scenes = [h async for h in SceneProvider(app.screen).search("  ")]
-    assert len(hits) == len(ActionProvider.ACTIONS)
+        # git actions are listed only when they apply (Wave 2.3): no repo here, so
+        # only "Initialize git" is among them
+        listed = [m for _, m, _ in ActionProvider.ACTIONS
+                  if not m.startswith("sync_") or app.sync_visible(m)]
+    assert len(hits) == len(listed) == len(ActionProvider.ACTIONS) - 2
     assert len(scenes) == 3
 
 

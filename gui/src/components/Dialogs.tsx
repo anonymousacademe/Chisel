@@ -60,6 +60,9 @@ export interface MenuItem { label: string; onSelect: () => void; disabled?: bool
 /** A small popover menu anchored under a button. */
 export function Menu({ anchor, items, onClose }: { anchor: HTMLElement; items: MenuItem[]; onClose: () => void }) {
   const rect = anchor.getBoundingClientRect();
+  // anchored near the bottom (status bar): open upward instead of off-screen
+  const height = items.length * 30 + 12;
+  const up = rect.bottom + 4 + height > window.innerHeight && rect.top - 4 - height > 0;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -67,7 +70,7 @@ export function Menu({ anchor, items, onClose }: { anchor: HTMLElement; items: M
   }, [onClose]);
   return (
     <div className="lw-overlay lw-overlay--clear" onMouseDown={onClose}>
-      <div className="lw-menu" role="menu" style={{ top: rect.bottom + 4, left: Math.min(rect.left, window.innerWidth - 220) }}
+      <div className="lw-menu" role="menu" style={{ ...(up ? { bottom: window.innerHeight - rect.top + 4 } : { top: rect.bottom + 4 }), left: Math.min(rect.left, window.innerWidth - 220) }}
         onMouseDown={(e) => e.stopPropagation()}>
         {items.map((it) => it.separator ? <hr key={it.label} className="lw-menu__sep" /> : (
           <button key={it.label} role="menuitem" disabled={it.disabled} className={`lw-menu__item${it.danger ? " is-danger" : ""}`}

@@ -183,5 +183,14 @@ export interface SnapshotRow { id: string; label: string; when: string; words: n
 /** A run of a word diff (`old` joined = the snapshot, `new` joined = the current text). */
 export interface DiffSegment { op: "equal" | "delete" | "insert" | "replace"; old: string; new: string }
 
+/** Git state of the project folder; `null` (no git installed) hides the status item. */
+export type SyncInfo =
+  | { repo: false; canInit: boolean; label: string }
+  | {
+    repo: true; canInit: false; state: "synced" | "changes" | "ahead"; label: string;
+    changes: number; scenes: number; ahead: number; behind: number; branch: string;
+    remote: string | null; canPush: boolean; remoteUrl: string; toplevel: string; defaultMessage: string;
+  };
+
 /** {old id: new id} of files a rename/move touched, so open documents can follow. */
 export type Remap = Record<string, string>;

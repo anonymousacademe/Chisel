@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { GitBranch, Clock3, CloudCheck, Target, ChevronsUpDown, Coins, SpellCheck } from "lucide-react";
+import { GitBranch, Clock3, CloudCheck, CloudUpload, CloudOff, Target, ChevronsUpDown, Coins, SpellCheck } from "lucide-react";
 import { Icon } from "./primitives";
+import type { SyncInfo } from "../data/types";
+import { syncTip } from "../data/syncText";
 import { placeholderProps } from "./placeholder";
 import { fmt } from "../data/tree";
 import { agoText } from "../data/snapshots";
@@ -13,6 +15,8 @@ export function StatusBar(props: {
   /** Latest snapshot of the open scene (ISO local time); undefined = no scene is open. */
   snapshotAt: string | null | undefined; onSnapshots: () => void;
   draft: number; onDraft: (anchor: HTMLElement) => void;
+  /** Git state of the project folder; null = git is not installed (item hidden). */
+  sync: SyncInfo | null; onSync: (anchor: HTMLElement) => void;
 }) {
   const [, tick] = useState(0);
   useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 30_000); return () => clearInterval(t); }, []);
@@ -30,8 +34,16 @@ export function StatusBar(props: {
             <Icon icon={Clock3} size={12} stroke={1.5} color="var(--lw-text-faint)" />
             {props.snapshotAt ? `Snapshot ${agoText(props.snapshotAt)}` : "No snapshot"}
           </button>}
-        <span className="lw-status__div" />
-        <span className="lw-status__item" {...placeholderProps}><Icon icon={CloudCheck} size={12} stroke={1.5} color="var(--lw-text-faint)" />Sync</span>
+        {props.sync && (
+          <>
+            <span className="lw-status__div" />
+            <button className={`lw-status__item${props.sync.repo && props.sync.state !== "synced" ? " is-warn" : ""}`}
+              title={syncTip(props.sync)} onClick={(e) => props.onSync(e.currentTarget)}>
+              <Icon icon={!props.sync.repo ? CloudOff : props.sync.state === "synced" ? CloudCheck : CloudUpload} size={12} stroke={1.5} color="currentColor" />
+              {props.sync.label}
+            </button>
+          </>
+        )}
       </div>
       <div className="lw-row">
         <span className="lw-status__item" {...placeholderProps}><span className="lw-dot" />Streak</span>

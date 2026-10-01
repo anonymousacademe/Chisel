@@ -35,7 +35,7 @@ from ..ai.writing import (
     build_project_context,
     generate as generate_text,
 )
-from ..core import drafts, scenemeta, snapshots
+from ..core import drafts, scenemeta, snapshots, sync
 from ..core import settings as user_settings
 from ..core import spelling
 from ..core import entities as ent
@@ -62,7 +62,8 @@ from . import workspace as ws
 
 # Errors the core raises on purpose, with a message written for the author:
 # shown as-is. Anything else keeps its class name (it is a bug worth reporting).
-USER_ERRORS = (ValueError, FileNotFoundError, FileExistsError, LookupError, IndexError, RuntimeError)
+USER_ERRORS = (ValueError, FileNotFoundError, FileExistsError, LookupError, IndexError, RuntimeError,
+               sync.GitError)
 
 
 def bridge(fn: Callable[..., dict]) -> Callable[..., dict]:
@@ -680,6 +681,56 @@ class Api:
             project = self._require()
             previous = project.draft
             return {"draft": project.start_new_draft(), "previous": previous}
+
+    # -- sync (git, explicit actions only) ----------------------------------------
+
+    def _project_root(self) -> Path:
+        with self._lock:
+            return self._require().root
+
+    @staticmethod
+    def sync_payload(root: Path) -> dict | None:
+        """What the status bar needs; None when git is not installed (item hidden).
+        Shared by the TUI-independent bridge methods below."""
+        if not sync.git_available():
+            return None
+        st = sync.status(root)
+        if st is None:
+            return {"repo": False, "canInit": sync.can_init(root), "label": "Sync"}
+        return {
+            "repo": True, "canInit": False, "state": st.state, "label": st.label,
+            "changes": st.changes, "scenes": st.scenes, "ahead": st.ahead, "behind": st.behind,
+            "branch": st.branch, "remote": st.remote, "canPush": st.can_push,
+            "remoteUrl": sync.remote_url(root, st.remote) if st.remote else "",
+            "toplevel": st.toplevel,
+            "defaultMessage": sync.default_message(st) if st.changes else "",
+        }
+
+    @bridge
+    def sync_status(self) -> dict:
+        """Git state of the project folder. Read-only; the lock is not held while git runs."""
+        return {"sync": self.sync_payload(self._project_root())}
+
+    @bridge
+    def sync_commit(self, message: str) -> dict:
+        """Commit the project folder (only on the author's click)."""
+        root = self._project_root()
+        summary = sync.commit(root, message)
+        return {"summary": summary, "sync": self.sync_payload(root)}
+
+    @bridge
+    def sync_push(self) -> dict:
+        """Push the current branch (only on the author's click; never forced)."""
+        root = self._project_root()
+        summary = sync.push(root)
+        return {"summary": summary, "sync": self.sync_payload(root)}
+
+    @bridge
+    def sync_init(self) -> dict:
+        """Make the project folder a git repository (only on the author's click)."""
+        root = self._project_root()
+        sync.init(root)
+        return {"sync": self.sync_payload(root)}
 
     # -- scene details ----------------------------------------------------------
 

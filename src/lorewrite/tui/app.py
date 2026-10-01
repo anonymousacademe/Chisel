@@ -21,7 +21,7 @@ from ..ai.links import Suggestion, alias_form, suggest_links
 from ..ai.style import learn_style
 from ..ai.usage import LEDGER, format_cost
 from ..ai.writing import build_context, generate
-from ..core import drafts, scenemeta, snapshots
+from ..core import drafts, scenemeta, snapshots, sync
 from ..core import entities as ent
 from ..core import settings as user_settings
 from ..core import spelling
@@ -58,6 +58,7 @@ from .settingscreen import KeyPrompt
 from .sidebar import OpenFile, Sidebar
 from .spellscreen import SpellScreen
 from .snapshotscreens import CompareScreen, LabelPrompt, SnapshotsScreen, label_text
+from .syncscreens import MessagePrompt
 from .structurescreens import ChoiceScreen, DetailsScreen, TrashScreen
 from .stylereview import StyleReviewScreen
 from .theme import (
@@ -103,6 +104,8 @@ HELP_TEXT = """\
   Open Trash — restore deleted scenes, delete forever, empty the Trash
   Scene · Snapshots / Snapshot scene / Snapshot all scenes — compare and restore
   Start new draft — snapshot the whole book as "end of draft N", then count up
+  Commit changes / Push / Initialize git — only when you pick them; the status
+  bar shows Synced, N changes or Ahead N for a project under git
   Toggle scene/chapter labels (wording only)
   Settings — API key, models, editor preferences, spell check
   Toggle spell check / Add selection to dictionary / Open project dictionary
@@ -410,6 +413,8 @@ class LorewriteApp(App):
         self._writer_mode = False
         self._last_save: float | None = None
         self._snapshot_at = None  # datetime of the open scene's latest snapshot
+        self._sync = None         # core.sync.SyncStatus of the project folder (None: no git / no repo)
+        self._sync_timer = None
         self._project_words = 0
         self._editor_padding = 0
         # direct widget refs, set in compose(); safe to use during teardown
@@ -517,6 +522,7 @@ class LorewriteApp(App):
             self.open_file(scenes[0])
         self.editor.focus()
         self.update_status()
+        self.refresh_sync()
         if not user_settings.get("tour_seen", False):
             user_settings.set("tour_seen", True)
             self.push_screen(TourScreen())
@@ -543,6 +549,8 @@ class LorewriteApp(App):
             self._save_timer.stop()
         if self._spell_timer is not None:
             self._spell_timer.stop()
+        if self._sync_timer is not None:
+            self._sync_timer.stop()
         try:
             self._write_to_disk()  # final flush; UI updates skipped on teardown
         except Exception:
@@ -641,6 +649,7 @@ class LorewriteApp(App):
         self._dirty = False
         self._last_save = time.time()
         self._refresh_snapshot_time()
+        self._schedule_sync()
         self._recount_project_words()
         self.update_panel_for_cursor()
         self.update_status()
@@ -701,6 +710,8 @@ class LorewriteApp(App):
         if LEDGER.session_total() > 0:
             parts.append(format_cost(LEDGER.session_total()))
         parts.insert(1, f"Draft {self.project.draft}")
+        if self._sync is not None:
+            parts.insert(2, self._sync.label)
         if self._snapshot_at is not None and self._is_scene(self.current_path):
             parts.append(f"Snapshot {snapshots.ago(self._snapshot_at)}")
         self._status_text = "  |  ".join(parts)
@@ -1927,6 +1938,115 @@ class LorewriteApp(App):
             "Replace this scene with the snapshot?\n"
             "The text as it is now is snapshotted first, so you can come back to it.",
             confirm_label="Restore"), _go)
+
+    # -- git sync (Wave 2.3): the status is read-only; the actions run only when asked ----
+
+    def _schedule_sync(self) -> None:
+        """Refresh the git status 2.5 s after a save (trailing; one timer at a time)."""
+        if self._sync_timer is None and self.project is not None:
+            self._sync_timer = self.set_timer(2.5, self._sync_timer_fired)
+
+    def _sync_timer_fired(self) -> None:
+        self._sync_timer = None
+        self.refresh_sync()
+
+    @work(exclusive=True, group="sync-status")
+    async def refresh_sync(self) -> None:
+        if self.project is None:
+            return
+        root = self.project.root
+        try:
+            status = await asyncio.to_thread(sync.status, root)
+        except Exception:  # a failing git must never disturb writing
+            status = None
+        self._sync = status
+        self.update_status()
+
+    def sync_visible(self, method: str) -> bool:
+        """Which sync actions the palette lists: commit/push only inside a
+        repository (push only with a remote), init only when there is none."""
+        st = self._sync
+        if method == "sync_commit_prompt":
+            return st is not None
+        if method == "sync_push_confirm":
+            return st is not None and st.can_push
+        if method == "sync_init_confirm":
+            return st is None and sync.git_available() and self.project is not None \
+                and not sync.in_repository(self.project.root)
+        return True
+
+    def _sync_run(self, fn, done) -> None:
+        """Run a blocking git call off the UI thread; report the outcome."""
+        async def go() -> None:
+            try:
+                result = await asyncio.to_thread(fn)
+            except ValueError as exc:
+                self.notify(str(exc), severity="warning", timeout=5)
+            except Exception as exc:  # GitError and friends: git's own words
+                self.notify(str(exc), severity="error", timeout=8)
+            else:
+                done(result)
+            self.refresh_sync()
+
+        self.run_worker(go(), group="sync-action")
+
+    def sync_commit_prompt(self) -> None:
+        """Action · Commit changes: message pre-filled, commits this project folder only."""
+        if self.project is None or self._sync is None:
+            self.notify("This project is not in a git repository", severity="warning")
+            return
+        if self._sync.changes == 0:
+            self.notify("Nothing to commit: everything is already committed", timeout=3)
+            return
+        self.save_current()
+        root = self.project.root
+        st = self._sync
+
+        def _go(message: str | None) -> None:
+            if message is None:
+                return
+            self._sync_run(lambda: sync.commit(root, message),
+                           lambda summary: self.notify(f"Committed: {summary}", timeout=4))
+
+        self.push_screen(MessagePrompt(
+            f"Commit {st.changes} change(s) in this project folder (enter commits, esc cancels)",
+            sync.default_message(st)), _go)
+
+    def sync_push_confirm(self) -> None:
+        """Action · Push: asks first, naming the remote. Never forces."""
+        st = self._sync
+        if self.project is None or st is None or not st.can_push:
+            self.notify("No remote is configured for this project", severity="warning")
+            return
+        root = self.project.root
+        url = sync.remote_url(root, st.remote)
+        where = f"{st.remote} ({url})" if url else st.remote
+
+        def _go(ok: bool) -> None:
+            if ok:
+                self.notify("Pushing…", timeout=2)
+                self._sync_run(lambda: sync.push(root), lambda s: self.notify(s, timeout=4))
+
+        self.push_screen(ConfirmScreen(
+            f"Push branch '{st.branch}' to the remote {where}?\n"
+            "This sends your manuscript there. It is never forced.",
+            confirm_label="Push"), _go)
+
+    def sync_init_confirm(self) -> None:
+        """Action · Initialize git for this project."""
+        if self.project is None:
+            return
+        root = self.project.root
+
+        def _go(ok: bool) -> None:
+            if ok:
+                self._sync_run(lambda: sync.init(root), lambda _: self.notify(
+                    "This folder is now a git repository. Nothing is committed yet.", timeout=4))
+
+        self.push_screen(ConfirmScreen(
+            "Turn this project folder into a git repository?\n"
+            "A .gitignore hides the index cache (.lorewrite/). Nothing is committed or pushed.",
+            confirm_label="Initialize"), _go)
 
     def start_new_draft(self) -> None:
         """Action · Start new draft: snapshot every scene as end-of-draft-N, count up."""

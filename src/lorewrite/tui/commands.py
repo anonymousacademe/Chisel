@@ -115,6 +115,12 @@ class ActionProvider(_Provider):
          "Keep a verbatim copy of the open scene you can compare and restore"),
         ("Snapshot all scenes", "snapshot_all_prompt",
          "One snapshot of every scene in the project, with one label"),
+        ("Commit changes", "sync_commit_prompt",
+         "git: commit this project folder (message pre-filled; nothing is pushed)"),
+        ("Push", "sync_push_confirm",
+         "git: push the current branch to its remote, after a confirmation (never forced)"),
+        ("Initialize git for this project", "sync_init_confirm",
+         "Make the project folder a git repository (.gitignore hides .lorewrite/)"),
         ("Start new draft", "start_new_draft",
          "Snapshot every scene as the end of this draft, then count up to the next draft"),
         ("New part", "new_part_prompt", "Add a part (a folder under manuscript/)"),
@@ -179,6 +185,9 @@ class ActionProvider(_Provider):
         app = self.app
         chapters = app.project is not None and app.project.unit == "chapter"
         for title, method, help_text in self.ACTIONS:
+            visible = getattr(app, "sync_visible", None)
+            if visible is not None and method.startswith("sync_") and not visible(method):
+                continue
             if chapters:  # the manuscript's unit is a label only
                 title = title.replace("scene", "chapter").replace("Scene", "Chapter")
                 help_text = help_text.replace("scene", "chapter")
