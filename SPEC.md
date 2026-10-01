@@ -214,7 +214,17 @@ fiction workflow is solid.*
 - **Technical documents/textbooks**: figures, tables, captions, and LaTeX equations become the "entities" (first-class linkable, checked for consistency); AI format-consistency checking; figure generation from a figure/table design guide
 - **Screenplay mode**: screenplay formatting rules in the editor, same AI toolset, LaTeX screenplay export
 
-### Desktop GUI (pywebview + the React design) ✅ (implemented, branch `gui`)
+### Future — AI inspiration images (planned, not scheduled)
+
+*Requested by the author 2026-10-01.* Describe a setting while writing ("a dark
+subway platform, flickering lights") and generate a picture to keep on screen
+as visual inspiration. Reference material only — never inserted into the
+prose (SPEC §2: AI suggests, never edits). Likely an image model on OpenRouter
+with the existing key; images saved as plain files in `<project>/inspiration/`
+(with the prompt beside each), shown in a GUI side panel next to the scene
+they were made for. Cost shown per image like other AI calls.
+
+### Desktop GUI (pywebview + the React design) ✅ (implemented; merged to main 2026-10-01)
 
 An Obsidian-style desktop front end over the same `core/` and `ai/`: a native
 window (pywebview, WebKitGTK) showing a React/TypeScript UI built from the
