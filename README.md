@@ -246,11 +246,19 @@ my-novel/
     └── places/thornwick.md         #   (name, type, aliases)
 ```
 
+## Export
+
+Write the book out from the desktop app (Export... in the project menu) or the terminal app
+(palette: Export manuscript): a typeset **PDF book**, a double-spaced **manuscript review** PDF with
+line numbers, a **plain proof**, **DOCX**, **EPUB**, one **Markdown** file or **LaTeX** source. Files
+go to `exports/` in the project folder and are never overwritten. Unaccepted AI drafts are left out
+by default. PDF needs `pip install 'lorewrite[export]'`; DOCX, EPUB and LaTeX need `pandoc`.
+
 ## Roadmap
 
 M3 lore/continuity checking ("the Contextual Tracker") → M4 style-aware AI
 drafting (review-gated) → M6 writing aids (spellcheck, focus timer, session
-stats) → M7 LaTeX export → M8 beyond-novels modes. Details in
+stats) → M7 export (built) → M8 beyond-novels modes. Details in
 [SPEC.md](SPEC.md).
 
 ## Development

@@ -1,0 +1,13 @@
+.lw-export__summary { margin: 0 0 14px; font-size: 13px; color: var(--lw-text); }
+.lw-export__body { max-height: calc(80vh - 210px); overflow-y: auto; padding-right: 4px; }
+.lw-export__field { display: grid; grid-template-columns: 112px 1fr; align-items: center; gap: 8px; margin-bottom: 10px; }
+.lw-export__label { font-size: 11px; color: var(--lw-text-muted); }
+.lw-export__chips { flex-wrap: wrap; }
+.lw-export__hint { margin: 0 0 10px; font-size: 12px; }
+.lw-export__checks { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 12px; font-size: 13px; }
+.lw-export__warn, .lw-export__warnings { color: var(--lw-warning); font-size: 12px; margin: 0 0 10px; }
+.lw-export__warnings { padding-left: 18px; }
+.lw-export__progress { position: relative; height: 22px; margin: 4px 0 12px; border-radius: 6px; overflow: hidden; background: var(--lw-surface-2, rgba(128, 128, 128, 0.15)); }
+.lw-export__bar { position: absolute; inset: 0 auto 0 0; background: var(--lw-accent, #7c5cff); opacity: 0.35; transition: width 0.25s ease; }
+.lw-export__progress span { position: relative; padding: 0 10px; line-height: 22px; font-size: 12px; }
+.lw-chip--pick:disabled { opacity: 0.45; cursor: not-allowed; }

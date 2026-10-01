@@ -46,6 +46,8 @@ from ..core import comments
 from ..core import research as research_notes
 from ..core import stats as writing_stats
 from ..core import drafts, scenemeta, snapshots, sync
+from ..core import export as exporting
+from ..core.export.manuscript import ExportOptions
 from ..core import settings as user_settings
 from ..core import spelling
 from ..core import entities as ent
@@ -69,6 +71,7 @@ from ..core.recents import add_recent, load_recents
 from ..core.style import style_path
 from . import inspiration as insp_api
 from . import workspace as ws
+from .exports import ExportJobs
 
 
 # Errors the core raises on purpose, with a message written for the author:
@@ -107,6 +110,7 @@ class Api:
         self._baseline_words = 0
         self.stats: writing_stats.Tracker | None = None
         self._spell_ignores = spelling.SessionIgnores()  # in memory only
+        self._exports = ExportJobs()
 
     @bridge
     def ping(self) -> dict:
@@ -778,6 +782,40 @@ class Api:
         root = self._project_root()
         sync.init(root)
         return {"sync": self.sync_payload(root)}
+
+    # -- export (core/export; the file work runs in a worker thread) -------------------
+
+    @bridge
+    def export_info(self) -> dict:
+        """Formats (and whether each can run), layouts and the remembered options."""
+        with self._lock:
+            return exporting.describe(self._require())
+
+    @bridge
+    def export_summary(self, options: dict) -> dict:
+        """The live line in the dialog: scenes, words, parts, unaccepted drafts, warnings."""
+        with self._lock:
+            return {"summary": exporting.summarize(self._require(), ExportOptions.from_dict(options))}
+
+    @bridge
+    def export_start(self, options: dict) -> dict:
+        """Start an export in a worker thread; poll with export_status. The client
+        saves the open scene first so the file has the latest words."""
+        with self._lock:
+            project = self._require()
+        return {"job": self._exports.start(project, ExportOptions.from_dict(options))}
+
+    @bridge
+    def export_status(self, job: str) -> dict:
+        return self._exports.status(job)
+
+    @bridge
+    def export_open(self, name: str = "", folder: bool = False) -> dict:
+        """Open an export (or the exports folder) with the desktop; only on the author's click."""
+        with self._lock:
+            path = exporting.resolve_export(self._require(), "" if folder else name)
+        exporting.open_in_desktop(path)
+        return {}
 
     # -- scene details ----------------------------------------------------------
 
