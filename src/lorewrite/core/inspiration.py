@@ -312,3 +312,30 @@ def trashed_label(sidecar: Path) -> str:
     except OSError:
         meta = {}
     return " ".join((_str(meta.get("title")) or _str(meta.get("prompt")) or sidecar.stem).split())[:80]
+
+
+def save_batch(project, pictures: list[tuple[bytes, str]], prompt: str, model: str,
+               scene: str, pin: bool, cost: float | None) -> list[Image]:
+    """Save every picture one generation call returned; the call's cost is split
+    between them and only the first is pinned (to *scene*, when *pin*)."""
+    each = None if cost is None else cost / max(1, len(pictures))
+    return [save(project, data, ext, {"prompt": prompt, "model": model, "scene": scene,
+                                      "cost": each, "pinned": pin and k == 0})
+            for k, (data, ext) in enumerate(pictures)]
+
+
+def open_path(path: Path) -> bool:
+    """Hand *path* (a picture or the folder) to the desktop with ``xdg-open``.
+    Only ever called from an explicit choice; False when it cannot be done."""
+    import shutil
+    import subprocess
+
+    opener = shutil.which("xdg-open")
+    if opener is None:
+        return False
+    try:
+        subprocess.Popen([opener, str(path)], stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError:
+        return False
+    return True

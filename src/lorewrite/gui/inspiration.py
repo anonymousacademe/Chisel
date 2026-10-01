@@ -8,8 +8,6 @@ the GUI's document ids.
 from __future__ import annotations
 
 import base64
-import shutil
-import subprocess
 from pathlib import Path
 
 from ..ai import images as image_ai
@@ -41,11 +39,7 @@ def data_url(project, image_id: str) -> str:
 
 def save_pictures(project, pictures: list[tuple[bytes, str]], prompt: str, model: str,
                   scene: str, pin: bool, cost: float | None) -> dict:
-    """Save every picture a call returned; the call's cost is split between them."""
-    each = None if cost is None else cost / max(1, len(pictures))
-    saved = [store.save(project, data, ext, {
-        "prompt": prompt, "model": model, "scene": scene, "cost": each,
-        "pinned": pin and k == 0}) for k, (data, ext) in enumerate(pictures)]
+    saved = store.save_batch(project, pictures, prompt, model, scene, pin, cost)
     return {"images": [row(i) for i in saved], "cost": cost}
 
 
@@ -66,14 +60,6 @@ def update(project, image_id: str, fields: dict, scene_path) -> dict:
 
 
 def reveal(path: Path) -> bool:
-    """Open the folder holding *path* in the file manager (xdg-open); only called
-    from an explicit click in the real window."""
-    opener = shutil.which("xdg-open")
-    if opener is None:
-        return False
-    try:
-        subprocess.Popen([opener, str(path.parent)], stdout=subprocess.DEVNULL,
-                         stderr=subprocess.DEVNULL, start_new_session=True)
-    except OSError:
-        return False
-    return True
+    """Open the folder holding *path* in the file manager; only called from an
+    explicit click in the real window."""
+    return store.open_path(path.parent)

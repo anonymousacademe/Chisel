@@ -18,6 +18,7 @@ from textual import work
 
 from .. import __version__
 from ..ai.client import MODEL_DEFAULTS, resolve_model, set_api_key
+from ..ai.images import generate as generate_image, suggest_prompt as suggest_image_prompt
 from ..ai.links import Suggestion, alias_form, suggest_links
 from ..ai.style import learn_style
 from ..ai.usage import LEDGER, format_cost
@@ -77,6 +78,7 @@ from .launch import LaunchScreen
 from .linkreview import AliasReviewScreen
 from .panels import BacklinkSelected, EntityPanel
 from .brainstormscreen import BrainstormScreen
+from .inspirationmixin import InspirationMixin
 from .promptscreen import PromptScreen
 from .settingscreen import KeyPrompt
 from .sidebar import OpenFile, Sidebar
@@ -269,7 +271,7 @@ class EntityTypePrompt(ModalScreen[str | None]):
         self.dismiss(None)
 
 
-class LorewriteApp(App):
+class LorewriteApp(InspirationMixin, App):
     TITLE = "lorewrite"
 
     COMMANDS = App.COMMANDS | {SceneProvider, EntityProvider, ResearchProvider,
@@ -427,9 +429,10 @@ class LorewriteApp(App):
     #spell-hint { width: 60; padding: 0 2; color: $text-muted; }
     SettingsScreen { align: center middle; }
     #settings {
-        width: 64; height: auto; max-height: 90%;
+        width: 64; height: 90%; max-height: 48;
         background: $surface; border: solid $primary; padding: 1 2;
     }
+    #settings-body { height: 1fr; }
     #settings-title { text-style: bold; text-align: center; }
     .settings-heading { text-style: bold; padding: 1 0 0 0; }
     /* compact fields: the screen must fit ~40 rows with three model rows */
@@ -1228,7 +1231,7 @@ class LorewriteApp(App):
     _MODEL_DEFAULTS = MODEL_DEFAULTS
 
     def _ai_model(self, kind: str) -> str:
-        """kind: fast | strong | writing (see ai.client.resolve_model)."""
+        """kind: fast | strong | writing | image (see ai.client.resolve_model)."""
         return resolve_model(kind, self.project.meta if self.project else None)
 
     def _ai_fast_model(self) -> str:

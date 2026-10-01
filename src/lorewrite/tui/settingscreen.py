@@ -10,7 +10,7 @@ from rich.text import Text
 from textual import work
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Checkbox, Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
@@ -18,6 +18,7 @@ from textual.widgets.option_list import Option
 from ..ai.client import (
     DEFAULT_FAST_MODEL,
     DEFAULT_STRONG_MODEL,
+    DEFAULT_IMAGE_MODEL,
     DEFAULT_WRITING_MODEL,
     ModelInfo,
     clear_api_key,
@@ -25,6 +26,7 @@ from ..ai.client import (
     list_models,
     set_api_key,
 )
+from ..ai.images import DEFAULT_STYLE, SETTING_STYLE
 from ..core import settings as user_settings
 from ..core import stats as writing_stats
 
@@ -41,35 +43,42 @@ class SettingsScreen(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="settings"):
             yield Static("Settings", id="settings-title")
-            yield Label("AI (OpenRouter)", classes="settings-heading")
-            yield Label("", id="key-status")
-            yield Button("Set API key…", id="set-key")
-            yield Button("Clear API key", id="clear-key", variant="error")
-            yield Label("Fast model (linking):")
-            with Horizontal(classes="model-row"):
-                yield Input(id="fast-model", placeholder=DEFAULT_FAST_MODEL)
-                yield Button("Choose…", id="pick-fast")
-            yield Label("Strong model (continuity):")
-            with Horizontal(classes="model-row"):
-                yield Input(id="strong-model", placeholder=DEFAULT_STRONG_MODEL)
-                yield Button("Choose…", id="pick-strong")
-            yield Label("Writing model (drafting & rewrites):")
-            with Horizontal(classes="model-row"):
-                yield Input(id="writing-model", placeholder=DEFAULT_WRITING_MODEL)
-                yield Button("Choose…", id="pick-writing")
-            if self._project is not None:
-                yield Label("Editor (this project)", classes="settings-heading")
-                yield Label("Side padding (0–8):")
-                yield Input(id="padding")
-                yield Checkbox("Line numbers", id="line-numbers")
-            yield Label("Spelling", classes="settings-heading")
-            yield Checkbox("Underline misspellings", id="spellcheck")
-            yield Label("Writing goals", classes="settings-heading")
-            yield Label("Daily word target (0 = off):")
-            yield Input(id="daily-target")
-            yield Label("History", classes="settings-heading")
-            yield Checkbox("Snapshot a scene the first time it is edited each day",
-                           id="auto-snapshot")
+            with VerticalScroll(id="settings-body"):
+                yield Label("AI (OpenRouter)", classes="settings-heading")
+                yield Label("", id="key-status")
+                yield Button("Set API key…", id="set-key")
+                yield Button("Clear API key", id="clear-key", variant="error")
+                yield Label("Fast model (linking):")
+                with Horizontal(classes="model-row"):
+                    yield Input(id="fast-model", placeholder=DEFAULT_FAST_MODEL)
+                    yield Button("Choose…", id="pick-fast")
+                yield Label("Strong model (continuity):")
+                with Horizontal(classes="model-row"):
+                    yield Input(id="strong-model", placeholder=DEFAULT_STRONG_MODEL)
+                    yield Button("Choose…", id="pick-strong")
+                yield Label("Writing model (drafting & rewrites):")
+                with Horizontal(classes="model-row"):
+                    yield Input(id="writing-model", placeholder=DEFAULT_WRITING_MODEL)
+                    yield Button("Choose…", id="pick-writing")
+                yield Label("Image model (inspiration pictures, about $0.03 each):")
+                with Horizontal(classes="model-row"):
+                    yield Input(id="image-model", placeholder=DEFAULT_IMAGE_MODEL)
+                    yield Button("Choose…", id="pick-image")
+                yield Label("Image style (added to every picture description; empty = off):")
+                yield Input(id="image-style", placeholder=DEFAULT_STYLE)
+                if self._project is not None:
+                    yield Label("Editor (this project)", classes="settings-heading")
+                    yield Label("Side padding (0–8):")
+                    yield Input(id="padding")
+                    yield Checkbox("Line numbers", id="line-numbers")
+                yield Label("Spelling", classes="settings-heading")
+                yield Checkbox("Underline misspellings", id="spellcheck")
+                yield Label("Writing goals", classes="settings-heading")
+                yield Label("Daily word target (0 = off):")
+                yield Input(id="daily-target")
+                yield Label("History", classes="settings-heading")
+                yield Checkbox("Snapshot a scene the first time it is edited each day",
+                               id="auto-snapshot")
             yield Button("Save", id="save", variant="primary")
             yield Label("enter a field, then Save · esc closes without saving",
                         id="settings-hint")
@@ -83,6 +92,10 @@ class SettingsScreen(ModalScreen[None]):
             user_settings.get("strong_model") or "")
         self.query_one("#writing-model", Input).value = str(
             user_settings.get("writing_model") or "")
+        self.query_one("#image-model", Input).value = str(
+            user_settings.get("image_model") or "")
+        style = user_settings.get(SETTING_STYLE)
+        self.query_one("#image-style", Input).value = DEFAULT_STYLE if style is None else str(style)
         self.query_one("#spellcheck", Checkbox).value = bool(
             user_settings.get("spellcheck", True))
         self.query_one("#auto-snapshot", Checkbox).value = bool(
@@ -111,10 +124,10 @@ class SettingsScreen(ModalScreen[None]):
                 KeyPrompt(),
                 lambda key: self._store_key(key),
             )
-        elif bid in ("pick-fast", "pick-strong", "pick-writing"):
+        elif bid in ("pick-fast", "pick-strong", "pick-writing", "pick-image"):
             field = self.query_one(
                 {"pick-fast": "#fast-model", "pick-strong": "#strong-model",
-                 "pick-writing": "#writing-model"}[bid], Input)
+                 "pick-writing": "#writing-model", "pick-image": "#image-model"}[bid], Input)
 
             def _picked(model_id: str | None) -> None:
                 if model_id:
@@ -123,7 +136,8 @@ class SettingsScreen(ModalScreen[None]):
             # drafting is plain text: show the whole catalog for that field
             self.app.push_screen(
                 ModelPicker(field.value.strip(),
-                            structured_only=bid != "pick-writing"),
+                            structured_only=bid not in ("pick-writing", "pick-image"),
+                            output_modality="image" if bid == "pick-image" else None),
                 _picked)
         elif bid == "clear-key":
             clear_api_key()
@@ -152,6 +166,9 @@ class SettingsScreen(ModalScreen[None]):
         user_settings.set("strong_model", strong or None)
         writing = self.query_one("#writing-model", Input).value.strip()
         user_settings.set("writing_model", writing or None)
+        image = self.query_one("#image-model", Input).value.strip()
+        user_settings.set("image_model", image or None)
+        user_settings.set(SETTING_STYLE, " ".join(self.query_one("#image-style", Input).value.split())[:300])
         user_settings.set("spellcheck",
                           self.query_one("#spellcheck", Checkbox).value)
         user_settings.set("auto_snapshot",
@@ -187,6 +204,8 @@ def model_label(m: ModelInfo) -> Text:
     row = Text(m.name)
     row.append(f"  {m.id}", style="dim")
     detail = f"  {_price(m.prompt_per_m)} in / {_price(m.completion_per_m)} out per M"
+    if m.image_price is not None:
+        detail += f" · ${m.image_price:.3f} per image"
     if m.context_length:
         detail += f" · {m.context_length // 1000}k ctx"
     row.append(detail, style="dim italic")
@@ -210,10 +229,12 @@ class ModelPicker(ModalScreen[str | None]):
     #picker-status { color: $text-muted; }
     """
 
-    def __init__(self, current: str = "", structured_only: bool = True) -> None:
+    def __init__(self, current: str = "", structured_only: bool = True,
+                 output_modality: str | None = None) -> None:
         super().__init__()
         self._current = current
         self._structured_only = structured_only
+        self._output_modality = output_modality
         self._models: list[ModelInfo] = []
         self._shown: list[ModelInfo] = []
 
@@ -231,8 +252,9 @@ class ModelPicker(ModalScreen[str | None]):
     async def _load(self) -> None:
         status = self.query_one("#picker-status", Label)
         try:
+            kwargs = {"output_modality": self._output_modality} if self._output_modality else {}
             self._models = await asyncio.to_thread(
-                list_models, structured_only=self._structured_only)
+                list_models, structured_only=self._structured_only, **kwargs)
         except Exception as exc:
             status.update(Text(
                 f"Couldn't load models ({exc}). Type a model id in Settings instead."))
