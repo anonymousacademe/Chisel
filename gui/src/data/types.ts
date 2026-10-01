@@ -52,6 +52,9 @@ export interface PartSummary {
 
 export type Unit = "scene" | "chapter";
 
+/** A note in the project's research/ folder (`folder` = its subfolder, "" at the top). */
+export interface ResearchSummary { id: string; title: string; words: number; folder: string }
+
 /** The design's swatch tokens (core/collections.py COLORS). */
 export type CollectionColor = "violet" | "amber" | "green" | "red" | "gray";
 /** A named group of scenes; membership is each scene's own frontmatter. */
@@ -71,7 +74,7 @@ export interface EntitySummary {
   words: number;
 }
 
-export type DocKind = "scene" | "entity" | "style" | "dictionary";
+export type DocKind = "scene" | "entity" | "style" | "dictionary" | "research";
 
 /** One open file: the whole Markdown text plus what the title block needs. */
 export interface DocumentPayload {
@@ -116,6 +119,8 @@ export interface Workspace {
   scenes: SceneSummary[];
   parts: PartSummary[];
   collections: CollectionSummary[];
+  /** Research notes (research/**.md) in folder order; the binder shows them as a tree. */
+  research: ResearchSummary[];
   entities: EntitySummary[];
   status: {
     projectWords: number;
@@ -167,7 +172,9 @@ export interface DraftEdit { from: number; to: number; insert: string }
 
 export type ChatMessage =
   | { id: string; role: "user"; text: string }
-  | { id: string; role: "assistant"; text: string; error?: boolean };
+  | { id: string; role: "assistant"; text: string; error?: boolean; sources?: ChatSource[] };
+/** A research note a Research answer was given; `index` is its citation number [n]. */
+export interface ChatSource { id: string; title: string }
 
 export type ModelKind = "fast" | "strong" | "writing";
 export interface EditorPrefs { zoom: number; reflow: boolean }

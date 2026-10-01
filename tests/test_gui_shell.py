@@ -93,11 +93,41 @@ def test_mock_ai_matches_the_real_call_signatures(tmp_path, monkeypatch):
     from lorewrite.gui import mockai
     from tests.test_gui_api import open_api
 
-    for name in ("suggest_links", "check_scene", "propose_canon_updates",
-                 "learn_style", "generate_text", "ask_writer"):
-        monkeypatch.setattr(api_module, name, getattr(api_module, name))
+    import inspect
+
+    names = ("suggest_links", "check_scene", "propose_canon_updates",
+             "learn_style", "generate_text", "ask_writer", "research_writer")
+    real = {n: getattr(api_module, n) for n in names}
+    for name in names:
+        monkeypatch.setattr(api_module, name, real[name])
     mockai.install(api_module)
+    for name in names:   # the canned call takes every argument the real one requires
+        P = inspect.Parameter
+        need = [p for p in inspect.signature(real[name]).parameters.values()
+                if p.default is P.empty and p.kind in (P.POSITIONAL_ONLY, P.POSITIONAL_OR_KEYWORD)]
+        have = list(inspect.signature(getattr(api_module, name)).parameters.values())
+        room = any(p.kind is P.VAR_POSITIONAL for p in have) or \
+            sum(p.kind in (P.POSITIONAL_ONLY, P.POSITIONAL_OR_KEYWORD) for p in have) >= len(need)
+        assert room, f"mockai.{name} takes fewer arguments than the real call requires"
     api, _ = open_api(tmp_path)
     r = api.learn_style()
     assert r["ok"], r
     assert r["markdown"].startswith("# Style guide")
+    ask = api.ask("what now?", "project")
+    assert ask["ok"] and ask["reply"], ask
+
+
+def test_mock_research_answers_from_notes(tmp_path, monkeypatch):
+    from lorewrite.gui import api as api_module
+    from lorewrite.gui import mockai
+    from tests.test_gui_api import open_api
+
+    for name in ("research_writer",):
+        monkeypatch.setattr(api_module, name, getattr(api_module, name))
+    mockai.install(api_module)
+    api, root = open_api(tmp_path)
+    assert api.research("tides?")["ok"] is False          # no notes yet: clean refusal, no AI call
+    (root / "research").mkdir()
+    (root / "research" / "tides.md").write_text("# Tides\n\nThe tide table says the spur floods at dusk.\n")
+    r = api.research("when does the spur flood?")
+    assert r["ok"] and "[1]" in r["reply"] and r["sources"][0]["id"] == "research/tides.md"

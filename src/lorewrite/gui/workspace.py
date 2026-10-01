@@ -11,6 +11,7 @@ import re
 from pathlib import Path
 
 from ..core import collections as coll
+from ..core import research as research_notes
 from ..core import drafts, scenemeta
 from ..core import entities as ent
 from ..core.continuity import get_canon
@@ -225,6 +226,32 @@ def collection_summaries(project: Project, scenes: list[dict]) -> list[dict]:
              "sceneIds": members.get(n, [])} for n, c, d in rows]
 
 
+def research_summaries(project: Project) -> list[dict]:
+    return [{"id": rel_id(project, n.path), "title": n.title, "words": n.words,
+             "folder": n.rel.rsplit("/", 1)[0] if "/" in n.rel else ""}
+            for n in research_notes.list_notes(project)]
+
+
+def research_node(research: list[dict]) -> dict:
+    """The binder's Research group: notes, with their subfolders as folders."""
+    root: dict = {"id": "group:research", "title": "Research", "kind": "research",
+                  "meta": str(len(research)) if research else None, "children": []}
+    folders: dict[str, dict] = {}
+    for r in research:
+        parent = root
+        path = ""
+        for part in [p for p in r["folder"].split("/") if p]:
+            path = f"{path}/{part}" if path else part
+            if path not in folders:
+                node = {"id": f"group:research/{path}", "title": part, "kind": "folder", "children": []}
+                folders[path] = node
+                parent["children"].append(node)
+            parent = folders[path]
+        parent["children"].append({"id": r["id"], "title": r["title"], "kind": "document",
+                                   "meta": fmt_words(r["words"])})
+    return root
+
+
 def _placeholder(id: str, title: str, kind: str = "folder", **extra) -> dict:
     return {"id": f"ph:{id}", "title": title, "kind": kind, "placeholder": True,
             "muted": True, **extra}
@@ -243,7 +270,7 @@ def _scene_node(s: dict, project: Project) -> dict:
 
 def build_binder(project: Project, scenes: list[dict], entities: list[dict],
                  has_style: bool, parts: list[dict] | None = None,
-                 trash_count: int = 0) -> list[dict]:
+                 trash_count: int = 0, research: list[dict] | None = None) -> list[dict]:
     parts = parts if parts is not None else part_summaries(project, scenes)
     placed = [s for s in scenes if not s["unplaced"]]
     unplaced = [s for s in scenes if s["unplaced"]]
@@ -292,7 +319,7 @@ def build_binder(project: Project, scenes: list[dict], entities: list[dict],
     # always listed: opening it creates it with a comment header (Api.open_dictionary)
     binder.append({"id": DICTIONARY_ID, "title": "Dictionary", "kind": "dictionary"})
     binder += [
-        _placeholder("research", "Research", "research"),
+        research_node(research or []),
         {"id": "group:unplaced", "title": "Unplaced Scenes", "kind": "inbox",
          "meta": str(len(unplaced)) if unplaced else None,
          "children": [_scene_node(s, project) for s in unplaced]},
@@ -328,6 +355,7 @@ def build_workspace(project: Project, entities: list[ent.Entity], *,
     has_style = style_path(project).is_file()
     project_words = book_words(scenes)
     trash_count = len(project.list_trash())
+    research = research_summaries(project)
     author = str(project.meta.get("author") or "")
     return {
         "project": {
@@ -337,10 +365,11 @@ def build_workspace(project: Project, entities: list[ent.Entity], *,
             "unit": project.unit,
             "draft": project.draft,
         },
-        "binder": build_binder(project, scenes, summaries, has_style, parts, trash_count),
+        "binder": build_binder(project, scenes, summaries, has_style, parts, trash_count, research),
         "scenes": scenes,
         "parts": parts,
         "collections": collection_summaries(project, scenes),
+        "research": research,
         "entities": summaries,
         "status": {
             "projectWords": project_words,

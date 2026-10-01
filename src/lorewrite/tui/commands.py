@@ -11,6 +11,8 @@ from functools import partial
 
 from textual.command import DiscoveryHit, Hit, Provider
 
+from ..core import research as research_notes
+
 
 class _Provider(Provider):
     """Base: shared machinery for entry-list providers.
@@ -79,6 +81,20 @@ class EntityProvider(_Provider):
             yield display, match_text, partial(app.open_file, entity.path), help_text
 
 
+class ResearchProvider(_Provider):
+    """Open a research note by title."""
+
+    def _entries(self):
+        app = self.app
+        for note in research_notes.list_notes(app.project):
+            yield (
+                f"Research · {note.title}",
+                f"{note.title} {note.rel}",
+                partial(app.open_file, note.path),
+                f"Open research note research/{note.rel}",
+            )
+
+
 class InsertLinkProvider(_Provider):
     """Insert an entity's name at the cursor (recognized as a mention)."""
 
@@ -111,6 +127,16 @@ class ActionProvider(_Provider):
          "POV, place, purpose, status and word target (stored in the scene's frontmatter)"),
         ("Collections", "open_collections",
          "Tick the open scene's collections; add, rename, recolour or delete them (sidebar filter: #name)"),
+        ("New research note", "new_research_note_prompt",
+         "Add a plain Markdown note under research/ (reference material; not a scene)"),
+        ("New research note from a link", "new_research_from_link_prompt",
+         "Save a web link as a research note (the page is not downloaded)"),
+        ("Delete research note", "delete_research_note_confirm",
+         "Delete the research note open in the editor, after a confirmation"),
+        ("Ask the assistant", "open_assistant",
+         "Chat about the open scene or the project (ctrl+r inside: research mode)"),
+        ("Research question", "open_research_question",
+         "AI: answer from your research notes and the canon, citing the notes used"),
         ("Add comment on selection", "add_comment_prompt",
          "Attach a note to the selected passage (kept in .comments/, never in the text)"),
         ("Comments", "open_comments",

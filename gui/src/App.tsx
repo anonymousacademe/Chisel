@@ -46,6 +46,9 @@ type Dialog =
   | { kind: "details" }
   | { kind: "snapshots" }
   | { kind: "collections" }
+  | { kind: "new-research" }
+  | { kind: "research-url"; url: string }
+  | { kind: "delete-research" }
   | { kind: "add-comment"; from: number; to: number; quote: string }
   | { kind: "scene-collections" }
   | { kind: "new-draft" }
@@ -113,6 +116,7 @@ export default function App() {
   const [spellTarget, setSpellTarget] = useState<SpellTarget | null>(null);
   const [partFocus, setPartFocus] = useState<string | null>(null);
   const [collection, setCollection] = useState<string | null>(null);
+  const [researchMode, setResearchMode] = useState(false);
   const [comments, setComments] = useState<CommentRow[] | null>(null);
   const [commentPop, setCommentPop] = useState<{ id: string; x: number; y: number } | null>(null);
   const noticeId = useRef(0);
@@ -220,6 +224,13 @@ export default function App() {
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n" && !e.shiftKey) { e.preventDefault(); setDialog({ kind: "new-scene" }); }
     };
     const onHide = () => { void saver.flush(); };
+    // a link pasted anywhere outside a text field offers to become a research note
+    const onPaste = (e: ClipboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.closest("input, textarea, [contenteditable=true], .cm-editor"))) return;
+      const text = e.clipboardData?.getData("text/plain")?.trim() ?? "";
+      if (/^https?:\/\/\S+$/.test(text)) { e.preventDefault(); setDialog({ kind: "research-url", url: text }); }
+    };
     // the terminal app may have edited the file while we were in the background
     const onFocus = async () => {
       const id = saver.documentId;
@@ -230,11 +241,13 @@ export default function App() {
       else { await openDoc(id, { force: true }); notify("Reloaded: the file changed on disk."); }
     };
     window.addEventListener("keydown", onKey);
+    window.addEventListener("paste", onPaste);
     window.addEventListener("pagehide", onHide);
     window.addEventListener("blur", onHide);
     window.addEventListener("focus", onFocus);
     return () => {
       window.removeEventListener("keydown", onKey);
+      window.removeEventListener("paste", onPaste);
       window.removeEventListener("pagehide", onHide);
       window.removeEventListener("blur", onHide);
       window.removeEventListener("focus", onFocus);
@@ -527,6 +540,13 @@ export default function App() {
     if (!requireAi()) return;
     if (!replaceId) setMessages((m) => [...m, { id: uid(), role: "user", text }]);
     else setMessages((m) => m.filter((x) => x.id !== replaceId));
+    if (researchMode) {
+      const r = await aiCall("Searching your notes…", () => api.research(text, history));
+      setMessages((m) => [...m, r
+        ? { id: uid(), role: "assistant", text: r.reply, sources: r.sources.map((s) => ({ id: s.id, title: s.title })) }
+        : { id: uid(), role: "assistant", text: "That request failed. Nothing was changed.", error: true }]);
+      return;
+    }
     const r = await aiCall("Thinking…", () => api.ask(text, scope, d?.kind === "scene" ? d.id : null, ed ? ed.getText() : null, ed?.head() ?? 0, history));
     setMessages((m) => [...m, r ? { id: uid(), role: "assistant", text: r.reply } : { id: uid(), role: "assistant", text: "That request failed. Nothing was changed.", error: true }]);
   };
@@ -543,7 +563,13 @@ export default function App() {
     ed.insertDraft(r.from, r.to, r.insert);
     notify("Inserted as an AI draft: F7 accept, F8 reject.");
   };
-  const onQuick = (a: QuickAction) => { if (a === "rewrite") rewriteSelection(); else void quickContinuity(); };
+  const onQuick = (a: QuickAction) => {
+    if (a === "rewrite") rewriteSelection();
+    else if (a === "research") {
+      setResearchMode((on) => !on);
+      if (!researchMode && !ws?.research.length) notify("Research answers come from your research notes. Add some under Research in the binder first (a new note, or paste a link).");
+    } else void quickContinuity();
+  };
   const openAiMenu = (anchor: HTMLElement) => setMenu({ anchor, items: [
     { label: "Draft at the cursor…", disabled: doc?.kind !== "scene", onSelect: () => { const ed = editorRef.current; const h = ed?.head() ?? 0; if (requireAi()) setDialog({ kind: "generate", mode: "draft", from: h, to: h, title: "Draft new prose here", label: "What should the AI write?", initial: "" }); } },
     { label: "Find aliases", disabled: doc?.kind !== "scene", onSelect: () => void findAliases() },
@@ -732,6 +758,42 @@ export default function App() {
     const c = await api.sceneContext(d.id, ed.getText());
     if (c.ok && docRef.current?.id === d.id) setMentions(c.mentions);
   };
+  // -- research notes ----------------------------------------------------------------------
+  const createResearch = async (title: string) => {
+    setDialog(null);
+    if (!(await saver.flush())) return notify("Could not save the current document first.", "error");
+    const r = await api.newResearchNote(title);
+    if (!r.ok) return notify(r.error, "error");
+    await refresh();
+    setExpanded((s) => new Set(s).add("group:research"));
+    focusAfterOpen.current = true;
+    await openDoc(r.id, { force: true });
+  };
+  /** A pasted or dropped link becomes a note holding the link and a title; the page is never fetched. */
+  const researchFromUrl = async (url: string) => {
+    setDialog(null);
+    if (!(await saver.flush())) return notify("Could not save the current document first.", "error");
+    const r = await api.newResearchFromUrl(url);
+    if (!r.ok) return notify(r.error, "error");
+    await refresh();
+    setExpanded((s) => new Set(s).add("group:research"));
+    await openDoc(r.id, { force: true });
+    notify(`Saved the link as a research note: ${r.title}`);
+  };
+  const deleteResearch = async () => {
+    setDialog(null);
+    const d = docRef.current;
+    if (!d || d.kind !== "research") return;
+    saver.detach(); // a pending autosave must not bring the file back
+    setDoc(null);
+    const r = await api.deleteResearchNote(d.id);
+    if (!r.ok) { notify(r.error, "error"); await openDoc(d.id, { force: true }); return; }
+    const w = await refresh();
+    const next = w?.scenes.find((s) => !s.frontMatter && !s.unplaced) ?? w?.scenes[0];
+    if (next) await openDoc(next.id, { force: true });
+    notify(`Deleted the research note “${d.title}”.`);
+  };
+
   // -- comments --------------------------------------------------------------------------
   /** Notes beside the scene (.comments/): the prose is never touched. */
   const startAddComment = () => {
@@ -880,6 +942,10 @@ export default function App() {
       { label: "Move part up", disabled: !part, onSelect: () => part && void movePart(part.id, -1) },
       { label: "Move part down", disabled: !part, onSelect: () => part && void movePart(part.id, 1) },
       { label: "Delete empty part…", disabled: !part || part.sceneIds.length > 0, danger: true, onSelect: () => part && setDialog({ kind: "delete-part", id: part.id, title: part.title }) },
+      { label: "research", separator: true, onSelect: () => {} },
+      { label: "New research note…", onSelect: () => setDialog({ kind: "new-research" }) },
+      { label: "New research note from a link…", onSelect: () => setDialog({ kind: "research-url", url: "" }) },
+      { label: "Delete this research note…", disabled: doc?.kind !== "research", danger: true, onSelect: () => setDialog({ kind: "delete-research" }) },
       { label: "trash", separator: true, onSelect: () => {} },
       { label: "Open Trash…", onSelect: () => setDialog({ kind: "trash" }) },
     ],
@@ -902,6 +968,7 @@ export default function App() {
             expanded={expanded} onToggle={toggle} onSelect={(n) => void select(n)} searching={rail === "search"}
             library={rail === "library"} canNew canMenu={rail !== "library"}
             collections={ws.collections} activeCollection={activeCollection} onCollection={setCollection} onEditCollections={() => setDialog({ kind: "collections" })}
+            onDropUrl={(url) => setDialog({ kind: "research-url", url })}
             onNew={() => setDialog(rail === "library" ? { kind: "new-note", name: "", openAfter: true } : { kind: "new-scene" })} onMenu={openSceneMenu} />
         )}
         <Editor doc={doc} scenes={ws.scenes} filter={boardFilter}
@@ -930,6 +997,7 @@ export default function App() {
             issues={issues} onReviewIssue={reviewIssue} onDismissIssue={(i) => void dismissIssue(i)}
             messages={messages} busy={aiBusy} aiReady={aiReady} scope={scope} onScope={() => setScope((c) => (c === "scene" ? "project" : "scene"))}
             onSend={(t) => void sendChat(t)} onRegenerate={regenerate} onInsertDraft={(id) => void insertReplyAsDraft(id)}
+            researchMode={researchMode} onOpenSource={(id) => void openDoc(id)}
             onQuick={onQuick} onMenu={openAiMenu} canInsert={doc?.kind === "scene"} onClose={() => setAssistantOpen(false)}
             notesExtra={doc?.kind === "scene" ? (
               <CommentsPanel comments={comments} onOpen={openComment}
@@ -1049,6 +1117,20 @@ export default function App() {
           onSave={(body) => { setCommentPop(null); void commentCall((id, text) => api.editComment(id, popComment.id, body, text)); }}
           onResolve={(resolved) => { setCommentPop(null); void commentCall((id, text) => api.resolveComment(id, popComment.id, resolved, text)); }}
           onDelete={() => { setCommentPop(null); void commentCall((id, text) => api.deleteComment(id, popComment.id, text)); }} />
+      )}
+      {dialog?.kind === "new-research" && (
+        <PromptDialog title="New research note" label="Title" confirm="Create" onSubmit={(t) => void createResearch(t)} onClose={() => setDialog(null)} />
+      )}
+      {dialog?.kind === "research-url" && (
+        <PromptDialog title="New research note from a link" label="Link (https://…)" initial={dialog.url} confirm="Save link"
+          onSubmit={(u) => void researchFromUrl(u)} onClose={() => setDialog(null)}>
+          <p className="lw-dialog__message lw-faint">Saves a note with the link and a title made from it. The page is not downloaded.</p>
+        </PromptDialog>
+      )}
+      {dialog?.kind === "delete-research" && doc?.kind === "research" && (
+        <ConfirmDialog title="Delete research note" confirm="Delete note"
+          message={<>Delete “{doc.title}” for good? Research notes are not kept in the Trash. <code>{doc.id}</code></>}
+          onConfirm={() => void deleteResearch()} onClose={() => setDialog(null)} />
       )}
       {dialog?.kind === "collections" && (
         <CollectionsManager collections={ws.collections} unit={unit} onCreate={createCollection} onRecolor={recolorCollection}

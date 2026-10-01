@@ -68,11 +68,13 @@ function Row({ node, depth, activeId, focusId, expanded, onToggle, onSelect }: {
 
 const LIBRARY_KINDS = new Set(["characters", "world", "style", "dictionary"]);
 
-export function Binder({ nodes, count, activeId, focusId, unit, expanded, onToggle, onSelect, onNew, onMenu, searching, library, canNew, canMenu, collections, activeCollection, onCollection, onEditCollections }: {
+export function Binder({ nodes, count, activeId, focusId, unit, expanded, onToggle, onSelect, onNew, onMenu, searching, library, canNew, canMenu, collections, activeCollection, onCollection, onEditCollections, onDropUrl }: {
   searching: boolean; library: boolean; canNew: boolean; canMenu: boolean;
   collections: CollectionSummary[]; activeCollection: string | null;
   /** Click a collection to show only its scenes; click it again (or Show all) to clear. */
   onCollection: (name: string | null) => void; onEditCollections: () => void;
+  /** A link was dropped on the binder: offer to save it as a research note. */
+  onDropUrl: (url: string) => void;
   nodes: BinderNode[]; count: number; activeId: string | null;
   /** The part folder last clicked: part actions in the menu apply to it. */
   focusId: string | null; unit: string;
@@ -80,6 +82,11 @@ export function Binder({ nodes, count, activeId, focusId, unit, expanded, onTogg
   onNew: () => void; onMenu: (anchor: HTMLElement) => void;
 }) {
   const [query, setQuery] = useState("");
+  const [dropping, setDropping] = useState(false);
+  const droppedUrl = (e: React.DragEvent) => {
+    const t = (e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("text/plain")).split("\n").find((l) => l.trim() && !l.startsWith("#"))?.trim() ?? "";
+    return /^https?:\/\/\S+$/.test(t) ? t : null;
+  };
   const q = searching ? query.trim().toLowerCase() : "";
   const members = library ? null : memberIds(collections, activeCollection);
   const all = library ? nodes.filter((n) => LIBRARY_KINDS.has(n.kind)) : nodes;
@@ -87,7 +94,11 @@ export function Binder({ nodes, count, activeId, focusId, unit, expanded, onTogg
   const shown = q ? filterTree(base, q) : base;
   const open = q || members ? allIds(shown) : library ? new Set([...expanded, ...allIds(base)]) : expanded;
   return (
-    <aside className="lw-binder" aria-label={library ? "Library" : "Manuscript binder"}>
+    // only a dragged link (text/uri-list) is taken; a dragged corkboard card is plain text
+    <aside className={`lw-binder${dropping ? " is-dropping" : ""}`} aria-label={library ? "Library" : "Manuscript binder"}
+      onDragOver={(e) => { if (e.dataTransfer.types.includes("text/uri-list")) { e.preventDefault(); setDropping(true); } }}
+      onDragLeave={() => setDropping(false)}
+      onDrop={(e) => { setDropping(false); const u = droppedUrl(e); if (u) { e.preventDefault(); onDropUrl(u); } }}>
       <div className="lw-binder__header">
         <div className="lw-binder__heading">
           <h2>{library ? "Library" : "Binder"}</h2>

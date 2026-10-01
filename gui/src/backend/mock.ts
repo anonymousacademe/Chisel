@@ -60,7 +60,7 @@ function buildWorkspace(): Workspace {
       { id: "group:trash", title: "Trash", kind: "trash", muted: true },
     ],
     scenes,
-    parts: [], collections: [],
+    parts: [], collections: [], research: [],
     entities: ENTITIES.map(({ body: _b, ...e }) => e),
     status: { projectWords: total, sessionWords: 0, sessionMinutes: 0, aiCost: 0, hasStyle: false, trashCount: 0 },
   };

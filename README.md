@@ -57,6 +57,10 @@ design and roadmap.
   the scene — never in your prose — and follows the passage when you edit around it (a comment
   whose passage you deleted is kept, listed as "detached"). Desktop: the comment button, a margin
   marker and the Notes tab; terminal: *Scene · Add comment on selection* and *Scene · Comments*.
+- **Research**: put reference material in `research/` as plain Markdown notes (any subfolders);
+  paste or drop a web link to save it as a note (it is not downloaded). The assistant's
+  **Research** action answers a question from those notes and your canon, and tells you which
+  notes it used. Terminal: the palette (*Research · …*, *Research question*).
 - **Scene details** (POV, place, purpose, status, word target) are the scene's own
   YAML frontmatter — Obsidian-compatible, written only when you set a field, and
   never counted as prose, spell-checked, or sent to the AI as text (the AI does get
@@ -207,6 +211,7 @@ my-novel/
 ├── .drafts/              # text pending AI drafts replaced, one file per scene
 ├── .snapshots/           # History: a folder of snapshots per scene (plain copies)
 ├── .comments/            # your comments on passages, one small JSON file per scene
+├── research/             # reference notes (plain Markdown, any subfolders)
 └── entities/
     ├── characters/elara-vance.md   # free-text note + YAML frontmatter
     └── places/thornwick.md         #   (name, type, aliases)

@@ -81,11 +81,10 @@
       "kind": "dictionary"
     },
     {
-      "id": "ph:research",
+      "id": "group:research",
       "title": "Research",
       "kind": "research",
-      "placeholder": true,
-      "muted": true
+      "children": []
     },
     {
       "id": "group:unplaced",
@@ -144,6 +143,7 @@
   ],
   "parts": [],
   "collections": [],
+  "research": [],
   "entities": [
     {
       "id": "entities/characters/elias-vale.md",

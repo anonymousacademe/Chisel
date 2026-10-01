@@ -59,6 +59,13 @@ export const api = {
   syncCommit: (message: string) => call<{ summary: string; sync: SyncInfo | null }>("sync_commit", message),
   syncPush: () => call<{ summary: string; sync: SyncInfo | null }>("sync_push"),
   syncInit: () => call<{ sync: SyncInfo | null }>("sync_init"),
+  // research notes (research/): plain Markdown, never indexed
+  newResearchNote: (title: string) => call<{ id: string }>("new_research_note", title),
+  newResearchFromUrl: (url: string, title = "") => call<{ id: string; title: string }>("new_research_from_url", url, title),
+  deleteResearchNote: (id: string) => call("delete_research_note", id),
+  /** Answer from the research notes + canon; `sources` are the notes it was given, in citation order. */
+  research: (prompt: string, history: { role: string; text: string }[]) =>
+    call<{ reply: string; sources: { id: string; title: string; score: number }[]; cost: number | null }>("research", prompt, history),
   // comments: notes beside the scene (.comments/), positioned against the editor's text
   listComments: (id: string, text: string) => call<{ comments: CommentRow[] }>("list_comments", id, text),
   addComment: (id: string, text: string, start: number, end: number, body: string) =>

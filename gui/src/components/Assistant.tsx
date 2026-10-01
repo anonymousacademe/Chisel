@@ -10,7 +10,7 @@ import { Icon, IconButton, SectionLabel, Tag } from "./primitives";
 import { placeholderProps } from "./placeholder";
 
 export type AssistantTab = "assistant" | "context" | "notes";
-export type QuickAction = "rewrite" | "continuity";
+export type QuickAction = "rewrite" | "continuity" | "research";
 type Tab = AssistantTab;
 const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 
@@ -18,7 +18,7 @@ const tools: { icon: LucideIcon; title: string; detail: string; action?: QuickAc
   { icon: Lightbulb, title: "Brainstorm", detail: "Plot, character, image" },
   { icon: WandSparkles, title: "Rewrite", detail: "Tone, clarity, rhythm", action: "rewrite" },
   { icon: ScanSearch, title: "Continuity", detail: "Facts, timeline, logic", action: "continuity" },
-  { icon: BookSearch, title: "Research", detail: "Project + web library" },
+  { icon: BookSearch, title: "Research", detail: "Your notes + canon", action: "research" },
 ];
 
 const TYPE_LABEL: Record<string, string> = {
@@ -36,6 +36,8 @@ export function Assistant(props: {
   messages: ChatMessage[]; busy: string | null; aiReady: boolean;
   scope: "scene" | "project"; onScope: () => void;
   onSend: (text: string) => void; onRegenerate: (id: string) => void; onInsertDraft: (id: string) => void;
+  /** Research mode: the next question is answered from the research notes (and canon), citing them. */
+  researchMode: boolean; onOpenSource: (id: string) => void;
   onQuick: (a: QuickAction) => void; onMenu: (anchor: HTMLElement) => void; onClose: () => void;
   canInsert: boolean;
   /** Shown under the note in the Notes tab (the scene's comments). */
@@ -98,7 +100,8 @@ export function Assistant(props: {
               </div>
               <div className="lw-quick__grid">
                 {tools.map((t) => (
-                  <button key={t.title} className="lw-tool" disabled={!!t.action && (busy || !props.aiReady)}
+                  <button key={t.title} className={`lw-tool${t.action === "research" && props.researchMode ? " is-on" : ""}`} aria-pressed={t.action === "research" ? props.researchMode : undefined}
+                    disabled={!!t.action && (busy || !props.aiReady)}
                     {...(t.action ? { onClick: () => props.onQuick(t.action!) } : placeholderProps)}>
                     <span className="lw-row lw-gap-6">
                       <Icon icon={t.icon} size={13} stroke={1.7} color="var(--lw-accent-text)" />
@@ -143,6 +146,14 @@ export function Assistant(props: {
                 <span className="lw-mark"><Icon icon={Sparkles} size={12} stroke={1.7} /></span>
                 <div className="lw-msg-ai__body">
                   <p className={`lw-msg-ai__text${m.error ? " is-error" : ""}`}>{m.text}</p>
+                  {m.sources && m.sources.length > 0 && (
+                    <div className="lw-sources-line" aria-label="Research notes used">
+                      <span className="lw-faint">Notes:</span>
+                      {m.sources.map((s, i) => (
+                        <button key={s.id} className="lw-chip lw-chip--source" title={`Open ${s.title}`} onClick={() => props.onOpenSource(s.id)}>[{i + 1}] {s.title}</button>
+                      ))}
+                    </div>
+                  )}
                   {!m.error && (
                     <div className="lw-row lw-gap-4">
                       <IconButton icon={Copy} label="Copy" onClick={() => navigator.clipboard?.writeText(m.text)} />
@@ -169,7 +180,7 @@ export function Assistant(props: {
 
       <div className="lw-composer-region">
         <div className="lw-composer">
-          <textarea ref={inputRef} rows={1} value={draft} disabled={!props.aiReady} placeholder="Ask about this scene or your project…"
+          <textarea ref={inputRef} rows={1} value={draft} disabled={!props.aiReady} placeholder={props.researchMode ? "Ask a question your research notes can answer…" : "Ask about this scene or your project…"}
             onChange={(e) => { setDraft(e.target.value); const t = e.currentTarget; t.style.height = "15px"; t.style.height = `${t.scrollHeight}px`; }}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
           <div className="lw-composer__controls">
@@ -179,6 +190,7 @@ export function Assistant(props: {
                 title="What the assistant reads: this scene, or scene titles and notes for the whole project">
                 {props.scope === "scene" ? "Current scene" : "Project"}
               </button>
+              {props.researchMode && <span className="lw-tag lw-tag--success">Research</span>}
             </div>
             <button className="lw-send" aria-label="Send" onClick={send} disabled={!draft.trim() || busy || !props.aiReady}>
               <Icon icon={ArrowUp} size={14} stroke={2} />

@@ -65,6 +65,9 @@ def test_workspace_with_parts_matches_fixture(tmp_path):
     rain.write_text("---\npov: Mara Vale\nplace: Lower Meridian\nstatus: revising\ntarget: 2400\n"
                     "collections: [Needs continuity pass]\n---\n"
                     "# Rain\n\nrain rain rain\n", encoding="utf-8")
+    (project.root / "research" / "tides").mkdir(parents=True)
+    (project.root / "research" / "tides" / "almanac.md").write_text("# Tide almanac\n\nHigh water at dusk.\n")
+    (project.root / "research" / "trams.md").write_text("Trams stop at midnight.\n")
     coll.create(project, "Needs continuity pass", "amber")
     coll.create(project, "Mara's arc", "violet")
     project.unplace_scene(project.manuscript_dir / "01-the-recall" / "02-capsule.md")
@@ -85,7 +88,8 @@ def test_binder_groups_and_placeholders(tmp_path):
     assert {c["title"] for c in top["group:characters"]["children"]} == {"Mara Vale", "Elias Vale"}
     assert top["group:world"]["children"][0]["meta"] == "place"
     assert top["style.md"]["meta"] == "new"  # listed before it exists; opening creates the stub
-    assert top["ph:research"]["placeholder"]            # Wave 3
+    assert top["group:research"]["kind"] == "research" and top["group:research"]["children"] == []   # real since Wave 3
+    assert not any(n.get("placeholder") for n in built["binder"])
     assert not top["group:trash"].get("placeholder") and top["group:trash"]["kind"] == "trash"
     assert top["group:unplaced"]["kind"] == "inbox" and top["group:unplaced"]["children"] == []
     assert not any(c.get("placeholder") for c in top["project"]["children"])  # Parts are real now

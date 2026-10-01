@@ -1,0 +1,80 @@
+"""Research notes: plain Markdown in research/, keyword retrieval (Wave 3.3)."""
+
+import pytest
+
+from lorewrite.core import research as rs
+from tests.gui_helpers import make_project
+
+
+def project_with_notes(tmp_path):
+    project = make_project(tmp_path / "p")
+    base = project.root / "research"
+    (base / "tides").mkdir(parents=True)
+    (base / "tides" / "almanac.md").write_text(
+        "# Tide almanac\n\nThe spur floods at dusk when the spring tide meets the storm drains.\n\n"
+        "Low water is about six hours later.\n", encoding="utf-8")
+    (base / "noodles.md").write_text(
+        "# Noodle stalls\n\nStalls sell soy noodles; the broth is salted with copper-tasting water.\n",
+        encoding="utf-8")
+    (base / "plain-name.md").write_text("Just a body with no heading about trams and timetables.\n",
+                                        encoding="utf-8")
+    (base / ".hidden.md").write_text("# nope\n", encoding="utf-8")
+    return project
+
+
+def test_listing_titles_and_hidden_files(tmp_path):
+    project = project_with_notes(tmp_path)
+    notes = rs.list_notes(project)
+    assert [(n.rel, n.title) for n in notes] == [
+        ("noodles.md", "Noodle stalls"), ("plain-name.md", "Plain Name"),
+        ("tides/almanac.md", "Tide almanac")]
+    assert rs.is_research_path(project, project.root / "research" / "tides" / "almanac.md")
+    assert not rs.is_research_path(project, project.root / "research" / ".hidden.md")
+    assert not rs.is_research_path(project, project.root / "manuscript" / "01-arrival.md")
+    assert rs.list_notes(make_project(tmp_path / "empty")) == []
+
+
+def test_new_notes_get_unique_names(tmp_path):
+    project = make_project(tmp_path / "p")
+    a = rs.new_note(project, "Tide  tables")
+    b = rs.new_note(project, "Tide tables")
+    assert a.name == "tide-tables.md" and b.name == "tide-tables-2.md"
+    assert a.read_text() == "# Tide  tables\n\n".replace("  ", " ")
+    with pytest.raises(ValueError):
+        rs.new_note(project, "  ")
+
+
+def test_note_from_url_has_the_link_and_a_title_and_fetches_nothing(tmp_path):
+    project = make_project(tmp_path / "p")
+    path = rs.note_from_url(project, "https://www.example.com/articles/tide-tables-explained.html")
+    assert path.read_text() == ("# example.com - tide tables explained\n\n"
+                                "https://www.example.com/articles/tide-tables-explained.html\n")
+    assert rs.note_from_url(project, "http://a.org", "My title").read_text().startswith("# My title")
+    for bad in ("tide tables", "ftp://x.org/a", "javascript:alert(1)", "", "https://a.org some words"):
+        with pytest.raises(ValueError):
+            rs.note_from_url(project, bad)
+    assert rs.looks_like_url(" https://a.org/x ") and not rs.looks_like_url("a.org")
+
+
+def test_search_ranks_by_term_rarity_and_titles_and_returns_the_passage(tmp_path):
+    project = project_with_notes(tmp_path)
+    hits = rs.search(project, "When does the spur flood at dusk?")
+    assert [h.note.rel for h in hits][0] == "tides/almanac.md"
+    assert "floods at dusk" in hits[0].excerpt and "Low water" not in hits[0].excerpt
+    assert hits[0].score > 0
+    # title words count extra
+    assert rs.search(project, "noodle")[0].note.rel == "noodles.md"
+    # nothing matches: nothing returned (no zero-score padding); stop words alone match nothing
+    assert rs.search(project, "zeppelin") == []
+    assert rs.search(project, "the and of") == []
+    assert len(rs.search(project, "the spur copper trams", limit=2)) == 2
+
+
+def test_delete_note_only_inside_research(tmp_path):
+    project = project_with_notes(tmp_path)
+    note = project.root / "research" / "noodles.md"
+    rs.delete_note(project, note)
+    assert not note.exists()
+    with pytest.raises(FileNotFoundError):
+        rs.delete_note(project, project.list_scenes()[0])
+    assert project.list_scenes()[0].exists()

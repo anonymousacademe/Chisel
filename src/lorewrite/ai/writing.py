@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 
-from ..core import drafts, scenemeta
+from ..core import drafts, research as research_notes, scenemeta
 from ..core.entities import Entity, resolve
 from ..core.links import find_all_links
 from .client import usage_extra_body
@@ -304,6 +304,92 @@ def ask(
         extra_body=usage_extra_body(),
     )
     record_response(response, model, "ask")
+    reply = (response.choices[0].message.content or "").replace("<!--", "<!-").strip()
+    if not reply:
+        raise ValueError("the model returned no text")
+    return reply
+
+
+RESEARCH_SYSTEM_PROMPT = """\
+You answer a novelist's research question using ONLY the numbered research notes
+and the project canon given below.
+
+Rules:
+- Cite the research notes you rely on inline as [1], [2] (their numbers). Cite
+  nothing else; never invent a source, a quotation or a fact.
+- If the notes do not cover the question, say so plainly and say what the author
+  could look up. Do not fill the gap from memory as if it were in the notes.
+- The canon is the author's fiction. Use it to connect the facts to the story,
+  but it is not a source: do not cite it.
+- Be concise. Plain text, no Markdown headings.
+- Never write HTML comments or the text "<!--".
+"""
+
+RESEARCH_NOTE_CHARS = 1500
+RESEARCH_TOTAL_CHARS = 9000
+
+
+def build_research_context(notes: list[tuple[str, str]], canon_context: str) -> str:
+    """The numbered research notes ((title, excerpt) in citation order, each
+    and the total capped) followed by the project canon."""
+    sections: list[str] = []
+    used = 0
+    for i, (title, excerpt) in enumerate(notes, 1):
+        body = excerpt.strip()[:RESEARCH_NOTE_CHARS]
+        if used + len(body) > RESEARCH_TOTAL_CHARS:
+            break
+        used += len(body)
+        sections.append(f"[{i}] {title}\n{body}")
+    head = ("RESEARCH NOTES:\n" + "\n\n".join(sections)) if sections else \
+        "RESEARCH NOTES: (none of the author's notes matched this question)"
+    return head + ("\n\n" + canon_context if canon_context else "")
+
+
+def research_context(project, entities: list[Entity], canon_by_name: dict[str, str],
+                     question: str) -> tuple[str, list[research_notes.Hit]]:
+    """Everything the model is given for a research *question*: the best matching
+    notes (numbered, in citation order) and the project canon. Raises ValueError
+    when the project has no research notes at all (no AI call is worth making)."""
+    if not research_notes.list_notes(project):
+        raise ValueError("There are no research notes yet. Add some under research/ "
+                         "(a new note, or a pasted link) and ask again.")
+    hits = research_notes.search(project, question)
+    canon = build_project_context([], entities, canon_by_name, None)
+    return build_research_context([(h.note.title, h.excerpt) for h in hits], canon), hits
+
+
+def research_answer(
+    prompt: str,
+    context: str,
+    model: str,
+    history: list[dict] | None = None,
+    client=None,
+) -> str:
+    """Network call: answer a research question from *context* (see
+    ``build_research_context``). Chat text only; never touches the manuscript.
+    Raises ValueError for an empty prompt or reply."""
+    if not prompt.strip():
+        raise ValueError("ask a research question first")
+    if client is None:
+        from .client import make_client
+
+        client = make_client()
+    turns = []
+    for turn in (history or [])[-HISTORY_TURNS:]:
+        role = turn.get("role")
+        text = str(turn.get("text") or "")[:HISTORY_CHARS]
+        if role in ("user", "assistant") and text:
+            turns.append({"role": role, "content": text})
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": RESEARCH_SYSTEM_PROMPT},
+            *turns,
+            {"role": "user", "content": f"{context}\n\nQUESTION:\n{prompt.strip()}"},
+        ],
+        extra_body=usage_extra_body(),
+    )
+    record_response(response, model, "research")
     reply = (response.choices[0].message.content or "").replace("<!--", "<!-").strip()
     if not reply:
         raise ValueError("the model returned no text")

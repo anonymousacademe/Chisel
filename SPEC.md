@@ -425,6 +425,30 @@ open and behave exactly as before.*
     selection* (a one-line prompt) and *Scene · Comments* (`enter` jump to and select the passage, `r`
     resolve / reopen, `e` edit, `d` delete); commented text is underlined faintly (open comments only).
 
+- **Research** (3.3, `core/research.py`). `<project>/research/` holds plain Markdown notes, any
+  subfolders (dot-files ignored). They are not scenes (not in the book, not counted, not read by
+  continuity) and not entities (no frontmatter; **not in the link index**, so `[[links]]` inside
+  them are highlighted but add no backlinks). A note's title is its first `# heading`, else the
+  file name de-slugged. Creating: *New research note* (`research/<slug>.md`, `-2` for a clash) and
+  *from a link* - a note holding the URL and a title made from it (`host - last path segment`);
+  **nothing is fetched**. A link pasted outside a text field, or dropped on the binder, offers to
+  save itself this way (GUI). *Delete research note* asks first and is permanent (notes are not kept
+  in the Trash).
+  - *The Research question* (assistant quick action in the GUI, where it turns Research mode on for
+    the next questions; `ctrl+r` inside the terminal's assistant window; palette *Action · Research
+    question*). `research.search` scores notes by keyword (query terms of 3+ letters minus stop words,
+    crudely stemmed; per-term count damped and weighted by rarity across notes, extra for a title
+    hit; zero-score notes are not returned) and returns the best paragraph of each of the top 5.
+    `ai.writing.research_context` numbers them `[1]…` with the project canon (characters and
+    places, capped) and `research_answer` asks the *writing* model to answer **only** from them,
+    citing `[n]`, saying so when the notes do not cover it, and never citing the canon. With no
+    research notes at all it refuses without an AI call. The reply is chat text with its `sources`
+    (id, title, in citation order): GUI chips open the note, terminal `ctrl+o`. No web access.
+  - GUI: the binder's Research group is real (count; subfolders as folders; notes open in the
+    editor as `RESEARCH`, no spelling, mentions or index); the quick switcher lists them. Terminal:
+    palette *Research · <title>* opens one; *New research note*, *New research note from a link*,
+    *Delete research note*.
+
 ### Desktop GUI (pywebview + the React design) ✅ (implemented; merged to main 2026-10-01)
 
 An Obsidian-style desktop front end over the same `core/` and `ai/`: a native
@@ -469,9 +493,9 @@ both edit the same plain-Markdown projects.
 - **Placeholders.** Parts of the design that LoreWriter does not do yet are drawn
   as designed but dimmed, non-interactive, tooltip "Not in LoreWriter yet"
   (`gui/src/components/placeholder.ts`): the status-bar Streak item
-  (the Draft badge and status item, Snapshots, Sync and the History button are real since Wave 2),
-  the Research row,
-  Collections, the comment button, the Brainstorm and Research quick actions, conversation history, attach-context
+  (the Draft badge and status item, Snapshots, Sync and the History button are real since Wave 2;
+  the Research row, Collections, the comment button and the Research quick action since Wave 3),
+  the Brainstorm quick action, conversation history, attach-context
   and the reply "Helpful" button. No fake data is shown for them.
 - **Keys.** `ctrl+k` quick switcher, `ctrl+s` save, `ctrl+n` new scene, `f11`
   focus mode, `ctrl+j` in the editor: open the note under the cursor / make a note

@@ -32,3 +32,14 @@ describe("collections (shape shared with Python)", () => {
     expect(swatchVar("nope" as never)).toBe(swatchVar("gray"));
   });
 });
+
+describe("research (shape shared with Python)", () => {
+  it("lists notes with their folders and builds the binder group", () => {
+    expect(ws.research.map((r) => [r.title, r.folder])).toEqual([["Tide almanac", "tides"], ["Trams", ""]]);
+    const node = ws.binder.find((n) => n.id === "group:research")!;
+    expect(node.kind).toBe("research");
+    expect(node.meta).toBe("2");
+    expect(node.children!.map((c) => [c.kind, c.title])).toEqual([["folder", "tides"], ["document", "Trams"]]);
+    expect(node.children![0].children![0].id).toBe("research/tides/almanac.md");
+  });
+});

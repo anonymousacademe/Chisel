@@ -99,11 +99,31 @@
       "kind": "dictionary"
     },
     {
-      "id": "ph:research",
+      "id": "group:research",
       "title": "Research",
       "kind": "research",
-      "placeholder": true,
-      "muted": true
+      "meta": "2",
+      "children": [
+        {
+          "id": "group:research/tides",
+          "title": "tides",
+          "kind": "folder",
+          "children": [
+            {
+              "id": "research/tides/almanac.md",
+              "title": "Tide almanac",
+              "kind": "document",
+              "meta": "7"
+            }
+          ]
+        },
+        {
+          "id": "research/trams.md",
+          "title": "Trams",
+          "kind": "document",
+          "meta": "4"
+        }
+      ]
     },
     {
       "id": "group:unplaced",
@@ -231,6 +251,20 @@
       "declared": true,
       "count": 0,
       "sceneIds": []
+    }
+  ],
+  "research": [
+    {
+      "id": "research/tides/almanac.md",
+      "title": "Tide almanac",
+      "words": 7,
+      "folder": "tides"
+    },
+    {
+      "id": "research/trams.md",
+      "title": "Trams",
+      "words": 4,
+      "folder": ""
     }
   ],
   "entities": [

@@ -33,10 +33,13 @@ from ..ai.writing import (
     ask as ask_writer,
     build_context,
     build_project_context,
+    research_context,
     generate as generate_text,
+    research_answer as research_writer,
 )
 from ..core import collections as coll
 from ..core import comments
+from ..core import research as research_notes
 from ..core import drafts, scenemeta, snapshots, sync
 from ..core import settings as user_settings
 from ..core import spelling
@@ -193,6 +196,8 @@ class Api:
             return "style"
         if path == spelling.project_dictionary_path(project).resolve():
             return "dictionary"
+        if research_notes.is_research_path(project, path):
+            return "research"
         return None
 
     def resolve_document(self, doc_id: str) -> tuple[Path, str]:
@@ -235,6 +240,9 @@ class Api:
                 title, kicker, parent = entity.name, entity.type.upper(), "Notes"
             elif kind == "dictionary":
                 title, kicker, parent = "Dictionary", "DICTIONARY", "Project"
+            elif kind == "research":
+                title = research_notes.title_of(path, text)
+                kicker, parent = "RESEARCH", "Research"
             else:
                 title, kicker, parent = "Style guide", "STYLE GUIDE", "Project"
             mentions = (ws.scene_context(text, self.entities, self.index)
@@ -254,7 +262,7 @@ class Api:
     def _index_file(self, path: Path, kind: str, text: str) -> None:
         """Refresh derived state after *path* was written with *text*."""
         project = self._require()
-        if kind in ("style", "dictionary"):
+        if kind in ("style", "dictionary", "research"):
             return  # not part of the link index
         self.index.update_file(ws.rel_id(project, path), text,
                                self._all_names() if kind == "scene" else None)
@@ -752,6 +760,53 @@ class Api:
                 "details": scenemeta.details(new),
                 "bodyStart": index_to_utf16(new, new_end),
             }
+
+    # -- research ---------------------------------------------------------------------
+    # Plain Markdown notes in research/ (core.research): not scenes, not entities, not indexed.
+
+    def _research_payload(self) -> dict:
+        project = self._require()
+        return {"research": ws.research_summaries(project)}
+
+    @bridge
+    def new_research_note(self, title: str) -> dict:
+        with self._lock:
+            path = research_notes.new_note(self._require(), title)
+            return {"id": ws.rel_id(self._require(), path)}
+
+    @bridge
+    def new_research_from_url(self, url: str, title: str = "") -> dict:
+        """A note holding just the link and a title; the page is never fetched."""
+        with self._lock:
+            project = self._require()
+            path = research_notes.note_from_url(project, url, title)
+            return {"id": ws.rel_id(project, path), "title": research_notes.title_of(path)}
+
+    @bridge
+    def delete_research_note(self, doc_id: str) -> dict:
+        """Delete a research note for good (the UI confirms first)."""
+        with self._lock:
+            path, kind = self.resolve_document(doc_id)
+            if kind != "research":
+                raise ValueError("not a research note")
+            research_notes.delete_note(self._require(), path)
+            return {}
+
+    @bridge
+    def research(self, prompt: str, history: list | None = None) -> dict:
+        """Chat: answer a question from the research notes and the project canon
+        (keyword retrieval, no web). Returns the reply and the notes it was given
+        (`sources`, in citation order). The manuscript is never touched."""
+        with self._lock:
+            project = self._require()
+            entities = list(self.entities)
+            context, hits = research_context(project, entities, canon_map(entities), prompt)
+            sources = [{"id": ws.rel_id(project, h.note.path), "title": h.note.title,
+                        "score": h.score} for h in hits]
+            model = resolve_model("writing", project.meta)
+            calls = LEDGER.count()
+        reply = research_writer(prompt, context, model, history=history)
+        return {"reply": reply, "sources": sources, "cost": self._spent(calls)}
 
     # -- comments ---------------------------------------------------------------------
     # Author notes anchored to a passage (core.comments), in .comments/<scene>.json - never in the

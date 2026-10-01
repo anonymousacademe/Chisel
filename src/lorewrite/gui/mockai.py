@@ -107,6 +107,13 @@ def install(api_module) -> None:
                 "2. Have the holo koi turn toward him, just once.\n"
                 "3. Cut to the caller ID going dark.")
 
+    def research_writer(prompt, context, model, history=None, client=None):
+        _spend("research")
+        if "[1]" not in context:
+            return "None of your research notes covers that. You could look it up and save what you find as a note."
+        return ("Your notes say the spur floods when the tide table and the storm drains disagree [1]. "
+                "That fits the way the canon has the market built under it.")
+
     api_module.get_api_key = get_api_key
     api_module._set_api_key = lambda k: keys.__setitem__("key", k)
     api_module._clear_api_key = lambda: keys.pop("key", None)
@@ -117,3 +124,4 @@ def install(api_module) -> None:
     api_module.learn_style = learn_style
     api_module.generate_text = generate_text
     api_module.ask_writer = ask_writer
+    api_module.research_writer = research_writer

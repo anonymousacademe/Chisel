@@ -33,6 +33,7 @@ src/lorewrite/
     spelling.py         # spell check: check/suggestions, accepted terms, dictionary files
     collections.py      # collections: definitions in project.toml, membership in scene frontmatter
     comments.py         # comments: .comments/<scene>.json, anchored by quote + context
+    research.py         # research/ notes: list/new/from-url/delete, keyword search
   ai/
     client.py           # OpenRouter via openai SDK; keyring/env key resolution
     links.py            # alias finder (ctrl+l): prompt, schema, validate (never edits text)
@@ -146,6 +147,12 @@ PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --
   one DOM line for several doc lines, so the margin marker's line decoration goes on the first of
   them (`softBreakSet` in `editor/cm.ts`); the marker is outside the editor's box, so its click is
   caught on `.lw-editor__scroll` (`marginClick`), not in CodeMirror.
+- **Research notes** (`core/research.py`) are documents of kind `research` in the GUI bridge
+  (`Api._doc_kind`) but are **never indexed** (`_index_file`, TUI `_write_to_disk` skip them), never
+  spell-checked, and not scenes (`is_scene_path` is false). The Research question is
+  `ai.writing.research_context` + `research_answer` (shared by `gui/api.py` and `tui/app.py`; mock it
+  in `gui/mockai.py` and `lorewrite.tui.app.research_answer`). It must refuse with no AI call when
+  there are no notes. The palette has a `Research ·` category (like `Scene ·`).
 - **Git sync is explicit** (`core/sync.py`). `status()` is the only call that may run by itself
   (read-only, 5 s timeout, never on the UI thread: TUI worker, GUI debounced bridge call outside
   `self._lock`; `get_workspace` must not call it). `commit` / `push` / `init` run only from a
@@ -250,7 +257,7 @@ PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --
   standing, expected, and acknowledged by the user — report scores, don't
   reword to dodge.
 - No emojis in the UI or docs unless the user asks. Category prefixes use
-  `Scene · / Entity · / Link · / Action ·` text.
+  `Scene · / Entity · / Research · / Link · / Action ·` text.
 - Commits only when the user asks. Match existing style; minimal diffs.
 
 ## Current state & what's next (2026-10-01)

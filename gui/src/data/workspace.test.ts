@@ -13,14 +13,14 @@ const ws = fixture as unknown as Workspace;
 
 describe("workspace fixture (shape shared with Python)", () => {
   it("has the top-level keys the UI reads", () => {
-    expect(Object.keys(ws).sort()).toEqual(["binder", "collections", "entities", "parts", "project", "scenes", "status"]);
+    expect(Object.keys(ws).sort()).toEqual(["binder", "collections", "entities", "parts", "project", "research", "scenes", "status"]);
     expect(ws.status).toMatchObject({ projectWords: expect.any(Number), hasStyle: false });
   });
 
-  it("marks placeholder nodes and keeps real ones openable", () => {
-    const ph = findNode(ws.binder, "ph:research")!;
-    expect(ph.placeholder).toBe(true);
-    expect(isOpenable(ph)).toBe(false);
+  it("has no placeholder rows left and keeps real ones openable", () => {
+    const research = findNode(ws.binder, "group:research")!;
+    expect(research.placeholder).toBeUndefined();
+    expect(isOpenable(research)).toBe(false);   // a group: it expands, it does not open
     const scene = findNode(ws.binder, ws.scenes[0].id)!;
     expect(isOpenable(scene)).toBe(true);
     expect(scene.title).toBe("01  Arrival");
@@ -99,7 +99,7 @@ describe("a book with parts (shape shared with Python)", () => {
     const trash = findNode(book.binder, "group:trash")!;
     expect(trash).toMatchObject({ kind: "trash", meta: "1" });
     expect(isActionable(trash)).toBe(true);
-    expect(isActionable(findNode(book.binder, "ph:research")!)).toBe(false);
+    expect(isActionable(findNode(book.binder, "group:research")!)).toBe(false);
   });
 
   it("scenes carry part, details and the front-matter / unplaced flags", () => {

@@ -21,8 +21,16 @@ from ..ai.client import MODEL_DEFAULTS, resolve_model, set_api_key
 from ..ai.links import Suggestion, alias_form, suggest_links
 from ..ai.style import learn_style
 from ..ai.usage import LEDGER, format_cost
-from ..ai.writing import build_context, generate
+from ..ai.writing import (
+    ask as ask_writer,
+    build_context,
+    build_project_context,
+    generate,
+    research_answer,
+    research_context,
+)
 from ..core import collections as coll
+from ..core import research as research_notes
 from ..core import comments
 from ..core import drafts, scenemeta, snapshots, sync
 from ..core import entities as ent
@@ -50,9 +58,16 @@ from ..core.style import (
     save_style,
     style_path,
 )
+from .assistantscreen import AssistantScreen, ChatMsg
 from .collectionscreens import CollectionsScreen
 from .commentscreens import CommentsScreen
-from .commands import ActionProvider, EntityProvider, InsertLinkProvider, SceneProvider
+from .commands import (
+    ActionProvider,
+    EntityProvider,
+    InsertLinkProvider,
+    ResearchProvider,
+    SceneProvider,
+)
 from .continuityscreen import ContinuityScreen, JumpToContradiction, WaiveToggled
 from .editor import LinkedTextArea
 from .launch import LaunchScreen
@@ -243,8 +258,8 @@ class EntityTypePrompt(ModalScreen[str | None]):
 class LorewriteApp(App):
     TITLE = "lorewrite"
 
-    COMMANDS = App.COMMANDS | {SceneProvider, EntityProvider, InsertLinkProvider,
-                               ActionProvider}
+    COMMANDS = App.COMMANDS | {SceneProvider, EntityProvider, ResearchProvider,
+                               InsertLinkProvider, ActionProvider}
 
     BINDINGS = [
         Binding("ctrl+j", "jump", "Jump to link"),
@@ -431,6 +446,8 @@ class LorewriteApp(App):
         self._style_tip_shown = False
         self._spell_timer = None
         self._spell_lines = 0
+        self._chat_messages: list[ChatMsg] = []
+        self._assistant_screen: AssistantScreen | None = None
         self._comment_list: list[comments.Comment] = []   # the open scene's comments
         self._comment_scene: Path | None = None
         self._spell_ignores = spelling.SessionIgnores()
@@ -647,8 +664,9 @@ class LorewriteApp(App):
             except Exception:
                 pass
         if self.current_path in (style_path(self.project),
-                                 spelling.project_dictionary_path(self.project)):
-            return  # the style guide and dictionary aren't part of the link index
+                                 spelling.project_dictionary_path(self.project)) \
+                or research_notes.is_research_path(self.project, self.current_path):
+            return  # the style guide, dictionary and research notes aren't in the link index
         rel = str(self.current_path.relative_to(self.project.root))
         names = self._all_names() if self._is_scene(self.current_path) else None
         self.idx.update_file(rel, text, names)
@@ -2110,6 +2128,113 @@ class LorewriteApp(App):
             self.notify("Details saved", timeout=1)
 
         self.push_screen(DetailsScreen(self.editor.text, characters, places), _save)
+
+    # -- research notes (Wave 3.3): plain Markdown in research/, not scenes, not indexed ---------
+
+    def new_research_note_prompt(self) -> None:
+        def _create(title: str | None) -> None:
+            if not title:
+                return
+            try:
+                path = research_notes.new_note(self.project, title)
+            except ValueError as exc:
+                self.notify(str(exc), severity="warning")
+                return
+            self.open_file(path)
+
+        self.push_screen(NamePrompt("New research note title:"), _create)
+
+    def new_research_from_link_prompt(self) -> None:
+        def _create(url: str | None) -> None:
+            if not url:
+                return
+            try:
+                path = research_notes.note_from_url(self.project, url)
+            except ValueError as exc:
+                self.notify(str(exc), severity="warning")
+                return
+            self.open_file(path)
+            self.notify("Saved the link as a research note (the page is not downloaded)", timeout=3)
+
+        self.push_screen(NamePrompt("Link (https://...):"), _create)
+
+    def delete_research_note_confirm(self) -> None:
+        path = self.current_path
+        if path is None or not research_notes.is_research_path(self.project, path):
+            self.notify("Open a research note first", severity="warning")
+            return
+
+        def _go(ok: bool) -> None:
+            if not ok:
+                return
+            self._dirty = False          # a pending autosave must not bring the file back
+            self.current_path = None
+            research_notes.delete_note(self.project, path)
+            scenes = self.project.list_scenes()
+            if scenes:
+                self.open_file(scenes[0])
+            self.notify("Research note deleted", timeout=2)
+
+        self.push_screen(ConfirmScreen(
+            f"Delete the research note '{research_notes.title_of(path)}' for good?\n"
+            "Research notes are not kept in the Trash.", confirm_label="Delete note"), _go)
+
+    # -- the assistant (chat + research), Wave 3.3 / 3.4 -------------------------------------
+
+    def open_assistant(self, mode: str = "chat") -> None:
+        """Action · Ask the assistant (ctrl+r inside switches to research mode)."""
+        if self.project is None:
+            return
+        self.save_current()
+        self._assistant_screen = AssistantScreen(
+            self._chat_messages, mode, self._assistant_submit,
+            lambda sid: self.open_file(self.project.root / sid))
+        self.push_screen(self._assistant_screen)
+
+    def open_research_question(self) -> None:
+        self.open_assistant("research")
+
+    def _assistant_submit(self, screen: AssistantScreen, prompt: str, mode: str) -> None:
+        history = [{"role": m.role, "text": m.text} for m in screen.messages[:-1] if not m.error]
+        entities = list(self.entities)
+        canon = self._canon_map()
+        try:
+            if mode == "research":
+                context, hits = research_context(self.project, entities, canon, prompt)
+                sources = [(str(h.note.path.relative_to(self.project.root)), h.note.title) for h in hits]
+            else:
+                sources = []
+                scene = self._current_scene_path()
+                if scene is not None:
+                    text = self.editor.text
+                    context = build_context(text, self._cursor_offset(), entities, canon,
+                                            load_style(self.project),
+                                            originals=self._originals(text))
+                else:
+                    titles = [self.project.scene_title(p) for p in self.project.list_scenes()]
+                    context = build_project_context(titles, entities, canon, load_style(self.project))
+        except ValueError as exc:
+            screen.add_message(ChatMsg("assistant", str(exc), error=True))
+            return
+        screen.set_busy(True)
+        self._assistant_worker(screen, prompt, mode, context, sources, history,
+                               self._ai_model("writing"))
+
+    @work(exclusive=True, group="assistant")
+    async def _assistant_worker(self, screen, prompt, mode, context, sources, history, model) -> None:
+        calls = LEDGER.count()
+        fn = research_answer if mode == "research" else ask_writer
+        try:
+            reply = await asyncio.to_thread(fn, prompt, context, model, history=history)
+            msg = ChatMsg("assistant", reply, sources=sources)
+        except Exception as exc:
+            msg = ChatMsg("assistant", f"That request failed ({exc}). Nothing was changed.", error=True)
+        cost = self._cost_note(calls)
+        if screen.is_attached:
+            screen.set_busy(False)
+            screen.add_message(msg)
+        if cost:
+            self.notify(f"Answered{cost}", timeout=3)
 
     # -- comments (Wave 3.2): author notes in .comments/, never in the prose ----------
 
