@@ -2135,6 +2135,9 @@ class LorewriteApp(App):
     def _compare_snapshot(self, path: Path, name: str) -> None:
         old = snapshots.read_text(self.project, path, name)
         segs = snapshots.diff_words(old, self.editor.text)
+        snap = next((x for x in snapshots.list_snapshots(self.project, path) if x.name == name), None)
+        title = (f"{label_text(snap.label)}, {snap.when.strftime('%Y-%m-%d %H:%M')} ({snapshots.ago(snap.when)})"
+                 if snap else name)
 
         def _back(result) -> None:
             if result == "restore":
@@ -2142,7 +2145,7 @@ class LorewriteApp(App):
             else:
                 self.open_snapshots()
 
-        self.push_screen(CompareScreen(name, segs), _back)
+        self.push_screen(CompareScreen(title, segs), _back)
 
     def _confirm_restore(self, path: Path, name: str) -> None:
         def _go(ok: bool) -> None:

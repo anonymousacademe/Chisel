@@ -66,6 +66,9 @@ async def test_snapshot_scene_then_list_compare_restore(tmp_path: Path):
         await pilot.press("enter")          # compare
         await pilot.pause()
         assert isinstance(app.screen, CompareScreen)
+        header = app.screen.query_one("#compare-header").render().plain
+        assert "first take" in header and snaps[0].name not in header
+        assert snaps[0].when.strftime("%Y-%m-%d %H:%M") in header
         plain = app.screen.query_one("#compare-text", Static).render().plain
         assert "fell" in plain and "poured" in plain
         await pilot.press("r")              # restore from the compare view
