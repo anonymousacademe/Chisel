@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import time
+from dataclasses import replace
 from pathlib import Path
 
 from rich.text import Text
@@ -34,6 +35,7 @@ from ..core import chats
 from ..core import collections as coll
 from ..core import research as research_notes
 from ..core import comments
+from ..core import export as exporting
 from ..core import drafts, scenemeta, snapshots, sync
 from ..core import entities as ent
 from ..core import settings as user_settings
@@ -84,6 +86,7 @@ from .spellscreen import SpellScreen
 from .snapshotscreens import CompareScreen, LabelPrompt, SnapshotsScreen, label_text
 from .syncscreens import MessagePrompt
 from .statsscreens import StatsScreen
+from .exportscreen import ExportScreen
 from .structurescreens import ChoiceScreen, DetailsScreen, TrashScreen
 from .stylereview import StyleReviewScreen
 from .theme import (
@@ -132,6 +135,8 @@ HELP_TEXT = """\
   Focus sprint — 15 / 25 / 45 / custom minutes, countdown in the status bar, optional writer mode
   Session stats — today, this session, 30-day sparkline, streak, daily target (Settings)
   Start new draft — snapshot the whole book as "end of draft N", then count up
+  Export manuscript — PDF (book, manuscript review, plain proof), DOCX, EPUB, Markdown, LaTeX
+  into exports/; Open exports folder
   Commit changes / Push / Initialize git — only when you pick them; the status
   bar shows Synced, N changes or Ahead N for a project under git
   Scene · Collections — tick the scene's collections (sidebar filter: #name)
@@ -708,6 +713,59 @@ class LorewriteApp(App):
             verb = "stopped" if cancelled else "done"
             self.notify(f"Sprint {verb}: {rec['minutes']} minutes, {writing_stats.signed(rec['words'])} words "
                         f"(today {writing_stats.signed(self._stats_brief['todayWords'])})", timeout=12)
+
+    def export_manuscript(self) -> None:
+        """Action · Export manuscript: a small form, then the file is written
+        in a worker thread to exports/ and its path is shown."""
+        if self.project is None:
+            return
+        self.save_current()
+        project = self.project
+        info = exporting.describe(project)
+        opts = exporting.load_options(project)
+        if not next((f["available"] for f in info["formats"] if f["key"] == opts.format), False):
+            opts = replace(opts, format=next((f["key"] for f in info["formats"] if f["available"]), "md"))
+        summary = exporting.summarize(project, opts)
+        if not summary["scenes"]:
+            self.notify("There is nothing to export yet: the book has no scenes", severity="warning")
+            return
+        notes = [m for m in summary["messages"] if "unaccepted AI drafts" not in m]
+        if summary["draft_scenes"]:
+            notes.insert(0, f"{summary['draft_scenes']} {project.unit}(s) have unaccepted AI drafts; "
+                            "their original text is exported unless you tick the box.")
+        self.push_screen(ExportScreen(info, opts, exporting.summary_line(summary, project.unit),
+                                      notes[:4], project.unit), self._start_export)
+
+    def _start_export(self, opts) -> None:
+        if opts is None or self.project is None:
+            return
+        project = self.project
+        self.notify("Exporting...", timeout=3)
+
+        def work() -> None:
+            try:
+                result = exporting.run_export(project, opts)
+            except (ValueError, RuntimeError, OSError) as exc:
+                self.call_from_thread(self.notify, str(exc), severity="error", timeout=10)
+            else:
+                self.call_from_thread(self._export_done, result)
+
+        self.run_worker(work, thread=True, exclusive=True, group="export")
+
+    def _export_done(self, result) -> None:
+        pages = f"{result.pages} pages, " if result.pages else ""
+        self.notify(f"Exported to {result.rel} ({pages}{result.words:,} words)", timeout=10)
+        for warning in result.warnings[:3]:
+            self.notify(warning, severity="warning", timeout=10)
+
+    def open_exports_folder(self) -> None:
+        """Action · Open exports folder (hands the folder to the desktop; only when picked)."""
+        if self.project is None:
+            return
+        try:
+            exporting.open_in_desktop(exporting.resolve_export(self.project, ""))
+        except (RuntimeError, OSError) as exc:
+            self.notify(str(exc), severity="warning", timeout=6)
 
     def open_stats(self) -> None:
         """Action · Session stats: today, this session, the last 30 days, streak."""
