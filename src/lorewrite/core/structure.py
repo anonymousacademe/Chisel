@@ -484,6 +484,20 @@ class Structure:
         self._tidy_trash()
         return final
 
+    def restore_place(self, name: str) -> tuple[str, str]:
+        """Where ``restore_scene(name)`` will put a scene: ``("part", title)``,
+        ``("book", "")`` (top level), ``("unplaced", "")`` (it came from there)
+        or ``("gone", "")`` (its part no longer exists, so Unplaced)."""
+        item = self._trash_item(name)
+        folder = (self.root / item.original).parent
+        if folder == self.unplaced_dir:
+            return "unplaced", ""
+        if folder == self.manuscript_dir:
+            return "book", ""
+        if folder in self.list_parts():
+            return "part", self.part_title(folder)
+        return "gone", ""
+
     def restore_scene(self, name: str) -> Path:
         """Put a trashed scene back at the end of its original part (or the
         top level / Unplaced it came from); if that part is gone, Unplaced.

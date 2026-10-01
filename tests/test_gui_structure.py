@@ -133,6 +133,7 @@ def test_delete_goes_to_trash_and_trash_roundtrip(tmp_path):
     assert items[0]["original"] == "01-the-recall/01-rain.md"
     back = api.restore_trash(items[0]["name"])
     assert back["ok"] and back["id"] == "manuscript/01-the-recall/03-rain.md"
+    assert (back["where"], back["part"], back["unplaced"]) == ("part", "The Recall", False)
     assert drafts.load_originals(root, root / back["id"]) == {"aaaaaa": "orig"}
     assert api.list_trash()["items"] == []
     assert api.restore_trash("nope.md")["ok"] is False
@@ -230,3 +231,14 @@ def test_residual_example_opens_unchanged_in_the_gui_api(tmp_path):
     assert sorted(p.relative_to(root).as_posix() for p in root.rglob("*")
                   if ".lorewrite" not in p.parts) == sorted(
         [p for p in before if ".lorewrite" not in p.split("/")] + ["manuscript/05-a-fifth.md"])
+
+
+def test_restore_reports_where_it_went(tmp_path):
+    api, root = open_book(tmp_path)
+    api.delete_scene("manuscript/02-ghost/01-signal.md")
+    api.delete_part("manuscript/02-ghost")
+    back = api.restore_trash(api.list_trash()["items"][0]["name"])
+    assert (back["where"], back["unplaced"]) == ("gone", True)
+    api.delete_scene(back["id"])
+    again = api.restore_trash(api.list_trash()["items"][0]["name"])
+    assert (again["where"], again["unplaced"]) == ("unplaced", True)

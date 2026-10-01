@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../backend/api";
 import type { DetailsPatch, EntitySummary, PartSummary, SceneDetails, TrashItem } from "../data/types";
 import { SUGGESTED_STATUS } from "../data/sceneFacts";
+import { restoredText } from "../data/restoreText";
 import { Modal } from "./Dialogs";
 
 /** Pick a part (or the top level) for a scene to move into. */
@@ -56,8 +57,7 @@ export function TrashDialog({ onClose, onRestored, onChanged, notify }: {
   const restore = async (it: TrashItem) => {
     const r = await api.restoreTrash(it.name);
     if (!r.ok) return notify(r.error, "error");
-    notify(r.unplaced ? `Restored “${it.title}” to Unplaced scenes (its part is gone).`
-      : r.kind === "research" ? `Restored the research note “${it.title}” (${r.id}).` : `Restored “${it.title}”.`);
+    notify(restoredText(it.title, r));
     onChanged();
     onRestored(r.id);
     reload();

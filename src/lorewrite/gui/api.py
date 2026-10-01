@@ -611,12 +611,14 @@ class Api:
         with self._lock:
             project = self._require()
             kind = next((i.kind for i in project.list_trash() if i.name == name), "scene")
+            place = ("book", "") if kind == "research" else project.restore_place(name)
             path = project.restore_scene(name)
             if kind == "research":   # research notes are not in the link index
                 return {"id": ws.rel_id(project, path), "unplaced": False, "kind": kind}
             self.index.rebuild(project)
             return {"id": ws.rel_id(project, path), "kind": kind,
-                    "unplaced": project.is_unplaced(path)}
+                    "unplaced": project.is_unplaced(path),
+                    "where": place[0], "part": place[1]}
 
     @bridge
     def delete_forever(self, name: str) -> dict:

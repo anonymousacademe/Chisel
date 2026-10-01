@@ -1,3 +1,4 @@
+import type { RestoreResult } from "../data/restoreText";
 import type { Misspelling, Span } from "../editor/spans";
 import type {
   AliasSuggestion, AttachItem, AttachKind, AttachReport, CanonProposal, ChatSummary, CollectionColor, CommentRow, SavedChat, CollectionSummary, DiffSegment, SnapshotRow, SyncInfo, DetailsPatch, DocumentPayload, Remap, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
@@ -37,7 +38,7 @@ export const api = {
   movePart: (id: string, delta: number) => call<{ id: string; remap: Remap }>("move_part", id, delta),
   deletePart: (id: string) => call("delete_part", id),
   listTrash: () => call<{ items: TrashItem[] }>("list_trash"),
-  restoreTrash: (name: string) => call<{ id: string; unplaced: boolean; kind: "scene" | "research" }>("restore_trash", name),
+  restoreTrash: (name: string) => call<RestoreResult>("restore_trash", name),
   deleteForever: (name: string) => call("delete_forever", name),
   emptyTrash: () => call<{ deleted: number }>("empty_trash"),
   /** The edit (UTF-16) that rewrites the frontmatter block of the editor's text; nothing is saved here. */
