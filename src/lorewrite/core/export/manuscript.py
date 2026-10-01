@@ -140,6 +140,16 @@ class Book:
     def real_parts(self) -> int:
         return sum(1 for p in self.parts if p.title is not None and not p.front)
 
+    def messages(self) -> list[str]:
+        """Plain sentences for the author: unaccepted AI drafts, then the rest."""
+        out = []
+        n = len(self.draft_scenes)
+        if n:
+            what = "included as written" if self.options.include_drafts else "left out (the original text is used)"
+            out.append(f"{n} scene{'s have' if n != 1 else ' has'} unaccepted AI drafts, {what}.")
+        out += [w.message for w in self.warnings]
+        return out
+
     def summary(self) -> dict:
         return {
             "scenes": self.scenes,
