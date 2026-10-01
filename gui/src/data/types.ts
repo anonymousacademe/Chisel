@@ -219,7 +219,7 @@ export interface AttachReport { kind: AttachKind; id: string; title: string; cha
 /** A research note a Research answer was given; `index` is its citation number [n]. */
 export interface ChatSource { id: string; title: string }
 
-export type ModelKind = "fast" | "strong" | "writing";
+export type ModelKind = "fast" | "strong" | "writing" | "image";
 export interface EditorPrefs { zoom: number; reflow: boolean }
 export interface ModelChoice { value: string; default: string; effective: string; projectOverride: string }
 export interface SettingsInfo {
@@ -233,8 +233,17 @@ export interface SettingsInfo {
   autoSnapshot: boolean;
   /** Daily word target; 0 = off. */
   dailyTarget: number;
+  /** Appended to every image prompt (empty = off) and the built-in default. */
+  imageStyle: string;
+  imageStyleDefault: string;
 }
-export interface ModelOption { id: string; name: string; promptPerM: number | null; completionPerM: number | null; context: number | null }
+export interface ModelOption { id: string; name: string; promptPerM: number | null; completionPerM: number | null; context: number | null; imagePrice?: number | null }
+
+/** An inspiration picture (inspiration/<id>.jpg|png + its .md sidecar); `scene` is a scene id or "". */
+export interface InspirationImage {
+  id: string; ext: "jpg" | "png" | "webp"; prompt: string; model: string; scene: string;
+  created: string; cost: number | null; pinned: boolean; title: string; notes: string; label: string;
+}
 
 /** An author comment anchored to a passage (core.comments); offsets are UTF-16, null when detached. */
 export interface CommentRow {
@@ -244,7 +253,7 @@ export interface CommentRow {
 }
 
 /** A scene or research note in the Trash; `original` is its path in the part (scene) or in the project (research). */
-export interface TrashItem { name: string; title: string; kind: "scene" | "research"; original: string; deleted: string }
+export interface TrashItem { name: string; title: string; kind: "scene" | "research" | "inspiration"; original: string; deleted: string }
 
 /** One snapshot of a scene (`delta` = words now minus words then). */
 export interface SnapshotRow { id: string; label: string; when: string; words: number; delta: number }

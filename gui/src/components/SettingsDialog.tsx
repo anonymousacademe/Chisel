@@ -2,18 +2,22 @@ import { useEffect, useMemo, useState } from "react";
 import { KeyRound, Search } from "lucide-react";
 import { api } from "../backend/api";
 import type { EditorPrefs, ModelKind, ModelOption, SettingsInfo } from "../data/types";
+import { IMAGE_COST_NOTE } from "../data/inspiration";
 import { Modal } from "./Dialogs";
 import { Icon } from "./primitives";
 
-const KINDS: { kind: ModelKind; label: string; hint: string; structured: boolean }[] = [
+const KINDS: { kind: ModelKind; label: string; hint: string; structured: boolean; modality?: "image" }[] = [
   { kind: "fast", label: "Fast model", hint: "Alias finder. Needs structured outputs.", structured: true },
   { kind: "strong", label: "Strong model", hint: "Continuity and story bible. Needs structured outputs.", structured: true },
   { kind: "writing", label: "Writing model", hint: "Drafting, rewrites, style guide and chat. Any model.", structured: false },
+  { kind: "image", label: "Image model", hint: `Inspiration pictures; ${IMAGE_COST_NOTE}. Only models that draw.`, structured: false, modality: "image" },
 ];
 const ZOOMS = [90, 100, 110, 125];
 
-const price = (m: ModelOption) =>
-  m.promptPerM != null && m.completionPerM != null ? `$${m.promptPerM.toFixed(2)} / $${m.completionPerM.toFixed(2)} per M tokens` : "price unknown";
+const price = (m: ModelOption) => {
+  const tokens = m.promptPerM != null && m.completionPerM != null ? `$${m.promptPerM.toFixed(2)} / $${m.completionPerM.toFixed(2)} per M tokens` : "price unknown";
+  return m.imagePrice != null ? `${tokens} · $${m.imagePrice.toFixed(3)} per image` : tokens;
+};
 
 /** API key, model choices (with a searchable catalog), and editor preferences. */
 export function SettingsDialog({ initial, onClose, onSaved, notify }: {
@@ -23,12 +27,13 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
   const [info, setInfo] = useState(initial);
   const [key, setKey] = useState("");
   const [models, setModels] = useState<Record<ModelKind, string>>({
-    fast: initial.models.fast.value, strong: initial.models.strong.value, writing: initial.models.writing.value,
+    fast: initial.models.fast.value, strong: initial.models.strong.value, writing: initial.models.writing.value, image: initial.models.image.value,
   });
   const [editor, setEditor] = useState(initial.editor);
   const [spellcheck, setSpellcheck] = useState(initial.spellcheck);
   const [autoSnapshot, setAutoSnapshot] = useState(initial.autoSnapshot);
   const [dailyTarget, setDailyTarget] = useState(String(initial.dailyTarget));
+  const [imageStyle, setImageStyle] = useState(initial.imageStyle);
   const [picking, setPicking] = useState<ModelKind | null>(null);
 
   const reload = async () => { const r = await api.getSettings(); if (r.ok) setInfo(r); };
@@ -45,7 +50,7 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
   const save = async () => {
     const target = Number(dailyTarget.trim() || 0);
     if (!Number.isInteger(target) || target < 0 || target > 100000) return notify("The daily target must be a whole number from 0 to 100,000.", "error");
-    const r = await api.setSettings(models, editor, spellcheck, autoSnapshot, target);
+    const r = await api.setSettings(models, editor, spellcheck, autoSnapshot, target, imageStyle);
     if (!r.ok) return notify(r.error, "error");
     onSaved(editor, spellcheck); onClose();
   };
@@ -85,10 +90,14 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
                 <p className="lw-empty">This project overrides it in project.toml: {info.models[k.kind].projectOverride}</p>
               )}
               {picking === k.kind && (
-                <ModelPicker structured={k.structured} onPick={(id) => { setModels({ ...models, [k.kind]: id }); setPicking(null); }} />
+                <ModelPicker structured={k.structured} modality={k.modality} onPick={(id) => { setModels({ ...models, [k.kind]: id }); setPicking(null); }} />
               )}
             </div>
           ))}
+          <label className="lw-dialog__label">Image style <span className="lw-faint">added to every picture description; empty turns it off</span>
+            <input className="lw-launch__input" value={imageStyle} spellCheck={false} maxLength={300}
+              placeholder={info.imageStyleDefault} aria-label="Image style" onChange={(e) => setImageStyle(e.target.value)} />
+          </label>
         </section>
 
         <section className="lw-settings__section">
@@ -135,18 +144,18 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
 }
 
 /** Searchable OpenRouter catalog. Fetched on demand (it needs the network). */
-function ModelPicker({ structured, onPick }: { structured: boolean; onPick: (id: string) => void }) {
+function ModelPicker({ structured, modality, onPick }: { structured: boolean; modality?: "image"; onPick: (id: string) => void }) {
   const [models, setModels] = useState<ModelOption[] | null>(null);
   const [error, setError] = useState("");
   const [q, setQ] = useState("");
   useEffect(() => {
     let live = true;
-    void api.listModels(structured).then((r) => {
+    void api.listModels(structured, modality).then((r) => {
       if (!live) return;
       if (r.ok) setModels(r.models); else setError(r.error);
     });
     return () => { live = false; };
-  }, [structured]);
+  }, [structured, modality]);
   const shown = useMemo(() => {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);
     return (models ?? []).filter((m) => words.every((w) => `${m.name} ${m.id}`.toLowerCase().includes(w))).slice(0, 80);

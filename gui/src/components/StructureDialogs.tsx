@@ -59,7 +59,7 @@ export function TrashDialog({ onClose, onRestored, onChanged, notify }: {
     if (!r.ok) return notify(r.error, "error");
     notify(restoredText(it.title, r));
     onChanged();
-    onRestored(r.id);
+    if (r.kind !== "inspiration") onRestored(r.id);   // a picture is not a document to open
     reload();
   };
   const forever = async (it: TrashItem) => {
@@ -97,7 +97,7 @@ export function TrashDialog({ onClose, onRestored, onChanged, notify }: {
   }
   return (
     <Modal title="Trash" wide onClose={onClose}>
-      <p className="lw-dialog__message">Deleted scenes and research notes are kept here until you delete them forever.</p>
+      <p className="lw-dialog__message">Deleted scenes, research notes and inspiration pictures are kept here until you delete them forever.</p>
       <div className="lw-picklist lw-picklist--tall">
         {items === null && <p className="lw-empty">Loading…</p>}
         {items?.length === 0 && <p className="lw-empty">The Trash is empty.</p>}
@@ -105,7 +105,7 @@ export function TrashDialog({ onClose, onRestored, onChanged, notify }: {
           <div key={it.name} className="lw-picklist__row lw-picklist__row--static">
             <span className="lw-picklist__main">
               <strong>{it.title}</strong>
-              <span className="lw-faint">{it.kind === "research" ? "research note · " : ""}from {it.original} · deleted {it.deleted}</span>
+              <span className="lw-faint">{it.kind === "inspiration" ? "inspiration picture" : <>{it.kind === "research" ? "research note · " : ""}from {it.original}</>} · deleted {it.deleted}</span>
             </span>
             <span className="lw-row lw-gap-6">
               <button className="lw-btn" onClick={() => void restore(it)}>Restore</button>

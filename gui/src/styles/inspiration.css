@@ -1,0 +1,39 @@
+/* The Inspiration tab of the assistant panel. Tokens only (styles/tokens.css). */
+.lw-insp { display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px; }
+.lw-insp__lead { font-size: 11px; line-height: 1.45; color: var(--lw-text-muted); margin: 0; }
+.lw-insp__compose { display: flex; flex-direction: column; gap: 8px; }
+.lw-insp__prompt {
+  width: 100%; resize: vertical; min-height: 64px; padding: 8px 10px; box-sizing: border-box;
+  font: 400 12px/1.5 var(--lw-font-ui); color: var(--lw-text); background: var(--lw-bg-raised);
+  border: 1px solid var(--lw-border-strong); border-radius: var(--lw-radius-md);
+}
+.lw-insp__prompt:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--lw-accent); }
+.lw-insp__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.lw-insp__actions .lw-btn { flex: 1 1 auto; justify-content: center; }
+.lw-insp__meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; }
+.lw-insp__bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
+.lw-insp__pinned { display: flex; flex-direction: column; gap: 10px; }
+.lw-insp__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.lw-insp__card { margin: 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.lw-insp__imgbtn { display: block; padding: 0; border: 0; background: none; cursor: zoom-in; width: 100%; border-radius: var(--lw-radius-md); }
+.lw-insp__imgbtn:focus-visible { outline: 2px solid var(--lw-accent); outline-offset: 2px; }
+.lw-insp__img {
+  display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--lw-bg-raised);
+  border: 1px solid var(--lw-border); border-radius: var(--lw-radius-md);
+}
+.lw-insp__card--large .lw-insp__img { aspect-ratio: auto; max-height: 280px; object-fit: contain; background: var(--lw-bg-app); }
+.lw-insp__img--missing { display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--lw-text-faint); }
+.lw-insp__cap { display: flex; align-items: center; justify-content: space-between; gap: 4px; min-width: 0; }
+.lw-insp__label { flex: 1; min-width: 0; font-size: 11px; color: var(--lw-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lw-insp__lightbox { z-index: 60; }
+.lw-insp__lbbox {
+  width: min(920px, 92vw); max-height: 92vh; overflow: auto; display: flex; flex-direction: column; gap: 10px;
+  padding: 14px 16px; background: var(--lw-bg-panel); border: 1px solid var(--lw-border-strong); border-radius: var(--lw-radius-md);
+}
+.lw-insp__lbtop { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.lw-insp__lbtitle { font-size: 13px; color: var(--lw-text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lw-insp__lbimg { width: 100%; max-height: 62vh; aspect-ratio: auto; object-fit: contain; background: var(--lw-bg-app); }
+.lw-insp__lbprompt { margin: 0; font: 400 13px/1.55 var(--lw-font-prose); color: var(--lw-text); }
+.lw-insp__lbnotes { margin: 0; font-size: 12px; line-height: 1.5; color: var(--lw-text-muted); white-space: pre-wrap; }
+.lw-insp__lbmeta { margin: 0; font-size: 11px; }
+.lw-insp__lbbuttons { display: flex; flex-wrap: wrap; gap: 8px; }

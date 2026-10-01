@@ -10,7 +10,7 @@ import { attachKey, type Attachment } from "../data/chat";
 import { Icon, IconButton, SectionLabel, Tag } from "./primitives";
 import { placeholderProps } from "./placeholder";
 
-export type AssistantTab = "assistant" | "context" | "notes";
+export type AssistantTab = "assistant" | "context" | "notes" | "inspiration";
 export type QuickAction = "brainstorm" | "rewrite" | "continuity" | "research";
 type Tab = AssistantTab;
 const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
@@ -48,6 +48,8 @@ export function Assistant(props: {
   canInsert: boolean;
   /** Shown under the note in the Notes tab (the scene's comments). */
   notesExtra?: React.ReactNode;
+  /** The Inspiration tab. Kept mounted (hidden) so a half-written description survives a tab switch. */
+  inspiration?: React.ReactNode;
   style: StyleStatus | null; onLearnStyle: () => void; onOpenStyle: () => void;
 }) {
   const { tab, onTab: setTab } = props;
@@ -89,7 +91,7 @@ export function Assistant(props: {
       </div>
       <div className="lw-divider" />
       <div className="lw-tabs" role="tablist">
-        {(["assistant", "context", "notes"] as Tab[]).map((t) => (
+        {(["assistant", "context", "notes", "inspiration"] as Tab[]).map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} className={`lw-tab${tab === t ? " is-active" : ""}`} onClick={() => setTab(t)}>
             {t[0].toUpperCase() + t.slice(1)}
           </button>
@@ -202,6 +204,7 @@ export function Assistant(props: {
             onAddAlias={props.onAddAlias} onCreateNote={props.onCreateNote} onOpenBacklink={props.onOpenBacklink} />
         )}
         {tab === "notes" && props.notesExtra}
+        <div hidden={tab !== "inspiration"}>{props.inspiration}</div>
       </div>
 
       <div className="lw-composer-region">

@@ -2,7 +2,7 @@ import type { RestoreResult } from "../data/restoreText";
 import type { Misspelling, Span } from "../editor/spans";
 import type {
   AliasSuggestion, AttachItem, AttachKind, AttachReport, CanonProposal, ChatSummary, CollectionColor, CommentRow, SavedChat, CollectionSummary, DiffSegment, SnapshotRow, SyncInfo, DetailsPatch, DocumentPayload, Remap, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
-  Issue, ModelKind, ModelOption, RecentProject, SceneMention, SettingsInfo, EditorPrefs, SprintRecord, SprintState, StatsSummary, StyleStatus, Workspace,
+  InspirationImage, Issue, ModelKind, ModelOption, RecentProject, SceneMention, SettingsInfo, EditorPrefs, SprintRecord, SprintState, StatsSummary, StyleStatus, Workspace,
 } from "../data/types";
 import { call } from "./transport";
 
@@ -91,7 +91,7 @@ export const api = {
   createEntity: (name: string, type: EntityType) => call<{ id: string; name: string; existed: boolean }>("create_entity", name, type),
   addAlias: (name: string, alias: string) => call("add_alias", name, alias),
   // AI (every result is a suggestion the UI must confirm; nothing here edits prose)
-  aiStatus: () => call<{ hasKey: boolean; models: Record<"fast" | "strong" | "writing", string> }>("ai_status"),
+  aiStatus: () => call<{ hasKey: boolean; models: Record<ModelKind, string> }>("ai_status"),
   usage: () => call<{ cost: number; calls: number }>("usage"),
   findAliases: (id: string, text: string) => call<{ suggestions: AliasSuggestion[]; cost: number | null }>("find_aliases", id, text),
   applyAliases: (items: { entity: string; surface: string }[]) => call<{ added: number }>("apply_aliases", items),
@@ -128,9 +128,23 @@ export const api = {
   /** Brainstorm: 3-5 "unstuck" ideas for the open scene (null: the whole project); chat text only. */
   brainstorm: (docId: string | null, text: string | null, cursor: number, attachments: { kind: AttachKind; id: string }[] = []) =>
     call<{ reply: string; ideas: string[]; attached: AttachReport[]; cost: number | null }>("brainstorm", docId, text, cursor, attachments),
+  // inspiration pictures (inspiration/): reference only, never inserted into prose; generating costs money
+  listInspiration: () => call<{ images: InspirationImage[]; model: string; style: string }>("list_inspiration"),
+  /** The picture as a data URL (files inside inspiration/ only). */
+  inspirationImage: (id: string) => call<{ dataUrl: string }>("inspiration_image", id),
+  /** "Describe this scene": a visual prompt from the passage around the cursor; nothing is generated. */
+  describeScene: (id: string, text: string, cursor: number) => call<{ prompt: string; model: string; cost: number | null }>("describe_scene", id, text, cursor),
+  generateInspiration: (prompt: string, sceneId: string | null, pin: boolean) =>
+    call<{ images: InspirationImage[]; cost: number | null }>("generate_inspiration", prompt, sceneId, pin),
+  regenerateInspiration: (id: string) => call<{ images: InspirationImage[]; cost: number | null }>("regenerate_inspiration", id),
+  updateInspiration: (id: string, fields: { pinned?: boolean; scene?: string; title?: string; notes?: string }) =>
+    call<{ image: InspirationImage }>("update_inspiration", id, fields),
+  /** Moves the picture to the Trash. */
+  deleteInspiration: (id: string) => call("delete_inspiration", id),
+  revealInspiration: (id: string) => call<{ path: string; opened: boolean }>("reveal_inspiration", id),
   getSettings: () => call<SettingsInfo>("get_settings"),
-  setSettings: (models?: Partial<Record<ModelKind, string>>, editor?: Partial<EditorPrefs>, spellcheck?: boolean, autoSnapshot?: boolean, dailyTarget?: number) =>
-    call("set_settings", models ?? null, editor ?? null, spellcheck ?? null, autoSnapshot ?? null, dailyTarget ?? null),
+  setSettings: (models?: Partial<Record<ModelKind, string>>, editor?: Partial<EditorPrefs>, spellcheck?: boolean, autoSnapshot?: boolean, dailyTarget?: number, imageStyle?: string) =>
+    call("set_settings", models ?? null, editor ?? null, spellcheck ?? null, autoSnapshot ?? null, dailyTarget ?? null, imageStyle ?? null),
   /** Session stats page data; stats live in the user state dir, not the project. */
   statsSummary: () => call<{ stats: StatsSummary }>("stats_summary"),
   /** Focus sprint: start (1-240 minutes) / end (the words written are recorded in today's stats). */
@@ -140,7 +154,7 @@ export const api = {
   statsTouch: () => call("stats_touch"),
   setApiKey: (key: string) => call("set_api_key", key),
   clearApiKey: () => call<{ stillSet: boolean; note: string }>("clear_api_key"),
-  listModels: (structuredOnly: boolean) => call<{ models: ModelOption[] }>("list_models", structuredOnly),
+  listModels: (structuredOnly: boolean, modality?: "image") => call<{ models: ModelOption[] }>("list_models", structuredOnly, modality ?? null),
   minimize: () => call("minimize"),
   toggleMaximize: () => call("toggle_maximize"),
   close: () => call("close"),

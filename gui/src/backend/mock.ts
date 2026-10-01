@@ -121,9 +121,10 @@ export function mockCall(method: string, args: unknown[]): object {
     case "list_entities": return { ok: true, entities: ENTITIES.map(({ body: _b, ...e }) => e) };
     case "get_entity": return { ok: true, ...getEntity(String(args[0])) };
     case "get_settings": return { ok: true, hasKey: false, keySource: "none", editor: { zoom: 100, reflow: true }, spellcheck: true, autoSnapshot: true, dailyTarget: 500,
-      models: Object.fromEntries(["fast", "strong", "writing"].map((k) => [k, { value: "", default: "default/model", effective: "default/model", projectOverride: "" }])) };
+      imageStyle: "cinematic, atmospheric, no text, no watermark", imageStyleDefault: "cinematic, atmospheric, no text, no watermark",
+      models: Object.fromEntries(["fast", "strong", "writing", "image"].map((k) => [k, { value: "", default: "default/model", effective: "default/model", projectOverride: "" }])) };
     case "set_settings": return { ok: true };
-    case "ai_status": return { ok: true, hasKey: false, models: { fast: "", strong: "", writing: "" } };
+    case "ai_status": return { ok: true, hasKey: false, models: { fast: "", strong: "", writing: "", image: "" } };
     case "recent_projects": return { ok: true, recents: [] };
     case "style_status": return { ok: true, exists: false, learned: null, sampledWords: null,
       manuscriptWordsThen: null, manuscriptWords: 0, scenes: 0, stale: false };

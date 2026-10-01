@@ -16,6 +16,7 @@ import { Binder } from "./components/Binder";
 import { Editor, type ViewMode } from "./components/Editor";
 import type { EditorHandle } from "./components/EditorPane";
 import { Assistant, type AssistantTab, type QuickAction } from "./components/Assistant";
+import { InspirationPanel } from "./components/InspirationPanel";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { AliasReviewDialog, CanonReviewDialog, StyleReviewDialog } from "./components/ReviewDialogs";
 import { SpellMenu } from "./components/SpellMenu";
@@ -114,6 +115,7 @@ export default function App() {
   const [cursor, setCursor] = useState<CursorInfo>(NO_CURSOR);
   const [mentions, setMentions] = useState<SceneMention[]>([]);
   const [tab, setTab] = useState<AssistantTab>("assistant");
+  const [inspRev, setInspRev] = useState(0);   // bumped when the Trash gives a picture back
   const [noteName, setNoteName] = useState<string | null>(null);
   const [note, setNote] = useState<EntityInfo | null>(null);
   const [noteVersion, setNoteVersion] = useState(0);
@@ -1181,6 +1183,11 @@ export default function App() {
               <CommentsPanel comments={comments} onOpen={openComment}
                 onResolve={(c, resolved) => void commentCall((id, text) => api.resolveComment(id, c.id, resolved, text))} />
             ) : null}
+            inspiration={
+              <InspirationPanel key={ws.project.path} sceneId={doc?.kind === "scene" ? doc.id : null} sceneTitle={doc?.kind === "scene" ? doc.title : ""}
+                rev={inspRev} getEditor={() => { const ed = editorRef.current; return ed ? { text: ed.getText(), cursor: ed.head() } : null; }}
+                requireAi={requireAi} notify={notify} onSpent={() => void refresh()} />
+            }
             style={ws ? styleStatus : null} onLearnStyle={() => void learnStyle()} onOpenStyle={() => void openStyle()} />
         )}
       </div>
@@ -1263,7 +1270,7 @@ export default function App() {
       )}
       {dialog?.kind === "trash" && (
         <TrashDialog onClose={() => setDialog(null)} notify={notify}
-          onChanged={() => void refresh()}
+          onChanged={() => { void refresh(); setInspRev((n) => n + 1); }}
           onRestored={(id) => { setDialog(null); void openDoc(id); }} />
       )}
       {dialog?.kind === "snapshots" && doc?.kind === "scene" && (
