@@ -42,6 +42,26 @@ def _ask(state: dict, questions: dict) -> dict | None:
         return None
 
 
+def _contradiction_score(result: dict) -> float | None:
+    """The 0..1 contradiction score from a jev ask reply, or None if the
+    reply has an unexpected shape (callers then fail open).
+
+    Current jev replies look like
+    ``{"answers": {"contradiction": {"type": "noul", "noul": 0.85}}, ...}``;
+    older ones put the answer at the top level.
+    """
+    answer = result.get("answers", result) if isinstance(result, dict) else None
+    if not isinstance(answer, dict) or "contradiction" not in answer:
+        return None
+    value = answer["contradiction"]
+    if isinstance(value, dict):
+        value = value.get("noul", value.get("value"))
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def pre_screen(
     scene_text: str, entities: list[ent.Entity], canon_by_name: dict[str, str]
 ) -> list[str] | None:
@@ -76,8 +96,9 @@ def pre_screen(
             }
         }
         result = _ask(state, questions)
-        if result is None:
+        score = None if result is None else _contradiction_score(result)
+        if score is None:
             return None  # fail-open: screen unusable, check everything
-        if float(result.get("contradiction", 0)) >= GATE_THRESHOLD:
+        if score >= GATE_THRESHOLD:
             flagged.append(entity.name)
     return flagged

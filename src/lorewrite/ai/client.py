@@ -63,6 +63,13 @@ def clear_api_key() -> None:
         pass
 
 
+# Per-request read timeout (seconds) and retries. The openai SDK default is
+# 600 s with 2 retries, so one stalled request could freeze an AI action for
+# ~30 minutes with no feedback.
+REQUEST_TIMEOUT = 180.0
+MAX_RETRIES = 1
+
+
 def make_client():
     """Build an OpenAI client pointed at OpenRouter. Raises if no key."""
     from openai import OpenAI
@@ -73,7 +80,8 @@ def make_client():
             "No OpenRouter API key. Set OPENROUTER_API_KEY or store one "
             "via lorewrite.ai.client.set_api_key()."
         )
-    return OpenAI(base_url=OPENROUTER_BASE_URL, api_key=key)
+    return OpenAI(base_url=OPENROUTER_BASE_URL, api_key=key,
+                  timeout=REQUEST_TIMEOUT, max_retries=MAX_RETRIES)
 
 
 # -- model catalog -------------------------------------------------------------
