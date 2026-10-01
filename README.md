@@ -29,7 +29,19 @@ design and roadmap.
   still work, with their brackets faded; orange means no note yet
 - Entity panel with note preview and backlinks to every mentioning scene
 - Launch screen with recent projects; command palette with categorized menu
-  (`ctrl+p`); scene organization (new / rename / reorder / delete)
+  (`ctrl+p`); scene organization (new / rename / reorder / move)
+- **Parts, Unplaced scenes and Trash**: a folder under `manuscript/` is a part
+  (the sidebar groups scenes under it); `00-front-matter` is a part that is not
+  counted as the book; `manuscript/_unplaced/` holds scenes you wrote but kept out
+  of the book (not counted, not in continuity, still indexed for backlinks).
+  Deleting a scene moves it to `.trash/` — *Open Trash* restores it, deletes it
+  forever or empties the Trash, always after a confirmation.
+- **Scene details** (POV, place, purpose, status, word target) are the scene's own
+  YAML frontmatter — Obsidian-compatible, written only when you set a field, and
+  never counted as prose, spell-checked, or sent to the AI as text (the AI does get
+  a one-line header of them). *Scene · Edit details* in the palette; the desktop app
+  edits them in the inspector. Set `[manuscript] unit = "chapter"` to say
+  "Chapter 03" instead of "Scene 03" (wording only).
 - **Spell check** (offline, spelling only): misspellings are underlined in
   scenes; `f6` fixes the next one. Names of your characters and places are never
   flagged, and you can teach it words with two plain-text dictionaries — the
@@ -50,7 +62,7 @@ design and roadmap.
   selection in your style. Generated text shows in color and stays a draft
   until you accept it (`f7`) or reject it (`f8`, original restored exactly).
   Drafts live in the scene file as short `<!--ai-->…<!--/ai-->` comments;
-  the text a rewrite replaced is kept in `.drafts/<scene>.json`.
+  the text a rewrite replaced is kept in `.drafts/` (one small file per scene).
 - AI spend for the session in the status bar
 - Follows the Omarchy system theme automatically (falls back gracefully
   elsewhere)
@@ -59,8 +71,9 @@ design and roadmap.
 
 The same projects open in a desktop app ("LoreWriter"): a live-preview Markdown
 editor (link brackets and AI markers hidden, mentions coloured), binder, scene
-corkboard and outline, notes with backlinks, and the AI assistant panel. Every AI
-result is still suggest-and-confirm. Parts of the design that do not exist yet
+corkboard and outline (drag a card or row to reorder it or move it to another
+part, with a confirmation and an Undo), notes with backlinks, and the AI assistant
+panel. Every AI result is still suggest-and-confirm. Parts of the design that do not exist yet
 are shown dimmed with the tooltip "Not in LoreWriter yet".
 
 ```bash
@@ -164,7 +177,13 @@ my-novel/
 ├── project.toml          # title + [editor] and [ai] settings
 ├── manuscript/
 │   ├── 01-opening.md     # scenes, numbered; reorder via the palette
-│   └── 02-tavern.md
+│   ├── 02-tavern.md
+│   ├── 03-the-recall/    # optional: a folder is a part (title in _part.md)
+│   │   ├── _part.md      #   "# The Recall" + your notes on the part
+│   │   └── 01-rain.md    #   scene numbering continues across parts
+│   └── _unplaced/        # optional: written, but not in the book
+├── .trash/               # deleted scenes wait here (restore from the app)
+├── .drafts/              # text pending AI drafts replaced, one file per scene
 └── entities/
     ├── characters/elara-vance.md   # free-text note + YAML frontmatter
     └── places/thornwick.md         #   (name, type, aliases)

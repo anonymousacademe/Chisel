@@ -20,7 +20,9 @@ src/lorewrite/
   core/                 # pure Python, no Textual — fully unit-testable
     links.py            # [[link]] parsing, plain-name mentions, offset<->rowcol
     entities.py         # entity notes: frontmatter, aliases, resolve, add_alias
-    project.py          # project layout, scenes (order/rename/move/delete), settings
+    project.py          # project layout, entities, settings (Project mixes in Structure)
+    structure.py        # parts (folders), unplaced scenes, trash, scene moves/renumbering
+    scenemeta.py        # scene details = YAML frontmatter: find/strip/blank/set_details
     index.py            # SQLite backlink index; no-ops after close()
     recents.py          # recent projects; LOREWRITE_STATE_DIR env override
     settings.py         # user settings (tour_seen, ...)
@@ -43,11 +45,13 @@ src/lorewrite/
     app.py              # LorewriteApp: layout, save, status, actions, AI wiring
     editor.py           # LinkedTextArea — see "fragile spots" below
     sidebar.py panels.py launch.py commands.py linkreview.py (alias review)
+    structurescreens.py (part picker, Trash, scene details form)
     spellscreen.py (f6 fix window)
     stylereview.py promptscreen.py tour.py theme.py
 gui/                    # React/TS front end (see gui/README.md); src-tauri/ is unused
 tests/                  # pytest; asyncio_mode=auto; Pilot for TUI tests
 docs/ux-review-glm.md   # independent UX review (source of the M1.5 polish)
+docs/plan-workspace.md  # the four-wave feature plan (Wave 1 = parts/trash/details/reorder)
 docs/specification-guide.md  # M3–M8 implementation guide for parallel agent
                              # execution (contracts, workstreams, ownership)
 ```
@@ -99,6 +103,29 @@ PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --
   `open_file`, or autosave resurrects the deleted file (regression-tested).
 - **ListView swallows Enter** — modal screens with a ListView must handle
   `on_list_view_selected` if Enter should confirm (see AliasReviewScreen).
+- **Manuscript structure** (`core/structure.py`; SPEC "Manuscript structure"):
+  - Never assume a flat `manuscript/`. `Project.list_scenes()` is the book in reading order
+    (recursive, **excludes** `_unplaced/`); `all_scene_files()` adds Unplaced (the index covers
+    it); `counted_scenes()` also drops front matter (use it for word totals and style
+    sampling); `is_scene_path()` is the test for "is this a scene" (not `path.parent ==
+    manuscript_dir`). `_part.md` and dot/underscore names are never scenes.
+  - **Draft sidecars are keyed by project-relative path** (`manuscript__02-x__01-a.md.json`);
+    never build `.drafts/<name>.json` by hand — `drafts.sidecar_path`. Every move, rename and
+    trash must carry the sidecar: use `Structure._apply_renames` (two-phase, so swaps and
+    cycles do not collide) and read `Project.last_renames` to follow files in a UI.
+  - Deleting a scene is `Project.delete_scene` = **move to `.trash/`** (restore with
+    `restore_scene`); there is no permanent delete except `delete_forever` / `empty_trash`,
+    which UIs must confirm. Keep detaching `current_path` before opening the next scene.
+  - `place_scene(path, part, index)` renumbers only the destination; ids of other scenes in it
+    change, so the GUI's `place_scene` / `move_scene` / `move_part` return a `remap`
+    ({old id: new id}) and the client reopens the open document through it.
+- **Scene details are frontmatter, not prose.** Anything that counts words, scans names,
+  spell-checks, samples style or sends scene text to an AI must skip the block:
+  `scenemeta.strip` (drop), `scenemeta.blank` (same-length whitespace so offsets and rows
+  survive; `keep=("pov","place")` leaves those values visible so they count as mentions),
+  `drafts.count_words` already strips it. In the GUI the editor hides it (`sceneFrontmatter`
+  in `editor/spans.ts` mirrors `scenemeta.find`; keep them in step) and Python returns the
+  edit for it (`set_scene_details`), never TypeScript.
 - **Pending AI drafts live in the scene file** as `<!--ai-->…<!--/ai-->`
   comments (`core/drafts.py`); text a draft replaced is in the sidecar
   `.drafts/<scene>.json` (author data, moved/deleted with the scene; reject
@@ -203,5 +230,8 @@ pywebview shell, real binder/editor/notes/AI over the same core, placeholders fo
 the parts of the design LoreWriter does not do yet.
 Spell check (offline, spelling only, personal + project dictionaries) is in both
 front ends (docs/plan-spelling.md, SPEC M6).
+**Wave 1 of docs/plan-workspace.md** (branch `features`): parts, Unplaced Scenes,
+Trash, scene details (frontmatter), GUI drag-to-reorder. Waves 2-4 (snapshots/drafts/
+sync, collections/comments/research/chat history, stats/timer/brainstorm) are not built.
 Known concern: user is unconvinced by the command palette as primary UI
 (SPEC §11b) — the GUI is the answer being tried.

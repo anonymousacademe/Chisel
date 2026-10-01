@@ -30,9 +30,12 @@ my-novel/
 ├── project.toml              # title, author, settings
 ├── dictionary.txt            # optional: words/phrases spell check never flags
 ├── manuscript/
-│   ├── 01-arrival.md         # scenes; leading number = order
+│   ├── 01-arrival.md         # scenes; leading number = order (unparted scenes read first)
 │   ├── 02-the-tavern.md
-│   └── ...
+│   ├── 00-front-matter/      # optional parts (folders): see "Manuscript structure"
+│   ├── 01-the-recall/        #   _part.md = title + notes; scenes 01-…md inside
+│   └── _unplaced/            # written, but not in the book
+├── .trash/                   # deleted scenes (restorable); .drafts/ = AI draft originals
 └── entities/
     ├── characters/
     │   ├── elara-vance.md
@@ -178,7 +181,7 @@ review-gated.*
   - **Cursor on `{{expand: instruction}}` → Expand**: no modal; the marker's instruction is the prompt; the result replaces the marker (reject restores the marker). Markers are faded in the editor.
   - **Otherwise → Draft**: hotkey prompt window ("Give me one paragraph describing the busy street… stressed mood"), a small multi-line box submitted with `ctrl+g` (enter inserts a newline; `ctrl+enter` never reaches terminals), `esc` cancels. The result is inserted at the cursor as `<!--ai-->…<!--/ai-->` (a leading space goes *inside* the draft when the cursor follows a word, so reject leaves the text exactly as it was).
   - Runs in a worker ("Drafting… (model)"); failures notify without touching the scene; if the author flips scenes or the marked text changed meanwhile, the draft is discarded rather than misplaced. A missing style guide still works, with a one-time "learn a style guide first" tip. Cost is recorded (§8).
-- **Pending AI text** ✅ (the marking mechanism for every generated span): stored *in the scene file* so it survives saves, reopening and external editors (Obsidian hides HTML comments): `<!--ai-->text<!--/ai-->` for pure insertions, or `<!--ai id="k3f9q2"-->text<!--/ai-->` for a draft that replaced something (id = 6 lowercase base36 chars, unique in the project). The replaced original lives in the sidecar `<project>/.drafts/<scene-filename>.json` (`{"k3f9q2": "original text"}`, written atomically) — author data, not cache: never under `.lorewrite/`, never git-ignored. Entries are deleted on accept/reject, the file when empty, and the sidecar is renamed/moved/deleted together with its scene (`core/project.py`). **If an id's original is missing, reject refuses** with a notice and changes nothing (prose is never deleted on a failed lookup); accept still works. No encoded blobs appear in the prose. The editor shows the body in italics on a subtle background tint (theme `selection`) with a hue chosen by `theme.distinct_color` — the candidate farthest in RGB from the foreground, link and unresolved-link colors, with built-in fallback hues when the theme has nothing distinct (matte-black is all reds and ambers) — and the marker comments faded. `f7` accepts the draft under the cursor (markers removed, body is normal text), `f8` rejects it (original restored exactly from the sidecar, or the insertion removed); palette: accept/reject all in the scene. The status bar hints `AI draft — f7 accept · f8 reject` while the cursor is inside one. Word counts, backlinks/index, continuity checks, story-bible updates, the alias finder and style sampling all ignore pending bodies (index and alias finder blank the draft to same-length whitespace, so line numbers stay true) — unaccepted AI text is not canon. `f7` is TextArea's select-all; select-all moves to `f5`. Nested/malformed markers are treated as plain text. Core: `core/drafts.py`.
+- **Pending AI text** ✅ (the marking mechanism for every generated span): stored *in the scene file* so it survives saves, reopening and external editors (Obsidian hides HTML comments): `<!--ai-->text<!--/ai-->` for pure insertions, or `<!--ai id="k3f9q2"-->text<!--/ai-->` for a draft that replaced something (id = 6 lowercase base36 chars, unique in the project). The replaced original lives in the sidecar `<project>/.drafts/<project-relative-path-with-/-as-__>.json` (e.g. `manuscript__02-ghost__01-a.md.json`; pre-parts sidecars named by filename alone are renamed when a project is opened) (`{"k3f9q2": "original text"}`, written atomically) — author data, not cache: never under `.lorewrite/`, never git-ignored. Entries are deleted on accept/reject, the file when empty, and the sidecar is renamed/moved/trashed together with its scene (`core/structure.py`). **If an id's original is missing, reject refuses** with a notice and changes nothing (prose is never deleted on a failed lookup); accept still works. No encoded blobs appear in the prose. The editor shows the body in italics on a subtle background tint (theme `selection`) with a hue chosen by `theme.distinct_color` — the candidate farthest in RGB from the foreground, link and unresolved-link colors, with built-in fallback hues when the theme has nothing distinct (matte-black is all reds and ambers) — and the marker comments faded. `f7` accepts the draft under the cursor (markers removed, body is normal text), `f8` rejects it (original restored exactly from the sidecar, or the insertion removed); palette: accept/reject all in the scene. The status bar hints `AI draft — f7 accept · f8 reject` while the cursor is inside one. Word counts, backlinks/index, continuity checks, story-bible updates, the alias finder and style sampling all ignore pending bodies (index and alias finder blank the draft to same-length whitespace, so line numbers stay true) — unaccepted AI text is not canon. `f7` is TextArea's select-all; select-all moves to `f5`. Nested/malformed markers are treated as plain text. Core: `core/drafts.py`.
 - **Style rewrite** ✅ (vault): author selects a section that "feels off" and presses `ctrl+g`; the rewrite appears in place as a pending draft (the original rides along in the marker) — `f7` approves, `f8` rolls back to the original. (No side-by-side diff view; the original is restored on reject.)
 - Optional inline completion via `TextArea.suggestion` ghost text, off by default
 
@@ -200,7 +203,7 @@ rejection — the author explicitly wants a lightweight version.*
 
 *From vault "The Manuscript Organizer and Printer.md".*
 
-- **Manuscript ordering in the main screen**: promote drag-reorder of the scene list (with confirm) from deferred.
+- **Manuscript ordering in the main screen**: promote drag-reorder of the scene list (with confirm) from deferred. ✅ in the desktop GUI (corkboard cards and outline rows; see *Manuscript structure*); the terminal keeps *Move up / down*.
 - **LaTeX export**: combine the manuscript into a template and produce a PDF:
   - **Book layout** — scenes as chapters, beautifully typeset
   - **Manuscript review layout** — double-spaced, line-numbered, for printing/red-pen review
@@ -223,6 +226,70 @@ prose (SPEC §2: AI suggests, never edits). Likely an image model on OpenRouter
 with the existing key; images saved as plain files in `<project>/inspiration/`
 (with the prompt beside each), shown in a GUI side panel next to the scene
 they were made for. Cost shown per image like other AI calls.
+
+### Manuscript structure ✅ (Wave 1, implemented 2026-10-01; plan: docs/plan-workspace.md)
+
+*Parts, unplaced scenes, trash, scene details and drag-to-reorder. All plain files
+(§2); the index and `.lorewrite/` stay a rebuildable cache. Existing flat projects
+open and behave exactly as before.*
+
+- **Parts.** A part is a folder under `manuscript/` (`02-ghost-frequency/`) holding
+  numbered scenes. Its title is the first `# heading` of an optional `_part.md`
+  (which may also hold the author's notes on the part), else the folder name
+  de-slugged. Scenes may still sit directly in `manuscript/`; they read first.
+  Order: part folders by numeric prefix (numeric, so `2-` precedes `10-`), scenes by
+  prefix within a part. `Project.list_scenes()` is the whole book in reading order
+  (recursive); `list_parts()`, `part_of()`, `part_title()`, `counted_scenes()`,
+  `scene_number()` are in `core/structure.py` (mixed into `Project`). A part named
+  `00-front-matter` is **front matter**: listed first and muted, not counted in the
+  manuscript word total, style sampling or continuity. Numbering shown to the author
+  ("Scene 07") is global across parts (front matter and unplaced scenes have none);
+  projects without parts keep showing the filename prefix.
+  Operations (core, both UIs): new part, rename part (retitles `_part.md`; the folder
+  keeps its name so no scene path changes), move part up/down (swaps numeric
+  prefixes), delete empty part, move scene to a part (end), place a scene at an index
+  (renumbers the destination contiguously; the folder it left keeps a gap, as after a
+  delete), swap with a neighbour inside the part. `Project.last_renames` lists every
+  path the last operation changed so a UI can follow the file it has open.
+- **Draft sidecars are keyed by path.** `.drafts/<project-relative path, "/" as "__">.json`
+  (a filename alone collides between parts). Old filename-keyed sidecars are migrated when a
+  project is opened (`drafts.migrate_sidecars`); sidecars travel with every move, rename and
+  trash.
+- **Display unit.** `project.toml` `[manuscript] unit = "scene" | "chapter"` (default
+  `scene`) changes only labels: the kicker ("Chapter 03"), the sidebar heading, palette
+  wording and GUI menus. Terminal: *Toggle scene/chapter labels*; GUI: project menu.
+- **Unplaced Scenes** = `manuscript/_unplaced/`: not counted in the manuscript words, not in
+  the reading order (`list_scenes()`), still indexed (backlinks) and openable. *Move scene to
+  Unplaced* / *Place scene in the book*.
+- **Trash** = `<project>/.trash/<YYYYMMDD-HHMMSS>[-n]-<project-relative path, "/" as "__">.md`
+  plus `….md.drafts.json` for the draft originals. Deleting a scene moves it there (no
+  permanent delete from either UI); the Trash view (GUI binder row, terminal *Open Trash*)
+  restores it to the end of its original part (Unplaced if the part is gone), deletes one
+  forever, or empties the Trash, each after a confirmation. The "detach the open scene before
+  opening the next" rule still applies.
+- **Scene details** are the scene's own YAML frontmatter (Obsidian-compatible), written only
+  when the author sets a field (no field, no block; unknown keys such as `tags:` survive):
+  `pov`, `place`, `purpose`, `status` (free text; suggested idea / draft / revising / done),
+  `target` (words), and `collections` (reserved for Wave 3). The `# heading` stays the title.
+  `core/scenemeta.py` parses, edits and blanks the block. It is **not prose**: excluded from
+  word counts, spelling, mention scanning, continuity evidence and style sampling — except that
+  a `pov` / `place` value naming an entity counts as a mention (backlinks, retrieved context).
+  A leading `---` rule that is not a YAML mapping is not frontmatter. AI: `build_context` and
+  the continuity / story-bible prompts get a short `SCENE DETAILS` header (POV, place,
+  purpose, status) in place of the raw block, so continuity can flag a POV character knowing
+  something they could not.
+  Terminal: the block is shown faded and *Scene · Edit details* (palette) opens a small form.
+  GUI: the block is hidden in the editor and edited in a dialog opened from the status tag,
+  the word-target chip or the inspector (POV / place pick from characters / places, free text
+  allowed); the edit is computed by Python (`set_scene_details`) and applied as an ordinary
+  undoable editor change, which autosave writes. Corkboard cards and Outline rows show status,
+  POV and words / target.
+- **Drag-to-reorder (GUI).** Corkboard cards and Outline rows (drag handle) are grouped by part
+  (front matter muted, Unplaced last); dropping before a card, or in a group's end strip, asks
+  "Move 'Capsule 7-19' to Part II, position 3?"; confirming performs the core move
+  (`place_scene`), and the toast offers **Undo** (moves it back to where it was).
+- **Not done / limits.** Collections, comments and Research are later waves (still
+  placeholders). The terminal has no drag. Part folders are not renamed with their title.
 
 ### Desktop GUI (pywebview + the React design) ✅ (implemented; merged to main 2026-10-01)
 
@@ -268,10 +335,8 @@ both edit the same plain-Markdown projects.
 - **Placeholders.** Parts of the design that LoreWriter does not do yet are drawn
   as designed but dimmed, non-interactive, tooltip "Not in LoreWriter yet"
   (`gui/src/components/placeholder.ts`): the "Draft" badge and status-bar Draft /
-  Snapshots / Sync / Streak items, the history rail button, Front Matter / Parts /
-  Research / Unplaced Scenes / Trash rows, Collections, the comment button, the
-  status tag and word target, the Status / POV / Scene-purpose inspector fields,
-  the Brainstorm and Research quick actions, conversation history, attach-context
+  Snapshots / Sync / Streak items, the history rail button, the Research row,
+  Collections, the comment button, the Brainstorm and Research quick actions, conversation history, attach-context
   and the reply "Helpful" button. No fake data is shown for them.
 - **Keys.** `ctrl+k` quick switcher, `ctrl+s` save, `ctrl+n` new scene, `f11`
   focus mode, `ctrl+j` in the editor: open the note under the cursor / make a note
@@ -313,7 +378,7 @@ both edit the same plain-Markdown projects.
 ## 11. Decisions (resolved)
 
 1. Keybindings: `ctrl+j` jump, `ctrl+p` palette, `f9` rebuild, `ctrl+s` explicit save, `ctrl+b` sidebar toggle, `?` help screen.
-2. Scene ordering by filename prefix (`01-`, `02-`); drag-reorder deferred.
+2. Scene ordering by filename prefix (`01-`, `02-`); parts are folders ordered the same way; drag-reorder in the GUI (Wave 1).
 3. One project per app instance; `--project` flag to open.
 4. Platform target: Omarchy (Arch/Hyprland) — follow the system theme, launchable from the top bar (see M5).
 
