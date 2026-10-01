@@ -31,7 +31,7 @@ os.environ.update(GIT_AUTHOR_NAME="Residual Author", GIT_AUTHOR_EMAIL="author@ex
 
 
 def build_project():
-    subprocess.run([sys.executable, str(HERE / "rich_project.py"), str(PROJ), str(STATE), "--git"],
+    subprocess.run([sys.executable, str(HERE / "rich_project.py"), str(PROJ), str(STATE), "--git", "--inspiration"],
                    check=True, env={**os.environ, "PYTHONPATH": str(REPO / "src")})
 
 
@@ -237,6 +237,63 @@ async def main():
         shot(app, "settings_v4", modal=True)
 
 
-asyncio.run(main())
+def canned_describe(context, model, client=None):
+    LEDGER.record(model, "image-prompt", 0.0009)
+    return ("A capsule hotel corridor at night: stacked fiberglass pods lit the color of weak tea, "
+            "a ladder to the seventh tier, police tape, wet floor, one uniformed man arguing "
+            "with the night manager.")
+
+
+def canned_image(prompt, model, client=None, style=None):
+    from lorewrite.gui.mockai import placeholder_png
+    LEDGER.record("mock/image", "image", 0.0336)
+    return [(placeholder_png(prompt), "png")]
+
+
+app_mod.suggest_image_prompt = canned_describe
+app_mod.generate_image = canned_image
+
+
+async def v5():
+    if os.environ.get("ONLY_V5"):
+        build_project()
+    reset_state()
+    project = Project.open(PROJ)
+    app = mk(project)
+    async with app.run_test(size=SIZE) as pilot:
+        await pilot.pause(1.0)
+        scenes = app.project.list_scenes()
+        app.open_file(scenes[2])
+        await pilot.pause(0.8)
+        app.export_manuscript()
+        await pilot.pause(0.8)
+        shot(app, "tui_export", modal=True)
+        await pilot.press("ctrl+s")
+        await pilot.pause(3.0)
+        shot(app, "tui_export_done")
+        app.inspiration_prompt("")
+        await pilot.pause(0.5)
+        await pilot.press(*"A rain-slick night market under a rail spur")
+        await pilot.pause(0.3)
+        shot(app, "tui_insp_prompt", modal=True)
+        await pilot.press("escape")
+        await pilot.pause(0.3)
+        app.open_inspiration()
+        await pilot.pause(0.6)
+        shot(app, "tui_insp_list", modal=True)
+        await pilot.press("escape")
+        await pilot.pause(0.3)
+    reset_state()
+    app = mk(Project.open(PROJ))
+    async with app.run_test(size=(100, 52)) as pilot:
+        await pilot.pause(0.6)
+        app.action_settings()
+        await pilot.pause()
+        shot(app, "tui_settings_images", modal=True)
+
+
+if not os.environ.get("ONLY_V5"):
+    asyncio.run(main())
+asyncio.run(v5())
 print("TMP", TMP)
 shutil.rmtree(TMP, ignore_errors=True)

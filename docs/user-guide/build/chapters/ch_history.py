@@ -45,7 +45,7 @@ def build(s, R):
         "manuscript, including scenes in Unplaced). Notes, research "
         "notes, the style guide and the dictionary files have no "
         "history. If your project counts chapters instead of scenes "
-        "(Chapter 13), the desktop application and the palette say "
+        "(Chapter 15), the desktop application and the palette say "
         "//chapter// where this chapter says //scene//.")
 
     # ------------------------------------------------------------------
@@ -417,7 +417,7 @@ def build(s, R):
         "name a branch. The offer is not made for a project that is "
         "inside another repository.")
     s.p(f"The palette entries are listed in {R('t_histpalette')} "
-        "(Chapter 14 lists every command).")
+        "(Chapter 16 lists every command).")
     s.table("t_histpalette", "Palette actions for history and sync",
             ["Entry", "What it does"], [
         ["Scene · Snapshots", "Open the Snapshots screen."],

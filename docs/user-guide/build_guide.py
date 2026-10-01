@@ -32,8 +32,8 @@ from reportlab.platypus import (  # noqa: E402
 from reportlab.platypus import Image as RLImage  # noqa: E402
 
 sys.path.insert(0, str(HERE / "build" / "chapters"))
-import ch_aids, ch_history, ch_notes, ch_organize  # noqa: E402
-NEW_CHAPTERS = [ch_organize, ch_history, ch_notes, ch_aids]
+import ch_aids, ch_export, ch_history, ch_inspiration, ch_notes, ch_organize  # noqa: E402
+NEW_CHAPTERS = [ch_organize, ch_history, ch_notes, ch_aids, ch_inspiration, ch_export]
 
 
 def palette_rows():
@@ -357,6 +357,8 @@ def gui_image(shot: str, width=None, scale=None, crop=None):
     from PIL import ImageOps
     FIGS.mkdir(parents=True, exist_ok=True)
     src = GUISHOTS / f"{shot}.png"
+    if not src.exists():
+        src = HERE / "build" / "exportshots" / f"{shot}.png"
     dst = FIGS / f"g_{shot}.png"
     im = Image.open(src).convert("L")
     if crop:        # (left, right[, top, bottom]) as fractions of the size
@@ -387,7 +389,7 @@ class Cover(Flowable):
         c.setFillColor(GREY)
         c.drawString(0, h - 4, gl.DOC_NUMBER)
         c.setFont("Sans-Bold", 9)
-        c.drawRightString(w, h - 4, "Fourth Edition")
+        c.drawRightString(w, h - 4, "Fifth Edition")
         c.setStrokeColor(INK)
         c.setLineWidth(3)
         c.line(0, h - 22, w, h - 22)
@@ -435,16 +437,18 @@ def build_story(st) -> list:
 
     # ------------------------------------------------------------ notice
     s.front("Edition Notice", toc=False)
-    s.p("**Fourth Edition (October 2026)**", style="notice")
-    s.p("This edition replaces and makes obsolete the Third Edition, "
-        "LW00-0001-2.", style="notice")
+    s.p("**Fifth Edition (October 2026)**", style="notice")
+    s.p("This edition replaces and makes obsolete the Fourth Edition, "
+        "LW00-0001-3.", style="notice")
     s.p("This edition applies to Version 0.2.0 of Lorewrite, including the "
         "terminal application (`lorewrite`), the desktop application "
         "(`lorewrite-gui`, whose window is titled LoreWriter), and the "
         "features added to both since the Third Edition: parts, the "
         "Trash and scene details; snapshots, drafts and git sync; "
         "collections, comments, research notes and saved assistant "
-        "conversations; session stats, focus sprints and Brainstorm. It "
+        "conversations; session stats, focus sprints and Brainstorm; "
+        "export of the book to PDF, Word, EPUB and other formats; and AI "
+        "inspiration images. It "
         "applies to all subsequent releases and modifications until "
         "otherwise indicated in new editions. Make sure you are using the "
         "correct edition for the level of the product. The version number "
@@ -552,9 +556,14 @@ def build_story(st) -> list:
         "text.",
         "**Chapter 12, Writing Aids**, describes your session stats, the "
         "streak and daily target, focus sprints and Brainstorm.",
-        "**Chapter 13, Settings Reference**, lists every setting, where it "
+        "**Chapter 13, Inspiration Images**, describes the reference "
+        "pictures you can have made from a description of a scene.",
+        "**Chapter 14, Exporting Your Book**, describes how to turn the "
+        "manuscript into a typeset PDF, a Word file, an EPUB and other "
+        "formats.",
+        "**Chapter 15, Settings Reference**, lists every setting, where it "
         "is stored, and its default.",
-        "**Chapter 14, Command and Key Reference**, lists every key and "
+        "**Chapter 16, Command and Key Reference**, lists every key and "
         "every entry in the command palette and the desktop application's "
         "menus.",
         "**Appendix A, File Formats**, shows what is in your project folder "
@@ -609,67 +618,47 @@ def build_story(st) -> list:
 
     # ------------------------------------------------------------ changes
     s.front("Summary of Changes")
-    s.p("This Fourth Edition (LW00-0001-3) covers Version 0.2.0 of "
-        "Lorewrite as it is now on its main line. Four groups of features "
-        "have been added to both applications since the Third Edition. "
-        "Each change is listed below with the chapter that describes it. "
-        "Chapter 5 (Organizing the Manuscript), Chapter 8 (History and "
-        "Versions), Chapter 9 (Notes, Comments and Research) and Chapter "
-        "12 (Writing Aids) are new, and the chapters after Chapter 4 are "
-        "renumbered: the Third Edition's Chapters 5 to 10 are now "
-        "Chapters 6, 7, 10, 11, 13 and 14.")
+    s.p("This Fifth Edition (LW00-0001-4) covers Version 0.2.0 of "
+        "Lorewrite as it is now on its main line. Two features have been "
+        "added to both applications since the Fourth Edition: export of "
+        "the book, and AI inspiration images. The changes are listed "
+        "below, with the chapter that describes each. Chapter 13 "
+        "(Inspiration Images) and Chapter 14 (Exporting Your Book) are "
+        "new, and the Fourth Edition's Chapters 13 and 14 (Settings "
+        "Reference, Command and Key Reference) are now Chapters 15 and "
+        "16. The corrections of the Fourth Edition's second printing are "
+        "included.")
     s.table(None, None, ["Change", "Where described"], [
-        ["**Parts and front matter.** A folder under `manuscript/` is a "
-         "part; the binder and the sidebar group scenes under it. A part "
-         "named //front-matter// is not counted as the book. Scenes are "
-         "numbered across parts.", "Chapter 5"],
-        ["**Unplaced scenes and the Trash.** Scenes you wrote but kept out "
-         "of the book live in `manuscript/_unplaced/`. Deleting a scene or a "
-         "research note now moves it to `.trash/`, from which it can be "
-         "restored, deleted forever or the whole Trash emptied. Nothing is "
-         "deleted outright any more.", "Chapters 4 and 5"],
-        ["**Scene details.** POV, place, purpose, status and a word target "
-         "are kept in the scene's own frontmatter, edited with a form "
-         "(terminal) or the inspector and a dialog (desktop). The "
-         "manuscript can say //chapter// instead of //scene//.",
-         "Chapter 5"],
-        ["**Drag to reorder** in the desktop corkboard and outline, with a "
-         "confirmation and an Undo.", "Chapter 5"],
-        ["**Collections** group scenes; they filter the binder, corkboard "
-         "and outline (desktop) or the sidebar (`#name`, terminal).",
-         "Chapter 5"],
-        ["**Snapshots.** Verbatim copies of a scene that you can compare "
-         "word by word and restore; taken by you, once a day before the "
-         "first edit, and before a restore, an accept-all or a reject-all. "
-         "**Draft N** counts the drafts of the book; **Start new draft** "
-         "snapshots every scene. Optional **git sync** (status, commit, "
-         "push, initialize), only on explicit request.", "Chapter 8"],
-        ["**Comments** anchored to a passage and kept beside the scene, "
-         "never in the text; **research notes** in `research/`, with a "
-         "Research question that cites the notes it used; **saved "
-         "conversations** with the assistant, **attach**, and **Save to "
-         "notes**.", "Chapter 9"],
-        ["**Session stats, daily target and streak; focus sprints; "
-         "Brainstorm.**", "Chapter 12"],
-        ["**Placeholders are gone.** Every control of the desktop window "
-         "that was dimmed in the Third Edition now works. Only the list of "
-         "what is still planned remains.", "Chapter 3"],
-        ["**New settings:** the daily word target and the automatic daily "
-         "snapshot. New palette entries, desktop menu items and files "
-         "are listed in the reference chapters and in Appendix A, which "
-         "now begins with a map of the project folder.",
-         "Chapters 13 and 14, Appendix A"],
-        ["**Tutorial.** A new section uses parts, a snapshot and a sprint "
-         "on the Residual copy.", "Appendix C"],
-        ["**Corrected after the polish pass.** The restore toast now says "
-         "where a scene went; the terminal Compare title shows the label "
-         "and time; word changes read +12, \u22125 and \u00b10 with "
-         "thousands separated, in both applications; the terminal part "
-         "commands always ask which part; the palette entry that switches "
-         "wording is //Call them chapters// or //Call them scenes//; "
-         "saved conversations in the terminal assistant are on `ctrl+t`; "
-         "and unplaced scenes are described accurately with regard to the "
-         "continuity check.", "Chapters 5, 8, 9, 12, 14"],
+        ["**Export.** The book can be written to `exports/` as a PDF "
+         "(Book, Manuscript review or Plain proof layout), a Word file, "
+         "an EPUB, one Markdown file or LaTeX source, from the desktop "
+         "dialog or the terminal form. Unplaced scenes, the Trash, notes, "
+         "comments and scene details are left out; unaccepted AI drafts "
+         "are left out unless you ask. Files are never overwritten.",
+         "Chapter 14"],
+        ["**Inspiration images.** Describe a place (or let the AI describe "
+         "the scene you are in) and have a reference picture made, "
+         "about $0.03 each, kept in `inspiration/`, pinned to a scene, "
+         "shown in a gallery and a large view, and never put into your "
+         "prose. A new //Inspiration// tab in the desktop assistant; "
+         "palette actions in the terminal.", "Chapter 13"],
+        ["**Settings.** A fourth model, the //image model//, and an "
+         "//image style// line; the remembered export options in "
+         "`[export]` of `project.toml`.", "Chapter 15, Appendix A"],
+        ["**Trash.** Inspiration pictures go to the Trash like scenes and "
+         "research notes.", "Chapters 5 and 13"],
+        ["**Files and folders.** `exports/`, `inspiration/` with a "
+         ".md sidecar for each picture, `[export]` and the image model "
+         "setting.", "Appendix A"],
+        ["**New palette entries, messages and problems; a tutorial "
+         "section** that exports the Residual book and makes a picture.",
+         "Chapter 16, Appendix B, Appendix C"],
+        ["**Corrected after the polish pass** (carried over from the "
+         "Fourth Edition's second printing): the restore toast, the "
+         "terminal Compare title, one form for word changes, the part "
+         "commands, //Call them chapters//, `ctrl+t` for saved "
+         "conversations, unplaced scenes and the continuity check.",
+         "Chapters 5, 8, 9, 12, 16"],
     ], [0.78, 0.22])
 
     # ============================================================ CH 1
@@ -938,7 +927,7 @@ def build_story(st) -> list:
         ["enter", "Resume the highlighted project."],
         ["o", "Open a folder: type the path of a project."],
         ["n", "Start a new project."],
-        ["s", "Open the Settings screen (Chapter 13)."],
+        ["s", "Open the Settings screen (Chapter 15)."],
         ["q", "Quit Lorewrite. (If you reached the launch screen with "
          "//Return to main menu//, `q` instead returns to the project you "
          "were in.)"],
@@ -1109,7 +1098,7 @@ the-salt-road/
         ["Editor (center)", "A toolbar, the three views of the manuscript, "
          "and the page you write on. Under it, a strip with the scene's "
          "details."],
-        ["Assistant (right)", "Three tabs: Assistant, Context and Notes. "
+        ["Assistant (right)", "Four tabs: Assistant, Context, Notes and Inspiration. "
          "The AI features, the style card, the conversation and the notes "
          "and comments live here."],
         ["Status bar (bottom)", "The draft, the latest snapshot, the git "
@@ -1146,7 +1135,7 @@ the-salt-road/
     s.p("The three buttons after the label are the //quick switcher// (the "
         "magnifying glass, `ctrl+k`), the //assistant panel// toggle, and "
         "the **More** (three dots) menu, whose entries are **Switch "
-        "project…**, **Rebuild the link index**, **Call scenes “chapters”** "
+        "project…**, **Export…** (Chapter 14), **Rebuild the link index**, **Call scenes “chapters”** "
         "(or **Call chapters “scenes”**) and **Settings…**. **Switch "
         "project…** saves your work and returns to the launch screen. "
         "**Rebuild the link index** is the desktop's `f9` (Chapter 6). "
@@ -1194,7 +1183,7 @@ the-salt-road/
         "title and makes a scene, like `ctrl+n`. The three-dots button "
         "opens the //scene and part options// menu, which has the commands "
         "for scenes, parts, research notes and the Trash; Chapters 5, 8 "
-        "and 9 describe them, and Chapter 14 lists them all.")
+        "and 9 describe them, and Chapter 16 lists them all.")
     s.p("The **Search** view puts a //Filter binder…// box above the tree; "
         "typing narrows it to titles that contain what you typed. The "
         "**Library** view shows only characters, world notes, the style "
@@ -1286,7 +1275,7 @@ the-salt-road/
         "(Chapter 9); the three dots open the //AI menu//, which starts "
         "with **New chat** and **Conversation history…** and has every "
         "other AI command (Chapters 10 and 11). The panel's "
-        "three tabs are listed in " + R("t_gtabs") + ".")
+        "four tabs are listed in " + R("t_gtabs") + ".")
     s.gfigure("fig_gassist", "assistant", "The Assistant tab", width=215)
     s.table("t_gtabs", "Tabs of the assistant panel",
             ["Tab", "What it holds"], [
@@ -1299,6 +1288,9 @@ the-salt-road/
         ["Notes", "The note under the cursor (or the one you opened), with "
          "its aliases and backlinks (Chapter 6), and below it the "
          "comments on the open scene (Chapter 9)."],
+        ["Inspiration", "Reference pictures made from a description of a "
+         "place; the picture pinned to the open scene, and a gallery "
+         "(Chapter 13)."],
     ], [0.20, 0.80])
     s.p("The //Quick actions// are four buttons: **Brainstorm** asks for "
         "ideas to get unstuck (Chapter 12), **Rewrite** rewrites the "
@@ -1368,7 +1360,7 @@ the-salt-road/
         "rename (Chapter 4), new note (Chapter 6), the spelling popover "
         "(Chapter 7), the review of alias and story-bible suggestions and "
         "the style guide (Chapters 10 and 11), the prompt for drafting "
-        "(Chapter 11) and Settings (Chapter 13).")
+        "(Chapter 11) and Settings (Chapter 15).")
 
     s.h2("Saving and Conflicts", idx=["autosave|desktop", "conflict banner"])
     s.p("The window saves the open file 1.5 seconds after you stop typing, "
@@ -1394,14 +1386,10 @@ the-salt-road/
         "snapshots, sync, streak, the parts of the binder, collections, "
         "comments, the details strip and the status tag, the word target, "
         "Brainstorm, Research, conversation history and attaching. No "
-        "control in the desktop window is a placeholder.")
+        "control in the desktop window is a placeholder. Export "
+        "(Chapter 14) and inspiration images (Chapter 13) are built, too.")
     s.p("What the program does not do yet:")
     s.bullets([
-        "**Export.** There is no command that turns the manuscript into a "
-        "typeset book or a double-spaced review copy; the files are plain "
-        "Markdown and any converter will read them.",
-        "**Inspiration images** (a picture made from a described setting, "
-        "kept on screen while you write) are planned, not built.",
         "**Dragging scenes** works in the desktop application only; the "
         "terminal application moves scenes with palette commands.",
         "**Attaching material to a chat** works in the desktop "
@@ -1413,7 +1401,7 @@ the-salt-road/
 
     s.h2("Keys in the Desktop Window", idx=["keys|desktop"])
     s.p(f"The desktop window has few keys of its own ({R('t_gkeys')}); "
-        "the full list for both applications is in Chapter 14.")
+        "the full list for both applications is in Chapter 16.")
     s.table("t_gkeys", "Keys of the desktop window",
             ["Key", "Action"], [
         ["ctrl+k", "Quick switcher."],
@@ -1466,7 +1454,7 @@ the-salt-road/
     s.h2("Typing and Markdown", idx=["editor", "Markdown|headings"])
     s.p("The editor is an ordinary text editor with a few conveniences. "
         "It wraps long lines to the width of the window, shows line "
-        "numbers (which you can turn off; see Chapter 13), and colors "
+        "numbers (which you can turn off; see Chapter 15), and colors "
         "Markdown as you type: headings, //italic// text between single "
         "asterisks, and **bold** text between double asterisks.")
     s.p("Begin each scene with a heading line, for example "
@@ -1583,7 +1571,7 @@ the-salt-road/
         "skipped; Chapter 5). If you are looking at an entity note "
         "when you press either key, Lorewrite takes you back to the first "
         "scene. You can also click a scene in the sidebar, or use the "
-        "command palette (Chapter 14) to open a scene by title.")
+        "command palette (Chapter 16) to open a scene by title.")
 
     s.h2("Creating a Scene", idx=["scene|creating", "new scene", "ctrl+n"])
     s.proc("To create a scene:", [
@@ -2084,7 +2072,7 @@ sweet rot""")
 
     s.h2("Turning It Off", idx=["spell check|turning off"])
     s.p("In the terminal application, tick or untick //Underline "
-        "misspellings// in Settings (Chapter 13), or choose **Action · "
+        "misspellings// in Settings (Chapter 15), or choose **Action · "
         "Toggle spell check**. In the desktop application, use the same "
         "box in the Settings dialog. The setting, `spellcheck`, is kept in "
         "`settings.json` and is shared: turning it off in one application "
@@ -2239,7 +2227,7 @@ sweet rot""")
     s.p("In the desktop Settings dialog the three rows are //Fast "
         "model//, //Strong model// and //Writing model//, each with a "
         "**Choose…** button that opens a searchable list of the same "
-        "catalog under the row (Chapter 13). An empty box means the "
+        "catalog under the row (Chapter 15). An empty box means the "
         "default, which is shown in the box in gray; a project that "
         "overrides a model in `project.toml` says so under the row.")
     s.table("t_models", "Which model is used",
@@ -2509,7 +2497,7 @@ sweet rot""")
         "will do, and the picker for this model lists the whole catalog. "
         "The writing model is also the one that learns your style guide. "
         "Its built-in default is `anthropic/claude-sonnet-4.5`; set "
-        "your own with **Choose…** in Settings (Chapter 13) or with "
+        "your own with **Choose…** in Settings (Chapter 15) or with "
         "`writing_model` in the `[ai]` section of `project.toml` "
         "(Appendix A). You need an API key first (Chapter 10).")
 
@@ -2961,9 +2949,11 @@ the koi holo.<!--/ai-->""")
     ])
 
     ch_aids.build(s, R)
+    ch_inspiration.build(s, R)
+    ch_export.build(s, R)
 
     # ============================================================ CH 7
-    s.chapter("13", "Settings Reference",
+    s.chapter("15", "Settings Reference",
               "Every setting, where it is kept, and what it does.")
     s.h2("The Settings Screen", idx=["Settings screen"])
     s.p(f"Open the Settings screen ({R('fig_settings')}) from the command "
@@ -2988,6 +2978,14 @@ the koi holo.<!--/ai-->""")
         ["Writing model (drafting & rewrites)", "Model used by `ctrl+g` and "
          "by learning the style guide (Chapter 11). Empty means the "
          "default.", "`settings.json`"],
+        ["Image model (inspiration pictures, about $0.03 each)", "Model "
+         "that draws the pictures of Chapter 13. Empty means "
+         "`google/gemini-3.1-flash-lite-image`. Its picker lists only "
+         "models that produce images.", "`settings.json` (`image_model`)"],
+        ["Image style (added to every picture description; empty = off)",
+         "A phrase added to every description before the picture is "
+         "drawn. Empty turns it off; untouched, it keeps the built-in "
+         "default.", "`settings.json` (`image_style`)"],
         ["Choose…", "Opens the model picker to fill in the box beside "
          "it. The picker for the writing model lists the whole catalog; "
          "the others list only models with structured output.",
@@ -3042,7 +3040,7 @@ the koi holo.<!--/ai-->""")
         ["API key box, **Save key**, **Clear**", "Store or remove the "
          "OpenRouter key. The line above says whether a key is set and "
          "where it comes from.", "Keyring"],
-        ["Fast model, Strong model, Writing model", "As in the terminal "
+        ["Fast, Strong, Writing and Image model; Image style", "As in the terminal "
          "application. The default is shown in gray in an empty box; "
          "**Choose…** opens a list under the row.", "`settings.json`"],
         ["Text size (90%, 100%, 110%, 125%)", "The size of the page text. "
@@ -3109,7 +3107,7 @@ the koi holo.<!--/ai-->""")
         "Appendix A.")
 
     # ============================================================ CH 8
-    s.chapter("14", "Command and Key Reference",
+    s.chapter("16", "Command and Key Reference",
               "Every key, every command-palette entry, and the keys of "
               "every dialog.")
     s.h2("Keys in the Main Window", idx=["keys|main window",
@@ -3315,12 +3313,13 @@ the koi holo.<!--/ai-->""")
          "then, under //parts//: **Rename part…**, **Move part up**, "
          "**Move part down**, **Delete empty part…**; under //research//: "
          "**New research note…**, **New research note from a link…**, "
-         "**Move this research note to the Trash…**; and **Open Trash…**. "
+         "**Move this research note to the Trash…**; **Open Trash…**; and "
+         "**Export…**. "
          "Scene entries are dimmed when no scene is open, part entries "
          "when no part is in focus. With the unit set to chapters, "
          "//scene// reads //chapter//."],
         ["More (three dots in the title bar)", "**Switch project…**, "
-         "**Rebuild the link index**, **Call scenes “chapters”** (or "
+         "**Export…**, **Rebuild the link index**, **Call scenes “chapters”** (or "
          "**Call chapters “scenes”**), **Settings…**."],
         ["AI menu (three dots at the top of the assistant)", "**New chat**, "
          "**Conversation history…**, **Draft at the cursor…**, **Find "
@@ -3375,6 +3374,8 @@ residual/
   .comments/            your comments on passages, one file per scene
   .trash/               deleted scenes and research notes
   .assistant/chats/     saved conversations with the assistant
+  exports/              the book as PDF, DOCX, EPUB, Markdown, LaTeX
+  inspiration/          reference pictures, each with a .md sidecar
   .lorewrite/           cache: index.sqlite, waivers.json (safe to delete)""")
     s.table("t_projmap", "What is in the project folder",
             ["Path", "What it holds", "Written by", "Edit by hand?"], [
@@ -3402,6 +3403,11 @@ residual/
          "No; use the Trash screen"],
         ["`.assistant/chats/`", "Saved conversations.", "Lorewrite",
          "No"],
+        ["`exports/`", "Files written by Export (Chapter 14); never "
+         "overwritten.", "Lorewrite", "They are yours; delete freely"],
+        ["`inspiration/`", "Inspiration pictures and their notes "
+         "(Chapter 13).", "Lorewrite and you", "Notes in the .md files, "
+         "yes"],
         ["`.lorewrite/`", "The link index and waived continuity issues.",
          "Lorewrite", "No; safe to delete"],
     ], [0.27, 0.37, 0.18, 0.18])
@@ -3434,10 +3440,16 @@ line_numbers = true
 fast_model = "google/gemini-2.5-flash"
 strong_model = "anthropic/claude-sonnet-4.5"
 writing_model = "anthropic/claude-sonnet-4.5"
+image_model = "google/gemini-3.1-flash-lite-image"
 
 [manuscript]
 unit = "scene"
 draft = 2
+
+[export]
+format = "pdf"
+layout = "book"
+page_size = "trade"
 
 [collections]
 "Needs continuity pass" = "amber"
@@ -3458,6 +3470,13 @@ draft = 2
          "story-bible updates, for this project.", "same"],
         ["[ai] writing_model", "Model for `ctrl+g` and for learning the "
          "style guide, for this project.", "same"],
+        ["[ai] image_model", "Model for inspiration pictures (Chapter 13), "
+         "for this project.", "same"],
+        ["[export]", "The options last used in the Export dialog or "
+         "form: format, layout, page_size, font, numbering, toc, "
+         "include_front_matter, include_drafts, continuous, copyright "
+         "(Chapter 14). Written by Lorewrite after each export; you may "
+         "edit it.", "the defaults of the dialog"],
         ["[manuscript] unit", "`\"scene\"` or `\"chapter\"`: what the "
          "program calls the units of the book. Wording only (Chapter 5).",
          "scene"],
@@ -4331,6 +4350,38 @@ maglev spur""")
         f"like a coin from another country.// and press `ctrl+g` "
         f"({R('fig_grew')}), then `enter`. Press `f8`: your sentence "
         "returns.",
+    ])
+
+    s.h2("Export the Book and Make a Picture")
+    s.p("Start from the Parts section below or from a fresh copy; this "
+        "section needs no AI for the export and an API key for the "
+        "picture.")
+    s.proc("Export the Residual book:", [
+        "Terminal application: press `ctrl+p` and choose **Action · "
+        "Export manuscript**. Leave //PDF//, //Book// and //Trade// as "
+        "they are and press `ctrl+s`. A notice says //Exported to "
+        "exports/residual-book-...pdf//. Desktop application: open the "
+        "**More** menu and choose **Export…**, check the summary line "
+        "at the top of the dialog, and click **Export**, then **Open "
+        "file** in the **Export finished** dialog.",
+        "Open the PDF. The cover, contents and a first chapter look "
+        f"like the pages of {R('pdf_book_title')} and its neighbors. "
+        "Export again with the **Manuscript review** layout and compare: "
+        "double-spaced, with line numbers.",
+        "Look in the project folder: `exports/` holds both files, and "
+        "`project.toml` now has an `[export]` section remembering your "
+        "choices.",
+    ])
+    s.proc("Make an inspiration picture:", [
+        "Set your OpenRouter key (Chapter 10). Open //Capsule 7-19//.",
+        "Desktop application: open the **Inspiration** tab of the "
+        "assistant and click **Describe this scene**. Read the "
+        "description, change a phrase, and click **Generate**. Terminal "
+        "application: **Action · Inspiration image…**, then `ctrl+d` to "
+        "describe and `ctrl+g` to generate (Chapter 13).",
+        "The picture appears pinned to the scene. Click it for the large "
+        "view. Check the cost in the status bar. Your scene text has not "
+        "changed.",
     ])
 
     s.h2("Parts, a Snapshot and a Sprint")

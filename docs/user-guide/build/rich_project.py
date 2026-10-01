@@ -142,6 +142,31 @@ p.delete_scene(cut)
 old_note = research.new_note(p, "Old tide tables", "Notes I no longer need.\n")
 p.trash_research(old_note)
 
+# ---- inspiration pictures (with --inspiration): the real sample plus two mock pictures
+if "--inspiration" in sys.argv:
+    import yaml
+    from lorewrite.core import inspiration
+    from lorewrite.gui.mockai import placeholder_png
+    here = Path(__file__).resolve().parent
+    meta = yaml.safe_load((here / "sample-inspiration.md").read_text().split("---")[1])
+    scene_rel = s2.relative_to(dest).as_posix()
+    inspiration.save(p, (here / "sample-inspiration.jpg").read_bytes(), "jpg",
+                     {**meta, "scene": scene_rel, "pinned": True, "title": "Capsule 7-19",
+                      "created": (datetime.now() - timedelta(hours=1)).isoformat(timespec="seconds"),
+                      "notes": "Mood reference for the opening of the scene."})
+    for prompt, hours, scene in (
+            ("A rain-slick night market under a rail spur, steam from noodle stalls, holographic koi overhead", 20, s1),
+            ("A stairwell of bare concrete lit by a single failing tube", 5, s3)):
+        inspiration.save(p, placeholder_png(prompt), "png", {
+            "prompt": prompt, "model": "google/gemini-3.1-flash-lite-image", "cost": 0.0336,
+            "scene": scene.relative_to(dest).as_posix(),
+            "created": (datetime.now() - timedelta(hours=hours)).isoformat(timespec="seconds")})
+    gone = inspiration.save(p, placeholder_png("an empty lobby"), "png", {
+        "prompt": "An empty hotel lobby at three in the morning, wet floor, vending wall humming",
+        "model": "google/gemini-3.1-flash-lite-image", "cost": 0.0336,
+        "created": (datetime.now() - timedelta(hours=30)).isoformat(timespec="seconds")})
+    p.trash_inspiration(gone.id)
+
 if "--git" in sys.argv:
     os.environ.update(GIT_AUTHOR_NAME="Residual Author", GIT_AUTHOR_EMAIL="author@example.com",
                       GIT_COMMITTER_NAME="Residual Author", GIT_COMMITTER_EMAIL="author@example.com",

@@ -289,7 +289,7 @@ def build(s, R):
         "does not fit, and, if one catches, either have the AI draft from "
         "it or save it to your notes. Brainstorm never writes into your "
         "scene by itself.")
-    s.p("It uses the //writing// model chosen in Settings (Chapter 13) "
+    s.p("It uses the //writing// model chosen in Settings (Chapter 15) "
         "and needs your OpenRouter key (Chapter 10). Each request costs a "
         "small amount, which is added to the AI spend shown in the status "
         "bar and recorded under //brainstorm//.")
@@ -507,5 +507,5 @@ PROBLEMS = [
      "in Settings (Chapter 10); it is also dimmed while another AI "
      "request runs."],
     ["Brainstorm says it returned no ideas.", "Try again, or choose a "
-     "different writing model in Settings (Chapter 13)."],
+     "different writing model in Settings (Chapter 15)."],
 ]

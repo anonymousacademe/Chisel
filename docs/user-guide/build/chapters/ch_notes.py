@@ -64,7 +64,7 @@ def build(s, R):
         "Lorewrite answers //Comment added (it is kept beside the scene, "
         "not in the text)//.",
     ])
-    s.p("If your project's unit is “chapter” (Chapter 13), the entry reads "
+    s.p("If your project's unit is “chapter” (Chapter 15), the entry reads "
         "**Chapter · Add comment on selection**. The same applies to every "
         "palette entry that begins with //Scene// in this chapter.")
     s.proc("To add a comment in the desktop application:", [

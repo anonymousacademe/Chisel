@@ -28,7 +28,7 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
 STAGES = ["launch", "window", "spell", "notes", "consistency", "style",
           "writing", "chat", "settings", "conflict",
-          "structure", "history", "notes4", "aids"]
+          "structure", "history", "notes4", "aids", "export5", "insp5"]
 
 
 def free_port() -> int:
@@ -76,7 +76,8 @@ def main() -> None:
             # a richer copy of the example: parts, snapshots, comments, research, stats, git
             project = work / "proj"
             subprocess.run([sys.executable, str(HERE / "rich_project.py"), str(project), str(state),
-                            "--git", "--remote"], check=True,
+                            "--git", "--remote"] + (["--inspiration"] if stage in ("insp5", "export5") else []),
+                           check=True,
                            env={**os.environ, "PYTHONPATH": str(REPO / "src"),
                                 "PYTHONDONTWRITEBYTECODE": "1"})
             (state / "settings.json").write_text(json.dumps({"tour_seen": True}))

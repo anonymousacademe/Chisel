@@ -56,7 +56,7 @@ LIGHT = colors.HexColor("#999999")
 HAIR = colors.HexColor("#BBBBBB")
 
 BOOK_TITLE = "Lorewrite User's Guide and Reference"
-DOC_NUMBER = "LW00-0001-3"
+DOC_NUMBER = "LW00-0001-4"
 
 
 def S(name, **kw):

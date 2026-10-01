@@ -531,4 +531,54 @@ if (stage("aids")) {
   await c.size(W, H, 2);
 }
 
+
+if (stage("export5")) {
+  await load();
+  await openScene("Rain on the Spur");
+  await binderMenu();
+  await shotEl("g_export_menu", ".lw-menu", undefined, 10);
+  await menuItem("Export…");
+  await waitFor(".lw-export__summary"); await sleep(900);
+  await c.size(W, 1400, 2); await sleep(400);
+  await c.eval(`document.querySelectorAll('.lw-export__body, .lw-dialog').forEach((e) => { e.style.maxHeight = 'none'; e.style.overflow = 'visible'; })`); await sleep(300);
+  { const d = await c.rect(".lw-dialog"); const bh = await c.eval("document.querySelector('.lw-export__body').scrollHeight");
+    await shot("g_export_dialog", { x: d.x, y: d.y, width: d.w, height: Math.min(bh + 150, 1000) }); }
+  await c.click("button.lw-btn--primary", "Export"); 
+  await waitFor(".lw-export__warnings, button.lw-btn--primary", 15000);
+  for (let i = 0; i < 40; i++) { if ((await c.eval("document.querySelector('.lw-dialog__title')?.textContent")) === "Export finished") break; await sleep(300); }
+  await sleep(500);
+  await dialogShot("g_export_done");
+  await closeDialog();
+  await c.size(W, H, 2);
+}
+
+if (stage("insp5")) {
+  await load();
+  await openScene("Capsule 7-19");
+  await c.click(".lw-tab", "Inspiration"); await sleep(1500);
+  await shotEl("g_insp_tab", ".lw-assistant");
+  // describe this scene -> an editable prompt
+  await c.click("button", "Describe this scene"); await sleep(1500);
+  await shotEl("g_insp_prompt", ".lw-assistant");
+  // gallery: show all
+  await c.click("button[role=radio]", "All"); await sleep(1200);
+  await c.eval("document.querySelector('.lw-assistant__body').scrollTop = 400"); await sleep(400);
+  await shotEl("g_insp_gallery", ".lw-assistant");
+  await c.eval("document.querySelector('.lw-assistant__body').scrollTop = 0");
+  // lightbox
+  const img = await c.rect(".lw-insp__imgbtn");
+  await c.clickAt(img.cx, img.cy, { wait: 900 });
+  await shotEl("g_insp_lightbox", ".lw-insp__lbbox");
+  await closeDialog();
+  // settings: image rows
+  await c.size(W, 1300, 2); await sleep(400);
+  await c.click(".lw-rail__item[aria-label='Settings']"); await waitFor(".lw-dialog"); await sleep(700);
+  await sectionShot("g_insp_settings", "Models");
+  await closeDialog();
+  // trash
+  await c.size(W, H, 2); await sleep(300);
+  await c.click(".lw-binder__item", "Trash"); await sleep(900);
+  if (await c.rect(".lw-dialog")) { await dialogShot("g_insp_trash"); await closeDialog(); }
+}
+
 c.close();
