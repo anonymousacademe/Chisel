@@ -9,6 +9,9 @@ export function Launch({ onOpened }: { onOpened: () => void }) {
   const [recents, setRecents] = useState<RecentProject[]>([]);
   const [path, setPath] = useState("");
   const [title, setTitle] = useState("");
+  const [newPath, setNewPath] = useState("");
+  // The folder follows the title (~/novels/<slug>) until the author edits it.
+  const [newPathEdited, setNewPathEdited] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -24,6 +27,13 @@ export function Launch({ onOpened }: { onOpened: () => void }) {
     const r = await api.chooseFolder();
     if (r.ok && r.path) setPath(r.path);
   };
+  const onTitle = async (value: string) => {
+    setTitle(value);
+    if (newPathEdited) return;
+    const r = await api.suggestProjectPath(value);
+    if (r.ok) setNewPath(r.path);
+  };
+  const create = () => run(() => api.newProject(title.trim(), newPath.trim()));
 
   return (
     <div className="lw-launch">
@@ -45,7 +55,24 @@ export function Launch({ onOpened }: { onOpened: () => void }) {
           </section>
         )}
         <section className="lw-launch__section">
-          <span className="lw-section-label">Open or create a project folder</span>
+          <span className="lw-section-label">New project</span>
+          <div className="lw-row lw-gap-8">
+            <input className="lw-launch__input" value={title} autoFocus
+              onChange={(e) => onTitle(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && title.trim() && !busy) create(); }}
+              placeholder="Title of your book" aria-label="New project title" />
+            <button className="lw-btn" disabled={!title.trim() || busy} onClick={create}>
+              <Icon icon={Plus} size={14} stroke={1.8} /> Create
+            </button>
+          </div>
+          <div className="lw-row lw-gap-8">
+            <input className="lw-launch__input lw-mono" value={newPath}
+              onChange={(e) => { setNewPath(e.target.value); setNewPathEdited(true); }}
+              placeholder="Folder (chosen from the title)" aria-label="New project folder" />
+          </div>
+        </section>
+        <section className="lw-launch__section">
+          <span className="lw-section-label">Open an existing project</span>
           <div className="lw-row lw-gap-8">
             <input className="lw-launch__input" value={path} onChange={(e) => setPath(e.target.value)}
               placeholder="/path/to/project" aria-label="Project folder" />
@@ -54,14 +81,6 @@ export function Launch({ onOpened }: { onOpened: () => void }) {
           <div className="lw-row lw-gap-8">
             <button className="lw-btn lw-btn--grow" disabled={!path.trim() || busy} onClick={() => run(() => api.openProject(path.trim()))}>
               Open project
-            </button>
-          </div>
-          <div className="lw-row lw-gap-8">
-            <input className="lw-launch__input" value={title} onChange={(e) => setTitle(e.target.value)}
-              placeholder="New project title" aria-label="New project title" />
-            <button className="lw-btn" disabled={!path.trim() || !title.trim() || busy}
-              onClick={() => run(() => api.newProject(title.trim(), path.trim()))}>
-              <Icon icon={Plus} size={14} stroke={1.8} /> Create
             </button>
           </div>
         </section>

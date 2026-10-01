@@ -116,6 +116,10 @@ export function mockCall(method: string, args: unknown[]): object {
     case "set_settings": return { ok: true };
     case "ai_status": return { ok: true, hasKey: false, models: { fast: "", strong: "", writing: "" } };
     case "recent_projects": return { ok: true, recents: [] };
+    case "suggest_project_path": {
+      const slug = String(args[0] ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      return { ok: true, path: slug ? `~/novels/${slug}` : "" };
+    }
     case "open_project": case "new_project": workspace = buildWorkspace(); return { ok: true };
     case "choose_folder": return { ok: true, path: null };
     case "minimize": case "toggle_maximize": case "close": return { ok: true };

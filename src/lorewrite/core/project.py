@@ -55,6 +55,14 @@ def write_atomic(path: Path, text: str) -> None:
     tmp.replace(path)
 
 
+def default_project_path(title: str, parent: Path | None = None) -> Path | None:
+    """Where a new project called *title* goes by default: ~/novels/<slug>
+    (the TUI's launch screen suggests the same). None for a blank title."""
+    if not title.strip():
+        return None
+    return (parent or Path.home() / "novels") / ent.slugify(title)
+
+
 def retitle_text(text: str, new_title: str) -> str:
     """Replace the first '# ' heading with new_title (or prepend one)."""
     lines = text.splitlines()

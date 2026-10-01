@@ -11,6 +11,7 @@ export const api = {
   readDocument: (id: string) => call<DocumentPayload>("read_document", id),
   openProject: (path: string) => call("open_project", path),
   newProject: (title: string, path: string) => call("new_project", title, path),
+  suggestProjectPath: (title: string) => call<{ path: string }>("suggest_project_path", title),
   recentProjects: () => call<{ recents: RecentProject[] }>("recent_projects"),
   chooseFolder: () => call<{ path: string | null }>("choose_folder"),
   saveDocument: (id: string, text: string, baseMtime: string | null, force = false) =>

@@ -48,7 +48,7 @@ from ..core.continuity import (
     locate_evidence,
     save_waiver,
 )
-from ..core.project import Project, write_atomic
+from ..core.project import Project, default_project_path, write_atomic
 from ..core.spans import compute_spans, from_utf16, index_to_utf16, to_utf16
 from ..core.style import ensure_style_stub, load_style, sample_manuscript, save_style
 from ..core.recents import add_recent, load_recents
@@ -127,16 +127,22 @@ class Api:
         return {}
 
     @bridge
-    def new_project(self, title: str, path: str) -> dict:
+    def new_project(self, title: str, path: str = "") -> dict:
         title = title.strip()
         if not title:
             raise ValueError("a project needs a title")
-        root = Path(path).expanduser()
+        root = Path(path).expanduser() if path.strip() else default_project_path(title)
         if Project.is_project(root):
             raise FileExistsError(f"{root} already holds a project")
         with self._lock:
             self._load(Project.create(root, title))
         return {}
+
+    @bridge
+    def suggest_project_path(self, title: str) -> dict:
+        """Default folder for a new project with this title (~/novels/<slug>)."""
+        path = default_project_path(title)
+        return {"path": str(path) if path else ""}
 
     @bridge
     def recent_projects(self) -> dict:

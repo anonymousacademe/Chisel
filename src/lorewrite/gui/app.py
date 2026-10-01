@@ -16,6 +16,9 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="lorewrite-gui")
     parser.add_argument("--project", type=Path, default=None,
                         help="open this project directly")
+    parser.add_argument("--new", metavar="TITLE", default=None,
+                        help="create a new project called TITLE and open it "
+                             "(in ~/novels/<title>, or in --project PATH)")
     parser.add_argument("--dev", metavar="URL", default=None,
                         help="load the UI from a dev server (npm run dev) "
                              "instead of gui/dist")
@@ -32,7 +35,11 @@ def main(argv: list[str] | None = None) -> None:
                  '\nInstall it with: pip install -e ".[gui]"')
 
     api = Api()
-    if args.project is not None and hasattr(api, "open_project"):
+    if args.new is not None:
+        result = api.new_project(args.new, str(args.project or ""))
+        if not result.get("ok"):
+            sys.exit(f"lorewrite-gui: {result.get('error')}")
+    elif args.project is not None and hasattr(api, "open_project"):
         api.open_project(str(args.project))
     window = webview.create_window(
         "LoreWriter",

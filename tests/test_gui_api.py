@@ -239,3 +239,22 @@ def test_add_alias(tmp_path):
     assert [s["kind"] for s in spans] == ["mention"]
     assert api.add_alias("Nobody", "x")["ok"] is False
     assert api.add_alias("Mara Vale", " ")["ok"] is False
+
+
+def test_new_project_without_folder_goes_to_default_location(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    api = Api()
+    assert api.suggest_project_path("The Salt Road")["path"] == str(
+        tmp_path / "novels" / "the-salt-road")
+    assert api.suggest_project_path("   ")["path"] == ""
+    assert api.new_project("The Salt Road", "")["ok"] is True
+    assert (tmp_path / "novels" / "the-salt-road" / "project.toml").is_file()
+    # a second project with the same title must not overwrite the first
+    assert api.new_project("The Salt Road", "")["ok"] is False
+
+
+def test_default_project_path_helper(tmp_path):
+    from lorewrite.core.project import default_project_path
+
+    assert default_project_path("Neon Requiem", tmp_path) == tmp_path / "neon-requiem"
+    assert default_project_path("  ") is None
