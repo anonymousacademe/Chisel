@@ -18,7 +18,8 @@ The niche is open: no existing TUI fiction app has wikilinks, and no wikilink to
 
 ## 3. Non-goals (v1)
 
-- No publishing/export pipeline (Markdown files are already exportable).
+- No publishing pipeline (no store uploads, no ISBN/metadata services). Exporting the manuscript to
+  PDF / DOCX / EPUB / Markdown / LaTeX source is built (M7, see *Export*).
 - No collaboration or automatic sync (plain files + user's own git/Syncthing). Optional, explicit
   git commit / push from the app exists (see *History and drafts*); nothing is ever sent on its own.
 - No block references, embeds, or `[[Note#Section]]` links (consider later).
@@ -40,6 +41,7 @@ my-novel/
 ├── .snapshots/               # verbatim copies of scenes, one folder per scene (History)
 ├── .comments/                # author notes anchored to passages, one JSON file per scene
 ├── research/                 # plain Markdown research notes (any subfolders; not entities)
+├── exports/                  # files written by Export (author's folder; add to .gitignore if unwanted)
 ├── .assistant/chats/         # saved assistant conversations, one JSON file per chat
 └── entities/
     ├── characters/
@@ -214,10 +216,11 @@ rejection — the author explicitly wants a lightweight version.*
 *From vault "The Manuscript Organizer and Printer.md".*
 
 - **Manuscript ordering in the main screen**: promote drag-reorder of the scene list (with confirm) from deferred. ✅ in the desktop GUI (corkboard cards and outline rows; see *Manuscript structure*); the terminal keeps *Move up / down*.
-- **LaTeX export**: combine the manuscript into a template and produce a PDF:
-  - **Book layout** — scenes as chapters, beautifully typeset
-  - **Manuscript review layout** — double-spaced, line-numbered, for printing/red-pen review
-  - Template system so more layouts can be added
+- **Export** ✅ (implemented on branch `export`, 2026-10-01; plan: docs/plan-export.md; see *Export* below).
+  The original wording said LaTeX. **Decision:** no TeX is installed on the author's machine, so PDF
+  is typeset with ReportLab and DOCX / EPUB go through pandoc; a LaTeX *source* file is still
+  available (pandoc `.tex`) for authors who have TeX elsewhere. The template system is a package of
+  small layout modules (`core/export/layouts/`), so more layouts can be added.
 
 ### M8 — Beyond novels (exploratory)
 
@@ -486,6 +489,63 @@ open and behave exactly as before.*
     `## <date> - <prompt>` with a `**Prompt:**` line, to `research/assistant-notes.md` (created with
     `# Assistant notes`). It is an ordinary research note afterwards, so the Research action can
     find it again. Nothing is sent anywhere.
+
+### Export ✅ (M7, implemented 2026-10-01; plan: docs/plan-export.md)
+
+*The manuscript as a file to print, send or read elsewhere. Read-only: export never changes a scene.*
+
+- **What is in the book** (`core/export/manuscript.py`, `assemble`): the title and author
+  (`project.toml`), the Front Matter part (option, default on), then the unparted scenes and the
+  parts in reading order with their part titles. **Left out:** Unplaced Scenes, the Trash,
+  research, comments, notes, entities, scene details (frontmatter). Per scene: the `# heading` is
+  the title; `[[Name]]` / `[[Name|text]]` become their display text; Markdown `*italic*`,
+  `**bold**`, `***both***` are kept as runs, backticks drop away; a `***` / `---` / `* * *` line is a
+  scene break (drawn as an ornament); `{{expand: ...}}` markers are removed and reported (scene and
+  instruction). **Pending AI drafts** are rejected by default (the original text from the `.drafts`
+  sidecar, like `strip_pending`; a draft whose original is missing is dropped and reported), or
+  accepted as written with *Include pending AI drafts*; either way the dialog says how many scenes
+  have unaccepted drafts. The word count of the result is reported.
+- **Headings:** the `[manuscript] unit` gives "Scene 3" / "Chapter 3"; option `numbering`:
+  `words` ("Scene 3"), `numbers` ("3") or `titles-only`. Numbers run through the book, front matter
+  excluded; parts are "Part I", "Part II" (roman). Option `continuous` runs a part's scenes together
+  with the break ornament and no scene headings or pages.
+- **Formats:** *PDF* with three layouts, *DOCX*, *EPUB* (one file per scene, per part when there
+  are parts, with a title page), *Markdown* (one combined `.md`), *LaTeX source* (pandoc `.tex`).
+  DOCX / EPUB / LaTeX need `pandoc`; without it they are greyed out with "install pandoc". PDF needs
+  ReportLab (`pip install 'lorewrite[export]'`, which also brings `pyphen` for hyphenation).
+  The Markdown given to pandoc is escaped and read with raw HTML / TeX off, so nothing in a scene
+  becomes markup and pandoc has nothing to fetch (pandoc's `--sandbox` stops this pandoc from
+  finding its own templates, so it is not used).
+- **PDF layouts** (`core/export/layouts/`, registry in `layouts/__init__.py`; embedded TrueType
+  fonts: Noto Serif, Liberation Serif / Sans / Mono):
+  - *Book* (default): title page (+ optional copyright / edition line), optional contents with page
+    numbers, part title pages, every scene or chapter on a new page, justified text with
+    hyphenation, first paragraph unindented, running heads (book title on left pages, chapter title
+    on right pages; none on opening pages), page numbers, mirrored margins, bookmarks. Trade 6 x 9 in
+    (default), A5 or US Letter; Noto Serif or Liberation Serif at 11 / 14 pt; curly quotes.
+  - *Manuscript review*: US Letter, 1 inch margins, 12 pt Liberation Serif or Mono, double spaced
+    on a 24 pt grid (27 lines per page), **line numbers** in the left margin restarting on every
+    page, header "Surname / TITLE / page", each chapter a third of the way down its page, `#` for
+    scene breaks, "about 82,000 words" on the title page.
+  - *Plain proof*: A4 (or Letter), Liberation Sans 10.5 pt, 1.5 spacing, left aligned, a page per
+    chapter, title and page number in the foot.
+- **Output:** `<project>/exports/<slug>-<layout or format>-<YYYYMMDD-HHMM>.<ext>`; never overwrites
+  (`-2`, `-3`); written to a temporary `.part` file and renamed, so a failed export leaves
+  nothing. The folder is the author's, not git-ignored. The result reports path, pages (PDF),
+  words, scenes and warnings. If the chosen font is not installed another font of the layout is used
+  and the result says so.
+- **Remembered options** per project in `project.toml` `[export]` (format, layout, page_size, font,
+  numbering, toc, include_front_matter, include_drafts, continuous, copyright).
+- **Desktop:** *Export...* in the project menu (title bar "..."), and in the binder "..." menu: a
+  dialog with format, layout, page size, font, headings, switches and a live summary ("4 scenes,
+  1,502 words, 2 parts; 1 scene has unaccepted AI drafts"). The open scene is saved first; the
+  export runs in a worker thread (`gui/exports.py`: `export_start` / `export_status` polling);
+  then "Saved to exports/..." with **Open file** and **Show folder** (`xdg-open`, only on a click,
+  only for files inside `exports/`).
+- **Terminal:** palette *Action · Export manuscript* (a form: format, layout, page size, headings,
+  switches, copyright line; ctrl+s exports in a worker and the path is shown in a notification) and
+  *Action · Open exports folder*.
+- No AI is involved anywhere in export.
 
 ### Desktop GUI (pywebview + the React design) ✅ (implemented; merged to main 2026-10-01)
 

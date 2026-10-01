@@ -37,6 +37,8 @@ src/lorewrite/
     chats.py            # saved assistant chats: .assistant/chats/<id>.json
     attach.py           # chat attachments (scene/note/research/comments), capped and reported
     stats.py            # writing stats/streak/sprints: Tracker, state dir stats/<project-id>.json
+    export/             # M7: manuscript.py (assemble -> Book), layouts/ (PDF: book, manuscript, plain),
+                        #   pdfkit.py (fonts), markdown.py, pandoc.py, __init__.py (run_export, options)
   ai/
     client.py           # OpenRouter via openai SDK; keyring/env key resolution
     links.py            # alias finder (ctrl+l): prompt, schema, validate (never edits text)
@@ -49,6 +51,7 @@ src/lorewrite/
     devserver.py        # headless: gui/dist + POST /api/<method> (+ --mock-ai)
     mockai.py           # canned AI for screenshots/demos (never the real app)
     app.py              # lorewrite-gui: pywebview window
+    exports.py          # export worker-thread jobs (export_start / export_status)
   tui/                  # everything Textual
     app.py              # LorewriteApp: layout, save, status, actions, AI wiring
     editor.py           # LinkedTextArea — see "fragile spots" below
@@ -56,6 +59,7 @@ src/lorewrite/
     structurescreens.py (part picker, Trash, scene details form)
     spellscreen.py (f6 fix window)
     stylereview.py promptscreen.py tour.py theme.py
+    exportscreen.py (Export manuscript form)
 gui/                    # React/TS front end (see gui/README.md); src-tauri/ is unused
 tests/                  # pytest; asyncio_mode=auto; Pilot for TUI tests
 docs/ux-review-glm.md   # independent UX review (source of the M1.5 polish)
@@ -180,6 +184,19 @@ PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --
   A focus sprint lives in the Tracker (`start_sprint` / `finish_sprint`); the GUI ends it from a client
   timer (`App.tsx`, hooks above the early returns) and the TUI from a 1 s `set_interval`; both save
   first so the last words count. Tests fake time through `Tracker(clock=...)`.
+- **Export** (`core/export/`; SPEC "Export"). Everything goes through `manuscript.assemble` (one model for
+  every writer): never re-read scenes in a writer. It is read-only, skips `_unplaced/`, the Trash,
+  research and scene frontmatter, uses `drafts.reject_all` with the sidecar originals unless
+  `include_drafts`, and reports expand markers. New file formats/layouts: a module in `layouts/`
+  exposing `LAYOUT` and listed in `_REGISTRY`. ReportLab is optional (the `export` extra): import
+  `pdfkit` / layouts only through `layouts` after `reportlab_available()`. Details that bit: set
+  `initialFontName` on the doc and a TOC `tableStyle` font or every PDF references an unembedded
+  Helvetica; the TOC needs `multiBuild`, with bookmark keys reset in `handle_documentBegin`; running
+  heads and page numbers are drawn in `onPageEnd` (page flags are only known after the flowables).
+  The manuscript layout's line numbers assume the 24 pt grid (no paragraph spacing). pandoc input is
+  escaped (`markdown.py`) and read with raw HTML/TeX off. Output names come from `run_export` and are
+  never overwritten; the UI opens files only through `resolve_export` + `open_in_desktop` and only
+  on a click. Tests mock `lorewrite.core.export.open_in_desktop`.
 - **Git sync is explicit** (`core/sync.py`). `status()` is the only call that may run by itself
   (read-only, 5 s timeout, never on the UI thread: TUI worker, GUI debounced bridge call outside
   `self._lock`; `get_workspace` must not call it). `commit` / `push` / `init` run only from a
@@ -304,5 +321,7 @@ Trash, scene details (frontmatter), GUI drag-to-reorder; snapshots, drafts, git 
 collections, comments, research notes, assistant chat history / attach / save to notes.
 **Wave 4** (branch `features`): session stats/streak/daily target and focus sprints (`core/stats.py`), Brainstorm
 (`ai.writing.brainstorm`), research notes go to the Trash (4.4).
+**M7 export** (branch `export`, docs/plan-export.md): PDF book / manuscript review / plain proof (ReportLab),
+DOCX / EPUB / LaTeX (pandoc), Markdown; GUI dialog and terminal form.
 Known concern: user is unconvinced by the command palette as primary UI
 (SPEC §11b) — the GUI is the answer being tried.
