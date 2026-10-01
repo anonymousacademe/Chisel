@@ -26,6 +26,8 @@ from ..ai.client import (
     set_api_key as _set_api_key,
 )
 from ..ai.continuity import check_scene, propose_canon_updates
+from ..ai import images as image_ai
+from ..ai.images import generate as generate_images, suggest_prompt as suggest_image_prompt
 from ..ai.links import alias_form, suggest_links
 from ..ai.style import learn_style
 from ..ai.usage import LEDGER
@@ -65,6 +67,7 @@ from ..core.style import (
 )
 from ..core.recents import add_recent, load_recents
 from ..core.style import style_path
+from . import inspiration as insp_api
 from . import workspace as ws
 
 
@@ -961,6 +964,91 @@ class Api:
             self.reload_entities()
             return {}
 
+    # -- inspiration images (core.inspiration, ai.images) ---------------------------------
+    # Reference pictures kept beside the writing; never inserted into prose. Thin wrappers:
+    # the work is in gui/inspiration.py. Generation is the slow call: lock released.
+
+    @bridge
+    def list_inspiration(self) -> dict:
+        with self._lock:
+            return insp_api.listing(self._require())
+
+    @bridge
+    def inspiration_image(self, image_id: str) -> dict:
+        """The picture as a data URL (only files inside inspiration/)."""
+        with self._lock:
+            return {"dataUrl": insp_api.data_url(self._require(), image_id)}
+
+    @bridge
+    def describe_scene(self, doc_id: str, text: str | None = None, cursor: int = 0) -> dict:
+        """**Describe this scene**: a visual prompt from the passage around the cursor and the
+        place/character notes. The author edits it; nothing is generated or saved."""
+        with self._lock:
+            inp = self._scene_inputs(doc_id, text)
+            context = image_ai.scene_context(
+                inp["text"], from_utf16(inp["text"], cursor), inp["entities"],
+                canon_map(inp["entities"]), inp["originals"])
+            model = resolve_model("fast", inp["project"].meta)
+            calls = LEDGER.count()
+        prompt = suggest_image_prompt(context, model)
+        return {"prompt": prompt, "model": model, "cost": self._spent(calls)}
+
+    @bridge
+    def generate_inspiration(self, prompt: str, doc_id: str | None = None, pin: bool = False) -> dict:
+        """Make pictures for *prompt* and save them (linked to the scene *doc_id*, pinned
+        to it when *pin*). Costs about $0.03 per picture; returns the new rows."""
+        with self._lock:
+            project = self._require()
+            scene = ws.rel_id(project, self._scene_path(doc_id)) if doc_id else ""
+            model = resolve_model("image", project.meta)
+            style = image_ai.style_suffix()
+            calls = LEDGER.count()
+        prompt = " ".join((prompt or "").split())
+        if not prompt:
+            raise ValueError("describe the picture first")
+        pictures = generate_images(prompt, model, style=style)
+        cost = self._spent(calls)
+        with self._lock:
+            return insp_api.save_pictures(self._require(), pictures, prompt, model, scene,
+                                          bool(pin) and bool(scene), cost)
+
+    @bridge
+    def regenerate_inspiration(self, image_id: str) -> dict:
+        """Another picture from the same prompt and scene (the old one stays)."""
+        with self._lock:
+            project = self._require()
+            old = insp_api.get(project, image_id)
+            model = resolve_model("image", project.meta)
+            style = image_ai.style_suffix()
+            calls = LEDGER.count()
+        pictures = generate_images(old.prompt, model, style=style)
+        cost = self._spent(calls)
+        with self._lock:
+            return insp_api.save_pictures(self._require(), pictures, old.prompt, model, old.scene,
+                                          False, cost)
+
+    @bridge
+    def update_inspiration(self, image_id: str, fields: dict) -> dict:
+        """Pin / unpin (`pinned`, with `scene` = a scene id to pin to), `title`, `notes`."""
+        with self._lock:
+            project = self._require()
+            return {"image": insp_api.update(project, image_id, fields, self._scene_path)}
+
+    @bridge
+    def delete_inspiration(self, image_id: str) -> dict:
+        """Move the picture to the Trash (the UI confirms first)."""
+        with self._lock:
+            self._require().trash_inspiration(image_id)
+            return {}
+
+    @bridge
+    def reveal_inspiration(self, image_id: str) -> dict:
+        """Show the file in the system file manager (real window only; always returns the path)."""
+        with self._lock:
+            path = insp_api.get(self._require(), image_id).path
+        opened = self._window is not None and insp_api.reveal(path)
+        return {"path": str(path), "opened": bool(opened)}
+
     # -- settings ---------------------------------------------------------------
 
     EDITOR_DEFAULTS = {"zoom": 100, "reflow": True}
@@ -978,7 +1066,7 @@ class Api:
         elif get_api_key():
             source = "keyring"
         models = {}
-        for kind in ("fast", "strong", "writing"):
+        for kind in ("fast", "strong", "writing", "image"):
             key = f"{kind}_model"
             models[kind] = {
                 "value": user_settings.get(key) or "",       # what the user chose ("" = default)
@@ -990,13 +1078,15 @@ class Api:
         return {"hasKey": source != "none", "keySource": source, "models": models, "editor": editor,
                 "spellcheck": self.spellcheck_enabled(),
                 "autoSnapshot": snapshots.auto_enabled(),
+                "imageStyle": image_ai.style_suffix(), "imageStyleDefault": image_ai.DEFAULT_STYLE,
                 "dailyTarget": writing_stats.get_target()}
 
     @bridge
     def set_settings(self, models: dict | None = None, editor: dict | None = None,
                      spellcheck: bool | None = None,
                      auto_snapshot: bool | None = None,
-                     daily_target: int | None = None) -> dict:
+                     daily_target: int | None = None,
+                     image_style: str | None = None) -> dict:
         """Save model choices ("" resets to the default), GUI editor prefs and
         the spell-check toggle (shared with the TUI)."""
         with self._lock:
@@ -1021,6 +1111,8 @@ class Api:
                 user_settings.set("auto_snapshot", bool(auto_snapshot))
             if daily_target is not None:
                 writing_stats.set_target(int(daily_target))
+            if image_style is not None:
+                user_settings.set(image_ai.SETTING_STYLE, " ".join(str(image_style).split())[:image_ai.STYLE_MAX])
         return {}
 
     @bridge
@@ -1045,13 +1137,16 @@ class Api:
             "still set in the environment." if env else "")}
 
     @bridge
-    def list_models(self, structured_only: bool = True) -> dict:
+    def list_models(self, structured_only: bool = True, modality: str | None = None) -> dict:
         """The OpenRouter model catalog (public, needs network). Structured-output
-        models only for the fast/strong pickers; the whole catalog for writing."""
-        models = _list_models(structured_only=structured_only)
+        models only for the fast/strong pickers; the whole catalog for writing;
+        `modality="image"` (with structured_only false) lists image-output models."""
+        models = _list_models(structured_only=structured_only,
+                              **({"output_modality": modality} if modality else {}))
         return {"models": [{
             "id": m.id, "name": m.name, "promptPerM": m.prompt_per_m,
             "completionPerM": m.completion_per_m, "context": m.context_length,
+            "imagePrice": m.image_price,
         } for m in models]}
 
     # -- AI ---------------------------------------------------------------------
@@ -1089,7 +1184,7 @@ class Api:
         meta = project.meta if project else None
         return {
             "hasKey": bool(get_api_key()),
-            "models": {k: resolve_model(k, meta) for k in ("fast", "strong", "writing")},
+            "models": {k: resolve_model(k, meta) for k in ("fast", "strong", "writing", "image")},
         }
 
     @bridge

@@ -163,6 +163,19 @@ def generate(prompt: str, model: str, client=None, style: str | None = None) -> 
     return images
 
 
+def scene_context(scene_text: str, cursor_offset: int, entities, canon_by_name: dict[str, str],
+                  originals: dict[str, str] | None = None) -> str:
+    """What **Describe this scene** sends: the passage around the cursor, the notes
+    of the places and characters it mentions and the scene's details (POV, place).
+    No style guide (the picture has no prose voice). Pending AI drafts are stripped."""
+    from .writing import CURSOR, build_context
+
+    context = build_context(scene_text, cursor_offset, entities, canon_by_name, None,
+                            originals=originals)
+    return context.replace(f"SCENE (the new text goes at {CURSOR}):",
+                           f"PASSAGE (picture the setting around {CURSOR}):")
+
+
 def build_description_request(context: str) -> str:
     return f"{context}\n\nWrite the image prompt for the setting around <<CURSOR>>."
 

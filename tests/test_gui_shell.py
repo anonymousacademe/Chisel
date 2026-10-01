@@ -96,7 +96,8 @@ def test_mock_ai_matches_the_real_call_signatures(tmp_path, monkeypatch):
     import inspect
 
     names = ("suggest_links", "check_scene", "propose_canon_updates",
-             "learn_style", "generate_text", "ask_writer", "research_writer", "brainstorm_writer")
+             "learn_style", "generate_text", "ask_writer", "research_writer", "brainstorm_writer",
+             "generate_images", "suggest_image_prompt")
     real = {n: getattr(api_module, n) for n in names}
     for name in names:
         monkeypatch.setattr(api_module, name, real[name])

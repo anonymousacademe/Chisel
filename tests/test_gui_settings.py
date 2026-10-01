@@ -96,7 +96,7 @@ def test_list_models_filters_by_structured_outputs(tmp_path, monkeypatch):
 
     monkeypatch.setattr(api_module, "_list_models", fake)
     r = api.list_models(True)
-    assert r["models"] == [{"id": "a/b", "name": "A B", "promptPerM": 1.0, "completionPerM": 2.0, "context": 8000}]
+    assert r["models"] == [{"id": "a/b", "name": "A B", "promptPerM": 1.0, "completionPerM": 2.0, "context": 8000, "imagePrice": None}]
     api.list_models(False)
     assert seen == [True, False]
     monkeypatch.setattr(api_module, "_list_models", lambda **k: (_ for _ in ()).throw(OSError("offline")))
