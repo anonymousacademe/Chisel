@@ -31,6 +31,7 @@ src/lorewrite/
     style.py            # style.md (project root): load/save/backup, manuscript sampling
     drafts.py           # pending AI text markers (<!--ai-->), expand markers
     spelling.py         # spell check: check/suggestions, accepted terms, dictionary files
+    collections.py      # collections: definitions in project.toml, membership in scene frontmatter
   ai/
     client.py           # OpenRouter via openai SDK; keyring/env key resolution
     links.py            # alias finder (ctrl+l): prompt, schema, validate (never edits text)
@@ -130,6 +131,12 @@ PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --
   (restore, accept/reject-all) call `snapshots.create` with the editor buffer first; the daily
   auto snapshot (`ensure_daily`, setting `auto_snapshot`) runs in both save paths *before* the
   write and must never block a save. `snapshots._daily_done` is a per-process cache — tests clear it.
+- **Collections** (`core/collections.py`). Membership is scene frontmatter, so a rename or delete
+  rewrites many files: the GUI flushes the open scene first and reopens it when its id is in the
+  bridge's `changed`; the TUI re-reads its buffer (`_collection_op`; never `open_file`, which
+  saves the stale buffer over the rewritten file). `Collection.declared` false = used by scenes
+  but not in `project.toml`; never hide those. Collection names in TOML keys are written with
+  `json.dumps` (valid TOML basic strings).
 - **Git sync is explicit** (`core/sync.py`). `status()` is the only call that may run by itself
   (read-only, 5 s timeout, never on the UI thread: TUI worker, GUI debounced bridge call outside
   `self._lock`; `get_workspace` must not call it). `commit` / `push` / `init` run only from a

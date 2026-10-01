@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 from tests.gui_helpers import make_book, make_project
+from lorewrite.core import collections as coll
 from lorewrite.gui import workspace as ws
 
 FIXTURE = Path(__file__).resolve().parents[1] / "gui/src/data/fixtures/workspace.json"
@@ -61,8 +62,11 @@ def test_workspace_with_parts_matches_fixture(tmp_path):
     unplaced scene and one trashed), shared with the vitest suite."""
     project = make_book(tmp_path / "p")
     rain = project.manuscript_dir / "01-the-recall" / "01-rain.md"
-    rain.write_text("---\npov: Mara Vale\nplace: Lower Meridian\nstatus: revising\ntarget: 2400\n---\n"
+    rain.write_text("---\npov: Mara Vale\nplace: Lower Meridian\nstatus: revising\ntarget: 2400\n"
+                    "collections: [Needs continuity pass]\n---\n"
                     "# Rain\n\nrain rain rain\n", encoding="utf-8")
+    coll.create(project, "Needs continuity pass", "amber")
+    coll.create(project, "Mara's arc", "violet")
     project.unplace_scene(project.manuscript_dir / "01-the-recall" / "02-capsule.md")
     project.delete_scene(project.manuscript_dir / "02-ghost" / "01-signal.md")
     built = ws.build_workspace(project, project.load_entities(),

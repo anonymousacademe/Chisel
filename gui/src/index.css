@@ -545,3 +545,18 @@ button.lw-picklist__row:hover { border-color: var(--lw-accent); background: var(
 .lw-diff__text del { background: rgba(227, 106, 120, 0.22); color: var(--lw-text-strong); text-decoration: line-through; border-radius: 2px; }
 .lw-diff__text ins { background: rgba(110, 200, 140, 0.22); color: var(--lw-text-strong); text-decoration: none; border-radius: 2px; }
 .lw-dialog--wide:has(.lw-diff) { width: min(1040px, 92vw); }
+
+/* collections (Wave 3.1) */
+.lw-collections { max-height: 40%; overflow-y: auto; }
+.lw-collections__row { width: 100%; padding: 0 4px; text-align: left; }
+.lw-collections__row.is-active { background: var(--lw-accent-soft); }
+.lw-collections__row.is-active .lw-collections__title { color: var(--lw-accent-text); }
+.lw-collections__name { font-size: 12px; color: var(--lw-text-strong); text-align: left; }
+.lw-collections__add { align-items: center; }
+.lw-collections__check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.lw-binder__filter { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 12px 6px; font-size: 11px; color: var(--lw-accent-text); }
+.lw-board-filter { background: var(--lw-bg-panel); border-bottom: 1px solid var(--lw-border); padding: 6px 16px; }
+.lw-swatches { display: inline-flex; gap: 6px; align-items: center; }
+.lw-swatch { width: 14px; height: 14px; border-radius: 999px; border: 2px solid transparent; box-sizing: content-box; opacity: 0.7; }
+.lw-swatch:hover { opacity: 1; }
+.lw-swatch.is-on { opacity: 1; border-color: var(--lw-text-strong); }

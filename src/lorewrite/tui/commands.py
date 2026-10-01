@@ -109,6 +109,8 @@ class ActionProvider(_Provider):
          "Swap with the scene below in its part (renumbers files)"),
         ("Edit details", "edit_details",
          "POV, place, purpose, status and word target (stored in the scene's frontmatter)"),
+        ("Collections", "open_collections",
+         "Tick the open scene's collections; add, rename, recolour or delete them (sidebar filter: #name)"),
         ("Snapshots", "open_snapshots",
          "List, compare, restore or delete snapshots of the open scene"),
         ("Snapshot scene", "snapshot_scene_prompt",
@@ -178,7 +180,7 @@ class ActionProvider(_Provider):
     ]
 
     #: actions listed under another category than "Action"
-    CATEGORY = {"edit_details": "Scene", "open_snapshots": "Scene",
+    CATEGORY = {"edit_details": "Scene", "open_snapshots": "Scene", "open_collections": "Scene",
                 "snapshot_scene_prompt": "Scene"}
 
     def _entries(self):

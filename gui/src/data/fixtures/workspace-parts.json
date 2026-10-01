@@ -163,7 +163,9 @@
         "purpose": "",
         "status": "revising",
         "target": 2400,
-        "collections": []
+        "collections": [
+          "Needs continuity pass"
+        ]
       }
     },
     {
@@ -210,6 +212,24 @@
       "title": "Ghost",
       "frontMatter": false,
       "words": 0,
+      "sceneIds": []
+    }
+  ],
+  "collections": [
+    {
+      "name": "Needs continuity pass",
+      "color": "amber",
+      "declared": true,
+      "count": 1,
+      "sceneIds": [
+        "manuscript/01-the-recall/01-rain.md"
+      ]
+    },
+    {
+      "name": "Mara's arc",
+      "color": "violet",
+      "declared": true,
+      "count": 0,
       "sceneIds": []
     }
   ],

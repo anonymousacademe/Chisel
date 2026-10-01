@@ -13,7 +13,7 @@ const ws = fixture as unknown as Workspace;
 
 describe("workspace fixture (shape shared with Python)", () => {
   it("has the top-level keys the UI reads", () => {
-    expect(Object.keys(ws).sort()).toEqual(["binder", "entities", "parts", "project", "scenes", "status"]);
+    expect(Object.keys(ws).sort()).toEqual(["binder", "collections", "entities", "parts", "project", "scenes", "status"]);
     expect(ws.status).toMatchObject({ projectWords: expect.any(Number), hasStyle: false });
   });
 

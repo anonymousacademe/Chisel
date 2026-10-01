@@ -5,6 +5,17 @@ import { kickerOf, wordsLabel } from "../data/sceneFacts";
 import { planMove, type Drop, type Group, type MovePlan } from "../data/reorder";
 import { Icon } from "./primitives";
 
+export interface BoardFilter { name: string; ids: ReadonlySet<string>; onClear: () => void }
+
+function FilterBar({ filter }: { filter: BoardFilter }) {
+  return (
+    <div className="lw-binder__filter lw-board-filter">
+      <span>Only “{filter.name}” · {filter.ids.size}</span>
+      <button className="lw-link" onClick={filter.onClear}>Show all</button>
+    </div>
+  );
+}
+
 /** Status, POV and words/target of a scene on a card or outline row. */
 function Facts({ s }: { s: SceneSummary }) {
   const d = s.details;
@@ -48,19 +59,22 @@ function useReorder(groups: Group[], onMove: (plan: MovePlan) => void) {
   return { dragId, over, accept, drop, dragProps };
 }
 
-export function Corkboard({ groups, activeId, unit, onOpen, onMove }: {
-  groups: Group[]; activeId: string | null; unit: string; onOpen: (id: string) => void; onMove: (plan: MovePlan) => void;
+export function Corkboard({ groups, filter, activeId, unit, onOpen, onMove }: {
+  groups: Group[]; /** Collection filter: only its scenes are drawn; `groups` stays whole so drops still plan against the real order. */ filter?: BoardFilter | null; activeId: string | null; unit: string; onOpen: (id: string) => void; onMove: (plan: MovePlan) => void;
 }) {
   const r = useReorder(groups, onMove);
-  const total = groups.reduce((n, g) => n + g.scenes.length, 0);
+  const visible = filter?.ids;
+  const shown = (g: Group) => (visible ? g.scenes.filter((s) => visible.has(s.id)) : g.scenes);
+  const total = groups.reduce((n, g) => n + shown(g).length, 0);
   return (
     <div className="lw-cork-wrap">
+      {filter && <FilterBar filter={filter} />}
       <p className="lw-cork__hint">Drag a card to reorder it, or onto another part. You will be asked to confirm.</p>
-      {groups.map((g) => (
+      {groups.filter((g) => !visible || shown(g).length > 0).map((g) => (
         <section key={g.key} className={`lw-cork-group${g.frontMatter ? " is-muted" : ""}`} aria-label={g.title || "Scenes"}>
-          {g.title && <h3 className="lw-cork-group__title">{g.title}<span className="lw-mono lw-faint">{g.scenes.length}</span></h3>}
+          {g.title && <h3 className="lw-cork-group__title">{g.title}<span className="lw-mono lw-faint">{shown(g).length}</span></h3>}
           <div className="lw-cork">
-            {g.scenes.map((s) => (
+            {shown(g).map((s) => (
               <button key={s.id} {...r.dragProps(s.id)} data-scene={s.id}
                 className={`lw-card${s.id === activeId ? " is-active" : ""}${r.dragId === s.id ? " is-dragging" : ""}${r.over === `before:${s.id}` ? " is-over" : ""}`}
                 onClick={() => onOpen(s.id)}
@@ -85,18 +99,21 @@ export function Corkboard({ groups, activeId, unit, onOpen, onMove }: {
   );
 }
 
-export function Outline({ groups, activeId, unit, onOpen, onMove }: {
-  groups: Group[]; activeId: string | null; unit: string; onOpen: (id: string) => void; onMove: (plan: MovePlan) => void;
+export function Outline({ groups, filter, activeId, unit, onOpen, onMove }: {
+  groups: Group[]; /** Collection filter: only its scenes are drawn; `groups` stays whole so drops still plan against the real order. */ filter?: BoardFilter | null; activeId: string | null; unit: string; onOpen: (id: string) => void; onMove: (plan: MovePlan) => void;
 }) {
   const r = useReorder(groups, onMove);
-  const total = groups.reduce((n, g) => n + g.scenes.length, 0);
+  const visible = filter?.ids;
+  const shown = (g: Group) => (visible ? g.scenes.filter((s) => visible.has(s.id)) : g.scenes);
+  const total = groups.reduce((n, g) => n + shown(g).length, 0);
   return (
     <div className="lw-outline-wrap">
-      {groups.map((g) => (
+      {filter && <FilterBar filter={filter} />}
+      {groups.filter((g) => !visible || shown(g).length > 0).map((g) => (
         <section key={g.key} className={`lw-outline-group${g.frontMatter ? " is-muted" : ""}`} aria-label={g.title || "Scenes"}>
-          {g.title && <h3 className="lw-cork-group__title">{g.title}<span className="lw-mono lw-faint">{g.scenes.length}</span></h3>}
+          {g.title && <h3 className="lw-cork-group__title">{g.title}<span className="lw-mono lw-faint">{shown(g).length}</span></h3>}
           <ol className="lw-outline">
-            {g.scenes.map((s) => (
+            {shown(g).map((s) => (
               <li key={s.id} data-scene={s.id} className={`${r.dragId === s.id ? "is-dragging" : ""}${r.over === `before:${s.id}` ? " is-over" : ""}`}
                 onDragOver={(e) => r.accept(e, `before:${s.id}`)} onDrop={(e) => r.drop(e, { kind: "before", sceneId: s.id })}>
                 <div className="lw-outline__row">

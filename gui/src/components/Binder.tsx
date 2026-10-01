@@ -3,8 +3,9 @@ import {
   FilePenLine, Users, Globe2, BookMarked, Inbox, Trash2, ScrollText, SpellCheck, type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
-import type { BinderNode } from "../data/types";
-import { allIds, filterTree, isActionable, isOpenable } from "../data/tree";
+import type { BinderNode, CollectionSummary } from "../data/types";
+import { allIds, filterByIds, filterTree, isActionable, isOpenable } from "../data/tree";
+import { memberIds, swatchVar } from "../data/collections";
 import { Icon, IconButton, SectionLabel } from "./primitives";
 import { placeholderProps } from "./placeholder";
 
@@ -67,8 +68,11 @@ function Row({ node, depth, activeId, focusId, expanded, onToggle, onSelect }: {
 
 const LIBRARY_KINDS = new Set(["characters", "world", "style", "dictionary"]);
 
-export function Binder({ nodes, count, activeId, focusId, unit, expanded, onToggle, onSelect, onNew, onMenu, searching, library, canNew, canMenu }: {
+export function Binder({ nodes, count, activeId, focusId, unit, expanded, onToggle, onSelect, onNew, onMenu, searching, library, canNew, canMenu, collections, activeCollection, onCollection, onEditCollections }: {
   searching: boolean; library: boolean; canNew: boolean; canMenu: boolean;
+  collections: CollectionSummary[]; activeCollection: string | null;
+  /** Click a collection to show only its scenes; click it again (or Show all) to clear. */
+  onCollection: (name: string | null) => void; onEditCollections: () => void;
   nodes: BinderNode[]; count: number; activeId: string | null;
   /** The part folder last clicked: part actions in the menu apply to it. */
   focusId: string | null; unit: string;
@@ -77,9 +81,11 @@ export function Binder({ nodes, count, activeId, focusId, unit, expanded, onTogg
 }) {
   const [query, setQuery] = useState("");
   const q = searching ? query.trim().toLowerCase() : "";
-  const base = library ? nodes.filter((n) => LIBRARY_KINDS.has(n.kind)) : nodes;
+  const members = library ? null : memberIds(collections, activeCollection);
+  const all = library ? nodes.filter((n) => LIBRARY_KINDS.has(n.kind)) : nodes;
+  const base = members ? filterByIds(all, members) : all;
   const shown = q ? filterTree(base, q) : base;
-  const open = q ? allIds(shown) : library ? new Set([...expanded, ...allIds(base)]) : expanded;
+  const open = q || members ? allIds(shown) : library ? new Set([...expanded, ...allIds(base)]) : expanded;
   return (
     <aside className="lw-binder" aria-label={library ? "Library" : "Manuscript binder"}>
       <div className="lw-binder__header">
@@ -98,6 +104,12 @@ export function Binder({ nodes, count, activeId, focusId, unit, expanded, onTogg
           <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter binder…" aria-label="Filter binder" />
         </div>
       )}
+      {members && (
+        <div className="lw-binder__filter">
+          <span>Only “{activeCollection}” · {members.size}</span>
+          <button className="lw-link" onClick={() => onCollection(null)}>Show all</button>
+        </div>
+      )}
       <div className="lw-binder__tree" role="tree">
         {shown.map((n) => (
           <Row key={n.id} node={n} depth={0} activeId={activeId} focusId={focusId} expanded={open} onToggle={onToggle} onSelect={onSelect} />
@@ -108,12 +120,16 @@ export function Binder({ nodes, count, activeId, focusId, unit, expanded, onTogg
       <section className="lw-collections">
         <div className="lw-collections__heading">
           <SectionLabel>Collections</SectionLabel>
-          <button className="lw-link" {...placeholderProps}>Edit</button>
+          <button className="lw-link" onClick={onEditCollections}>Edit</button>
         </div>
-        {["Needs continuity pass", "Character arcs"].map((t, i) => (
-          <button key={t} className="lw-collections__row" {...placeholderProps}>
-            <span className="lw-collections__swatch" style={{ background: i ? "var(--lw-accent)" : "var(--lw-warning)" }} />
-            <span className="lw-collections__title">{t}</span>
+        {collections.length === 0 && <p className="lw-empty">No collections yet.</p>}
+        {collections.map((c) => (
+          <button key={c.name} className={`lw-collections__row${c.name === activeCollection ? " is-active" : ""}`} aria-pressed={c.name === activeCollection}
+            title={c.name === activeCollection ? "Show all again" : `Show only the ${unit}s in “${c.name}”`}
+            onClick={() => onCollection(c.name === activeCollection ? null : c.name)}>
+            <span className="lw-collections__swatch" style={{ background: swatchVar(c.color) }} />
+            <span className="lw-collections__title">{c.name}</span>
+            <span className="lw-mono lw-faint">{c.count}</span>
           </button>
         ))}
       </section>

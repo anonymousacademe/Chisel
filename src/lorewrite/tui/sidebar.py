@@ -27,6 +27,8 @@ class Sidebar(Vertical):
         self._scene_paths: list[Path | None] = []  # None for header rows
         self._unit = "scene"
         self._entity_paths: list[Path] = []
+        #: {scene path: collection names}, read only while a "#collection" filter is typed
+        self.collection_source = lambda: {}
 
     def compose(self):
         yield Input(placeholder="filter…", id="filter")
@@ -60,17 +62,24 @@ class Sidebar(Vertical):
         except Exception:
             query = ""
 
-        def matches(title: str) -> bool:
+        by_collection = query.startswith("#")
+        members: dict[Path, list[str]] = self.collection_source() if by_collection else {}
+        wanted = query[1:].strip()
+
+        def matches(title: str, path: Path | None = None) -> bool:
+            if by_collection:  # "#arc" lists the scenes in a collection whose name has "arc"
+                return path is not None and any(
+                    wanted in c.casefold() for c in members.get(path, ()))
             return not query or query in title.casefold()
 
-        entities = [(t, p) for t, p in self._entities if matches(t)]
+        entities = [] if by_collection else [(t, p) for t, p in self._entities if matches(t)]
 
         # with a filter, only matching scenes (and the part headers above them)
         rows: list[tuple[str, str, Path | None]] = []
         pending: tuple[str, str, Path | None] | None = None
         for kind, title, path in self._scenes:
             if kind == "scene":
-                if matches(title):
+                if matches(title, path):
                     if pending is not None:
                         rows.append(pending)
                         pending = None

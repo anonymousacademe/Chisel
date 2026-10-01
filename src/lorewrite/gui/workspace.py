@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from ..core import collections as coll
 from ..core import drafts, scenemeta
 from ..core import entities as ent
 from ..core.continuity import get_canon
@@ -210,6 +211,20 @@ def part_summaries(project: Project, scenes: list[dict]) -> list[dict]:
     return out
 
 
+def collection_summaries(project: Project, scenes: list[dict]) -> list[dict]:
+    """Collections (declared first) with the scenes in each, from the scene
+    summaries already read (no second pass over the files)."""
+    members: dict[str, list[str]] = {}
+    for s in scenes:
+        for name in s["details"]["collections"]:
+            members.setdefault(name, []).append(s["id"])
+    declared = coll.declared(project)
+    rows = [(n, c, True) for n, c in declared.items()]
+    rows += [(n, coll.DEFAULT_COLOR, False) for n in sorted(members) if n not in declared]
+    return [{"name": n, "color": c, "declared": d, "count": len(members.get(n, [])),
+             "sceneIds": members.get(n, [])} for n, c, d in rows]
+
+
 def _placeholder(id: str, title: str, kind: str = "folder", **extra) -> dict:
     return {"id": f"ph:{id}", "title": title, "kind": kind, "placeholder": True,
             "muted": True, **extra}
@@ -325,6 +340,7 @@ def build_workspace(project: Project, entities: list[ent.Entity], *,
         "binder": build_binder(project, scenes, summaries, has_style, parts, trash_count),
         "scenes": scenes,
         "parts": parts,
+        "collections": collection_summaries(project, scenes),
         "entities": summaries,
         "status": {
             "projectWords": project_words,

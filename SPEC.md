@@ -272,7 +272,7 @@ open and behave exactly as before.*
 - **Scene details** are the scene's own YAML frontmatter (Obsidian-compatible), written only
   when the author sets a field (no field, no block; unknown keys such as `tags:` survive):
   `pov`, `place`, `purpose`, `status` (free text; suggested idea / draft / revising / done),
-  `target` (words), and `collections` (reserved for Wave 3). The `# heading` stays the title.
+  `target` (words), and `collections` (Wave 3.1, below). The `# heading` stays the title.
   `core/scenemeta.py` parses, edits and blanks the block. It is **not prose**: excluded from
   word counts, spelling, mention scanning, continuity evidence and style sampling — except that
   a `pov` / `place` value naming an entity counts as a mention (backlinks, retrieved context).
@@ -290,7 +290,7 @@ open and behave exactly as before.*
   (front matter muted, Unplaced last); dropping before a card, or in a group's end strip, asks
   "Move 'Capsule 7-19' to Part II, position 3?"; confirming performs the core move
   (`place_scene`), and the toast offers **Undo** (moves it back to where it was).
-- **Not done / limits.** Collections, comments and Research are later waves (still
+- **Not done / limits.** (Collections, comments and Research arrived in Wave 3, below.) (still
   placeholders). The terminal has no drag. Part folders are not renamed with their title.
 
 ### History and drafts ✅ (Wave 2, implemented 2026-10-01; plan: docs/plan-workspace.md)
@@ -365,6 +365,35 @@ open and behave exactly as before.*
     `style.md` is committed (none is ignored). Errors are git's own words, shown as a notice.
   - Not done: pull / fetch / merge (the status shows `behind` internally but nothing acts on it),
     branches, credentials management, a commit history view.
+
+### Notes around the manuscript (Wave 3, in progress; plan: docs/plan-workspace.md)
+
+*Collections, comments, research and the assistant's conversation history. All plain files
+(§2); nothing here lives only in `.lorewrite/`, and none of it is git-ignored.*
+
+- **Collections** (3.1, `core/collections.py`). Named groups of scenes ("Needs continuity pass",
+  "Mara's arc"). *Definitions* are a `[collections]` table in `project.toml`, name → colour, one of
+  the design's swatch tokens `violet | amber | green | red | gray`
+  (`"Needs continuity pass" = "amber"`). *Membership* is each scene's own frontmatter,
+  `collections: [Needs continuity pass]` (the Wave 1 format), so it travels with the scene and
+  needs no index. A name that scenes use but `project.toml` does not define is still listed (grey,
+  "not defined"; recolouring it defines it): membership is never hidden. Names are matched
+  case-insensitively and stored as defined; at most 60 characters.
+  Operations: create, recolour, rename (rewrites the definition and every member scene's
+  frontmatter), delete (takes the name off every scene after a confirmation; no scene is
+  deleted), tick a scene in or out (`toggle`). The open scene's membership is edited through its
+  editor buffer like the other details (GUI `set_scene_details`, terminal the same
+  `scenemeta.set_details` on the buffer); rename and delete rewrite *other* files, so the GUI
+  flushes the open scene first and reopens it if it changed (`changed` ids from the bridge), and
+  the terminal re-reads its buffer. Unplaced scenes keep their membership; trashed ones are not
+  counted.
+  GUI: the binder's Collections section is real (swatch, name, count); a click filters the
+  binder and the corkboard / outline to the members ("Only “X” · 3 — Show all"; drag-to-reorder
+  still plans against the whole book), **Edit** opens the manager (add with a swatch, click a
+  name to rename, swatches to recolour, trash to delete), and the inspector's **Collections**
+  entry or the scene menu opens a checkbox list for the open scene. Terminal: palette
+  *Scene · Collections* (`space`/`enter` tick, `n` new, `r` rename, `c` next colour, `d` delete) and the
+  sidebar filter accepts `#collection-name` (a part of the name is enough; scenes only).
 
 ### Desktop GUI (pywebview + the React design) ✅ (implemented; merged to main 2026-10-01)
 

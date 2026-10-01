@@ -21,6 +21,7 @@ from ..ai.links import Suggestion, alias_form, suggest_links
 from ..ai.style import learn_style
 from ..ai.usage import LEDGER, format_cost
 from ..ai.writing import build_context, generate
+from ..core import collections as coll
 from ..core import drafts, scenemeta, snapshots, sync
 from ..core import entities as ent
 from ..core import settings as user_settings
@@ -47,6 +48,7 @@ from ..core.style import (
     save_style,
     style_path,
 )
+from .collectionscreens import CollectionsScreen
 from .commands import ActionProvider, EntityProvider, InsertLinkProvider, SceneProvider
 from .continuityscreen import ContinuityScreen, JumpToContradiction, WaiveToggled
 from .editor import LinkedTextArea
@@ -602,6 +604,7 @@ class LorewriteApp(App):
         return rows
 
     def refresh_sidebar(self) -> None:
+        self.sidebar.collection_source = self._scene_collection_names
         self.sidebar.set_scenes(self.sidebar_rows(), self.project.unit)
         self.sidebar.set_entities(
             [(f"{e.name} [{e.type}]", e.path) for e in self.entities if e.path]
@@ -2093,6 +2096,100 @@ class LorewriteApp(App):
             self.notify("Details saved", timeout=1)
 
         self.push_screen(DetailsScreen(self.editor.text, characters, places), _save)
+
+    def _scene_collection_names(self) -> dict[Path, list[str]]:
+        """{scene: its collection names}, for the sidebar's #collection filter."""
+        out: dict[Path, list[str]] = {}
+        for c in coll.list_collections(self.project):
+            for p in c.scenes:
+                out.setdefault(p, []).append(c.name)
+        return out
+
+    def open_collections(self, focus: str | None = None) -> None:
+        """Scene · Collections: tick the open scene's collections; add, rename,
+        recolour or delete them. (Sidebar filter: type #name.)"""
+        self.save_current()
+        path = self._current_scene_path()
+        members = (set(scenemeta.details(self.editor.text)["collections"])
+                   if path is not None else None)
+        items = coll.list_collections(self.project)
+        index = next((i for i, c in enumerate(items) if c.name == focus), 0)
+        title = self.project.scene_title(path) if path is not None else None
+
+        def _act(result) -> None:
+            if result is None:
+                return
+            what, name = result
+            if what == "new":
+                def _create(new: str | None) -> None:
+                    if new:
+                        try:
+                            name = coll.create(self.project, new)
+                        except ValueError as exc:
+                            self.notify(str(exc), severity="warning")
+                            name = None
+                        self.refresh_sidebar()
+                        self.open_collections(name)
+                    else:
+                        self.open_collections()
+
+                self.push_screen(NamePrompt("New collection name:"), _create)
+            elif what == "toggle":
+                names = [n for n in (members or ()) if n != name]
+                if name not in (members or ()):
+                    names.append(name)
+                new = scenemeta.set_details(self.editor.text, collections=names)
+                if new != self.editor.text:
+                    self.editor.load_text(new)  # the buffer owns the file: edit it, then save
+                    self.save_current()
+                    self.editor.refresh_links()
+                self.open_collections(name)
+            elif what == "recolor":
+                found = coll.find(self.project, name)
+                at = coll.COLORS.index(found.color) if found and found.color in coll.COLORS else -1
+                coll.recolor(self.project, name, coll.COLORS[(at + 1) % len(coll.COLORS)])
+                self.open_collections(name)
+            elif what == "rename":
+                def _rename(new: str | None) -> None:
+                    if new:
+                        try:
+                            self._collection_op(lambda: coll.rename(self.project, name, new))
+                            name_after = new
+                        except (ValueError, LookupError) as exc:
+                            self.notify(str(exc), severity="warning")
+                            name_after = name
+                        self.open_collections(name_after)
+                    else:
+                        self.open_collections(name)
+
+                self.push_screen(NamePrompt(f"Rename '{name}' to:"), _rename)
+            elif what == "delete":
+                found = coll.find(self.project, name)
+                count = len(found.scenes) if found else 0
+
+                def _gone(ok: bool) -> None:
+                    if ok:
+                        self._collection_op(lambda: coll.delete(self.project, name))
+                    self.open_collections()
+
+                self.push_screen(ConfirmScreen(
+                    f"Delete the collection '{name}'?\nIt is taken off its {count} "
+                    f"scene{'' if count == 1 else 's'}; no scene is deleted.",
+                    confirm_label="Delete collection"), _gone)
+
+        self.push_screen(CollectionsScreen(items, members, title, index, self.project.unit),
+                         _act)
+
+    def _collection_op(self, run) -> None:
+        """Rename / delete rewrite member scenes on disk: the open one is
+        saved first and re-read afterwards."""
+        self.save_current()
+        changed = run()
+        if self.current_path in changed:  # re-read it; open_file would save the stale buffer over it
+            self.editor.load_text(self.current_path.read_text(encoding="utf-8"))
+            self._dirty = False
+            self.editor.refresh_links()
+        self.refresh_sidebar()
 
     def toggle_unit(self) -> None:
         unit = "chapter" if self.project.unit == "scene" else "scene"

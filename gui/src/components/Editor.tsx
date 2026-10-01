@@ -12,7 +12,7 @@ import type { Span } from "../editor/spans";
 import { titleLine } from "../editor/spans";
 import type { SaveState } from "../editor/saveController";
 import { sceneGroups, type MovePlan } from "../data/reorder";
-import { Corkboard, Outline } from "./Board";
+import { Corkboard, Outline, type BoardFilter } from "./Board";
 
 export type ViewMode = "manuscript" | "corkboard" | "outline";
 
@@ -30,6 +30,10 @@ export function Editor(props: {
   onEditDetails: () => void;
   /** A card or row was dropped somewhere new: the host confirms and moves it. */
   onMoveRequest: (plan: MovePlan) => void;
+  /** Collection filter: only these scenes show on the corkboard and outline. */
+  filter: BoardFilter | null;
+  /** The open scene's collections (inspector) and the dialog that changes them. */
+  onEditCollections: () => void;
   focus: boolean; onFocus: () => void; onOpen: (id: string) => void;
   // editing
   editorRef: RefObject<EditorHandle | null>; docRev: number; spansVersion: number;
@@ -132,26 +136,27 @@ export function Editor(props: {
         )}
 
         {props.mode === "corkboard" && (
-          <Corkboard groups={groups} activeId={doc?.id ?? null} unit={props.unit} onOpen={props.onOpen} onMove={props.onMoveRequest} />
+          <Corkboard groups={groups} filter={props.filter} activeId={doc?.id ?? null} unit={props.unit} onOpen={props.onOpen} onMove={props.onMoveRequest} />
         )}
 
         {props.mode === "outline" && (
-          <Outline groups={groups} activeId={doc?.id ?? null} unit={props.unit} onOpen={props.onOpen} onMove={props.onMoveRequest} />
+          <Outline groups={groups} filter={props.filter} activeId={doc?.id ?? null} unit={props.unit} onOpen={props.onOpen} onMove={props.onMoveRequest} />
         )}
       </div>
 
       <div className="lw-divider" />
       <footer className="lw-inspector">
         {[
-          { label: "Status", value: d?.status || "—", edit: true },
-          { label: "POV / Place", value: [d?.pov, d?.place].filter(Boolean).join(" · ") || "—", edit: true },
-          { label: `${props.unit[0].toUpperCase()}${props.unit.slice(1)} purpose`, value: d?.purpose || "—", edit: true },
+          { label: "Status", value: d?.status || "—", edit: props.onEditDetails },
+          { label: "POV / Place", value: [d?.pov, d?.place].filter(Boolean).join(" · ") || "—", edit: props.onEditDetails },
+          { label: `${props.unit[0].toUpperCase()}${props.unit.slice(1)} purpose`, value: d?.purpose || "—", edit: props.onEditDetails },
+          { label: "Collections", value: d?.collections.join(", ") || "—", edit: props.onEditCollections },
           { label: "Session", value: session, accent: true },
         ].map((m, i) => (
           <Fragment key={m.label}>
             {i > 0 && <span className="lw-inspector__divider" />}
             {m.edit && isScene ? (
-              <button className="lw-metric lw-metric--button" onClick={props.onEditDetails} title="Edit scene details">
+              <button className="lw-metric lw-metric--button" onClick={m.edit} title={m.label === "Collections" ? "Choose this scene's collections" : "Edit scene details"}>
                 <SectionLabel>{m.label}</SectionLabel>
                 <span className="lw-metric__value">{m.value}</span>
               </button>

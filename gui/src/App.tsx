@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./backend/api";
 import type {
-  AliasSuggestion, BinderNode, CanonProposal, ChatMessage, DetailsPatch, DocumentPayload, EntityInfo, EntityType, Issue, Remap, SceneMention, SettingsInfo, StyleStatus, SyncInfo, Workspace,
+  AliasSuggestion, BinderNode, CanonProposal, ChatMessage, CollectionColor, DetailsPatch, DocumentPayload, EntityInfo, EntityType, Issue, Remap, SceneMention, SettingsInfo, StyleStatus, SyncInfo, Workspace,
 } from "./data/types";
 import type { BridgeResult } from "./backend/transport";
 import { anchorDraft } from "./editor/drafts";
@@ -25,6 +25,8 @@ import { QuickSwitcher } from "./components/QuickSwitcher";
 import { ConfirmDialog, Menu, PromptDialog, type MenuItem } from "./components/Dialogs";
 import { DetailsDialog, PartPickerDialog, TrashDialog } from "./components/StructureDialogs";
 import { SnapshotsDialog } from "./components/SnapshotsDialog";
+import { CollectionsManager, SceneCollectionsDialog } from "./components/CollectionDialogs";
+import { memberIds } from "./data/collections";
 import { Toasts, type Notice } from "./components/Toast";
 
 const ZOOMS = [90, 100, 110, 125];
@@ -42,6 +44,8 @@ type Dialog =
   | { kind: "trash" }
   | { kind: "details" }
   | { kind: "snapshots" }
+  | { kind: "collections" }
+  | { kind: "scene-collections" }
   | { kind: "new-draft" }
   | { kind: "sync-commit"; info: Extract<SyncInfo, { repo: true }> }
   | { kind: "sync-push"; info: Extract<SyncInfo, { repo: true }> }
@@ -106,6 +110,7 @@ export default function App() {
   const [spellVersion, setSpellVersion] = useState(0);
   const [spellTarget, setSpellTarget] = useState<SpellTarget | null>(null);
   const [partFocus, setPartFocus] = useState<string | null>(null);
+  const [collection, setCollection] = useState<string | null>(null);
   const noticeId = useRef(0);
   const editorRef = useRef<EditorHandle>(null);
   const focusAfterOpen = useRef(false);
@@ -723,6 +728,29 @@ export default function App() {
     const c = await api.sceneContext(d.id, ed.getText());
     if (c.ok && docRef.current?.id === d.id) setMentions(c.mentions);
   };
+  // -- collections ---------------------------------------------------------------------
+  /** Rename and delete rewrite the member scenes on disk: flush the open one first, reopen it after. */
+  const collectionsCall = async (run: () => Promise<{ ok: true; changed?: string[] } | { ok: false; error: string }>): Promise<boolean> => {
+    if (!(await saver.flush())) { notify("Could not save the current document first.", "error"); return false; }
+    const r = await run();
+    if (!r.ok) { notify(r.error, "error"); return false; }
+    await refresh();
+    const d = docRef.current;
+    if (d && r.changed?.includes(d.id)) await openDoc(d.id, { force: true, keepMode: true });
+    return true;
+  };
+  const createCollection = (name: string, color: CollectionColor) => collectionsCall(() => api.createCollection(name, color));
+  const recolorCollection = (name: string, color: CollectionColor) => collectionsCall(() => api.recolorCollection(name, color));
+  const renameCollection = async (name: string, to: string) => {
+    const ok = await collectionsCall(() => api.renameCollection(name, to));
+    if (ok && collection === name) setCollection(to);
+    return ok;
+  };
+  const deleteCollection = async (name: string) => {
+    const ok = await collectionsCall(() => api.deleteCollection(name));
+    if (ok && collection === name) setCollection(null);
+    return ok;
+  };
   const openHistory = () => {
     if (docRef.current?.kind !== "scene") return notify(`Open a ${unit} to see its history.`);
     setDialog({ kind: "snapshots" });
@@ -791,6 +819,8 @@ export default function App() {
     if (!r.ok) { notify(r.error, "error"); return refreshSync(true); }
     syncDone(r, "This folder is now a git repository. Nothing is committed yet.");
   };
+  const activeCollection = ws.collections.some((c) => c.name === collection) ? collection : null;
+  const boardFilter = activeCollection ? { name: activeCollection, ids: memberIds(ws.collections, activeCollection)!, onClear: () => setCollection(null) } : null;
   const part = ws.parts.find((p) => p.id === (partFocus ?? doc?.partId)) ?? null;
   const openSceneMenu = (anchor: HTMLElement) => setMenu({
     anchor, items: [
@@ -803,6 +833,7 @@ export default function App() {
       doc?.unplaced
         ? { label: "Place in the book…", onSelect: () => doc && setDialog({ kind: "pick-part", sceneId: doc.id, unplaced: true }) }
         : { label: "Move to Unplaced Scenes", disabled: !isScene, onSelect: () => doc && void placeScene(doc.id, null, null, true).then((r) => r && notify("Moved to Unplaced Scenes. It no longer counts in the book.")) },
+      { label: "Collections…", disabled: !isScene, onSelect: () => setDialog({ kind: "scene-collections" }) },
       { label: "History (snapshots)…", disabled: !isScene, onSelect: openHistory },
       { label: `Delete ${unit}…`, disabled: !isScene, danger: true, onSelect: () => setDialog({ kind: "delete" }) },
       { label: "parts", separator: true, onSelect: () => {} },
@@ -831,9 +862,11 @@ export default function App() {
           <Binder nodes={ws.binder} count={ws.project.documentCount} activeId={doc?.id ?? null} focusId={part?.id ?? null} unit={unit}
             expanded={expanded} onToggle={toggle} onSelect={(n) => void select(n)} searching={rail === "search"}
             library={rail === "library"} canNew canMenu={rail !== "library"}
+            collections={ws.collections} activeCollection={activeCollection} onCollection={setCollection} onEditCollections={() => setDialog({ kind: "collections" })}
             onNew={() => setDialog(rail === "library" ? { kind: "new-note", name: "", openAfter: true } : { kind: "new-scene" })} onMenu={openSceneMenu} />
         )}
-        <Editor doc={doc} scenes={ws.scenes} parts={ws.parts} unit={unit} words={words} mentions={mentions} reflow={reflow}
+        <Editor doc={doc} scenes={ws.scenes} filter={boardFilter}
+          onEditCollections={() => setDialog({ kind: "scene-collections" })} parts={ws.parts} unit={unit} words={words} mentions={mentions} reflow={reflow}
           sessionWords={ws.status.sessionWords} sessionMinutes={ws.status.sessionMinutes}
           onEditDetails={() => setDialog({ kind: "details" })} onMoveRequest={(plan) => setDialog({ kind: "move", plan })}
           mode={mode} onMode={setMode} focus={focus} onFocus={() => setFocus((f) => !f)} onOpen={(id) => void openDoc(id)}
@@ -962,6 +995,15 @@ export default function App() {
         <ConfirmDialog title="Initialize git" confirm="Initialize" tone="primary"
           message={<>Turn this project folder into a git repository? A <code>.gitignore</code> hides the rebuildable index cache (<code>.lorewrite/</code>). Nothing is committed or pushed.</>}
           onConfirm={() => void syncInit()} onClose={() => setDialog(null)} />
+      )}
+      {dialog?.kind === "collections" && (
+        <CollectionsManager collections={ws.collections} unit={unit} onCreate={createCollection} onRecolor={recolorCollection}
+          onRename={renameCollection} onDelete={deleteCollection} onClose={() => setDialog(null)} />
+      )}
+      {dialog?.kind === "scene-collections" && doc?.kind === "scene" && doc.details && (
+        <SceneCollectionsDialog collections={ws.collections} current={doc.details.collections} title={doc.title}
+          onSave={(names) => void saveDetails({ collections: names })}
+          onManage={() => setDialog({ kind: "collections" })} onClose={() => setDialog(null)} />
       )}
       {dialog?.kind === "details" && doc?.kind === "scene" && doc.details && (
         <DetailsDialog details={doc.details} entities={ws.entities} unit={unit}

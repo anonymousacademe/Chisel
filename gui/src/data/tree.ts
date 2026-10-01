@@ -35,3 +35,13 @@ export function allIds(nodes: BinderNode[], out = new Set<string>()) {
 }
 
 export const fmt = (n: number) => n.toLocaleString("en-US");
+
+/** Keep only the documents whose id is in *ids* (and the folders that still hold one). */
+export function filterByIds(nodes: BinderNode[], ids: ReadonlySet<string>): BinderNode[] {
+  return nodes.flatMap((n) => {
+    if (n.kind === "document") return ids.has(n.id) ? [n] : [];
+    if (!n.children) return [];
+    const kids = filterByIds(n.children, ids);
+    return kids.length ? [{ ...n, children: kids }] : [];
+  });
+}

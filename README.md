@@ -49,6 +49,10 @@ design and roadmap.
 - **Drafts**: *Start new draft* snapshots the whole book as "end of draft N" and counts
   up (`[manuscript] draft = N` in `project.toml`); the desktop title bar and both status bars
   show "Draft N".
+- **Collections** ("Needs continuity pass", "Mara's arc"): group scenes however you like;
+  definitions and colours live in `project.toml` `[collections]`, membership in each scene's
+  frontmatter. Click one in the desktop binder to see only its scenes (binder, corkboard,
+  outline); in the terminal use *Scene · Collections* and the `#name` sidebar filter.
 - **Scene details** (POV, place, purpose, status, word target) are the scene's own
   YAML frontmatter — Obsidian-compatible, written only when you set a field, and
   never counted as prose, spell-checked, or sent to the AI as text (the AI does get

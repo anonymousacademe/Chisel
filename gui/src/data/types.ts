@@ -52,6 +52,15 @@ export interface PartSummary {
 
 export type Unit = "scene" | "chapter";
 
+/** The design's swatch tokens (core/collections.py COLORS). */
+export type CollectionColor = "violet" | "amber" | "green" | "red" | "gray";
+/** A named group of scenes; membership is each scene's own frontmatter. */
+export interface CollectionSummary {
+  name: string; color: CollectionColor;
+  /** false = scenes use the name but project.toml does not define it (grey until recoloured). */
+  declared: boolean; count: number; sceneIds: string[];
+}
+
 export type EntityType = "character" | "place" | "object" | "faction";
 
 export interface EntitySummary {
@@ -106,6 +115,7 @@ export interface Workspace {
   binder: BinderNode[];
   scenes: SceneSummary[];
   parts: PartSummary[];
+  collections: CollectionSummary[];
   entities: EntitySummary[];
   status: {
     projectWords: number;

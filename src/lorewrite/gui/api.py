@@ -35,6 +35,7 @@ from ..ai.writing import (
     build_project_context,
     generate as generate_text,
 )
+from ..core import collections as coll
 from ..core import drafts, scenemeta, snapshots, sync
 from ..core import settings as user_settings
 from ..core import spelling
@@ -750,6 +751,49 @@ class Api:
                 "details": scenemeta.details(new),
                 "bodyStart": index_to_utf16(new, new_end),
             }
+
+    # -- collections ----------------------------------------------------------------
+    # Definitions: project.toml [collections]. Membership: each scene's frontmatter, which a
+    # scene's own editor changes through set_scene_details (fields={"collections": [...]}); the
+    # calls below rewrite the other scenes' files, so the client flushes first and reopens after.
+
+    def _collections_payload(self) -> dict:
+        project = self._require()
+        return {"collections": ws.collection_summaries(project, ws.scene_summaries(project))}
+
+    def _ids(self, paths) -> list[str]:
+        project = self._require()
+        return [ws.rel_id(project, p) for p in paths]
+
+    @bridge
+    def list_collections(self) -> dict:
+        with self._lock:
+            return self._collections_payload()
+
+    @bridge
+    def create_collection(self, name: str, color: str = "violet") -> dict:
+        with self._lock:
+            coll.create(self._require(), name, color)
+            return self._collections_payload()
+
+    @bridge
+    def recolor_collection(self, name: str, color: str) -> dict:
+        with self._lock:
+            coll.recolor(self._require(), name, color)
+            return self._collections_payload()
+
+    @bridge
+    def rename_collection(self, name: str, new_name: str) -> dict:
+        with self._lock:
+            changed = coll.rename(self._require(), name, new_name)
+            return {**self._collections_payload(), "changed": self._ids(changed)}
+
+    @bridge
+    def delete_collection(self, name: str) -> dict:
+        """Remove the collection and its membership from every scene (no scene is deleted)."""
+        with self._lock:
+            changed = coll.delete(self._require(), name)
+            return {**self._collections_payload(), "changed": self._ids(changed)}
 
     @bridge
     def set_unit(self, unit: str) -> dict:

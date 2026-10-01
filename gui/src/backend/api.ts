@@ -1,6 +1,6 @@
 import type { Misspelling, Span } from "../editor/spans";
 import type {
-  AliasSuggestion, CanonProposal, DiffSegment, SnapshotRow, SyncInfo, DetailsPatch, DocumentPayload, Remap, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
+  AliasSuggestion, CanonProposal, CollectionColor, CollectionSummary, DiffSegment, SnapshotRow, SyncInfo, DetailsPatch, DocumentPayload, Remap, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
   Issue, ModelKind, ModelOption, RecentProject, SceneMention, SettingsInfo, EditorPrefs, StyleStatus, Workspace,
 } from "../data/types";
 import { call } from "./transport";
@@ -59,6 +59,12 @@ export const api = {
   syncCommit: (message: string) => call<{ summary: string; sync: SyncInfo | null }>("sync_commit", message),
   syncPush: () => call<{ summary: string; sync: SyncInfo | null }>("sync_push"),
   syncInit: () => call<{ sync: SyncInfo | null }>("sync_init"),
+  // collections: definitions in project.toml; membership is set per scene through setSceneDetails
+  createCollection: (name: string, color: CollectionColor) => call<{ collections: CollectionSummary[] }>("create_collection", name, color),
+  recolorCollection: (name: string, color: CollectionColor) => call<{ collections: CollectionSummary[] }>("recolor_collection", name, color),
+  /** Rewrites the member scenes' files (`changed` = their ids): flush first, reopen the open one after. */
+  renameCollection: (name: string, newName: string) => call<{ collections: CollectionSummary[]; changed: string[] }>("rename_collection", name, newName),
+  deleteCollection: (name: string) => call<{ collections: CollectionSummary[]; changed: string[] }>("delete_collection", name),
   setUnit: (unit: Unit) => call<{ unit: Unit }>("set_unit", unit),
   rebuildIndex: () => call("rebuild_index"),
   sceneContext: (id: string, text?: string) => call<{ mentions: SceneMention[] }>("scene_context", id, text ?? null),
