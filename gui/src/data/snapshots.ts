@@ -1,4 +1,5 @@
 import type { DiffSegment } from "./types";
+import { signedWords } from "./stats";
 
 /** "just now", "12 min ago", "3 h ago", "2 days ago", else the date (mirrors lorewrite.core.snapshots.ago). */
 export function agoText(iso: string, now: Date = new Date()): string {
@@ -22,7 +23,7 @@ export function whenText(iso: string): string {
 
 /** "+120", "−35" or "±0": the change in words from a snapshot to the current text. */
 export function deltaText(n: number): string {
-  return n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "±0";
+  return signedWords(n);
 }
 
 /** A snapshot's label for people: auto and before-… labels get a plain explanation. */

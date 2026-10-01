@@ -375,6 +375,11 @@ class Tracker:
             self.flush()
 
 
+def signed(n: int) -> str:
+    """A net word change in one form everywhere: ``+1,240``, ``−35`` (real minus), ``±0``."""
+    return f"+{n:,}" if n > 0 else f"\u2212{-n:,}" if n < 0 else "\u00b10"
+
+
 def format_summary(s: dict) -> str:
     """Plain-text version of :meth:`Tracker.summary` for the terminal page."""
     t, ses = s["today"], s["session"]
@@ -382,9 +387,9 @@ def format_summary(s: dict) -> str:
     goal = f" of {target:,}" if target else ""
     best = s["bestDay"]
     lines = [
-        f"Today          {t['words']:+,} words{goal}  ·  {t['minutes']} min  ·  {t['sessions']} session(s)"
+        f"Today          {signed(t['words'])} words{goal}  ·  {t['minutes']} min  ·  {t['sessions']} session(s)"
         + (f"  ·  {t['aiWords']:,} AI words accepted" if t["aiWords"] else ""),
-        f"This session   {ses['words']:+,} words  ·  {ses['minutes']} min",
+        f"This session   {signed(ses['words'])} words  ·  {ses['minutes']} min",
         f"Streak         {s['streak']} day(s)" + ("  (today met)" if s["todayMet"] and s["streak"] else ""),
         f"Best day       {best['words']:,} words on {best['date']}" if best else "Best day       none yet",
         f"Per session    {s['averagePerSession']:,} words on average",
@@ -395,6 +400,6 @@ def format_summary(s: dict) -> str:
     done = [sp for sp in s["sprints"]]
     if done:
         lines += ["", "Sprints today  " + ", ".join(
-            f"{sp['minutes']} min: {sp['words']:+,} words" + ("" if sp.get("completed") else " (stopped)")
+            f"{sp['minutes']} min: {signed(sp['words'])} words" + ("" if sp.get("completed") else " (stopped)")
             for sp in done)]
     return "\n".join(lines)

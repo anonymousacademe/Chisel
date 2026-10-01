@@ -1,9 +1,9 @@
 import type { SprintState } from "./types";
 
-/** "+1,240" / "−35": a net word count with its sign. */
+/** "+1,240" / "−35" / "±0": a net word count with its sign (one form in both UIs). */
 export function signedWords(n: number): string {
   const f = Math.abs(n).toLocaleString("en-US");
-  return n < 0 ? `−${f}` : `+${f}`;
+  return n < 0 ? `−${f}` : n > 0 ? `+${f}` : "±0";
 }
 
 /** "Oct 1" from an ISO date (local calendar day, no time zone shifts). */
@@ -36,5 +36,5 @@ export function remaining(sprint: Pick<SprintState, "endsAt">, nowMs: number): n
 /** "Sprint done: 25 minutes, +312 words." (or stopped). */
 export function sprintNotice(minutes: number, words: number, cancelled: boolean): string {
   const w = Math.abs(words);
-  return `${cancelled ? "Sprint stopped" : "Sprint done"}: ${minutes} minute${minutes === 1 ? "" : "s"}, ${words < 0 ? "−" : "+"}${w.toLocaleString("en-US")} word${w === 1 ? "" : "s"}.`;
+  return `${cancelled ? "Sprint stopped" : "Sprint done"}: ${minutes} minute${minutes === 1 ? "" : "s"}, ${signedWords(words)} word${w === 1 ? "" : "s"}.`;
 }

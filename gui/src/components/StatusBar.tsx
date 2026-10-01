@@ -5,7 +5,7 @@ import type { StatsBrief, SyncInfo } from "../data/types";
 import { syncTip } from "../data/syncText";
 import { fmt } from "../data/tree";
 import { agoText } from "../data/snapshots";
-import { clock } from "../data/stats";
+import { clock, signedWords } from "../data/stats";
 
 export function StatusBar(props: {
   projectWords: number; aiCost: number;
@@ -25,7 +25,7 @@ export function StatusBar(props: {
   const [, tick] = useState(0);
   useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 30_000); return () => clearInterval(t); }, []);
   const stats = props.stats;
-  const today = stats ? (stats.todayWords >= 0 ? `+${fmt(stats.todayWords)}` : `−${fmt(-stats.todayWords)}`) : "";
+  const today = stats ? signedWords(stats.todayWords) : "";
   const goal = stats && stats.target > 0 ? ` / ${fmt(stats.target)}` : "";
   return (
     <footer className="lw-status">

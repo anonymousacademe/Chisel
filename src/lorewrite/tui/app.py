@@ -706,8 +706,8 @@ class LorewriteApp(App):
         self.update_status()
         if rec is not None:
             verb = "stopped" if cancelled else "done"
-            self.notify(f"Sprint {verb}: {rec['minutes']} minutes, {rec['words']:+} words "
-                        f"(today {self._stats_brief['todayWords']:+})", timeout=12)
+            self.notify(f"Sprint {verb}: {rec['minutes']} minutes, {writing_stats.signed(rec['words'])} words "
+                        f"(today {writing_stats.signed(self._stats_brief['todayWords'])})", timeout=12)
 
     def open_stats(self) -> None:
         """Action · Session stats: today, this session, the last 30 days, streak."""
@@ -922,13 +922,13 @@ class LorewriteApp(App):
             parts.append(format_cost(LEDGER.session_total()))
         if self._stats_brief:
             b = self._stats_brief
-            goal = f"{b['todayWords']:+} / {b['target']:,} today" if b["target"] else f"{b['todayWords']:+} today"
+            goal = f"{writing_stats.signed(b['todayWords'])} / {b['target']:,} today" if b["target"] else f"{writing_stats.signed(b['todayWords'])} today"
             parts.insert(3, goal)
             if b["streak"]:
                 parts.insert(4, f"streak {b['streak']}")
             if b["sprint"]:
                 sp = b["sprint"]
-                parts.insert(1, f"SPRINT {writing_stats.clock(sp['remaining'])} ({sp['words']:+})")
+                parts.insert(1, f"SPRINT {writing_stats.clock(sp['remaining'])} ({writing_stats.signed(sp['words'])})")
         parts.insert(1, f"Draft {self.project.draft}")
         if self._sync is not None:
             parts.insert(2, self._sync.label)

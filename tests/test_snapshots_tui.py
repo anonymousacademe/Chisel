@@ -207,3 +207,10 @@ async def test_start_new_draft_confirms_snapshots_and_counts_up(tmp_path: Path):
 
 def test_palette_has_start_new_draft():
     assert "start_new_draft" in {m for _, m, _ in ActionProvider.ACTIONS}
+
+
+def test_word_deltas_use_one_form():
+    from lorewrite.core.stats import signed
+    from lorewrite.tui.snapshotscreens import delta_text
+    assert [signed(n) for n in (0, 12, -5, 1240)] == ["\u00b10", "+12", "\u22125", "+1,240"]
+    assert delta_text(0) == "\u00b10" and delta_text(-5) == "\u22125"

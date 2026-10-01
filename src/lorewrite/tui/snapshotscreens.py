@@ -10,6 +10,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Label, ListItem, ListView, Static
 
 from ..core.snapshots import Segment, Snapshot, ago, diff_stats
+from ..core.stats import signed
 
 LABEL_NAMES = {
     "auto": "automatic (first edit of the day)",
@@ -30,7 +31,7 @@ def label_text(label: str) -> str:
 
 
 def delta_text(n: int) -> str:
-    return f"+{n}" if n > 0 else f"-{-n}" if n < 0 else "+-0"
+    return signed(n)
 
 
 def unified(segments: list[Segment]) -> Text:

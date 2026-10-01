@@ -5,7 +5,8 @@ describe("stats helpers", () => {
   it("signs words", () => {
     expect(signedWords(1240)).toBe("+1,240");
     expect(signedWords(-35)).toBe("−35");
-    expect(signedWords(0)).toBe("+0");
+    expect(signedWords(0)).toBe("±0");
+    expect(sprintNotice(5, 0, false)).toBe("Sprint done: 5 minutes, ±0 words.");
   });
   it("labels a day without time zone shifts", () => {
     expect(dayLabel("2026-10-01")).toBe("Oct 1");
