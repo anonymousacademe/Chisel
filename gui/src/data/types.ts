@@ -184,6 +184,13 @@ export interface SettingsInfo {
 }
 export interface ModelOption { id: string; name: string; promptPerM: number | null; completionPerM: number | null; context: number | null }
 
+/** An author comment anchored to a passage (core.comments); offsets are UTF-16, null when detached. */
+export interface CommentRow {
+  id: string; quote: string; prefix: string; suffix: string; body: string;
+  created: string; resolved: boolean; detached: boolean;
+  start: number | null; end: number | null; row: number | null;
+}
+
 /** A scene in the Trash. */
 export interface TrashItem { name: string; title: string; original: string; deleted: string }
 

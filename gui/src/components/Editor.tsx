@@ -3,7 +3,7 @@ import {
   FileText, LayoutDashboard, ListTree, Undo2, Redo2, Bold, Italic, Link, MessageSquarePlus,
   Focus, ChevronRight, BookPlus, type LucideIcon,
 } from "lucide-react";
-import type { DocumentPayload, PartSummary, SceneMention, SceneSummary, Unit } from "../data/types";
+import type { CommentRow, DocumentPayload, PartSummary, SceneMention, SceneSummary, Unit } from "../data/types";
 import { fmt } from "../data/tree";
 import { Icon, IconButton, SectionLabel, Tag } from "./primitives";
 import { EditorPane, type EditorHandle } from "./EditorPane";
@@ -44,6 +44,9 @@ export function Editor(props: {
   onResolveDraft: (index: number, accept: boolean) => void;
   spellVersion: number; onSpellCount: (count: number | null) => void; onSpell: (t: SpellTarget) => void;
   onAddPhrase: () => void;
+  /** Comment on the selected passage; the host opens the dialog. */
+  onAddComment: () => void;
+  onComments: (rows: CommentRow[] | null) => void; onComment: (id: string, x: number, y: number) => void;
   extraKeys?: { key: string; run: () => boolean }[];
 }) {
   const { doc, editorRef } = props;
@@ -53,6 +56,16 @@ export function Editor(props: {
   const sentence = (s: string) => s[0] + s.slice(1).toLowerCase();
   const names = props.mentions.map((m) => m.name);
   const meta = names.length > 4 ? `${names.slice(0, 4).join(" · ")} · +${names.length - 4}` : names.join(" · ");
+  /** The comment marker sits in the page margin, outside the editor's box: find it from the click point. */
+  const marginClick = (e: React.MouseEvent<HTMLElement>) => {
+    for (const line of e.currentTarget.querySelectorAll<HTMLElement>(".cm-line.lw-has-comment")) {
+      const r = line.getBoundingClientRect();
+      if (e.clientX < r.left - 6 && e.clientX > r.left - 44 && e.clientY >= r.top && e.clientY <= r.top + 30) {
+        const id = line.getAttribute("data-comments")?.split(",")[0];
+        if (id) { e.preventDefault(); props.onComment(id, e.clientX, e.clientY); return; }
+      }
+    }
+  };
   const session = `${props.sessionWords >= 0 ? "+" : "−"}${fmt(Math.abs(props.sessionWords))} words · ${props.sessionMinutes} min`;
 
   return (
@@ -76,7 +89,8 @@ export function Editor(props: {
           <IconButton icon={Link} label="Make a note from the selection (Ctrl J)" disabled={doc?.kind !== "scene"} onMouseDown={(e) => e.preventDefault()} onClick={props.onMakeNote} />
           <IconButton icon={BookPlus} label="Add the selected word or phrase to the dictionary" disabled={doc?.kind !== "scene" || props.cursor.from === props.cursor.to}
             onMouseDown={(e) => e.preventDefault()} onClick={props.onAddPhrase} />
-          <IconButton icon={MessageSquarePlus} label="Add comment" placeholder />
+          <IconButton icon={MessageSquarePlus} label="Add a comment on the selected passage" disabled={!isScene || props.cursor.from === props.cursor.to}
+            onMouseDown={(e) => e.preventDefault()} onClick={props.onAddComment} />
           <span className="lw-tool-sep" />
           <IconButton icon={Focus} label="Focus mode" active={props.focus} onClick={props.onFocus} />
         </div>
@@ -112,7 +126,7 @@ export function Editor(props: {
       )}
       <div className="lw-editor__surface">
         {props.mode === "manuscript" && (
-          <div className="lw-editor__scroll">
+          <div className="lw-editor__scroll" onMouseDown={marginClick}>
             {doc ? (
               <article className="lw-page">
                 <header className="lw-page__heading">
@@ -128,6 +142,7 @@ export function Editor(props: {
                 <EditorPane key={`${doc.id}:${props.docRev}`} ref={editorRef} docId={doc.id} kind={doc.kind}
                   initialText={doc.text} meta={meta} reflow={props.reflow} spansVersion={props.spansVersion}
                   spellVersion={props.spellVersion} onSpellCount={props.onSpellCount} onSpell={props.onSpell}
+                  onComments={props.onComments}
                   onChange={props.onChange} onCursor={props.onCursor} onBlur={props.onBlur} onSaveNow={props.onSaveNow}
                   getCard={props.getCard} onOpenEntity={props.onOpenEntity} onResolveDraft={props.onResolveDraft} extraKeys={props.extraKeys} />
               </article>

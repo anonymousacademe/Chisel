@@ -53,6 +53,10 @@ design and roadmap.
   definitions and colours live in `project.toml` `[collections]`, membership in each scene's
   frontmatter. Click one in the desktop binder to see only its scenes (binder, corkboard,
   outline); in the terminal use *Scene · Collections* and the `#name` sidebar filter.
+- **Comments**: select a passage and attach a note to it. The note lives in `.comments/` beside
+  the scene — never in your prose — and follows the passage when you edit around it (a comment
+  whose passage you deleted is kept, listed as "detached"). Desktop: the comment button, a margin
+  marker and the Notes tab; terminal: *Scene · Add comment on selection* and *Scene · Comments*.
 - **Scene details** (POV, place, purpose, status, word target) are the scene's own
   YAML frontmatter — Obsidian-compatible, written only when you set a field, and
   never counted as prose, spell-checked, or sent to the AI as text (the AI does get
@@ -202,6 +206,7 @@ my-novel/
 ├── .trash/               # deleted scenes wait here (restore from the app)
 ├── .drafts/              # text pending AI drafts replaced, one file per scene
 ├── .snapshots/           # History: a folder of snapshots per scene (plain copies)
+├── .comments/            # your comments on passages, one small JSON file per scene
 └── entities/
     ├── characters/elara-vance.md   # free-text note + YAML frontmatter
     └── places/thornwick.md         #   (name, type, aliases)

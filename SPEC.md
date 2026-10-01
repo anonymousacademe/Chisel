@@ -38,6 +38,9 @@ my-novel/
 │   └── _unplaced/            # written, but not in the book
 ├── .trash/                   # deleted scenes (restorable); .drafts/ = AI draft originals
 ├── .snapshots/               # verbatim copies of scenes, one folder per scene (History)
+├── .comments/                # author notes anchored to passages, one JSON file per scene
+├── research/                 # plain Markdown research notes (any subfolders; not entities)
+├── .assistant/chats/         # saved assistant conversations, one JSON file per chat
 └── entities/
     ├── characters/
     │   ├── elara-vance.md
@@ -394,6 +397,33 @@ open and behave exactly as before.*
   entry or the scene menu opens a checkbox list for the open scene. Terminal: palette
   *Scene · Collections* (`space`/`enter` tick, `n` new, `r` rename, `c` next colour, `d` delete) and the
   sidebar filter accepts `#collection-name` (a part of the name is enough; scenes only).
+
+- **Comments** (3.2, `core/comments.py`). Author notes anchored to a passage, **never inline**:
+  `<project>/.comments/<scene's project-relative path, "/" as "__">.json` is a JSON list of
+  `{id, quote, prefix, suffix, body, created, resolved}` (id = 8 hex characters; created =
+  local ISO time; body ≤ 5000 characters, quote ≤ 2000). Author data like `.drafts/`: committed,
+  never under `.lorewrite/`, and carried with its scene on every rename / move / part swap and into
+  the Trash (`.trash/<name>.md.comments.json`, restored with the scene, removed by *delete forever*).
+  - *Anchoring.* The quote plus up to 40 characters of context each side. `locate` finds the
+    passage again in this order: the quote itself (several matches: the one whose context matches
+    best; whitespace runs match any whitespace run, so re-wrapped lines still match); the quote's two
+    ends (24 characters each) when its middle was edited; the text between the stored prefix and
+    suffix when it was rewritten. Otherwise the comment is **detached**: it stays in the file and
+    in the list (listed first, "Detached"), and re-attaches if the text returns (undo). `reanchor`
+    runs on save (both front ends) and when the GUI lists comments: a comment found by the fuzzy
+    rules gets its stored quote and context refreshed so the next find is exact; a detached one is
+    never rewritten. Comments cannot be placed on the scene-details frontmatter.
+  - *Not scene text.* Not spell-checked, not counted, not sent to the AI; only the author attaches
+    them to a chat (3.4).
+  - GUI: the toolbar comment button (enabled with a selection) opens an Add dialog; the passage gets a
+    quiet amber highlight and a marker in the page margin of its first line; clicking the marker opens
+    the popover (edit the text, Resolve / Reopen, Delete after a confirmation); the Notes tab lists
+    comments (open ones top to bottom, detached first, resolved ones folded under "Show resolved") and a
+    click selects the passage and opens its popover. Positions are computed by Python against the
+    editor's text (UTF-16 offsets) and refetched 0.5 s after edits; between refetches the highlights
+    follow the text through CodeMirror's change mapping. Terminal: palette *Scene · Add comment on
+    selection* (a one-line prompt) and *Scene · Comments* (`enter` jump to and select the passage, `r`
+    resolve / reopen, `e` edit, `d` delete); commented text is underlined faintly (open comments only).
 
 ### Desktop GUI (pywebview + the React design) ✅ (implemented; merged to main 2026-10-01)
 

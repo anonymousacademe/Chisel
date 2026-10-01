@@ -71,3 +71,12 @@
   text-decoration: underline wavy var(--lw-danger);
   text-decoration-thickness: 1px; text-underline-offset: 3px; cursor: pointer;
 }
+
+/* comments (core.comments): a quiet highlight on the passage, a marker in the page margin of its first line */
+.lw-cm .cm-line { position: relative; }
+.lw-cm .lw-comment { background: rgba(216, 170, 99, 0.16); border-bottom: 1px solid rgba(216, 170, 99, 0.5); }
+.lw-cm .cm-line.lw-has-comment::before {
+  content: ""; position: absolute; left: -30px; top: 8px; width: 14px; height: 14px; pointer-events: none;
+  background: var(--lw-warning); opacity: 0.8; border-radius: 3px 3px 3px 0;
+}
+.lw-cm .cm-line.lw-has-comment:hover::before { opacity: 1; }

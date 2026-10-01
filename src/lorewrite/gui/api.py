@@ -36,6 +36,7 @@ from ..ai.writing import (
     generate as generate_text,
 )
 from ..core import collections as coll
+from ..core import comments
 from ..core import drafts, scenemeta, snapshots, sync
 from ..core import settings as user_settings
 from ..core import spelling
@@ -751,6 +752,65 @@ class Api:
                 "details": scenemeta.details(new),
                 "bodyStart": index_to_utf16(new, new_end),
             }
+
+    # -- comments ---------------------------------------------------------------------
+    # Author notes anchored to a passage (core.comments), in .comments/<scene>.json - never in the
+    # prose. Positions are computed against the editor's text (UTF-16 for CodeMirror).
+
+    def _comment_rows(self, path: Path, text: str) -> list[dict]:
+        project = self._require()
+        rows = []
+        for p in comments.reanchor(project.root, path, text):
+            c = p.comment
+            rows.append({
+                **c.as_dict(), "detached": p.detached,
+                "start": None if p.start is None else index_to_utf16(text, p.start),
+                "end": None if p.end is None else index_to_utf16(text, p.end),
+                "row": None if p.start is None else text.count("\n", 0, p.start),
+            })
+        return rows
+
+    def _comment_text(self, path: Path, text: str | None) -> str:
+        return text if text is not None else path.read_text(encoding="utf-8")
+
+    @bridge
+    def list_comments(self, doc_id: str, text: str | None = None) -> dict:
+        """The scene's comments, detached ones first, then top to bottom."""
+        with self._lock:
+            path = self._scene_path(doc_id)
+            text = self._comment_text(path, text)
+            return {"comments": self._comment_rows(path, text)}
+
+    @bridge
+    def add_comment(self, doc_id: str, text: str, start: int, end: int, body: str) -> dict:
+        """Comment on text[start:end] (UTF-16 offsets into the editor's *text*)."""
+        with self._lock:
+            path = self._scene_path(doc_id)
+            c = comments.add(self._require().root, path, text,
+                             from_utf16(text, start), from_utf16(text, end), body)
+            return {"id": c.id, "comments": self._comment_rows(path, text)}
+
+    @bridge
+    def edit_comment(self, doc_id: str, comment_id: str, body: str, text: str | None = None) -> dict:
+        with self._lock:
+            path = self._scene_path(doc_id)
+            comments.edit(self._require().root, path, comment_id, body)
+            return {"comments": self._comment_rows(path, self._comment_text(path, text))}
+
+    @bridge
+    def resolve_comment(self, doc_id: str, comment_id: str, resolved: bool = True,
+                        text: str | None = None) -> dict:
+        with self._lock:
+            path = self._scene_path(doc_id)
+            comments.resolve(self._require().root, path, comment_id, resolved)
+            return {"comments": self._comment_rows(path, self._comment_text(path, text))}
+
+    @bridge
+    def delete_comment(self, doc_id: str, comment_id: str, text: str | None = None) -> dict:
+        with self._lock:
+            path = self._scene_path(doc_id)
+            comments.delete(self._require().root, path, comment_id)
+            return {"comments": self._comment_rows(path, self._comment_text(path, text))}
 
     # -- collections ----------------------------------------------------------------
     # Definitions: project.toml [collections]. Membership: each scene's frontmatter, which a

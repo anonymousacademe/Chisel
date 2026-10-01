@@ -32,6 +32,7 @@ src/lorewrite/
     drafts.py           # pending AI text markers (<!--ai-->), expand markers
     spelling.py         # spell check: check/suggestions, accepted terms, dictionary files
     collections.py      # collections: definitions in project.toml, membership in scene frontmatter
+    comments.py         # comments: .comments/<scene>.json, anchored by quote + context
   ai/
     client.py           # OpenRouter via openai SDK; keyring/env key resolution
     links.py            # alias finder (ctrl+l): prompt, schema, validate (never edits text)
@@ -137,6 +138,14 @@ PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --
   saves the stale buffer over the rewritten file). `Collection.declared` false = used by scenes
   but not in `project.toml`; never hide those. Collection names in TOML keys are written with
   `json.dumps` (valid TOML basic strings).
+- **Comments** (`core/comments.py`) are a sidecar keyed like `.drafts/` and must travel with the
+  scene: any new code that renames, moves or trashes a scene goes through
+  `Structure._apply_renames` (it stages the comments file too). Never put comment text in the
+  scene, never feed it to an AI unless the author attached it, and never drop a comment that
+  fails to anchor (it is detached). In the GUI the first line of a *hard-wrapped paragraph* is
+  one DOM line for several doc lines, so the margin marker's line decoration goes on the first of
+  them (`softBreakSet` in `editor/cm.ts`); the marker is outside the editor's box, so its click is
+  caught on `.lw-editor__scroll` (`marginClick`), not in CodeMirror.
 - **Git sync is explicit** (`core/sync.py`). `status()` is the only call that may run by itself
   (read-only, 5 s timeout, never on the UI thread: TUI worker, GUI debounced bridge call outside
   `self._lock`; `get_workspace` must not call it). `commit` / `push` / `init` run only from a

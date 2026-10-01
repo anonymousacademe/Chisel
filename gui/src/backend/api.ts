@@ -1,6 +1,6 @@
 import type { Misspelling, Span } from "../editor/spans";
 import type {
-  AliasSuggestion, CanonProposal, CollectionColor, CollectionSummary, DiffSegment, SnapshotRow, SyncInfo, DetailsPatch, DocumentPayload, Remap, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
+  AliasSuggestion, CanonProposal, CollectionColor, CommentRow, CollectionSummary, DiffSegment, SnapshotRow, SyncInfo, DetailsPatch, DocumentPayload, Remap, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
   Issue, ModelKind, ModelOption, RecentProject, SceneMention, SettingsInfo, EditorPrefs, StyleStatus, Workspace,
 } from "../data/types";
 import { call } from "./transport";
@@ -59,6 +59,16 @@ export const api = {
   syncCommit: (message: string) => call<{ summary: string; sync: SyncInfo | null }>("sync_commit", message),
   syncPush: () => call<{ summary: string; sync: SyncInfo | null }>("sync_push"),
   syncInit: () => call<{ sync: SyncInfo | null }>("sync_init"),
+  // comments: notes beside the scene (.comments/), positioned against the editor's text
+  listComments: (id: string, text: string) => call<{ comments: CommentRow[] }>("list_comments", id, text),
+  addComment: (id: string, text: string, start: number, end: number, body: string) =>
+    call<{ id: string; comments: CommentRow[] }>("add_comment", id, text, start, end, body),
+  editComment: (id: string, commentId: string, body: string, text: string) =>
+    call<{ comments: CommentRow[] }>("edit_comment", id, commentId, body, text),
+  resolveComment: (id: string, commentId: string, resolved: boolean, text: string) =>
+    call<{ comments: CommentRow[] }>("resolve_comment", id, commentId, resolved, text),
+  deleteComment: (id: string, commentId: string, text: string) =>
+    call<{ comments: CommentRow[] }>("delete_comment", id, commentId, text),
   // collections: definitions in project.toml; membership is set per scene through setSceneDetails
   createCollection: (name: string, color: CollectionColor) => call<{ collections: CollectionSummary[] }>("create_collection", name, color),
   recolorCollection: (name: string, color: CollectionColor) => call<{ collections: CollectionSummary[] }>("recolor_collection", name, color),

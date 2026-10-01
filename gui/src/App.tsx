@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./backend/api";
 import type {
-  AliasSuggestion, BinderNode, CanonProposal, ChatMessage, CollectionColor, DetailsPatch, DocumentPayload, EntityInfo, EntityType, Issue, Remap, SceneMention, SettingsInfo, StyleStatus, SyncInfo, Workspace,
+  AliasSuggestion, BinderNode, CanonProposal, ChatMessage, CollectionColor, CommentRow, DetailsPatch, DocumentPayload, EntityInfo, EntityType, Issue, Remap, SceneMention, SettingsInfo, StyleStatus, SyncInfo, Workspace,
 } from "./data/types";
 import type { BridgeResult } from "./backend/transport";
 import { anchorDraft } from "./editor/drafts";
@@ -27,6 +27,7 @@ import { DetailsDialog, PartPickerDialog, TrashDialog } from "./components/Struc
 import { SnapshotsDialog } from "./components/SnapshotsDialog";
 import { CollectionsManager, SceneCollectionsDialog } from "./components/CollectionDialogs";
 import { memberIds } from "./data/collections";
+import { AddCommentDialog, CommentPopover, CommentsPanel } from "./components/CommentComponents";
 import { Toasts, type Notice } from "./components/Toast";
 
 const ZOOMS = [90, 100, 110, 125];
@@ -45,6 +46,7 @@ type Dialog =
   | { kind: "details" }
   | { kind: "snapshots" }
   | { kind: "collections" }
+  | { kind: "add-comment"; from: number; to: number; quote: string }
   | { kind: "scene-collections" }
   | { kind: "new-draft" }
   | { kind: "sync-commit"; info: Extract<SyncInfo, { repo: true }> }
@@ -111,6 +113,8 @@ export default function App() {
   const [spellTarget, setSpellTarget] = useState<SpellTarget | null>(null);
   const [partFocus, setPartFocus] = useState<string | null>(null);
   const [collection, setCollection] = useState<string | null>(null);
+  const [comments, setComments] = useState<CommentRow[] | null>(null);
+  const [commentPop, setCommentPop] = useState<{ id: string; x: number; y: number } | null>(null);
   const noticeId = useRef(0);
   const editorRef = useRef<EditorHandle>(null);
   const focusAfterOpen = useRef(false);
@@ -728,6 +732,41 @@ export default function App() {
     const c = await api.sceneContext(d.id, ed.getText());
     if (c.ok && docRef.current?.id === d.id) setMentions(c.mentions);
   };
+  // -- comments --------------------------------------------------------------------------
+  /** Notes beside the scene (.comments/): the prose is never touched. */
+  const startAddComment = () => {
+    const ed = editorRef.current;
+    if (!ed || docRef.current?.kind !== "scene") return notify("Open a scene first.");
+    const sel = ed.selection();
+    if (!sel.text.trim()) return notify("Select the passage to comment on first.");
+    setDialog({ kind: "add-comment", from: sel.from, to: sel.to, quote: sel.text });
+  };
+  const addComment = async (body: string) => {
+    const d = docRef.current, ed = editorRef.current, dlg = dialog;
+    setDialog(null);
+    if (!d || !ed || dlg?.kind !== "add-comment") return;
+    const r = await api.addComment(d.id, ed.getText(), dlg.from, dlg.to, body);
+    if (!r.ok) return notify(r.error, "error");
+    setComments(r.comments);
+    ed.reloadComments();
+    setTab("notes"); setAssistantOpen(true);
+    notify("Comment added. It is kept beside the scene, not in the text.");
+  };
+  const commentCall = async (run: (id: string, text: string) => Promise<BridgeResult<{ comments: CommentRow[] }>>) => {
+    const d = docRef.current, ed = editorRef.current;
+    if (!d || !ed) return;
+    const r = await run(d.id, ed.getText());
+    if (!r.ok) return notify(r.error, "error");
+    setComments(r.comments);
+    ed.reloadComments();
+  };
+  const openComment = (c: CommentRow) => {
+    if (c.start === null || c.end === null) { setCommentPop({ id: c.id, x: Math.max(40, window.innerWidth - 700), y: 140 }); return; }
+    const at = editorRef.current?.selectRange(c.start, c.end);
+    setCommentPop({ id: c.id, x: at?.x ?? 400, y: at?.y ?? 200 });
+  };
+  const popComment = comments?.find((c) => c.id === commentPop?.id) ?? null;
+
   // -- collections ---------------------------------------------------------------------
   /** Rename and delete rewrite the member scenes on disk: flush the open one first, reopen it after. */
   const collectionsCall = async (run: () => Promise<{ ok: true; changed?: string[] } | { ok: false; error: string }>): Promise<boolean> => {
@@ -876,6 +915,8 @@ export default function App() {
           onMakeNote={() => makeNote(false)} getCard={getCard} onOpenEntity={openEntitySpan}
           onResolveDraft={(i, a) => void resolveDraft(i, a)}
           spellVersion={spellVersion} onSpellCount={setSpellCount} onSpell={setSpellTarget} onAddPhrase={addSelectionToDictionary}
+          onAddComment={startAddComment} onComments={setComments}
+          onComment={(id, x, y) => setCommentPop({ id, x, y })}
           extraKeys={[
             { key: "Mod-j", run: () => makeNote(true) },
             { key: "F7", run: () => resolveAtCursor(true) },
@@ -890,6 +931,10 @@ export default function App() {
             messages={messages} busy={aiBusy} aiReady={aiReady} scope={scope} onScope={() => setScope((c) => (c === "scene" ? "project" : "scene"))}
             onSend={(t) => void sendChat(t)} onRegenerate={regenerate} onInsertDraft={(id) => void insertReplyAsDraft(id)}
             onQuick={onQuick} onMenu={openAiMenu} canInsert={doc?.kind === "scene"} onClose={() => setAssistantOpen(false)}
+            notesExtra={doc?.kind === "scene" ? (
+              <CommentsPanel comments={comments} onOpen={openComment}
+                onResolve={(c, resolved) => void commentCall((id, text) => api.resolveComment(id, c.id, resolved, text))} />
+            ) : null}
             style={ws ? styleStatus : null} onLearnStyle={() => void learnStyle()} onOpenStyle={() => void openStyle()} />
         )}
       </div>
@@ -995,6 +1040,15 @@ export default function App() {
         <ConfirmDialog title="Initialize git" confirm="Initialize" tone="primary"
           message={<>Turn this project folder into a git repository? A <code>.gitignore</code> hides the rebuildable index cache (<code>.lorewrite/</code>). Nothing is committed or pushed.</>}
           onConfirm={() => void syncInit()} onClose={() => setDialog(null)} />
+      )}
+      {dialog?.kind === "add-comment" && (
+        <AddCommentDialog quote={dialog.quote} onAdd={(b) => void addComment(b)} onClose={() => setDialog(null)} />
+      )}
+      {commentPop && popComment && (
+        <CommentPopover key={popComment.id} comment={popComment} x={commentPop.x} y={commentPop.y} onClose={() => setCommentPop(null)}
+          onSave={(body) => { setCommentPop(null); void commentCall((id, text) => api.editComment(id, popComment.id, body, text)); }}
+          onResolve={(resolved) => { setCommentPop(null); void commentCall((id, text) => api.resolveComment(id, popComment.id, resolved, text)); }}
+          onDelete={() => { setCommentPop(null); void commentCall((id, text) => api.deleteComment(id, popComment.id, text)); }} />
       )}
       {dialog?.kind === "collections" && (
         <CollectionsManager collections={ws.collections} unit={unit} onCreate={createCollection} onRecolor={recolorCollection}

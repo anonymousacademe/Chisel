@@ -10,6 +10,9 @@ import { frontmatterRange, misspellingAt, sceneFrontmatter, misspellSpecs, softB
 
 export const setSpans = StateEffect.define<Span[]>();
 export const setSpelling = StateEffect.define<Misspelling[]>();
+/** The scene's comments with positions (see data/types CommentRow); resolved and detached ones are not drawn. */
+export interface CommentMark { id: string; start: number; end: number }
+export const setComments = StateEffect.define<CommentMark[]>();
 /** Holds metaFacet so the mentions line can change without rebuilding the editor. */
 export const metaCompartment = new Compartment();
 /** Show hard-wrapped source lines as flowing paragraphs (display only). */
@@ -97,6 +100,18 @@ const spellingField = StateField.define<Misspelling[]>({
   },
 });
 
+/** Comment passages follow the text through edits until Python re-anchors them. */
+const commentsField = StateField.define<CommentMark[]>({
+  create: () => [],
+  update(list, tr) {
+    for (const e of tr.effects) if (e.is(setComments)) return e.value;
+    if (!tr.docChanged || list.length === 0) return list;
+    return list
+      .map((m) => ({ ...m, start: tr.changes.mapPos(m.start, 1), end: tr.changes.mapPos(m.end, -1) }))
+      .filter((m) => m.start < m.end);
+  },
+});
+
 interface Built { all: DecorationSet; atomic: DecorationSet }
 
 const HEADING = /^ATXHeading(\d)$/;
@@ -159,10 +174,26 @@ function build(state: EditorState): Built {
   }
 
   // hard-wrapped source lines flow as one paragraph (display only)
-  for (const pos of state.facet(reflowFacet) && !plain ? softBreaks(text, fm) : []) {
+  const softBreakSet = new Set<number>(state.facet(reflowFacet) && !plain ? softBreaks(text, fm) : []);
+  for (const pos of softBreakSet) {
     ranges.push(SPACE.range(pos, pos + 1));
     atomic.push(SPACE.range(pos, pos + 1));
   }
+
+  // comments: a subtle highlight on the passage and a marker in the margin of its first line
+  const marks = state.field(commentsField).filter((m) => m.start < m.end && m.end <= doc.length);
+  const byLine = new Map<number, string[]>();
+  for (const m of marks) {
+    ranges.push(Decoration.mark({ class: "lw-comment", attributes: { "data-comment": m.id } }).range(m.start, m.end));
+    // hard-wrapped lines are drawn as one: the line decoration belongs to the first of them
+    let line = doc.lineAt(m.start);
+    while (line.number > 1 && softBreakSet.has(line.from - 1)) line = doc.line(line.number - 1);
+    byLine.set(line.from, [...(byLine.get(line.from) ?? []), m.id]);
+  }
+  for (const [from, ids] of byLine) {
+    ranges.push(Decoration.line({ class: "lw-has-comment", attributes: { "data-comments": ids.join(",") } }).range(from));
+  }
+
 
   // blank lines are paragraph gaps, not full lines
   for (let n = 1; n <= doc.lines; n++) {
@@ -204,7 +235,7 @@ const decoField = StateField.define<Built>({
   update(value, tr) {
     const facetChanged = tr.startState.facet(metaFacet) !== tr.state.facet(metaFacet)
       || tr.startState.facet(reflowFacet) !== tr.state.facet(reflowFacet);
-    if (tr.docChanged || tr.selection || facetChanged || tr.effects.some((e) => e.is(setSpans) || e.is(setSpelling))) return build(tr.state);
+    if (tr.docChanged || tr.selection || facetChanged || tr.effects.some((e) => e.is(setSpans) || e.is(setSpelling) || e.is(setComments))) return build(tr.state);
     return value;
   },
   provide: (f) => [
@@ -277,6 +308,7 @@ export function editorExtensions(kind: string, meta: string, reflow: boolean, ho
     EditorView.lineWrapping,
     spansField,
     spellingField,
+    commentsField,
     decoField,
     keymap.of([
       { key: "Mod-s", run: () => { hooks.onSaveNow(); return true; }, preventDefault: true },
@@ -359,4 +391,4 @@ export function editorExtensions(kind: string, meta: string, reflow: boolean, ho
   ];
 }
 
-export { spansField, spellingField };
+export { spansField, spellingField, commentsField };

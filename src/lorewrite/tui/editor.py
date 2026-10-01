@@ -32,6 +32,7 @@ MENTION_STYLE = Style(color="cyan")
 BRACKET_STYLE = Style(dim=True)
 AI_STYLE = Style(color="green", bgcolor="grey19", italic=True)
 MISSPELLED_STYLE = Style(underline=True, color="red")
+COMMENT_STYLE = Style(underline=True, dim=True)  # faint: an author note is attached here
 
 
 def _style_cell_range(
@@ -100,6 +101,9 @@ class LinkedTextArea(TextArea):
         # row -> [(start_col, end_col)] misspelled words (lowest priority)
         self._spelling: dict[int, list[tuple[int, int]]] = {}
         self.misspelled_style = MISSPELLED_STYLE
+        self.comment_style = COMMENT_STYLE
+        # row -> [(start_col, end_col)] passages with an open comment (lowest priority)
+        self._comments: dict[int, list[tuple[int, int]]] = {}
         # overridable by the app to follow the system theme
         self.resolved_style = RESOLVED_STYLE
         self.unresolved_style = UNRESOLVED_STYLE
@@ -178,6 +182,30 @@ class LinkedTextArea(TextArea):
             pass
         self.refresh()
 
+    def set_comments(self, ranges: list[tuple[int, int]]) -> None:
+        """Underline faintly the (start, end) text offsets that carry an open
+        comment ([] clears)."""
+        text = self.text
+        lines = text.split("\n")
+        starts = [0] + [i + 1 for i, c in enumerate(text) if c == "\n"]
+        spans: dict[int, list[tuple[int, int]]] = {}
+        for start, end in ranges:
+            row = bisect_right(starts, start) - 1
+            end_row = bisect_right(starts, end) - 1
+            for r in range(row, end_row + 1):
+                lo = start - starts[r] if r == row else 0
+                hi = end - starts[r] if r == end_row else len(lines[r])
+                if hi > lo:
+                    spans.setdefault(r, []).append((lo, hi))
+        if spans == self._comments:
+            return
+        self._comments = spans
+        try:
+            self._line_cache.clear()
+        except AttributeError:
+            pass
+        self.refresh()
+
     def replace_offsets(self, start: int, end: int, new: str) -> None:
         """Replace text[start:end] with *new*, keeping undo history."""
         text = self.text
@@ -194,15 +222,17 @@ class LinkedTextArea(TextArea):
             return strip
 
     def _apply_link_styles(self, strip: Strip, y: int) -> Strip:
-        if not self._spans and not self._spelling:
+        if not self._spans and not self._spelling and not self._comments:
             return strip
         y_offset = y + int(self.scroll_offset.y)
         line_info = self.wrapped_document._offset_to_line_info[y_offset]
         if line_info is None:
             return strip
         line_index, section_offset = line_info
-        row_spans = [(lo, hi, "misspelled", "")
-                     for lo, hi in self._spelling.get(line_index, ())]
+        row_spans = [(lo, hi, "comment", "")
+                     for lo, hi in self._comments.get(line_index, ())]
+        row_spans += [(lo, hi, "misspelled", "")
+                      for lo, hi in self._spelling.get(line_index, ())]
         row_spans += self._spans.get(line_index, [])
         if not row_spans:
             return strip
@@ -227,7 +257,9 @@ class LinkedTextArea(TextArea):
             hi = min(end_col, section_end)
             cell_lo = gutter + cell(lo) - cell(section_start)
             cell_hi = gutter + cell(hi) - cell(section_start)
-            if kind == "misspelled":
+            if kind == "comment":
+                style = self.comment_style
+            elif kind == "misspelled":
                 style = self.misspelled_style
             elif kind in ("bracket", "marker"):
                 style = self.bracket_style

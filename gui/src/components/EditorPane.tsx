@@ -3,9 +3,10 @@ import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { redo, redoDepth, undo, undoDepth } from "@codemirror/commands";
 import { api } from "../backend/api";
-import { metaCompartment, metaFacet, reflowCompartment, reflowFacet, setSpans, setSpelling, spansField, spellingField, editorExtensions, type Card, type CursorInfo, type SpellTarget } from "../editor/cm";
+import { setComments, metaCompartment, metaFacet, reflowCompartment, reflowFacet, setSpans, setSpelling, spansField, spellingField, editorExtensions, type Card, type CursorInfo, type SpellTarget } from "../editor/cm";
 import { replaceRange, toggleWrap } from "../editor/commands";
 import { nextMisspelling, type Span } from "../editor/spans";
+import type { CommentRow } from "../data/types";
 
 export interface EditorHandle {
   undo(): void; redo(): void; bold(): void; italic(): void; focus(): void;
@@ -28,6 +29,10 @@ export interface EditorHandle {
   spanAtCursor(): Span | undefined;
   /** Move to the next misspelled word after the cursor (wrapping) and select it; false if there is none. */
   gotoNextMisspelling(): boolean;
+  /** Select [from, to), scroll it into view and return the viewport point under its first line (for a popover). */
+  selectRange(from: number, to: number): { x: number; y: number } | null;
+  /** Refetch the comments now (after adding, resolving or deleting one). */
+  reloadComments(): void;
 }
 
 interface Props {
@@ -50,6 +55,8 @@ interface Props {
   /** Misspelling count of the document, or null when spell check does not apply. */
   onSpellCount(count: number | null): void;
   onSpell(target: SpellTarget): void;
+  /** Comments with positions, refetched after edits (scenes only; null otherwise). */
+  onComments(rows: CommentRow[] | null): void;
   extraKeys?: { key: string; run: () => boolean }[];
 }
 
@@ -117,6 +124,15 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
       v.focus();
       return true;
     },
+    selectRange: (from, to) => {
+      const v = view.current;
+      if (!v) return null;
+      v.dispatch({ selection: { anchor: from, head: to }, effects: EditorView.scrollIntoView(from, { y: "center" }) });
+      v.focus();
+      const c = v.coordsAtPos(from);
+      return c ? { x: c.left, y: c.bottom } : null;
+    },
+    reloadComments: () => fetchComments(),
   }), []);
 
   // Spelling is checked in Python, off the typing path (debounced, stale answers dropped).
@@ -139,6 +155,24 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
       hooks.current.onSpellCount(r.spans.length);
     });
   };
+  // Comments are positioned in Python against the editor's text (debounced, stale answers dropped).
+  const commentTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const commentSeq = useRef(0);
+  const fetchComments = () => {
+    const v = view.current;
+    if (!v || hooks.current.kind !== "scene") return;
+    const text = v.state.doc.toString();
+    const seq = ++commentSeq.current;
+    api.listComments(hooks.current.docId, text).then((r) => {
+      if (seq !== commentSeq.current || !view.current || !r.ok) return;
+      if (view.current.state.doc.toString() !== text) return; // a newer request follows
+      view.current.dispatch({ effects: setComments.of(r.comments.filter((c) => !c.resolved && c.start !== null && c.end !== null)
+        .map((c) => ({ id: c.id, start: c.start!, end: c.end! }))) });
+      hooks.current.onComments(r.comments);
+    });
+  };
+  const cancelComments = () => { clearTimeout(commentTimer.current); commentSeq.current++; };
+  const scheduleComments = () => { clearTimeout(commentTimer.current); commentTimer.current = setTimeout(fetchComments, 500); };
   const cancelSpelling = () => { clearTimeout(spellTimer.current); spellSeq.current++; };
   const scheduleSpelling = () => { clearTimeout(spellTimer.current); spellTimer.current = setTimeout(fetchSpelling, SPELL_DEBOUNCE_MS); };
 
@@ -162,7 +196,7 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
       state: EditorState.create({
         doc: hooks.current.initialText,
         extensions: editorExtensions(hooks.current.kind, hooks.current.meta, hooks.current.reflow, {
-          onChange: (t) => { hooks.current.onChange(t); schedule(); scheduleSpelling(); },
+          onChange: (t) => { hooks.current.onChange(t); schedule(); scheduleSpelling(); scheduleComments(); },
           onSpell: (t) => hooks.current.onSpell(t),
           onCursor: (c) => hooks.current.onCursor(c),
           onBlur: () => hooks.current.onBlur(),
@@ -180,9 +214,11 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
     view.current = v;
     fetchSpans();
     fetchSpelling();
+    fetchComments();
     return () => {
-      disposed = true; clearTimeout(timer); cancelSpelling();
+      disposed = true; clearTimeout(timer); cancelSpelling(); cancelComments();
       hooks.current.onSpellCount(null);
+      hooks.current.onComments(null);
       v.destroy(); view.current = null;
     };
   }, []);

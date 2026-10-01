@@ -38,6 +38,8 @@ export function Assistant(props: {
   onSend: (text: string) => void; onRegenerate: (id: string) => void; onInsertDraft: (id: string) => void;
   onQuick: (a: QuickAction) => void; onMenu: (anchor: HTMLElement) => void; onClose: () => void;
   canInsert: boolean;
+  /** Shown under the note in the Notes tab (the scene's comments). */
+  notesExtra?: React.ReactNode;
   style: StyleStatus | null; onLearnStyle: () => void; onOpenStyle: () => void;
 }) {
   const { tab, onTab: setTab } = props;
@@ -162,6 +164,7 @@ export function Assistant(props: {
           <NotesPanel note={props.note} missingTarget={props.missingTarget} onOpenNote={props.onOpenNote}
             onAddAlias={props.onAddAlias} onCreateNote={props.onCreateNote} onOpenBacklink={props.onOpenBacklink} />
         )}
+        {tab === "notes" && props.notesExtra}
       </div>
 
       <div className="lw-composer-region">

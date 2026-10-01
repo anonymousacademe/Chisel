@@ -111,6 +111,10 @@ class ActionProvider(_Provider):
          "POV, place, purpose, status and word target (stored in the scene's frontmatter)"),
         ("Collections", "open_collections",
          "Tick the open scene's collections; add, rename, recolour or delete them (sidebar filter: #name)"),
+        ("Add comment on selection", "add_comment_prompt",
+         "Attach a note to the selected passage (kept in .comments/, never in the text)"),
+        ("Comments", "open_comments",
+         "List this scene's comments: jump to one, resolve, edit or delete it"),
         ("Snapshots", "open_snapshots",
          "List, compare, restore or delete snapshots of the open scene"),
         ("Snapshot scene", "snapshot_scene_prompt",
@@ -181,6 +185,7 @@ class ActionProvider(_Provider):
 
     #: actions listed under another category than "Action"
     CATEGORY = {"edit_details": "Scene", "open_snapshots": "Scene", "open_collections": "Scene",
+                "add_comment_prompt": "Scene", "open_comments": "Scene",
                 "snapshot_scene_prompt": "Scene"}
 
     def _entries(self):

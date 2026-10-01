@@ -13,6 +13,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Footer, Header, Input, Label, Static
+from textual.widgets.text_area import Selection
 from textual import work
 
 from .. import __version__
@@ -22,6 +23,7 @@ from ..ai.style import learn_style
 from ..ai.usage import LEDGER, format_cost
 from ..ai.writing import build_context, generate
 from ..core import collections as coll
+from ..core import comments
 from ..core import drafts, scenemeta, snapshots, sync
 from ..core import entities as ent
 from ..core import settings as user_settings
@@ -49,6 +51,7 @@ from ..core.style import (
     style_path,
 )
 from .collectionscreens import CollectionsScreen
+from .commentscreens import CommentsScreen
 from .commands import ActionProvider, EntityProvider, InsertLinkProvider, SceneProvider
 from .continuityscreen import ContinuityScreen, JumpToContradiction, WaiveToggled
 from .editor import LinkedTextArea
@@ -165,13 +168,14 @@ class HelpScreen(ModalScreen[None]):
 class NamePrompt(ModalScreen[str | None]):
     """Single-line input modal. Dismisses with the entered text or None."""
 
-    def __init__(self, prompt: str) -> None:
+    def __init__(self, prompt: str, initial: str = "") -> None:
         super().__init__()
         self._prompt = prompt
+        self._initial = initial
 
     def compose(self) -> ComposeResult:
         yield Label(self._prompt)
-        yield Input(id="name-input")
+        yield Input(self._initial, id="name-input")
 
     def on_mount(self) -> None:
         self.query_one(Input).focus()
@@ -427,6 +431,8 @@ class LorewriteApp(App):
         self._style_tip_shown = False
         self._spell_timer = None
         self._spell_lines = 0
+        self._comment_list: list[comments.Comment] = []   # the open scene's comments
+        self._comment_scene: Path | None = None
         self._spell_ignores = spelling.SessionIgnores()
 
     # -- layout ---------------------------------------------------------------
@@ -618,6 +624,7 @@ class LorewriteApp(App):
         self._refresh_snapshot_time()
         self.editor.load_text(path.read_text(encoding="utf-8"))
         self.editor.refresh_links()
+        self.refresh_comments(reload=True)
         self.editor.set_misspellings(None)
         self.schedule_spelling(0.05)
         self.editor.focus()
@@ -633,6 +640,12 @@ class LorewriteApp(App):
             except Exception:
                 pass
         write_atomic(self.current_path, text)
+        if self._is_scene(self.current_path) and \
+                comments.sidecar_path(self.project.root, self.current_path).is_file():
+            try:  # comments follow edited passages: refresh what they quote
+                comments.reanchor(self.project.root, self.current_path, text)
+            except Exception:
+                pass
         if self.current_path in (style_path(self.project),
                                  spelling.project_dictionary_path(self.project)):
             return  # the style guide and dictionary aren't part of the link index
@@ -662,6 +675,7 @@ class LorewriteApp(App):
     def on_text_area_changed(self) -> None:
         self._dirty = True
         self.editor.refresh_links()
+        self.refresh_comments()
         self._spelling_edited()
         self.update_status()
         self._save_token += 1
@@ -2096,6 +2110,103 @@ class LorewriteApp(App):
             self.notify("Details saved", timeout=1)
 
         self.push_screen(DetailsScreen(self.editor.text, characters, places), _save)
+
+    # -- comments (Wave 3.2): author notes in .comments/, never in the prose ----------
+
+    def refresh_comments(self, reload: bool = False) -> None:
+        """Underline the open scene's open comments (faintly) in the editor."""
+        if self._editor is None:
+            return
+        path = self._current_scene_path()
+        if path is None:
+            self._comment_list, self._comment_scene = [], None
+            self._editor.set_comments([])
+            return
+        if reload or self._comment_scene != path:
+            self._comment_list = comments.load(self.project.root, path)
+            self._comment_scene = path
+        if not self._comment_list:
+            self._editor.set_comments([])
+            return
+        live = [c for c in self._comment_list if not c.resolved]
+        self._editor.set_comments([(p.start, p.end) for p in comments.place(
+            self._editor.text, live) if not p.detached])
+
+    def add_comment_prompt(self) -> None:
+        """Scene · Add comment on selection."""
+        path = self._current_scene_path()
+        if path is None:
+            self.notify("Open a scene first", severity="warning")
+            return
+        if not self.editor.selected_text.strip():
+            self.notify("Select the passage to comment on first", severity="warning")
+            return
+        text = self.editor.text
+        a, b = self.editor.selection
+        lo = min(rowcol_to_offset(text, *a), rowcol_to_offset(text, *b))
+        hi = max(rowcol_to_offset(text, *a), rowcol_to_offset(text, *b))
+
+        def _add(body: str | None) -> None:
+            if not body:
+                return
+            try:
+                comments.add(self.project.root, path, text, lo, hi, body)
+            except ValueError as exc:
+                self.notify(str(exc), severity="warning")
+                return
+            self.refresh_comments(reload=True)
+            self.notify("Comment added (it is kept beside the scene, not in the text)", timeout=3)
+
+        self.push_screen(NamePrompt("Comment:"), _add)
+
+    def open_comments(self, focus: str | None = None) -> None:
+        """Scene · Comments: list, jump, resolve, edit, delete."""
+        path = self._current_scene_path()
+        if path is None:
+            self.notify("Open a scene first", severity="warning")
+            return
+        self.save_current()
+        text = self.editor.text
+        placed = comments.place(text, comments.load(self.project.root, path))
+        lines = {p.comment.id: (None if p.start is None else text.count("\n", 0, p.start))
+                 for p in placed}
+        index = next((i for i, p in enumerate(placed) if p.comment.id == focus), 0)
+        by_id = {p.comment.id: p for p in placed}
+
+        def _act(result) -> None:
+            if result is None:
+                self.refresh_comments(reload=True)
+                return
+            what, cid = result
+            root = self.project.root
+            if what == "jump":
+                p = by_id[cid]
+                self.refresh_comments(reload=True)
+                self.editor.selection = Selection(offset_to_rowcol(text, p.start),
+                                                  offset_to_rowcol(text, p.end))
+                self.editor.focus()
+            elif what == "resolve":
+                comments.resolve(root, path, cid, not by_id[cid].comment.resolved)
+                self.open_comments(cid)
+            elif what == "edit":
+                def _edit(body: str | None) -> None:
+                    if body:
+                        comments.edit(root, path, cid, body)
+                    self.open_comments(cid)
+
+                self.push_screen(NamePrompt("Comment:", by_id[cid].comment.body), _edit)
+            elif what == "delete":
+                def _gone(ok: bool) -> None:
+                    if ok:
+                        comments.delete(root, path, cid)
+                    self.open_comments(None if ok else cid)
+
+                self.push_screen(ConfirmScreen(
+                    "Delete this comment?\nThe text it was about is not touched.",
+                    confirm_label="Delete comment"), _gone)
+
+        self.push_screen(CommentsScreen(placed, lines, self.project.scene_title(path), index),
+                         _act)
 
     def _scene_collection_names(self) -> dict[Path, list[str]]:
         """{scene: its collection names}, for the sidebar's #collection filter."""
