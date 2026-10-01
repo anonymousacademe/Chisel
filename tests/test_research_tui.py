@@ -70,6 +70,17 @@ async def test_new_note_link_open_and_delete(tmp_path: Path):
         await pilot.pause()
         assert len(rs.list_notes(p)) == 1
         assert app.current_path == p.manuscript_dir / "01-opening.md"      # moved on to a scene
+        (item,) = p.list_trash()                                           # kept in the Trash, not gone
+        assert item.kind == "research" and item.original.startswith("research/")
+
+        app.open_trash()                                                   # and the Trash view restores it
+        await pilot.pause()
+        assert "research note" in app.screen._row(item)
+        await pilot.press("r")
+        await pilot.pause()
+        assert len(rs.list_notes(p)) == 2 and p.list_trash() == []
+        await pilot.press("escape")
+        await pilot.pause()
 
         app.delete_research_note_confirm()                       # a scene is open: refused
         await pilot.pause()

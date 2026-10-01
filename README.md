@@ -34,8 +34,8 @@ design and roadmap.
   (the sidebar groups scenes under it); `00-front-matter` is a part that is not
   counted as the book; `manuscript/_unplaced/` holds scenes you wrote but kept out
   of the book (not counted, not in continuity, still indexed for backlinks).
-  Deleting a scene moves it to `.trash/` — *Open Trash* restores it, deletes it
-  forever or empties the Trash, always after a confirmation.
+  Deleting a scene (or a research note) moves it to `.trash/` — *Open Trash* restores it,
+  deletes it forever or empties the Trash, always after a confirmation.
 - **Snapshots**: keep a verbatim copy of a scene (`.snapshots/`), compare it with the
   text as it is now (word by word) and restore it — the text you replace is snapshotted
   first. One is also taken before *Accept/Reject all drafts* and, once a day, before the

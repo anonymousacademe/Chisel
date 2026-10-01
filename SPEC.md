@@ -275,7 +275,11 @@ open and behave exactly as before.*
   permanent delete from either UI); the Trash view (GUI binder row, terminal *Open Trash*)
   restores it to the end of its original part (Unplaced if the part is gone), deletes one
   forever, or empties the Trash, each after a confirmation. The "detach the open scene before
-  opening the next" rule still applies.
+  opening the next" rule still applies. **Research notes go to the same Trash** (Wave 4.4): a
+  deleted note becomes `.trash/<stamp>[-n]-research__<path inside research/, "/" as "__">.md` (no
+  sidecars), is listed with the kind "research note", and *Restore* puts it back at its original
+  path - a free name (`-2`) if one was made since, `research/` itself if its folder is gone.
+  Delete forever and Empty Trash treat scenes and research notes alike.
 - **Scene details** are the scene's own YAML frontmatter (Obsidian-compatible), written only
   when the author sets a field (no field, no block; unknown keys such as `tags:` survive):
   `pov`, `place`, `purpose`, `status` (free text; suggested idea / draft / revising / done),
@@ -436,8 +440,8 @@ open and behave exactly as before.*
   file name de-slugged. Creating: *New research note* (`research/<slug>.md`, `-2` for a clash) and
   *from a link* - a note holding the URL and a title made from it (`host - last path segment`);
   **nothing is fetched**. A link pasted outside a text field, or dropped on the binder, offers to
-  save itself this way (GUI). *Delete research note* asks first and is permanent (notes are not kept
-  in the Trash).
+  save itself this way (GUI). *Delete research note* asks first ("Move to Trash") and moves the
+  note to the project Trash (4.4), from where it can be restored.
   - *The Research question* (assistant quick action in the GUI, where it turns Research mode on for
     the next questions; `ctrl+r` inside the terminal's assistant window; palette *Action · Research
     question*). `research.search` scores notes by keyword (query terms of 3+ letters minus stop words,

@@ -37,7 +37,7 @@ export const api = {
   movePart: (id: string, delta: number) => call<{ id: string; remap: Remap }>("move_part", id, delta),
   deletePart: (id: string) => call("delete_part", id),
   listTrash: () => call<{ items: TrashItem[] }>("list_trash"),
-  restoreTrash: (name: string) => call<{ id: string; unplaced: boolean }>("restore_trash", name),
+  restoreTrash: (name: string) => call<{ id: string; unplaced: boolean; kind: "scene" | "research" }>("restore_trash", name),
   deleteForever: (name: string) => call("delete_forever", name),
   emptyTrash: () => call<{ deleted: number }>("empty_trash"),
   /** The edit (UTF-16) that rewrites the frontmatter block of the editor's text; nothing is saved here. */

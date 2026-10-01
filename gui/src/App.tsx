@@ -959,7 +959,7 @@ export default function App() {
     const w = await refresh();
     const next = w?.scenes.find((s) => !s.frontMatter && !s.unplaced) ?? w?.scenes[0];
     if (next) await openDoc(next.id, { force: true });
-    notify(`Deleted the research note “${d.title}”.`);
+    notify(`Moved the research note “${d.title}” to the Trash.`, "info", { label: "Open Trash", run: () => setDialog({ kind: "trash" }) });
   };
 
   // -- comments --------------------------------------------------------------------------
@@ -1120,7 +1120,7 @@ export default function App() {
       { label: "research", separator: true, onSelect: () => {} },
       { label: "New research note…", onSelect: () => setDialog({ kind: "new-research" }) },
       { label: "New research note from a link…", onSelect: () => setDialog({ kind: "research-url", url: "" }) },
-      { label: "Delete this research note…", disabled: doc?.kind !== "research", danger: true, onSelect: () => setDialog({ kind: "delete-research" }) },
+      { label: "Move this research note to the Trash…", disabled: doc?.kind !== "research", onSelect: () => setDialog({ kind: "delete-research" }) },
       { label: "trash", separator: true, onSelect: () => {} },
       { label: "Open Trash…", onSelect: () => setDialog({ kind: "trash" }) },
     ],
@@ -1322,8 +1322,8 @@ export default function App() {
         </PromptDialog>
       )}
       {dialog?.kind === "delete-research" && doc?.kind === "research" && (
-        <ConfirmDialog title="Delete research note" confirm="Delete note"
-          message={<>Delete “{doc.title}” for good? Research notes are not kept in the Trash. <code>{doc.id}</code></>}
+        <ConfirmDialog title="Move research note to the Trash" confirm="Move to Trash"
+          message={<>Move “{doc.title}” to the Trash? You can restore it from the Trash in the binder. <code>{doc.id}</code></>}
           onConfirm={() => void deleteResearch()} onClose={() => setDialog(null)} />
       )}
       {dialog?.kind === "collections" && (

@@ -10,6 +10,7 @@
                               by continuity, still indexed for backlinks)
       05-loose-scene.md       scenes may still sit directly in manuscript/
     .trash/20261001-101500-manuscript__01-the-recall__01-a.md
+    .trash/20261001-102200-research__tides__almanac.md     (a research note, Wave 4.4)
 
 Everything is plain files; ``Project`` mixes this class in. Scenes carry a
 ``.drafts`` sidecar (core.drafts) that always travels with them.
@@ -25,6 +26,7 @@ from pathlib import Path
 
 from . import comments, drafts
 from . import entities as ent
+from . import research as research_notes
 from . import snapshots
 
 UNPLACED_DIR = "_unplaced"
@@ -33,7 +35,7 @@ TRASH_DIR = ".trash"
 FRONT_SLUG = "front-matter"
 
 _PREFIX_RE = re.compile(r"(\d+)-(.+)")
-_TRASH_RE = re.compile(r"^(\d{8}-\d{6})(?:-(\d+))?-(manuscript__.+)$")
+_TRASH_RE = re.compile(r"^(\d{8}-\d{6})(?:-(\d+))?-((?:manuscript|research)__.+)$")
 
 
 def _sort_key(name: str) -> tuple[int, int, str]:
@@ -62,9 +64,10 @@ def _num(n: int, width: int = 2) -> str:
 class TrashItem:
     name: str            # file name inside .trash/ (the id)
     path: Path
-    original: str        # project-relative path the scene had
+    original: str        # project-relative path the scene (or research note) had
     deleted: datetime
     title: str
+    kind: str = "scene"  # "scene" | "research"
 
 
 class Structure:
@@ -405,9 +408,8 @@ class Structure:
 
     # -- trash ---------------------------------------------------------------------
 
-    def delete_scene(self, path: Path) -> Path:
-        """Move a scene to the Trash (with its draft sidecar). Returns the
-        file's new path inside ``.trash/``."""
+    def _trash_dest(self, path: Path) -> Path:
+        """A free ``.trash/<stamp>-<project-relative path, "/" as "__">`` name."""
         rel = path.relative_to(self.root).as_posix().replace("/", "__")
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         self.trash_dir.mkdir(exist_ok=True)
@@ -415,6 +417,21 @@ class Structure:
         while dest.exists():
             n += 1
             dest = self.trash_dir / f"{stamp}-{n}-{rel}"
+        return dest
+
+    def trash_research(self, path: Path) -> Path:
+        """Move a research note to the Trash (name keeps its ``research/``
+        relative path). Returns its new path inside ``.trash/``."""
+        if not research_notes.is_research_path(self, path) or not path.is_file():
+            raise FileNotFoundError("no such research note")
+        dest = self._trash_dest(path)
+        path.replace(dest)
+        return dest
+
+    def delete_scene(self, path: Path) -> Path:
+        """Move a scene to the Trash (with its draft sidecar). Returns the
+        file's new path inside ``.trash/``."""
+        dest = self._trash_dest(path)
         side = drafts.sidecar_path(self.root, path)
         if side.is_file():
             side.replace(dest.with_name(dest.name + ".drafts.json"))
@@ -428,7 +445,7 @@ class Structure:
         return dest
 
     def list_trash(self) -> list[TrashItem]:
-        """Trashed scenes, newest first."""
+        """Trashed scenes and research notes, newest first."""
         items = []
         try:
             files = list(self.trash_dir.glob("*.md"))
@@ -443,7 +460,10 @@ class Structure:
             except ValueError:
                 continue
             original = m.group(3).replace("__", "/")
-            items.append(TrashItem(p.name, p, original, when, self.scene_title(p)))
+            if original.startswith("research/"):
+                items.append(TrashItem(p.name, p, original, when, research_notes.title_of(p), "research"))
+            else:
+                items.append(TrashItem(p.name, p, original, when, self.scene_title(p)))
         return sorted(items, key=lambda i: (i.deleted, i.name), reverse=True)
 
     def _trash_item(self, name: str) -> TrashItem:
@@ -452,10 +472,25 @@ class Structure:
                 return item
         raise FileNotFoundError(f"not in the trash: {name}")
 
+    def _restore_research(self, item: TrashItem) -> Path:
+        """Back to its original path (a free name if one was made since); if its
+        folder is gone, into ``research/`` itself."""
+        orig = self.root / item.original
+        folder = orig.parent if orig.parent.is_dir() else research_notes.research_dir(self)
+        folder.mkdir(parents=True, exist_ok=True)
+        final = orig if orig.parent == folder and not orig.exists() \
+            else research_notes._free_path(folder, orig.stem)
+        item.path.replace(final)
+        self._tidy_trash()
+        return final
+
     def restore_scene(self, name: str) -> Path:
         """Put a trashed scene back at the end of its original part (or the
-        top level / Unplaced it came from); if that part is gone, Unplaced."""
+        top level / Unplaced it came from); if that part is gone, Unplaced.
+        A trashed research note goes back to its original path instead."""
         item = self._trash_item(name)
+        if item.kind == "research":
+            return self._restore_research(item)
         orig = self.root / item.original
         folder = orig.parent
         if folder == self.manuscript_dir or folder in self.list_parts():

@@ -243,8 +243,8 @@ export interface CommentRow {
   start: number | null; end: number | null; row: number | null;
 }
 
-/** A scene in the Trash. */
-export interface TrashItem { name: string; title: string; original: string; deleted: string }
+/** A scene or research note in the Trash; `original` is its path in the part (scene) or in the project (research). */
+export interface TrashItem { name: string; title: string; kind: "scene" | "research"; original: string; deleted: string }
 
 /** One snapshot of a scene (`delta` = words now minus words then). */
 export interface SnapshotRow { id: string; label: string; when: string; words: number; delta: number }

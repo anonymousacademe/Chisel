@@ -150,6 +150,9 @@ PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --
   one DOM line for several doc lines, so the margin marker's line decoration goes on the first of
   them (`softBreakSet` in `editor/cm.ts`); the marker is outside the editor's box, so its click is
   caught on `.lw-editor__scroll` (`marginClick`), not in CodeMirror.
+- **Research notes go to the Trash** (`Project.trash_research`, `research.delete_note`): `.trash/` holds
+  scenes (`manuscript__…`) and research notes (`research__…`) told apart by `TrashItem.kind`; code that lists,
+  restores or empties the Trash must handle both (`restore_scene` returns the restored path of either).
 - **Research notes** (`core/research.py`) are documents of kind `research` in the GUI bridge
   (`Api._doc_kind`) but are **never indexed** (`_index_file`, TUI `_write_to_disk` skip them), never
   spell-checked, and not scenes (`is_scene_path` is false). The Research question is

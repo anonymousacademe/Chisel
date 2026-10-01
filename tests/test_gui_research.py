@@ -51,6 +51,23 @@ def test_delete_only_research_notes(tmp_path):
     assert api.delete_research_note(note)["ok"] is True and not (root / note).exists()
 
 
+def test_deleting_a_research_note_goes_to_the_trash_and_restores(tmp_path):
+    api, root = open_api(tmp_path)
+    note = api.new_research_note("Scrap")["id"]
+    assert api.get_workspace()["workspace"]["status"]["trashCount"] == 0
+    assert api.delete_research_note(note)["ok"]
+    assert api.get_workspace()["workspace"]["status"]["trashCount"] == 1
+    (item,) = api.list_trash()["items"]
+    assert item["kind"] == "research" and item["title"] == "Scrap" and item["original"] == note
+    r = api.restore_trash(item["name"])
+    assert r["ok"] and r["id"] == note and r["kind"] == "research" and r["unplaced"] is False
+    assert (root / note).is_file() and api.list_trash()["items"] == []
+    api.delete_research_note(note)
+    (item,) = api.list_trash()["items"]
+    assert api.delete_forever(item["name"])["ok"] and api.list_trash()["items"] == []
+    assert not (root / note).exists()
+
+
 def test_research_question_uses_notes_and_canon_and_cites_sources(tmp_path, monkeypatch):
     api, root = open_api(tmp_path)
     assert "no research notes" in api.research("tides?")["error"]

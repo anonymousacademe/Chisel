@@ -31,9 +31,10 @@ export function PartPickerDialog({ title, message, parts, allowTop, onPick, onCl
 }
 
 /**
- * The Trash: deleted scenes wait here. Restore puts one back at the end of its
- * original part (Unplaced if the part is gone); nothing is removed for good
- * without the confirmation shown here.
+ * The Trash: deleted scenes and research notes wait here. Restore puts a scene back
+ * at the end of its original part (Unplaced if the part is gone) and a research
+ * note at its original path (research/ if its folder is gone); nothing is removed
+ * for good without the confirmation shown here.
  */
 export function TrashDialog({ onClose, onRestored, onChanged, notify }: {
   onClose: () => void; onRestored: (id: string) => void; onChanged: () => void;
@@ -55,7 +56,8 @@ export function TrashDialog({ onClose, onRestored, onChanged, notify }: {
   const restore = async (it: TrashItem) => {
     const r = await api.restoreTrash(it.name);
     if (!r.ok) return notify(r.error, "error");
-    notify(r.unplaced ? `Restored “${it.title}” to Unplaced scenes (its part is gone).` : `Restored “${it.title}”.`);
+    notify(r.unplaced ? `Restored “${it.title}” to Unplaced scenes (its part is gone).`
+      : r.kind === "research" ? `Restored the research note “${it.title}” (${r.id}).` : `Restored “${it.title}”.`);
     onChanged();
     onRestored(r.id);
     reload();
@@ -81,7 +83,7 @@ export function TrashDialog({ onClose, onRestored, onChanged, notify }: {
     return (
       <Modal title={one ? "Delete forever" : "Empty the Trash"} onClose={() => setAsk(null)}>
         <p className="lw-dialog__message">
-          {one ? <>Delete “{one.title}” forever? </> : <>Delete all {items?.length} scenes in the Trash forever? </>}
+          {one ? <>Delete “{one.title}” forever? </> : <>Delete all {items?.length} {items?.length === 1 ? "item" : "items"} in the Trash forever? </>}
           This cannot be undone.
         </p>
         <div className="lw-dialog__buttons">
@@ -95,7 +97,7 @@ export function TrashDialog({ onClose, onRestored, onChanged, notify }: {
   }
   return (
     <Modal title="Trash" wide onClose={onClose}>
-      <p className="lw-dialog__message">Deleted scenes are kept here until you delete them forever.</p>
+      <p className="lw-dialog__message">Deleted scenes and research notes are kept here until you delete them forever.</p>
       <div className="lw-picklist lw-picklist--tall">
         {items === null && <p className="lw-empty">Loading…</p>}
         {items?.length === 0 && <p className="lw-empty">The Trash is empty.</p>}
@@ -103,7 +105,7 @@ export function TrashDialog({ onClose, onRestored, onChanged, notify }: {
           <div key={it.name} className="lw-picklist__row lw-picklist__row--static">
             <span className="lw-picklist__main">
               <strong>{it.title}</strong>
-              <span className="lw-faint">from {it.original} · deleted {it.deleted}</span>
+              <span className="lw-faint">{it.kind === "research" ? "research note · " : ""}from {it.original} · deleted {it.deleted}</span>
             </span>
             <span className="lw-row lw-gap-6">
               <button className="lw-btn" onClick={() => void restore(it)}>Restore</button>

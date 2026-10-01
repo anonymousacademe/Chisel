@@ -126,7 +126,7 @@ HELP_TEXT = """\
   New part / Rename part / Move part up, down / Delete empty part
   Move scene to part / Move scene to Unplaced / Place scene in the book
   Scene · Edit details — POV, place, purpose, status, word target
-  Open Trash — restore deleted scenes, delete forever, empty the Trash
+  Open Trash — restore deleted scenes and research notes, delete forever, empty the Trash
   Scene · Snapshots / Snapshot scene / Snapshot all scenes — compare and restore
   Brainstorm — AI "unstuck" ideas for the open scene; draft from one or save it to notes
   Focus sprint — 15 / 25 / 45 / custom minutes, countdown in the status bar, optional writer mode
@@ -2020,10 +2020,13 @@ class LorewriteApp(App):
             what, name = result
             if what == "restore":
                 new = self.project.restore_scene(name)
-                self.idx.rebuild(self.project)
-                self.refresh_sidebar()
-                self.notify("Restored to "
-                            f"{new.relative_to(self.project.manuscript_dir)}", timeout=2)
+                if research_notes.is_research_path(self.project, new):   # not indexed, no sidebar row
+                    self.notify(f"Restored the research note to {new.relative_to(self.project.root)}", timeout=3)
+                else:
+                    self.idx.rebuild(self.project)
+                    self.refresh_sidebar()
+                    self.notify("Restored to "
+                                f"{new.relative_to(self.project.manuscript_dir)}", timeout=2)
                 self.open_trash()
             elif what == "delete":
                 item = next((i for i in items if i.name == name), None)
@@ -2044,7 +2047,7 @@ class LorewriteApp(App):
                     self.open_trash()
 
                 self.push_screen(ConfirmScreen(
-                    f"Delete all {len(items)} trashed scene(s) forever?\n"
+                    f"Delete all {len(items)} item(s) in the Trash forever?\n"
                     "This cannot be undone.", confirm_label="Empty Trash"), _empty)
 
         self.push_screen(TrashScreen(items), _act)
@@ -2357,15 +2360,15 @@ class LorewriteApp(App):
                 return
             self._dirty = False          # a pending autosave must not bring the file back
             self.current_path = None
-            research_notes.delete_note(self.project, path)
+            research_notes.delete_note(self.project, path)   # to the Trash
             scenes = self.project.list_scenes()
             if scenes:
                 self.open_file(scenes[0])
-            self.notify("Research note deleted", timeout=2)
+            self.notify("Research note moved to the Trash (Action · Open Trash restores it)", timeout=3)
 
         self.push_screen(ConfirmScreen(
-            f"Delete the research note '{research_notes.title_of(path)}' for good?\n"
-            "Research notes are not kept in the Trash.", confirm_label="Delete note"), _go)
+            f"Move the research note '{research_notes.title_of(path)}' to the Trash?\n"
+            "You can restore it from Action · Open Trash.", confirm_label="Move to Trash"), _go)
 
     # -- the assistant (chat + research), Wave 3.3 / 3.4 -------------------------------------
 

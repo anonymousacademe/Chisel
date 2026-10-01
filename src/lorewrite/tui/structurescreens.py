@@ -73,6 +73,8 @@ class TrashScreen(ModalScreen["tuple[str, str] | None"]):
     @staticmethod
     def _row(item: TrashItem) -> str:
         when = item.deleted.strftime("%Y-%m-%d %H:%M")
+        if item.kind == "research":
+            return f"{item.title}  -  {when}  (research note, from {item.original})"
         return f"{item.title}  -  {when}  (from {item.original.removeprefix('manuscript/')})"
 
     def on_mount(self) -> None:

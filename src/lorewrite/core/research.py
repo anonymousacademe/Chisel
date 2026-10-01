@@ -5,7 +5,8 @@ link, a half-remembered fact. Not scenes (not in the book, not counted, not
 read by continuity) and not entities (no frontmatter, not in the link index).
 The assistant's *Research* action answers a question from them: keyword
 retrieval with a simple score (no embeddings, no web), and it cites the notes it
-used. ``project`` arguments are duck-typed: ``root`` only.
+used. ``project`` arguments are duck-typed: ``root`` only (deleting needs a real
+``Project``: notes go to its Trash).
 """
 
 from __future__ import annotations
@@ -147,11 +148,10 @@ def note_from_url(project, url: str, title: str = "") -> Path:
     return new_note(project, title or title_from_url(url), url)
 
 
-def delete_note(project, path: Path) -> None:
-    """Delete a research note for good (the UIs confirm first)."""
-    if not is_research_path(project, path) or not path.is_file():
-        raise FileNotFoundError("no such research note")
-    path.unlink()
+def delete_note(project, path: Path) -> Path:
+    """Move a research note to the project Trash (``.trash/``; restore it from
+    the Trash view). Returns its new path. The UIs confirm first."""
+    return project.trash_research(path)
 
 
 def append_assistant_note(project, prompt: str, reply: str, when: datetime | None = None) -> Path:

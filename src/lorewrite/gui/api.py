@@ -600,8 +600,8 @@ class Api:
         with self._lock:
             project = self._require()
             return {"items": [{
-                "name": i.name, "title": i.title,
-                "original": i.original.removeprefix("manuscript/"),
+                "name": i.name, "title": i.title, "kind": i.kind,
+                "original": i.original.removeprefix("manuscript/") if i.kind == "scene" else i.original,
                 "deleted": i.deleted.strftime("%Y-%m-%d %H:%M"),
             } for i in project.list_trash()]}
 
@@ -610,9 +610,12 @@ class Api:
         """Back to the end of its original part (Unplaced if the part is gone)."""
         with self._lock:
             project = self._require()
+            kind = next((i.kind for i in project.list_trash() if i.name == name), "scene")
             path = project.restore_scene(name)
+            if kind == "research":   # research notes are not in the link index
+                return {"id": ws.rel_id(project, path), "unplaced": False, "kind": kind}
             self.index.rebuild(project)
-            return {"id": ws.rel_id(project, path),
+            return {"id": ws.rel_id(project, path), "kind": kind,
                     "unplaced": project.is_unplaced(path)}
 
     @bridge
@@ -811,7 +814,7 @@ class Api:
 
     @bridge
     def delete_research_note(self, doc_id: str) -> dict:
-        """Delete a research note for good (the UI confirms first)."""
+        """Move a research note to the Trash (the UI confirms first)."""
         with self._lock:
             path, kind = self.resolve_document(doc_id)
             if kind != "research":

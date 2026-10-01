@@ -78,3 +78,48 @@ def test_delete_note_only_inside_research(tmp_path):
     with pytest.raises(FileNotFoundError):
         rs.delete_note(project, project.list_scenes()[0])
     assert project.list_scenes()[0].exists()
+
+
+def test_deleting_a_note_moves_it_to_the_trash_and_it_can_come_back(tmp_path):
+    project = project_with_notes(tmp_path)
+    note = project.root / "research" / "tides" / "almanac.md"
+    text = note.read_text(encoding="utf-8")
+    moved = rs.delete_note(project, note)
+    assert not note.exists() and moved.parent == project.trash_dir and moved.is_file()
+    assert moved.name.endswith("-research__tides__almanac.md")
+    (item,) = project.list_trash()
+    assert (item.kind, item.title, item.original) == ("research", "Tide almanac", "research/tides/almanac.md")
+    assert [n.rel for n in rs.list_notes(project)] == ["noodles.md", "plain-name.md"]
+    back = project.restore_scene(item.name)
+    assert back == note and note.read_text(encoding="utf-8") == text
+    assert project.list_trash() == [] and not project.trash_dir.exists()
+
+
+def test_restore_falls_back_to_research_when_its_folder_is_gone_or_the_name_is_taken(tmp_path):
+    project = project_with_notes(tmp_path)
+    note = project.root / "research" / "tides" / "almanac.md"
+    rs.delete_note(project, note)
+    note.parent.rmdir()                                    # the folder is gone
+    (item,) = project.list_trash()
+    assert project.restore_scene(item.name) == project.root / "research" / "almanac.md"
+    again = project.root / "research" / "noodles.md"
+    rs.delete_note(project, again)
+    again.write_text("# A newer noodles note\n", encoding="utf-8")   # the name was reused
+    (item,) = project.list_trash()
+    assert project.restore_scene(item.name) == project.root / "research" / "noodles-2.md"
+    assert again.read_text(encoding="utf-8") == "# A newer noodles note\n"
+
+
+def test_trash_lists_scenes_and_research_together_and_empties_both(tmp_path):
+    project = project_with_notes(tmp_path)
+    scene = project.list_scenes()[0]
+    project.delete_scene(scene)
+    rs.delete_note(project, project.root / "research" / "noodles.md")
+    kinds = sorted(i.kind for i in project.list_trash())
+    assert kinds == ["research", "scene"]
+    research_item = next(i for i in project.list_trash() if i.kind == "research")
+    project.delete_forever(research_item.name)
+    assert [i.kind for i in project.list_trash()] == ["scene"]
+    assert not (project.root / "research" / "noodles.md").exists()
+    rs.delete_note(project, project.root / "research" / "plain-name.md")
+    assert project.empty_trash() == 2 and project.list_trash() == []
