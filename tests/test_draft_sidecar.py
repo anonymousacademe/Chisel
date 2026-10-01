@@ -17,7 +17,7 @@ def project(tmp_path: Path) -> Project:
 
 
 def _sidecar(project: Project, scene: Path) -> Path:
-    return project.root / ".drafts" / f"{scene.name}.json"
+    return project.root / ".drafts" / f"manuscript__{scene.name}.json"
 
 
 async def _rewrite(app, pilot, scene, monkeypatch, body="Rewritten line."):
@@ -147,7 +147,7 @@ def test_move_scene_carries_sidecars_for_both_scenes(project):
     assert drafts.load_originals(project.root, project.manuscript_dir / "01-b.md") == {
         "bbbbbb": "from b"}
     assert sorted(p.name for p in (project.root / ".drafts").iterdir()) == [
-        "01-b.md.json", "02-a.md.json"]
+        "manuscript__01-b.md.json", "manuscript__02-a.md.json"]
 
 
 def test_move_scene_with_sidecar_on_only_one_side(project):
@@ -157,7 +157,7 @@ def test_move_scene_with_sidecar_on_only_one_side(project):
     project.move_scene(a, 1)
     assert drafts.load_originals(project.root, project.manuscript_dir / "01-b.md") == {
         "bbbbbb": "from b"}
-    assert not (project.root / ".drafts" / "02-a.md.json").exists()
+    assert not (project.root / ".drafts" / "manuscript__02-a.md.json").exists()
 
 
 def test_delete_scene_removes_its_sidecar(project):

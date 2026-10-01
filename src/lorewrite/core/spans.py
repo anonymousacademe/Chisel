@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from . import drafts
 from . import entities as ent
+from . import scenemeta
 from .links import WIKILINK_RE, find_all_links
 
 _OFFSET_KEYS = ("start", "end", "innerStart", "innerEnd", "bodyStart", "bodyEnd")
@@ -27,7 +28,10 @@ def compute_spans(text: str, entities: list[ent.Entity], *,
     pending = drafts.find_pending(text)
     names = [n for e in entities for n in e.names] if mentions else None
     spans: list[dict] = []
-    for link in find_all_links(drafts.blank_pending(text), names):
+    scan = drafts.blank_pending(text)
+    if mentions:  # scenes: the frontmatter block is not prose
+        scan = scenemeta.blank(scan)
+    for link in find_all_links(scan, names):
         entity = ent.resolve(link.target, entities)
         span: dict = {
             "kind": "mention" if not link.explicit

@@ -9,6 +9,8 @@ from pathlib import Path
 
 from . import drafts
 from . import entities as ent
+from . import scenemeta
+from .structure import Structure
 
 MANUSCRIPT_DIR = "manuscript"
 ENTITIES_DIR = "entities"
@@ -64,19 +66,21 @@ def default_project_path(title: str, parent: Path | None = None) -> Path | None:
 
 
 def retitle_text(text: str, new_title: str) -> str:
-    """Replace the first '# ' heading with new_title (or prepend one)."""
-    lines = text.splitlines()
+    """Replace the first '# ' heading with new_title (or prepend one, after
+    any frontmatter block)."""
+    head = scenemeta.body_offset(text)
+    lines = text[head:].splitlines()
     for i, line in enumerate(lines):
         if line.startswith("# "):
             lines[i] = f"# {new_title}"
             break
     else:
         lines[0:0] = [f"# {new_title}", ""]
-    return "\n".join(lines) + "\n"
+    return text[:head] + "\n".join(lines) + "\n"
 
 
 @dataclass
-class Project:
+class Project(Structure):
     root: Path
     title: str = "Untitled"
     meta: dict = field(default_factory=dict)
@@ -106,6 +110,7 @@ class Project:
             raise FileNotFoundError(f"no {PROJECT_FILE} in {root}")
         with (root / PROJECT_FILE).open("rb") as f:
             meta = tomllib.load(f)
+        drafts.migrate_sidecars(root)  # pre-parts sidecars -> path-keyed names
         return cls(root=root, title=str(meta.get("title", "Untitled")), meta=meta)
 
     def editor_settings(self) -> dict:
@@ -136,25 +141,33 @@ class Project:
         current = self.editor_settings()
         new_padding = current["padding"] if padding is None else max(0, min(8, int(padding)))
         new_ln = current["line_numbers"] if line_numbers is None else bool(line_numbers)
-        section = (
-            "[editor]\n"
+        self._write_section("editor", (
             f"padding = {new_padding}\n"
             f"line_numbers = {'true' if new_ln else 'false'}\n"
-        )
+        ))
+
+    def update_manuscript_settings(self, unit: str | None = None) -> None:
+        """Write [manuscript] prefs (unit = "scene" | "chapter") into project.toml."""
+        if unit is not None and unit not in ("scene", "chapter"):
+            raise ValueError("unit must be 'scene' or 'chapter'")
+        raw = dict(self.meta.get("manuscript") or {})
+        raw["unit"] = unit or self.unit
+        body = "".join(
+            f'{k} = "{v}"\n' if isinstance(v, str) else f"{k} = {v}\n"
+            for k, v in raw.items() if isinstance(v, (str, int)) and not isinstance(v, bool))
+        self._write_section("manuscript", body)
+
+    def _write_section(self, name: str, body: str) -> None:
+        """Replace (or append) the [name] table of project.toml, preserving
+        everything else, atomically; refresh the in-memory meta."""
+        section = f"[{name}]\n{body}"
         path = self.root / PROJECT_FILE
         text = path.read_text(encoding="utf-8")
-        if re.search(r"(?m)^\[editor\]\s*$", text):
-            text = re.sub(
-                r"(?ms)^\[editor\]\s*\n.*?(?=^\[|\Z)",
-                section + "\n",
-                text,
-            )
+        if re.search(rf"(?m)^\[{name}\]\s*$", text):
+            text = re.sub(rf"(?ms)^\[{name}\]\s*\n.*?(?=^\[|\Z)", lambda _: section + "\n", text)
         else:
             text = text.rstrip("\n") + "\n\n" + section
-        tmp = path.with_suffix(".tmp")
-        tmp.write_text(text, encoding="utf-8")
-        tmp.replace(path)
-        # refresh in-memory meta
+        write_atomic(path, text)
         with path.open("rb") as f:
             self.meta = tomllib.load(f)
 
@@ -177,79 +190,24 @@ class Project:
         return self.root / CACHE_DIR / "index.sqlite"
 
     def all_markdown_files(self) -> list[Path]:
-        return sorted(self.manuscript_dir.glob("*.md")) + self.list_entity_files()
+        return self.all_scene_files() + self.list_entity_files()
 
-    # -- scenes --------------------------------------------------------------
-
-    def list_scenes(self) -> list[Path]:
-        """Scene files in manuscript order (filename prefix)."""
-        return sorted(self.manuscript_dir.glob("*.md"))
+    # -- scenes (listing, parts, trash: core/structure.py) -------------------
 
     def scene_title(self, path: Path) -> str:
         """First '# ' heading, else the filename stem."""
         try:
-            for line in path.read_text(encoding="utf-8").splitlines():
+            text = path.read_text(encoding="utf-8")
+            for line in text[scenemeta.body_offset(text):].splitlines():
                 if line.startswith("# "):
                     return line[2:].strip()
         except OSError:
             pass
         return path.stem
 
-    def next_scene_path(self, title: str) -> Path:
-        """Allocate a numbered filename for a new scene."""
-        existing = self.list_scenes()
-        highest = 0
-        for p in existing:
-            m = re.match(r"(\d+)-", p.name)
-            if m:
-                highest = max(highest, int(m.group(1)))
-        return self.manuscript_dir / f"{highest + 1:02d}-{ent.slugify(title)}.md"
-
     def rename_scene(self, path: Path, new_title: str) -> None:
         """Set a scene's title (its first '# ' heading), atomically."""
         write_atomic(path, retitle_text(path.read_text(encoding="utf-8"), new_title))
-
-    def delete_scene(self, path: Path) -> None:
-        path.unlink()
-        drafts.delete_sidecar(self.root, path)
-
-    def move_scene(self, path: Path, delta: int) -> Path | None:
-        """Swap a scene's numeric prefix with a neighbor's (reorder).
-
-        Returns the moved scene's new path, or None if it can't move
-        (already at the edge, or a filename without a numeric prefix).
-        """
-        scenes = self.list_scenes()
-        try:
-            i = scenes.index(path)
-        except ValueError:
-            return None
-        j = i + delta
-        if not (0 <= j < len(scenes)):
-            return None
-        a, b = scenes[i], scenes[j]
-        ma = re.match(r"(\d+)-(.+)", a.name)
-        mb = re.match(r"(\d+)-(.+)", b.name)
-        if not ma or not mb:
-            return None
-        na, sa = ma.groups()
-        nb, sb = mb.groups()
-        tmp = a.with_name(f".swap-{a.name}")
-        a.rename(tmp)
-        b_new = b.with_name(f"{na}-{sb}")
-        b.rename(b_new)
-        new_path = tmp.with_name(f"{nb}-{sa}")
-        tmp.rename(new_path)
-        # pending-draft sidecars follow their scenes (via a temp name: the
-        # two scenes swap prefixes, so the targets can collide)
-        side_a = drafts.sidecar_path(self.root, a)
-        side_tmp = side_a.with_name(f".swap-{side_a.name}")
-        if side_a.is_file():
-            side_a.replace(side_tmp)
-        drafts.move_sidecar(self.root, b, b_new)
-        if side_tmp.is_file():
-            side_tmp.replace(drafts.sidecar_path(self.root, new_path))
-        return new_path
 
     # -- entities ------------------------------------------------------------
 

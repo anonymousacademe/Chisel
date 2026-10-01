@@ -10,7 +10,8 @@ import re
 import shutil
 from pathlib import Path
 
-from .drafts import load_originals, strip_pending
+from . import scenemeta
+from .drafts import count_words, load_originals, strip_pending
 
 STYLE_FILE = "style.md"
 BACKUP_FILE = "style.md.bak"
@@ -95,13 +96,13 @@ def sample_manuscript(project, max_words: int = 6000) -> list[tuple[str, str]]:
     paragraphs under 25 words are skipped.
     """
     per_scene: list[tuple[str, list[str]]] = []
-    for path in project.list_scenes():
+    for path in project.counted_scenes():
         try:
             text = path.read_text(encoding="utf-8")
         except OSError:
             continue
-        paras = _paragraphs(strip_pending(  # AI text isn't the author's
-            text, load_originals(project.root, path)))
+        paras = _paragraphs(scenemeta.strip(strip_pending(  # AI text isn't the author's
+            text, load_originals(project.root, path))))
         if paras:
             per_scene.append((str(path.relative_to(project.root)), paras))
     if not per_scene:
@@ -172,13 +173,13 @@ STALE_MIN_NEW_WORDS = 1000
 def manuscript_stats(project) -> tuple[int, int]:
     """(words, scenes) of the author's prose, pending AI drafts excluded."""
     words = scenes = 0
-    for path in project.list_scenes():
+    for path in project.counted_scenes():
         try:
             text = path.read_text(encoding="utf-8")
         except OSError:
             continue
         scenes += 1
-        words += len(strip_pending(text, load_originals(project.root, path)).split())
+        words += count_words(text, load_originals(project.root, path))
     return words, scenes
 
 
@@ -246,11 +247,11 @@ def select_voice_samples(project, scene_path: Path | None, scene_text: str,
                 out.add(entity.name)
         return out
 
-    focus = strip_pending(scene_text)
+    focus = scenemeta.strip(strip_pending(scene_text))
     focus_who, focus_dialogue = who(focus), _dialogue_ratio(focus)
     current = scene_path.resolve() if scene_path else None
     pool: list[tuple[int, str, str]] = []  # (order, rel, paragraph)
-    for path in project.list_scenes():
+    for path in project.counted_scenes():
         if current is not None and path.resolve() == current:
             continue
         try:
@@ -258,7 +259,8 @@ def select_voice_samples(project, scene_path: Path | None, scene_text: str,
         except OSError:
             continue
         rel = str(path.relative_to(project.root))
-        for para in _paragraphs(strip_pending(text, load_originals(project.root, path))):
+        for para in _paragraphs(scenemeta.strip(
+                strip_pending(text, load_originals(project.root, path)))):
             pool.append((len(pool), rel, para))
     if not pool and focus:
         # a one-scene project: the rest of this scene is all the author has

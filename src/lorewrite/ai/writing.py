@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 
-from ..core import drafts
+from ..core import drafts, scenemeta
 from ..core.entities import Entity, resolve
 from ..core.links import find_all_links
 from .client import usage_extra_body
@@ -59,6 +59,12 @@ def _marked_scene(scene_text: str, cursor_offset: int,
     removed (unaccepted AI text is not context). *span*, if given, is text
     that is being replaced (a selection or an expand marker): it is cut out
     and the sentinel stands in its place."""
+    head = scenemeta.body_offset(scene_text)  # the details block is not prose
+    if head:
+        scene_text = scene_text[head:]
+        cursor_offset = max(0, cursor_offset - head)
+        if span is not None:
+            span = (max(0, span[0] - head), max(0, span[1] - head))
     if span is not None:
         start, end = span
         text = scene_text[:start] + CURSOR + scene_text[end:]
@@ -100,7 +106,9 @@ sidecar, so replaced text counts as the accepted prose)."""
 
     names = [n for e in entities for n in e.names]
     mentioned: list[Entity] = []
-    for link in find_all_links(drafts.strip_pending(scene_text, originals), names):
+    for link in find_all_links(
+            scenemeta.blank(drafts.strip_pending(scene_text, originals),
+                            keep=scenemeta.MENTION_FIELDS), names):
         entity = resolve(link.target, entities)
         if entity is not None and entity not in mentioned:
             mentioned.append(entity)
@@ -120,6 +128,10 @@ sidecar, so replaced text counts as the accepted prose)."""
         sections.append(
             "THE AUTHOR'S OWN PROSE (match this voice; do not reuse its content):\n"
             + "\n\n".join(para for _, para in voice_samples))
+
+    details = scenemeta.header(scene_text)
+    if details:
+        sections.append("SCENE DETAILS (the author's plan for this scene):\n" + details)
 
     sections.append("SCENE (the new text goes at " + CURSOR + "):\n" + window)
     return "\n\n".join(sections)

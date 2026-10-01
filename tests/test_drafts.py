@@ -53,7 +53,7 @@ def test_sidecar_roundtrip_atomic_and_deleted_when_empty(tmp_path):
     scene = tmp_path / "manuscript" / "01-a.md"
     drafts.add_original(tmp_path, scene, "aaaaaa", "one")
     drafts.add_original(tmp_path, scene, "bbbbbb", "two ü")
-    path = tmp_path / ".drafts" / "01-a.md.json"
+    path = tmp_path / ".drafts" / "manuscript__01-a.md.json"
     assert path.is_file() and not list(tmp_path.rglob("*.tmp"))
     assert drafts.load_originals(tmp_path, scene) == {"aaaaaa": "one", "bbbbbb": "two ü"}
     assert drafts.all_ids(tmp_path) == {"aaaaaa", "bbbbbb"}
@@ -67,7 +67,7 @@ def test_sidecar_roundtrip_atomic_and_deleted_when_empty(tmp_path):
 def test_sidecar_corrupt_file_reads_as_empty(tmp_path):
     scene = tmp_path / "01-a.md"
     (tmp_path / ".drafts").mkdir()
-    (tmp_path / ".drafts" / "01-a.md.json").write_text("{not json")
+    (tmp_path / ".drafts" / "manuscript__01-a.md.json").write_text("{not json")
     assert drafts.load_originals(tmp_path, scene) == {}
 
 

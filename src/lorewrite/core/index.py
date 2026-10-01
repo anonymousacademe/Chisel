@@ -14,6 +14,7 @@ from pathlib import Path
 
 from . import drafts
 from . import entities as ent
+from . import scenemeta
 from .links import find_all_links
 
 SCHEMA = """\
@@ -78,6 +79,9 @@ class Index:
         for i, ch in enumerate(text):
             if ch == "\n":
                 line_starts.append(i + 1)
+        if names is not None:
+            # scene details are not prose; only pov / place values can mention
+            text = scenemeta.blank(text, keep=scenemeta.MENTION_FIELDS)
         for link in find_all_links(text, names):
             row = bisect_right(line_starts, link.start) - 1
             line = lines[row] if row < len(lines) else ""
@@ -130,7 +134,7 @@ class Index:
             entity = ent.load_entity(path)
             names.extend(entity.names)
             self.upsert_entity(entity, str(path.relative_to(project.root)))
-        scenes = set(project.list_scenes())
+        scenes = set(project.all_scene_files())
         for path in project.all_markdown_files():
             rel = str(path.relative_to(project.root))
             self.update_file(rel, path.read_text(encoding="utf-8"),

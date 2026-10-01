@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 
+from ..core import scenemeta
 from ..core.continuity import (
     Contradiction,
     contradiction_from_dict,
@@ -135,13 +136,25 @@ class CanonUpdate:
     existing_canon: str = ""  # for display only; filled app-side
 
 
+def _details_block(scene_text: str) -> str:
+    """The scene's author-set details (POV, place, purpose) as a prompt
+    section; the frontmatter itself is never sent as prose."""
+    header = scenemeta.header(scene_text)
+    if not header:
+        return ""
+    return ("SCENE DETAILS (the author's plan for this scene - not prose; "
+            "e.g. the POV character can only know what they could have "
+            f"learned):\n{header}\n\n")
+
+
 def build_check_prompt(scene_text: str, canon_by_name: dict[str, str]) -> str:
     """The user prompt: canon roster + scene. Pure function."""
     canon_lines = []
     for name, canon in canon_by_name.items():
         canon_lines.append(f"### {name}\n{canon}" if canon else f"### {name}\n(no canon)")
     canon_block = "\n\n".join(canon_lines) if canon_lines else "(no canon)"
-    return f"ENTITY CANON:\n{canon_block}\n\nSCENE:\n{scene_text}"
+    return (f"ENTITY CANON:\n{canon_block}\n\n"
+            f"{_details_block(scene_text)}SCENE:\n{scenemeta.strip(scene_text)}")
 
 
 def parse_contradictions(
@@ -183,7 +196,7 @@ def check_scene(
 
     Synchronous — run in a worker thread from the TUI.
     """
-    flagged = pre_screen(scene_text, entities, canon_by_name)
+    flagged = pre_screen(scenemeta.strip(scene_text), entities, canon_by_name)
     if flagged is not None:
         if not flagged:
             return []
@@ -312,7 +325,7 @@ def propose_canon_updates(
         line += f"\n  existing canon:\n{canon}" if canon else "\n  existing canon: (none)"
         roster.append(line)
     prompt = (f"ENTITIES:\n{chr(10).join(roster) or '(none)'}\n\n"
-              f"SCENE:\n{scene_text}")
+              f"{_details_block(scene_text)}SCENE:\n{scenemeta.strip(scene_text)}")
 
     if client is None:
         from .client import make_client

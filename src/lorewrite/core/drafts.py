@@ -27,6 +27,8 @@ import string
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import scenemeta
+
 DRAFTS_DIR = ".drafts"
 _ID_ALPHABET = string.ascii_lowercase + string.digits
 
@@ -68,8 +70,44 @@ class ExpandMarker:
 # -- sidecar ----------------------------------------------------------------
 
 
+def sidecar_key(project_root: Path, scene_path: Path) -> str:
+    """The scene's project-relative path with ``/`` written as ``__``
+    (``manuscript__02-ghost__01-a.md``): scenes in different parts may share
+    a filename, so the name alone cannot key a sidecar."""
+    try:
+        rel = scene_path.relative_to(project_root)
+    except ValueError:
+        try:
+            rel = scene_path.resolve().relative_to(project_root.resolve())
+        except (OSError, ValueError):
+            rel = Path(scene_path.name)
+    return rel.as_posix().replace("/", "__")
+
+
 def sidecar_path(project_root: Path, scene_path: Path) -> Path:
-    return project_root / DRAFTS_DIR / f"{scene_path.name}.json"
+    return project_root / DRAFTS_DIR / f"{sidecar_key(project_root, scene_path)}.json"
+
+
+def migrate_sidecars(project_root: Path) -> int:
+    """Rename pre-parts sidecars (``.drafts/<scene-filename>.json``) to the
+    path-keyed form. Only files whose scene sits directly in ``manuscript/``
+    are touched; returns how many were renamed."""
+    folder = project_root / DRAFTS_DIR
+    if not folder.is_dir():
+        return 0
+    moved = 0
+    for path in sorted(folder.glob("*.json")):
+        name = path.name[:-len(".json")]
+        if name.startswith(("manuscript__", ".")) or "__" in name:
+            continue
+        if not (project_root / "manuscript" / name).is_file():
+            continue
+        target = folder / f"manuscript__{name}.json"
+        if target.exists():
+            continue
+        path.replace(target)
+        moved += 1
+    return moved
 
 
 def load_originals(project_root: Path, scene_path: Path) -> dict[str, str]:
@@ -245,8 +283,9 @@ def strip_pending(text: str, originals: dict[str, str] | None = None) -> str:
 
 
 def count_words(text: str, originals: dict[str, str] | None = None) -> int:
-    """Words in *text*, not counting pending AI drafts (unaccepted AI text)."""
-    return len(strip_pending(text, originals).split())
+    """Words in *text*, not counting pending AI drafts (unaccepted AI text)
+    or the scene's YAML frontmatter (details are not prose)."""
+    return len(scenemeta.strip(strip_pending(text, originals)).split())
 
 
 def blank_pending(text: str) -> str:
