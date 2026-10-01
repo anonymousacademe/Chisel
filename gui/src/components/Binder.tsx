@@ -1,6 +1,6 @@
 import {
   FilePlus2, Ellipsis, ChevronDown, ChevronRight, BookOpen, Folder, FolderOpen, FileText,
-  FilePenLine, Users, Globe2, BookMarked, Inbox, Trash2, ScrollText, type LucideIcon,
+  FilePenLine, Users, Globe2, BookMarked, Inbox, Trash2, ScrollText, SpellCheck, type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
 import type { BinderNode } from "../data/types";
@@ -16,6 +16,7 @@ function nodeIcon(node: BinderNode, open: boolean, active: boolean): LucideIcon 
     case "characters": return Users;
     case "world": return Globe2;
     case "style": return ScrollText;
+    case "dictionary": return SpellCheck;
     case "research": return BookMarked;
     case "inbox": return Inbox;
     case "trash": return Trash2;
@@ -64,7 +65,7 @@ function Row({ node, depth, activeId, expanded, onToggle, onSelect }: {
   );
 }
 
-const LIBRARY_KINDS = new Set(["characters", "world", "style"]);
+const LIBRARY_KINDS = new Set(["characters", "world", "style", "dictionary"]);
 
 export function Binder({ nodes, count, activeId, expanded, onToggle, onSelect, onNew, onMenu, searching, library, canNew, canMenu }: {
   searching: boolean; library: boolean; canNew: boolean; canMenu: boolean;

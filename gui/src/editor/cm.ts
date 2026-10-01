@@ -6,9 +6,10 @@ import { Decoration, type DecorationSet, EditorView, WidgetType, drawSelection, 
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { ensureSyntaxTree } from "@codemirror/language";
 import { markdown } from "@codemirror/lang-markdown";
-import { frontmatterRange, softBreaks, specsFor, titleLine, type Span } from "./spans";
+import { frontmatterRange, misspellingAt, misspellSpecs, softBreaks, specsFor, titleLine, type Misspelling, type Span } from "./spans";
 
 export const setSpans = StateEffect.define<Span[]>();
+export const setSpelling = StateEffect.define<Misspelling[]>();
 /** Holds metaFacet so the mentions line can change without rebuilding the editor. */
 export const metaCompartment = new Compartment();
 /** Show hard-wrapped source lines as flowing paragraphs (display only). */
@@ -84,6 +85,18 @@ const spansField = StateField.define<Span[]>({
   },
 });
 
+/** Misspelled words follow the text through edits until a fresh check arrives from Python. */
+const spellingField = StateField.define<Misspelling[]>({
+  create: () => [],
+  update(list, tr) {
+    for (const e of tr.effects) if (e.is(setSpelling)) return e.value;
+    if (!tr.docChanged || list.length === 0) return list;
+    return list
+      .map((m) => ({ ...m, start: tr.changes.mapPos(m.start, 1), end: tr.changes.mapPos(m.end, -1) }))
+      .filter((m) => m.start < m.end);
+  },
+});
+
 interface Built { all: DecorationSet; atomic: DecorationSet }
 
 const HEADING = /^ATXHeading(\d)$/;
@@ -104,6 +117,11 @@ function build(state: EditorState): Built {
     else ranges.push(Decoration.mark({ class: sp.cls, attributes: sp.attrs }).range(sp.from, sp.to));
   }
 
+  // misspelled words (scenes only: Python sends nothing for other documents)
+  for (const sp of misspellSpecs(state.field(spellingField), doc.length)) {
+    ranges.push(Decoration.mark({ class: sp.cls }).range(sp.from, sp.to));
+  }
+
   // inline Accept / Reject after every pending AI draft
   const act = state.facet(draftFacet);
   let pendingIndex = 0;
@@ -114,7 +132,8 @@ function build(state: EditorState): Built {
   }
 
   // title block: the first "# " line, styled big; its "# " prefix hidden; meta line under it
-  const title = kind !== "entity" ? titleLine(text) : null;
+  const plain = kind === "dictionary"; // one term per line: no title block, no Markdown, no reflow
+  const title = kind !== "entity" && !plain ? titleLine(text) : null;
   if (title) {
     const line = doc.lineAt(title.from);
     ranges.push(Decoration.line({ class: "lw-title-line" }).range(line.from));
@@ -132,7 +151,7 @@ function build(state: EditorState): Built {
   }
 
   // hard-wrapped source lines flow as one paragraph (display only)
-  for (const pos of state.facet(reflowFacet) ? softBreaks(text, fm) : []) {
+  for (const pos of state.facet(reflowFacet) && !plain ? softBreaks(text, fm) : []) {
     ranges.push(SPACE.range(pos, pos + 1));
     atomic.push(SPACE.range(pos, pos + 1));
   }
@@ -177,7 +196,7 @@ const decoField = StateField.define<Built>({
   update(value, tr) {
     const facetChanged = tr.startState.facet(metaFacet) !== tr.state.facet(metaFacet)
       || tr.startState.facet(reflowFacet) !== tr.state.facet(reflowFacet);
-    if (tr.docChanged || tr.selection || facetChanged || tr.effects.some((e) => e.is(setSpans))) return build(tr.state);
+    if (tr.docChanged || tr.selection || facetChanged || tr.effects.some((e) => e.is(setSpans) || e.is(setSpelling))) return build(tr.state);
     return value;
   },
   provide: (f) => [
@@ -197,7 +216,33 @@ export interface Card { title: string; kind: string; body: string; missing?: boo
 const isTarget = (s: Span) => s.kind === "mention" || s.kind === "link" || s.kind === "unresolved";
 const spanAt = (state: EditorState, pos: number) => state.field(spansField).find((s) => isTarget(s) && pos >= s.start && pos <= s.end);
 
+/** What the spelling popover is about: a misspelled word, or a selected phrase. x/y = viewport point below it. */
+export type SpellTarget =
+  | { kind: "word"; from: number; to: number; word: string; x: number; y: number }
+  | { kind: "phrase"; from: number; to: number; text: string; x: number; y: number };
+
+/** The popover target for a click / right-click at *pos*, or at the cursor for Ctrl+. (pos = null). */
+function spellTargetAt(view: EditorView, pos: number | null): SpellTarget | null {
+  const sel = view.state.selection.main;
+  const at = pos ?? sel.head;
+  const place = (from: number, to: number) => {
+    const c = view.coordsAtPos(from) ?? view.coordsAtPos(to);
+    return c ? { x: c.left, y: c.bottom } : { x: 0, y: 0 };
+  };
+  const text = view.state.sliceDoc(sel.from, sel.to);
+  const hit = misspellingAt(view.state.field(spellingField), at);
+  // a multi-word selection is a phrase for the dictionary (unless it is exactly one flagged word)
+  const exact = hit && hit.start === sel.from && hit.end === sel.to;
+  if (!sel.empty && !exact && /\s/.test(text.trim()) && at >= sel.from && at <= sel.to) {
+    return { kind: "phrase", from: sel.from, to: sel.to, text, ...place(sel.from, sel.to) };
+  }
+  if (!hit) return null;
+  return { kind: "word", from: hit.start, to: hit.end, word: view.state.sliceDoc(hit.start, hit.end), ...place(hit.start, hit.end) };
+}
+
 export interface Hooks {
+  /** Open the spelling popover (click on a misspelled word, right-click, Ctrl+.). */
+  onSpell?(target: SpellTarget): void;
   /** Hover card for a span (null = none). */
   getCard(span: Span): Promise<Card | null>;
   /** ctrl/cmd+click on a mention or link. */
@@ -220,16 +265,23 @@ export function editorExtensions(kind: string, meta: string, reflow: boolean, ho
     reflowCompartment.of(reflowFacet.of(reflow)),
     history(),
     drawSelection(),
-    markdown(),
+    ...(kind === "dictionary" ? [] : [markdown()]),
     EditorView.lineWrapping,
     spansField,
+    spellingField,
     decoField,
     keymap.of([
       { key: "Mod-s", run: () => { hooks.onSaveNow(); return true; }, preventDefault: true },
+      { key: "Mod-.", run: (view) => {
+        const t = spellTargetAt(view, null);
+        if (t) hooks.onSpell?.(t);
+        return !!t;
+      } },
       ...(hooks.extraKeys ?? []).map((k) => ({ key: k.key, run: () => k.run() })),
       ...defaultKeymap, ...historyKeymap,
     ]),
-    EditorView.contentAttributes.of({ spellcheck: "true", autocorrect: "off" }),
+    // LoreWriter checks spelling itself (core.spelling), so the browser must not
+    EditorView.contentAttributes.of({ spellcheck: "false", autocorrect: "off" }),
     EditorView.updateListener.of((u) => {
       if (u.docChanged) hooks.onChange(u.state.doc.toString());
       if (u.docChanged || u.selectionSet || u.transactions.length) {
@@ -268,6 +320,24 @@ export function editorExtensions(kind: string, meta: string, reflow: boolean, ho
     }, { hoverTime: 350 }),
     EditorView.domEventHandlers({
       blur: () => { hooks.onBlur(); return false; },
+      contextmenu: (e, view) => {
+        const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
+        const t = pos === null ? null : spellTargetAt(view, pos);
+        if (!t || !hooks.onSpell) return false;
+        e.preventDefault();
+        hooks.onSpell(t);
+        return true;
+      },
+      click: (e, view) => {
+        if (e.ctrlKey || e.metaKey || e.shiftKey || e.detail > 1 || !view.state.selection.main.empty) return false;
+        const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
+        const hit = pos === null ? undefined : misspellingAt(view.state.field(spellingField), pos);
+        // a click inside the word, not on the blank space after the line's last word
+        if (!hit || pos === null || pos === hit.end) return false;
+        const t = spellTargetAt(view, pos);
+        if (t && hooks.onSpell) hooks.onSpell(t);
+        return false; // the cursor still moves into the word
+      },
       mousedown: (e, view) => {
         if (!(e.ctrlKey || e.metaKey)) return false;
         const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
@@ -281,4 +351,4 @@ export function editorExtensions(kind: string, meta: string, reflow: boolean, ho
   ];
 }
 
-export { spansField };
+export { spansField, spellingField };

@@ -63,3 +63,16 @@ describe("types", () => {
     expect(n.placeholder).toBe(true);
   });
 });
+
+describe("dictionary", () => {
+  it("is a binder item next to the style guide and opens as a document", () => {
+    const node = findNode(ws.binder, "dictionary.txt")!;
+    expect(node).toMatchObject({ title: "Dictionary", kind: "dictionary" });
+    expect(isOpenable(node)).toBe(true);
+    expect(ws.binder.findIndex((n) => n.id === "dictionary.txt")).toBe(ws.binder.findIndex((n) => n.id === "style.md") + 1);
+  });
+
+  it("is offered by the quick switcher", () => {
+    expect(filterSwitcher(switcherItems(ws), "dictionary")[0]).toMatchObject({ id: "dictionary.txt", category: "Dictionary" });
+  });
+});

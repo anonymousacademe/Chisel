@@ -3,9 +3,9 @@ import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { redo, redoDepth, undo, undoDepth } from "@codemirror/commands";
 import { api } from "../backend/api";
-import { metaCompartment, metaFacet, reflowCompartment, reflowFacet, setSpans, spansField, editorExtensions, type Card, type CursorInfo } from "../editor/cm";
+import { metaCompartment, metaFacet, reflowCompartment, reflowFacet, setSpans, setSpelling, spansField, spellingField, editorExtensions, type Card, type CursorInfo, type SpellTarget } from "../editor/cm";
 import { replaceRange, toggleWrap } from "../editor/commands";
-import type { Span } from "../editor/spans";
+import { nextMisspelling, type Span } from "../editor/spans";
 
 export interface EditorHandle {
   undo(): void; redo(): void; bold(): void; italic(): void; focus(): void;
@@ -26,6 +26,8 @@ export interface EditorHandle {
   pendingIndexAtCursor(): number;
   /** Span of a link/mention/unresolved link containing the cursor. */
   spanAtCursor(): Span | undefined;
+  /** Move to the next misspelled word after the cursor (wrapping) and select it; false if there is none. */
+  gotoNextMisspelling(): boolean;
 }
 
 interface Props {
@@ -43,10 +45,16 @@ interface Props {
   getCard(span: Span): Promise<Card | null>;
   onOpenEntity(span: Span): void;
   onResolveDraft(index: number, accept: boolean): void;
+  /** Bump to recheck spelling (dictionary, ignore or the setting changed). */
+  spellVersion: number;
+  /** Misspelling count of the document, or null when spell check does not apply. */
+  onSpellCount(count: number | null): void;
+  onSpell(target: SpellTarget): void;
   extraKeys?: { key: string; run: () => boolean }[];
 }
 
 const SPAN_DEBOUNCE_MS = 150;
+const SPELL_DEBOUNCE_MS = 600;
 
 /** CodeMirror host. Remounted (via `key`) whenever a different text is loaded. */
 export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(props, ref) {
@@ -100,7 +108,39 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
       const head = v.state.selection.main.head;
       return v.state.field(spansField).find((s) => (s.kind === "mention" || s.kind === "link" || s.kind === "unresolved") && head >= s.start && head <= s.end);
     },
+    gotoNextMisspelling: () => {
+      const v = view.current;
+      if (!v) return false;
+      const m = nextMisspelling(v.state.field(spellingField), v.state.selection.main.head);
+      if (!m) return false;
+      v.dispatch({ selection: { anchor: m.start, head: m.end }, effects: EditorView.scrollIntoView(m.start, { y: "center" }) });
+      v.focus();
+      return true;
+    },
   }), []);
+
+  // Spelling is checked in Python, off the typing path (debounced, stale answers dropped).
+  const spellTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const spellSeq = useRef(0);
+  const fetchSpelling = () => {
+    const v = view.current;
+    if (!v) return;
+    const text = v.state.doc.toString();
+    const seq = ++spellSeq.current;
+    api.spelling(hooks.current.docId, text).then((r) => {
+      if (seq !== spellSeq.current || !view.current) return;
+      if (!r.ok || !r.enabled) {
+        view.current.dispatch({ effects: setSpelling.of([]) });
+        hooks.current.onSpellCount(null);
+        return;
+      }
+      if (view.current.state.doc.toString() !== text) return; // a newer request follows
+      view.current.dispatch({ effects: setSpelling.of(r.spans) });
+      hooks.current.onSpellCount(r.spans.length);
+    });
+  };
+  const cancelSpelling = () => { clearTimeout(spellTimer.current); spellSeq.current++; };
+  const scheduleSpelling = () => { clearTimeout(spellTimer.current); spellTimer.current = setTimeout(fetchSpelling, SPELL_DEBOUNCE_MS); };
 
   // Create the editor once per mounted document.
   useEffect(() => {
@@ -122,7 +162,8 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
       state: EditorState.create({
         doc: hooks.current.initialText,
         extensions: editorExtensions(hooks.current.kind, hooks.current.meta, hooks.current.reflow, {
-          onChange: (t) => { hooks.current.onChange(t); schedule(); },
+          onChange: (t) => { hooks.current.onChange(t); schedule(); scheduleSpelling(); },
+          onSpell: (t) => hooks.current.onSpell(t),
           onCursor: (c) => hooks.current.onCursor(c),
           onBlur: () => hooks.current.onBlur(),
           onSaveNow: () => hooks.current.onSaveNow(),
@@ -138,7 +179,12 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
     });
     view.current = v;
     fetchSpans();
-    return () => { disposed = true; clearTimeout(timer); v.destroy(); view.current = null; };
+    fetchSpelling();
+    return () => {
+      disposed = true; clearTimeout(timer); cancelSpelling();
+      hooks.current.onSpellCount(null);
+      v.destroy(); view.current = null;
+    };
   }, []);
 
   // The mentions line under the title can change without rebuilding the editor.
@@ -150,10 +196,17 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
     view.current?.dispatch({ effects: reflowCompartment.reconfigure(reflowFacet.of(props.reflow)) });
   }, [props.reflow]);
 
+  // Dictionary / ignore / setting changed.
+  useEffect(() => {
+    if (props.spellVersion !== 0) fetchSpelling();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.spellVersion]);
+
   // Entities changed: spans depend on them.
   useEffect(() => {
     const v = view.current;
     if (!v || props.spansVersion === 0) return;
+    scheduleSpelling(); // entity names and aliases are accepted words
     const text = v.state.doc.toString();
     api.linkSpans(hooks.current.docId, text).then((r) => {
       if (r.ok && view.current && view.current.state.doc.toString() === text) view.current.dispatch({ effects: setSpans.of(r.spans) });

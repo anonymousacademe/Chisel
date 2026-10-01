@@ -3,7 +3,7 @@
 // workspace.py; data/fixtures/workspace.json is checked on both sides.
 
 export type BinderKind =
-  | "project" | "folder" | "document" | "entity" | "style"
+  | "project" | "folder" | "document" | "entity" | "style" | "dictionary"
   | "characters" | "world" | "research" | "inbox" | "trash";
 
 export interface BinderNode {
@@ -39,7 +39,7 @@ export interface EntitySummary {
   words: number;
 }
 
-export type DocKind = "scene" | "entity" | "style";
+export type DocKind = "scene" | "entity" | "style" | "dictionary";
 
 /** One open file: the whole Markdown text plus what the title block needs. */
 export interface DocumentPayload {
@@ -133,5 +133,7 @@ export interface SettingsInfo {
   keySource: "environment" | "keyring" | "none";
   models: Record<ModelKind, ModelChoice>;
   editor: EditorPrefs;
+  /** Underline misspellings (shared with the terminal app). */
+  spellcheck: boolean;
 }
 export interface ModelOption { id: string; name: string; promptPerM: number | null; completionPerM: number | null; context: number | null }

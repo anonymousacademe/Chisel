@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { frontmatterRange, pendingAt, softBreaks, specsFor, titleLine, type Span } from "./spans";
+import { frontmatterRange, misspellingAt, misspellSpecs, nextMisspelling, softBreaks, specsFor, titleLine, pendingAt, type Span } from "./spans";
 
 const span = (s: Partial<Span> & Pick<Span, "kind" | "start" | "end">): Span => s as Span;
 
@@ -79,5 +79,38 @@ describe("softBreaks (hard-wrapped Markdown shown reflowed)", () => {
     expect(softBreaks("text\n## H")).toEqual([]);
     expect(softBreaks("- a\n- b")).toEqual([]);
     expect(softBreaks("---\nname: A\naliases: []\n---\n\nbody", { from: 0, to: 29 })).toEqual([]);
+  });
+});
+
+describe("misspellings", () => {
+  const list = [
+    { start: 20, end: 27, word: "recieve" },
+    { start: 4, end: 8, word: "teh" },
+  ];
+
+  it("maps to a class-only mark per word, clamped to the document", () => {
+    expect(misspellSpecs(list, 100)).toEqual([
+      { from: 20, to: 27, type: "mark", cls: "lw-misspelled" },
+      { from: 4, to: 8, type: "mark", cls: "lw-misspelled" },
+    ]);
+    expect(misspellSpecs(list, 10).map((s) => s.from)).toEqual([4]);
+    expect(misspellSpecs([{ start: 3, end: 3, word: "" }], 10)).toEqual([]);
+  });
+
+  it("finds the word under a position (edges count)", () => {
+    expect(misspellingAt(list, 22)?.word).toBe("recieve");
+    expect(misspellingAt(list, 27)?.word).toBe("recieve");
+    expect(misspellingAt(list, 12)).toBeUndefined();
+  });
+
+  it("jumps to the next one after the position and wraps", () => {
+    expect(nextMisspelling(list, 0)?.start).toBe(4);
+    expect(nextMisspelling(list, 4)?.start).toBe(20);
+    expect(nextMisspelling(list, 20)?.start).toBe(4); // wrapped
+    expect(nextMisspelling([], 0)).toBeUndefined();
+  });
+
+  it("does not interfere with the span decorations of the same text", () => {
+    expect(specsFor([], 0, 50)).toEqual([]);
   });
 });

@@ -142,6 +142,13 @@ def test_dictionary_add_remove_dedupe_comments(tmp_path):
     assert path.read_text().startswith("# my words\n")
 
 
+def test_new_dictionary_gets_the_comment_header(tmp_path):
+    path = tmp_path / "dictionary.txt"
+    sp.add_to_dictionary(path, "alpha")
+    assert path.read_text() == sp.DICTIONARY_HEADER + "alpha\n"
+    assert sp.load_dictionary(path) == ["alpha"]
+
+
 def test_dictionary_writes_are_atomic(tmp_path):
     path = tmp_path / "dictionary.txt"
     sp.add_to_dictionary(path, "alpha")

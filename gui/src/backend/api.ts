@@ -1,4 +1,4 @@
-import type { Span } from "../editor/spans";
+import type { Misspelling, Span } from "../editor/spans";
 import type {
   AliasSuggestion, CanonProposal, DocumentPayload, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
   Issue, ModelKind, ModelOption, RecentProject, SceneMention, SettingsInfo, EditorPrefs, StyleStatus, Workspace,
@@ -18,6 +18,11 @@ export const api = {
     call<{ saved: boolean; conflict?: boolean; mtime: string; words?: number }>("save_document", id, text, baseMtime, force),
   documentMtime: (id: string) => call<{ mtime: string }>("document_mtime", id),
   linkSpans: (id: string, text: string) => call<{ spans: Span[] }>("link_spans", id, text),
+  spelling: (id: string, text: string) => call<{ enabled: boolean; spans: Misspelling[] }>("spelling", id, text),
+  spellingSuggestions: (word: string) => call<{ suggestions: string[] }>("spelling_suggestions", word),
+  addToDictionary: (term: string, scope: "project" | "personal") => call<{ added: boolean }>("add_to_dictionary", term, scope),
+  ignoreWord: (word: string) => call("ignore_word", word),
+  openDictionary: () => call<{ id: string }>("open_dictionary"),
   newScene: (title: string) => call<{ id: string }>("new_scene", title),
   renameScene: (id: string, title: string) => call<{ id: string }>("rename_scene", id, title),
   moveScene: (id: string, delta: number) => call<{ id: string }>("move_scene", id, delta),
@@ -53,7 +58,8 @@ export const api = {
     history: { role: string; text: string }[]) =>
     call<{ reply: string; cost: number | null }>("ask", prompt, scope, id, text, cursor, history),
   getSettings: () => call<SettingsInfo>("get_settings"),
-  setSettings: (models?: Partial<Record<ModelKind, string>>, editor?: Partial<EditorPrefs>) => call("set_settings", models ?? null, editor ?? null),
+  setSettings: (models?: Partial<Record<ModelKind, string>>, editor?: Partial<EditorPrefs>, spellcheck?: boolean) =>
+    call("set_settings", models ?? null, editor ?? null, spellcheck ?? null),
   setApiKey: (key: string) => call("set_api_key", key),
   clearApiKey: () => call<{ stillSet: boolean; note: string }>("clear_api_key"),
   listModels: (structuredOnly: boolean) => call<{ models: ModelOption[] }>("list_models", structuredOnly),

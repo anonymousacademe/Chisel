@@ -105,13 +105,18 @@ export function mockCall(method: string, args: unknown[]): object {
     }
     case "document_mtime": return { ok: true, mtime: "0" };
     case "link_spans": return { ok: true, spans: [] };
+    case "spelling": return { ok: true, enabled: false, spans: [] };
+    case "spelling_suggestions": return { ok: true, suggestions: [] };
+    case "add_to_dictionary": return { ok: true, added: true };
+    case "ignore_word": return { ok: true };
+    case "open_dictionary": return { ok: true, id: "dictionary.txt" };
     case "scene_context": {
       const scene = SCENES.find((x) => x.id === args[0]);
       return { ok: true, mentions: mentionsOf(String(args[1] ?? scene?.text ?? "")) };
     }
     case "list_entities": return { ok: true, entities: ENTITIES.map(({ body: _b, ...e }) => e) };
     case "get_entity": return { ok: true, ...getEntity(String(args[0])) };
-    case "get_settings": return { ok: true, hasKey: false, keySource: "none", editor: { zoom: 100, reflow: true },
+    case "get_settings": return { ok: true, hasKey: false, keySource: "none", editor: { zoom: 100, reflow: true }, spellcheck: true,
       models: Object.fromEntries(["fast", "strong", "writing"].map((k) => [k, { value: "", default: "default/model", effective: "default/model", projectOverride: "" }])) };
     case "set_settings": return { ok: true };
     case "ai_status": return { ok: true, hasKey: false, models: { fast: "", strong: "", writing: "" } };

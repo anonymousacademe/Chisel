@@ -18,6 +18,27 @@ export interface Span {
   instruction?: string;
 }
 
+/** A misspelled word from Python (lorewrite.core.spelling), UTF-16 offsets. */
+export interface Misspelling { start: number; end: number; word: string }
+
+/** The misspelling containing *pos* (edges count: a click at the end of a word). */
+export function misspellingAt(list: Misspelling[], pos: number): Misspelling | undefined {
+  return list.find((m) => pos >= m.start && pos <= m.end);
+}
+
+/** The first misspelling starting after *pos*, wrapping to the first; undefined when there are none. */
+export function nextMisspelling(list: Misspelling[], pos: number): Misspelling | undefined {
+  const sorted = [...list].sort((a, b) => a.start - b.start);
+  return sorted.find((m) => m.start > pos) ?? sorted[0];
+}
+
+/** Decoration specs for misspellings: a class only, clamped to the document. */
+export function misspellSpecs(list: Misspelling[], docLength: number): Spec[] {
+  return list
+    .filter((m) => m.start >= 0 && m.end <= docLength && m.start < m.end)
+    .map((m) => ({ from: m.start, to: m.end, type: "mark" as const, cls: "lw-misspelled" }));
+}
+
 /** A decoration to draw: either style a range or hide it. */
 export interface Spec {
   from: number;

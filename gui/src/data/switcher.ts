@@ -1,6 +1,6 @@
 import type { Workspace } from "./types";
 
-export interface SwitcherItem { id: string; title: string; detail: string; category: "Scene" | "Note" | "Style" }
+export interface SwitcherItem { id: string; title: string; detail: string; category: "Scene" | "Note" | "Style" | "Dictionary" }
 
 /** Everything the quick switcher (Ctrl K) can open: scenes, notes, the style guide. */
 export function switcherItems(ws: Workspace): SwitcherItem[] {
@@ -11,6 +11,7 @@ export function switcherItems(ws: Workspace): SwitcherItem[] {
     items.push({ id: e.id, title: e.name, detail: [e.type, ...e.aliases].join(" · "), category: "Note" });
   }
   if (ws.status.hasStyle) items.push({ id: "style.md", title: "Style guide", detail: "style.md", category: "Style" });
+  items.push({ id: "dictionary.txt", title: "Dictionary", detail: "dictionary.txt", category: "Dictionary" });
   return items;
 }
 

@@ -1,4 +1,4 @@
-import { GitBranch, Clock3, CloudCheck, Target, ChevronsUpDown, Coins } from "lucide-react";
+import { GitBranch, Clock3, CloudCheck, Target, ChevronsUpDown, Coins, SpellCheck } from "lucide-react";
 import { Icon } from "./primitives";
 import { placeholderProps } from "./placeholder";
 import { fmt } from "../data/tree";
@@ -6,6 +6,8 @@ import { fmt } from "../data/tree";
 export function StatusBar(props: {
   sessionWords: number; projectWords: number; aiCost: number;
   line: number; col: number; zoom: number; onZoom: () => void;
+  /** Misspellings in the open scene (null: spell check does not apply here). */
+  spelling: number | null; onSpelling: () => void;
 }) {
   const signed = props.sessionWords >= 0 ? `+${fmt(props.sessionWords)}` : `−${fmt(-props.sessionWords)}`;
   return (
@@ -29,6 +31,15 @@ export function StatusBar(props: {
         <span className="lw-status__div" />
         <span className="lw-status__item" title="AI spend this session"><Icon icon={Coins} size={12} stroke={1.5} color="var(--lw-text-faint)" />AI ${props.aiCost.toFixed(4)}</span>
         <span className="lw-status__div" />
+        {props.spelling !== null && (
+          <>
+            <button className={`lw-status__item${props.spelling ? " is-warn" : ""}`} disabled={props.spelling === 0}
+              title={props.spelling ? "Jump to the next misspelled word" : "No misspelled words"} onClick={props.onSpelling}>
+              <Icon icon={SpellCheck} size={12} stroke={1.5} color="currentColor" />{props.spelling} spelling
+            </button>
+            <span className="lw-status__div" />
+          </>
+        )}
         <span className="lw-status__item">Ln {props.line}, Col {props.col}</span>
         <button className="lw-status__item" onClick={props.onZoom} aria-label="Change zoom">
           <Icon icon={ChevronsUpDown} size={12} stroke={1.5} color="var(--lw-text-faint)" />{props.zoom}%

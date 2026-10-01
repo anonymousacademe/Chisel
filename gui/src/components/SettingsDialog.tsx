@@ -18,7 +18,7 @@ const price = (m: ModelOption) =>
 /** API key, model choices (with a searchable catalog), and editor preferences. */
 export function SettingsDialog({ initial, onClose, onSaved, notify }: {
   initial: SettingsInfo; onClose: () => void;
-  onSaved: (editor: EditorPrefs) => void; notify: (text: string, tone?: "info" | "error") => void;
+  onSaved: (editor: EditorPrefs, spellcheck: boolean) => void; notify: (text: string, tone?: "info" | "error") => void;
 }) {
   const [info, setInfo] = useState(initial);
   const [key, setKey] = useState("");
@@ -26,6 +26,7 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
     fast: initial.models.fast.value, strong: initial.models.strong.value, writing: initial.models.writing.value,
   });
   const [editor, setEditor] = useState(initial.editor);
+  const [spellcheck, setSpellcheck] = useState(initial.spellcheck);
   const [picking, setPicking] = useState<ModelKind | null>(null);
 
   const reload = async () => { const r = await api.getSettings(); if (r.ok) setInfo(r); };
@@ -40,9 +41,9 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
     notify(r.note || "API key removed."); await reload();
   };
   const save = async () => {
-    const r = await api.setSettings(models, editor);
+    const r = await api.setSettings(models, editor, spellcheck);
     if (!r.ok) return notify(r.error, "error");
-    onSaved(editor); onClose();
+    onSaved(editor, spellcheck); onClose();
   };
 
   return (
@@ -98,6 +99,10 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
           <label className="lw-check">
             <input type="checkbox" checked={editor.reflow} onChange={(e) => setEditor({ ...editor, reflow: e.target.checked })} />
             Show hard-wrapped lines as flowing paragraphs <span className="lw-faint">(display only; files are never changed)</span>
+          </label>
+          <label className="lw-check">
+            <input type="checkbox" checked={spellcheck} onChange={(e) => setSpellcheck(e.target.checked)} />
+            Underline misspellings <span className="lw-faint">(scenes only; names in your notes and your dictionaries are never flagged)</span>
           </label>
         </section>
       </div>

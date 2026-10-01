@@ -2,7 +2,7 @@ import type { BinderNode } from "./types";
 
 /** Nodes that open a document when clicked. */
 export const isOpenable = (n: BinderNode) =>
-  !n.placeholder && (n.kind === "document" || n.kind === "entity" || n.kind === "style");
+  !n.placeholder && (n.kind === "document" || n.kind === "entity" || n.kind === "style" || n.kind === "dictionary");
 
 export function collectExpanded(nodes: BinderNode[], out = new Set<string>()) {
   for (const n of nodes) { if (n.expanded) out.add(n.id); if (n.children) collectExpanded(n.children, out); }

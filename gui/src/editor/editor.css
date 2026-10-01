@@ -65,3 +65,9 @@
 .lw-cm .lw-draftbar__btn.is-accept { border-color: var(--lw-success); color: var(--lw-success); }
 .lw-cm .lw-draftbar__btn.is-accept:hover { background: var(--lw-success-soft); }
 .lw-cm .lw-draftbar__btn.is-reject:hover { background: var(--lw-bg-surface); }
+
+/* misspelled words (core.spelling): wavy underline in the danger colour */
+.lw-cm .lw-misspelled {
+  text-decoration: underline wavy var(--lw-danger);
+  text-decoration-thickness: 1px; text-underline-offset: 3px; cursor: pointer;
+}

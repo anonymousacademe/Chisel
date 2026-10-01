@@ -465,3 +465,12 @@ button.lw-status__item:hover { color: var(--lw-text); }
 
 /* "Your style" card: a quiet accent edge while the voice is unlearned or out of date */
 .lw-insight--nudge { box-shadow: inset 2px 0 0 var(--lw-accent); }
+
+/* ---------- spelling popover ---------- */
+.lw-spellmenu { min-width: 230px; max-width: 320px; }
+.lw-spellmenu .lw-menu__item { text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lw-spellmenu__suggestion { font-weight: 600; color: var(--lw-text-strong); }
+.lw-spellmenu__note { padding: 6px 10px; font-size: 12px; color: var(--lw-text-muted); }
+.lw-spellmenu__sep { height: 1px; margin: 4px 2px; background: var(--lw-border); }
+.lw-status__item.is-warn { color: var(--lw-warning); }
+.lw-status__item:disabled { cursor: default; }

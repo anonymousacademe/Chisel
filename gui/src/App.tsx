@@ -7,7 +7,7 @@ import type { BridgeResult } from "./backend/transport";
 import { anchorDraft } from "./editor/drafts";
 import { collectExpanded, isOpenable } from "./data/tree";
 import { SaveController, type SaveState } from "./editor/saveController";
-import type { Card, CursorInfo } from "./editor/cm";
+import type { Card, CursorInfo, SpellTarget } from "./editor/cm";
 import type { Span } from "./editor/spans";
 import { TitleBar } from "./components/TitleBar";
 import { ActivityRail, type RailView } from "./components/ActivityRail";
@@ -17,6 +17,7 @@ import type { EditorHandle } from "./components/EditorPane";
 import { Assistant, type AssistantTab, type QuickAction } from "./components/Assistant";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { AliasReviewDialog, CanonReviewDialog, StyleReviewDialog } from "./components/ReviewDialogs";
+import { SpellMenu } from "./components/SpellMenu";
 import { StatusBar } from "./components/StatusBar";
 import { Launch } from "./components/Launch";
 import { QuickSwitcher } from "./components/QuickSwitcher";
@@ -82,6 +83,9 @@ export default function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [scope, setScope] = useState<"scene" | "project">("scene");
   const [reflow, setReflow] = useState(true);
+  const [spellCount, setSpellCount] = useState<number | null>(null);
+  const [spellVersion, setSpellVersion] = useState(0);
+  const [spellTarget, setSpellTarget] = useState<SpellTarget | null>(null);
   const noticeId = useRef(0);
   const editorRef = useRef<EditorHandle>(null);
   const focusAfterOpen = useRef(false);
@@ -209,6 +213,10 @@ export default function App() {
   const isScene = doc?.kind === "scene";
   const select = async (n: BinderNode) => {
     if (!isOpenable(n)) return;
+    if (n.kind === "dictionary") { // first open creates dictionary.txt with a comment header
+      const r = await api.openDictionary();
+      if (!r.ok) return notify(r.error, "error");
+    }
     if (n.kind === "style" && !ws.status.hasStyle) { // first open creates the stub, as the terminal app does
       const r = await api.ensureStyle();
       if (!r.ok) return notify(r.error, "error");
@@ -508,11 +516,35 @@ export default function App() {
     if (!r.ok) return notify(r.error, "error");
     setDialog({ kind: "settings", info: r });
   };
-  const settingsSaved = (editor: { zoom: number; reflow: boolean }) => {
+  const settingsSaved = (editor: { zoom: number; reflow: boolean }, _spellcheck: boolean) => {
     setZoom(editor.zoom); setReflow(editor.reflow);
+    setSpellVersion((v) => v + 1);
     void api.aiStatus().then((r) => setAiReady(r.ok && r.hasKey));
     notify("Settings saved.");
   };
+  // -- spelling ------------------------------------------------------------------
+  const spellReplace = (t: SpellTarget, text: string) => editorRef.current?.replace(t.from, t.to, text);
+  const spellAdd = async (t: SpellTarget, scope: "project" | "personal") => {
+    const term = t.kind === "word" ? t.word : t.text.trim().replace(/\s+/g, " ");
+    const r = await api.addToDictionary(term, scope);
+    if (!r.ok) return notify(r.error, "error");
+    notify(r.added ? `Added “${term}” to ${scope === "project" ? "the project" : "your"} dictionary.` : `“${term}” is already in the dictionary.`);
+    setSpellVersion((v) => v + 1);
+  };
+  const spellIgnore = async (t: SpellTarget) => {
+    if (t.kind !== "word") return;
+    const r = await api.ignoreWord(t.word);
+    if (!r.ok) return notify(r.error, "error");
+    setSpellVersion((v) => v + 1);
+  };
+  /** Toolbar: the selected word or phrase goes to the project dictionary. */
+  const addSelectionToDictionary = () => {
+    const sel = editorRef.current?.selection();
+    if (!sel || !sel.text.trim()) return;
+    const from = sel.from, to = sel.to;
+    void spellAdd({ kind: "phrase", from, to, text: sel.text, x: 0, y: 0 }, "project");
+  };
+  const jumpToMisspelling = () => { if (!editorRef.current?.gotoNextMisspelling()) notify("No misspelled words."); };
   const cycleZoom = () => {
     const next = ZOOMS[(ZOOMS.indexOf(zoom) + 1) % ZOOMS.length];
     setZoom(next);
@@ -614,6 +646,7 @@ export default function App() {
           onSaveNow={() => void saveNow()} onReload={() => void reloadFromDisk()} onKeepMine={() => void keepMine()}
           onMakeNote={() => makeNote(false)} getCard={getCard} onOpenEntity={openEntitySpan}
           onResolveDraft={(i, a) => void resolveDraft(i, a)}
+          spellVersion={spellVersion} onSpellCount={setSpellCount} onSpell={setSpellTarget} onAddPhrase={addSelectionToDictionary}
           extraKeys={[
             { key: "Mod-j", run: () => makeNote(true) },
             { key: "F7", run: () => resolveAtCursor(true) },
@@ -632,9 +665,15 @@ export default function App() {
         )}
       </div>
       <StatusBar sessionWords={ws.status.sessionWords} projectWords={ws.status.projectWords} aiCost={ws.status.aiCost}
-        line={cursor.line} col={cursor.col} zoom={zoom} onZoom={cycleZoom} />
+        line={cursor.line} col={cursor.col} zoom={zoom} onZoom={cycleZoom}
+        spelling={isScene ? spellCount : null} onSpelling={jumpToMisspelling} />
       {switcher && <QuickSwitcher ws={ws} onClose={() => setSwitcher(false)}
         onPick={(id) => { setSwitcher(false); void openDoc(id); }} />}
+      {spellTarget && (
+        <SpellMenu target={spellTarget} onClose={() => setSpellTarget(null)}
+          onReplace={(text) => spellReplace(spellTarget, text)} onAdd={(scope) => void spellAdd(spellTarget, scope)}
+          onIgnore={() => void spellIgnore(spellTarget)} />
+      )}
       {menu && <Menu anchor={menu.anchor} items={menu.items} onClose={() => setMenu(null)} />}
       {dialog?.kind === "new-scene" && (
         <PromptDialog title="New scene" label="Title" confirm="Create" onSubmit={(t) => void createScene(t)} onClose={() => setDialog(null)} />

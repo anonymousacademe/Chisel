@@ -152,7 +152,7 @@ def add_to_dictionary(path: Path, term: str) -> bool:
     try:
         text = path.read_text(encoding="utf-8")
     except OSError:
-        text = ""
+        text = DICTIONARY_HEADER  # a new file explains itself
     if text and not text.endswith("\n"):
         text += "\n"
     path.parent.mkdir(parents=True, exist_ok=True)

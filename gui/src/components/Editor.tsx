@@ -1,13 +1,13 @@
 import { Fragment, type RefObject } from "react";
 import {
   FileText, LayoutDashboard, ListTree, Undo2, Redo2, Bold, Italic, Link, MessageSquarePlus,
-  Focus, ChevronRight, type LucideIcon,
+  Focus, ChevronRight, BookPlus, type LucideIcon,
 } from "lucide-react";
 import type { DocumentPayload, SceneMention, SceneSummary } from "../data/types";
 import { fmt } from "../data/tree";
 import { Icon, IconButton, SectionLabel, Tag } from "./primitives";
 import { EditorPane, type EditorHandle } from "./EditorPane";
-import type { Card, CursorInfo } from "../editor/cm";
+import type { Card, CursorInfo, SpellTarget } from "../editor/cm";
 import type { Span } from "../editor/spans";
 import { titleLine } from "../editor/spans";
 import type { SaveState } from "../editor/saveController";
@@ -33,6 +33,8 @@ export function Editor(props: {
   onReload: () => void; onKeepMine: () => void; onMakeNote: () => void;
   getCard: (span: Span) => Promise<Card | null>; onOpenEntity: (span: Span) => void;
   onResolveDraft: (index: number, accept: boolean) => void;
+  spellVersion: number; onSpellCount: (count: number | null) => void; onSpell: (t: SpellTarget) => void;
+  onAddPhrase: () => void;
   extraKeys?: { key: string; run: () => boolean }[];
 }) {
   const { doc } = props;
@@ -59,6 +61,8 @@ export function Editor(props: {
           <IconButton icon={Bold} label="Bold (Markdown **)" disabled={!doc} onMouseDown={(e) => e.preventDefault()} onClick={() => props.editorRef.current?.bold()} />
           <IconButton icon={Italic} label="Italic (Markdown *)" disabled={!doc} onMouseDown={(e) => e.preventDefault()} onClick={() => props.editorRef.current?.italic()} />
           <IconButton icon={Link} label="Make a note from the selection (Ctrl J)" disabled={doc?.kind !== "scene"} onMouseDown={(e) => e.preventDefault()} onClick={props.onMakeNote} />
+          <IconButton icon={BookPlus} label="Add the selected word or phrase to the dictionary" disabled={doc?.kind !== "scene" || props.cursor.from === props.cursor.to}
+            onMouseDown={(e) => e.preventDefault()} onClick={props.onAddPhrase} />
           <IconButton icon={MessageSquarePlus} label="Add comment" placeholder />
           <span className="lw-tool-sep" />
           <IconButton icon={Focus} label="Focus mode" active={props.focus} onClick={props.onFocus} />
@@ -108,6 +112,7 @@ export function Editor(props: {
                 </header>
                 <EditorPane key={`${doc.id}:${props.docRev}`} ref={props.editorRef} docId={doc.id} kind={doc.kind}
                   initialText={doc.text} meta={meta} reflow={props.reflow} spansVersion={props.spansVersion}
+                  spellVersion={props.spellVersion} onSpellCount={props.onSpellCount} onSpell={props.onSpell}
                   onChange={props.onChange} onCursor={props.onCursor} onBlur={props.onBlur} onSaveNow={props.onSaveNow}
                   getCard={props.getCard} onOpenEntity={props.onOpenEntity} onResolveDraft={props.onResolveDraft} extraKeys={props.extraKeys} />
               </article>
