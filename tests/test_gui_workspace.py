@@ -95,3 +95,8 @@ def test_binder_groups_and_placeholders(tmp_path):
     assert not any(c.get("placeholder") for c in top["project"]["children"])  # Parts are real now
     manuscript = next(c for c in top["project"]["children"] if c["id"] == "group:manuscript")
     assert [c["title"] for c in manuscript["children"]] == ["01  Arrival", "02  The Archive"]
+
+
+def test_dead_placeholder_helper_is_gone():
+    from lorewrite.gui import workspace
+    assert not hasattr(workspace, "_placeholder")

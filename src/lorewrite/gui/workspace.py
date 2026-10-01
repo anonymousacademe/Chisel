@@ -252,11 +252,6 @@ def research_node(research: list[dict]) -> dict:
     return root
 
 
-def _placeholder(id: str, title: str, kind: str = "folder", **extra) -> dict:
-    return {"id": f"ph:{id}", "title": title, "kind": kind, "placeholder": True,
-            "muted": True, **extra}
-
-
 def _scene_node(s: dict, project: Project) -> dict:
     node = {
         "id": s["id"],
