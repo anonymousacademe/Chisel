@@ -252,7 +252,7 @@ open and behave exactly as before.*
   (recursive); `list_parts()`, `part_of()`, `part_title()`, `counted_scenes()`,
   `scene_number()` are in `core/structure.py` (mixed into `Project`). A part named
   `00-front-matter` is **front matter**: listed first and muted, not counted in the
-  manuscript word total, style sampling or continuity. Numbering shown to the author
+  manuscript word total or style sampling (the continuity check looks only at the open scene, whichever it is). Numbering shown to the author
   ("Scene 07") is global across parts (front matter and unplaced scenes have none);
   projects without parts keep showing the filename prefix.
   Operations (core, both UIs): new part, rename part (retitles `_part.md`; the folder
@@ -269,7 +269,8 @@ open and behave exactly as before.*
   `scene`) changes only labels: the kicker ("Chapter 03"), the sidebar heading, palette
   wording and GUI menus. Terminal: *Call them chapters* / *Call them scenes* (names the switch it performs); GUI: project menu.
 - **Unplaced Scenes** = `manuscript/_unplaced/`: not counted in the manuscript words, not in
-  the reading order (`list_scenes()`), still indexed (backlinks) and openable. *Move scene to
+  the reading order (`list_scenes()`), still indexed (backlinks) and openable. The continuity check
+  looks only at the open scene, so being unplaced neither includes nor excludes a scene from it. *Move scene to
   Unplaced* / *Place scene in the book*.
 - **Trash** = `<project>/.trash/<YYYYMMDD-HHMMSS>[-n]-<project-relative path, "/" as "__">.md`
   plus `….md.drafts.json` for the draft originals. Deleting a scene moves it there (no

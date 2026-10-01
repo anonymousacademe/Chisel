@@ -33,7 +33,8 @@ design and roadmap.
 - **Parts, Unplaced scenes and Trash**: a folder under `manuscript/` is a part
   (the sidebar groups scenes under it); `00-front-matter` is a part that is not
   counted as the book; `manuscript/_unplaced/` holds scenes you wrote but kept out
-  of the book (not counted, not in continuity, still indexed for backlinks).
+  of the book (not counted in the word totals, not in the reading order, still indexed for
+  backlinks and openable; the continuity check looks only at the scene you have open).
   Deleting a scene (or a research note) moves it to `.trash/` — *Open Trash* restores it,
   deletes it forever or empties the Trash, always after a confirmation.
 - **Snapshots**: keep a verbatim copy of a scene (`.snapshots/`), compare it with the
