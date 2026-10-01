@@ -468,7 +468,7 @@ open and behave exactly as before.*
     plain id. GUI: the Assistant header's **History** button lists chats (newest activity first; open,
     rename, delete after a confirmation, **New chat**), the AI menu has *New chat* and *Conversation
     history…*; opening a chat restores its messages, scope and attachments. Terminal: palette *Action ·
-    Ask the assistant* opens the chat window (`ctrl+r` research mode, `ctrl+h` saved conversations,
+    Ask the assistant* opens the chat window (`ctrl+r` research mode, `ctrl+t` saved conversations,
     `ctrl+n` new chat, `ctrl+s` save the last answer to notes, `ctrl+o` open a cited note); *Action ·
     Saved conversations* goes straight to the list. The terminal chat has **no attach** in v1. A chat
     about the open scene reads it (`build_context`); with no scene open, the project (titles + canon).

@@ -139,7 +139,7 @@ HELP_TEXT = """\
   scene, never in the text; commented text is underlined faintly
   Research · <note> / New research note / ... from a link — research/ notes
   Ask the assistant (ctrl+r research mode: answers from your notes, citing them;
-  ctrl+h saved conversations, ctrl+n new chat, ctrl+s save an answer to notes)
+  ctrl+t saved conversations, ctrl+n new chat, ctrl+s save an answer to notes)
   Call them chapters / Call them scenes (wording only)
   Settings — API key, models, editor preferences, spell check
   Toggle spell check / Add selection to dictionary / Open project dictionary

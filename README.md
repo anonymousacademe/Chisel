@@ -63,7 +63,7 @@ design and roadmap.
   notes it used. Terminal: the palette (*Research · …*, *Research question*).
 - **Assistant conversations**: chats are kept with the project (`.assistant/chats/`) —
   reopen, rename or delete them from the History button (desktop) or *Saved conversations*
-  (terminal). Attach scenes, notes, research notes or your comments to a chat with the
+  (terminal, `ctrl+t` in the chat window). Attach scenes, notes, research notes or your comments to a chat with the
   paperclip (desktop; sizes are capped and trimming is always reported), and keep a good
   answer with **Save to notes**, which appends it to `research/assistant-notes.md`.
 - **Scene details** (POV, place, purpose, status, word target) are the scene's own

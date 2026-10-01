@@ -72,7 +72,7 @@ class AssistantScreen(ModalScreen["str | None"]):
         Binding("ctrl+r", "toggle_mode", "Research mode"),
         Binding("ctrl+o", "open_source", "Open a note the answer cites"),
         Binding("ctrl+s", "save_reply", "Save the last answer to your notes"),
-        Binding("ctrl+h", "history", "Saved conversations"),
+        Binding("ctrl+t", "history", "Saved conversations"),
         Binding("ctrl+n", "new_chat", "New chat"),
     ]
 
@@ -91,7 +91,7 @@ class AssistantScreen(ModalScreen["str | None"]):
             yield VerticalScroll(id="as-log")
             yield Input(id="as-input")
             yield Label("enter send · ctrl+r research · ctrl+o open cited note · ctrl+s save answer "
-                        "to notes · ctrl+h history · ctrl+n new chat · esc close", id="as-hint")
+                        "to notes · ctrl+t history · ctrl+n new chat · esc close", id="as-hint")
 
     def on_mount(self) -> None:
         log = self.query_one("#as-log", VerticalScroll)

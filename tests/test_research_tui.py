@@ -177,7 +177,7 @@ async def test_conversations_are_saved_listed_reopened_and_replies_saved_to_note
         await pilot.pause()
         assert [c.title for c in chats.list_chats(p)] == ["other topic", "first idea?"]
 
-        await pilot.press("ctrl+h")
+        await pilot.press("ctrl+t")
         await pilot.pause()
         assert isinstance(app.screen, ChatsScreen)
         await pilot.press("down")                                    # the older chat
@@ -186,7 +186,7 @@ async def test_conversations_are_saved_listed_reopened_and_replies_saved_to_note
         assert isinstance(app.screen, AssistantScreen)
         assert [m.text for m in app.screen.messages] == ["first idea?", "Re: first idea?", "second idea?", "Re: second idea?"]
 
-        await pilot.press("ctrl+h")
+        await pilot.press("ctrl+t")
         await pilot.pause()
         await pilot.press("r")
         await pilot.pause()
@@ -200,3 +200,9 @@ async def test_conversations_are_saved_listed_reopened_and_replies_saved_to_note
         await pilot.press("y")
         await pilot.pause()
         assert len(chats.list_chats(p)) == 1
+
+
+def test_saved_conversations_key_is_not_a_terminal_control_code():
+    from lorewrite.tui.assistantscreen import AssistantScreen
+    keys = {b.key for b in AssistantScreen.BINDINGS}
+    assert "ctrl+t" in keys and not keys & {"ctrl+h", "ctrl+i", "ctrl+m", "ctrl+["}

@@ -218,7 +218,8 @@ PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --
   `LinkedTextArea.BINDINGS` overrides it. The GUI editor turns the browser's native
   `spellcheck` off (ours is the only one).
 - **Terminal key limits**: `ctrl+[` IS Escape; `ctrl+enter` doesn't reach most
-  terminals. Scene nav is `alt+←/→`, writer mode is `f11`.
+  terminals; `ctrl+h` arrives as Backspace (the assistant's saved conversations are `ctrl+t`).
+  Scene nav is `alt+←/→`, writer mode is `f11`.
 - **Command palette**: providers must implement `discover()` (else the palette
   opens empty) and treat empty queries as match-all (`Matcher.match("")`
   raises). Wrap entry generation in try/except so one bad provider can't blank
