@@ -214,3 +214,45 @@ def test_check_scene_jev_gate_returns_empty_without_calling_client(monkeypatch):
     result = check_scene(SCENE, ENTITIES, CANON, model="test-model", client=client)
     assert result == []
     client.chat.completions.create.assert_not_called()
+
+
+# -- Jev pre-screen reply parsing ------------------------------------------------
+
+
+def test_pre_screen_reads_current_jev_reply_shape(monkeypatch):
+    from lorewrite.core import jev_interface as J
+
+    replies = {"Elara Vance": 0.85}
+    monkeypatch.setattr(J, "jev_available", lambda: True)
+    monkeypatch.setattr(J, "_ask", lambda state, q: {
+        "answers": {"contradiction": {
+            "type": "noul", "noul": replies.get(state["canon"]["entity"], 0.1)}},
+        "ms": 250, "model": "typesafe/jev"})
+    assert J.pre_screen(SCENE, ENTITIES, CANON) == ["Elara Vance"]
+
+
+def test_pre_screen_fails_open_on_unknown_reply_shape(monkeypatch):
+    from lorewrite.core import jev_interface as J
+
+    monkeypatch.setattr(J, "jev_available", lambda: True)
+    monkeypatch.setattr(J, "_ask", lambda state, q: {"something": "else"})
+    assert J.pre_screen(SCENE, ENTITIES, CANON) is None  # None = check everything
+
+
+def test_contradiction_score_shapes():
+    from lorewrite.core.jev_interface import _contradiction_score as score
+
+    assert score({"answers": {"contradiction": {"noul": 0.7}}}) == 0.7
+    assert score({"answers": {"contradiction": 0.4}}) == 0.4
+    assert score({"contradiction": 0.9}) == 0.9  # older top-level shape
+    assert score({"answers": {}}) is None
+    assert score({"answers": {"contradiction": {"noul": "x"}}}) is None
+
+
+def test_make_client_sets_timeout_and_retries(monkeypatch):
+    from lorewrite.ai import client as C
+
+    monkeypatch.setattr(C, "get_api_key", lambda: "sk-test")
+    c = C.make_client()
+    assert c.max_retries == C.MAX_RETRIES
+    assert float(getattr(c.timeout, "read", c.timeout)) == C.REQUEST_TIMEOUT
