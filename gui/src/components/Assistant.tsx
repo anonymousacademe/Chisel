@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Sparkles, History, PanelRightClose, Lightbulb, WandSparkles, ScanSearch, BookSearch, LocateFixed, Copy,
-  RefreshCw, ThumbsUp, UserRound, FileText, ArrowUpRight, Paperclip, ArrowUp, Ellipsis, TextCursorInput, Feather,
+  RefreshCw, BookmarkPlus, UserRound, X, FileText, ArrowUpRight, Paperclip, ArrowUp, Ellipsis, TextCursorInput, Feather,
   type LucideIcon,
 } from "lucide-react";
 import type { ChatMessage, EntityInfo, Issue, SceneMention, StyleStatus } from "../data/types";
 import { NotesPanel } from "./NotesPanel";
+import { attachKey, type Attachment } from "../data/chat";
 import { Icon, IconButton, SectionLabel, Tag } from "./primitives";
 import { placeholderProps } from "./placeholder";
 
@@ -38,6 +39,9 @@ export function Assistant(props: {
   onSend: (text: string) => void; onRegenerate: (id: string) => void; onInsertDraft: (id: string) => void;
   /** Research mode: the next question is answered from the research notes (and canon), citing them. */
   researchMode: boolean; onOpenSource: (id: string) => void;
+  /** Conversation history, attach and Save to notes (Wave 3.4). */
+  onHistory: () => void; onAttach: () => void; attachments: Attachment[]; onRemoveAttachment: (a: Attachment) => void;
+  onSaveReply: (id: string) => void;
   onQuick: (a: QuickAction) => void; onMenu: (anchor: HTMLElement) => void; onClose: () => void;
   canInsert: boolean;
   /** Shown under the note in the Notes tab (the scene's comments). */
@@ -77,7 +81,7 @@ export function Assistant(props: {
         </div>
         <div className="lw-row lw-gap-4">
           <IconButton icon={Ellipsis} label="More AI actions" onClick={(e) => props.onMenu(e.currentTarget)} />
-          <IconButton icon={History} label="Conversation history" placeholder />
+          <IconButton icon={History} label="Conversation history" onClick={props.onHistory} />
           <IconButton icon={PanelRightClose} label="Close panel" onClick={props.onClose} />
         </div>
       </div>
@@ -159,7 +163,7 @@ export function Assistant(props: {
                       <IconButton icon={Copy} label="Copy" onClick={() => navigator.clipboard?.writeText(m.text)} />
                       <IconButton icon={RefreshCw} label="Regenerate" disabled={busy} onClick={() => props.onRegenerate(m.id)} />
                       <IconButton icon={TextCursorInput} label="Insert as a draft at the cursor" disabled={!props.canInsert || busy} onClick={() => props.onInsertDraft(m.id)} />
-                      <IconButton icon={ThumbsUp} label="Helpful" placeholder />
+                      <IconButton icon={BookmarkPlus} label="Save to notes (research/assistant-notes.md)" onClick={() => props.onSaveReply(m.id)} />
                     </div>
                   )}
                 </div>
@@ -179,13 +183,23 @@ export function Assistant(props: {
       </div>
 
       <div className="lw-composer-region">
+        {props.attachments.length > 0 && (
+          <div className="lw-attachments" aria-label="Attached to this chat">
+            {props.attachments.map((a) => (
+              <span key={attachKey(a)} className="lw-chip lw-chip--attached" title={`${a.kind}: ${a.title}`}>
+                {a.kind === "comments" ? `Comments · ${a.title}` : a.title}
+                <button aria-label={`Remove ${a.title}`} onClick={() => props.onRemoveAttachment(a)}><Icon icon={X} size={11} stroke={2} /></button>
+              </span>
+            ))}
+          </div>
+        )}
         <div className="lw-composer">
           <textarea ref={inputRef} rows={1} value={draft} disabled={!props.aiReady} placeholder={props.researchMode ? "Ask a question your research notes can answer…" : "Ask about this scene or your project…"}
             onChange={(e) => { setDraft(e.target.value); const t = e.currentTarget; t.style.height = "15px"; t.style.height = `${t.scrollHeight}px`; }}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
           <div className="lw-composer__controls">
             <div className="lw-row lw-gap-4">
-              <IconButton icon={Paperclip} label="Attach context" small placeholder />
+              <IconButton icon={Paperclip} label="Attach scenes, notes, research or comments" small onClick={props.onAttach} />
               <button className="lw-tag lw-tag--accent lw-tag--button" onClick={props.onScope}
                 title="What the assistant reads: this scene, or scene titles and notes for the whole project">
                 {props.scope === "scene" ? "Current scene" : "Project"}

@@ -61,6 +61,11 @@ design and roadmap.
   paste or drop a web link to save it as a note (it is not downloaded). The assistant's
   **Research** action answers a question from those notes and your canon, and tells you which
   notes it used. Terminal: the palette (*Research · …*, *Research question*).
+- **Assistant conversations**: chats are kept with the project (`.assistant/chats/`) —
+  reopen, rename or delete them from the History button (desktop) or *Saved conversations*
+  (terminal). Attach scenes, notes, research notes or your comments to a chat with the
+  paperclip (desktop; sizes are capped and trimming is always reported), and keep a good
+  answer with **Save to notes**, which appends it to `research/assistant-notes.md`.
 - **Scene details** (POV, place, purpose, status, word target) are the scene's own
   YAML frontmatter — Obsidian-compatible, written only when you set a field, and
   never counted as prose, spell-checked, or sent to the AI as text (the AI does get
@@ -212,6 +217,7 @@ my-novel/
 ├── .snapshots/           # History: a folder of snapshots per scene (plain copies)
 ├── .comments/            # your comments on passages, one small JSON file per scene
 ├── research/             # reference notes (plain Markdown, any subfolders)
+├── .assistant/chats/     # saved assistant conversations, one JSON file per chat
 └── entities/
     ├── characters/elara-vance.md   # free-text note + YAML frontmatter
     └── places/thornwick.md         #   (name, type, aliases)

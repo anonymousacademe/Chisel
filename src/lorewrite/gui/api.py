@@ -37,6 +37,7 @@ from ..ai.writing import (
     generate as generate_text,
     research_answer as research_writer,
 )
+from ..core import attach, chats
 from ..core import collections as coll
 from ..core import comments
 from ..core import research as research_notes
@@ -793,7 +794,8 @@ class Api:
             return {}
 
     @bridge
-    def research(self, prompt: str, history: list | None = None) -> dict:
+    def research(self, prompt: str, history: list | None = None,
+                 attachments: list | None = None) -> dict:
         """Chat: answer a question from the research notes and the project canon
         (keyword retrieval, no web). Returns the reply and the notes it was given
         (`sources`, in citation order). The manuscript is never touched."""
@@ -801,12 +803,13 @@ class Api:
             project = self._require()
             entities = list(self.entities)
             context, hits = research_context(project, entities, canon_map(entities), prompt)
+            context, attached = self._with_attachments(project, context, attachments)
             sources = [{"id": ws.rel_id(project, h.note.path), "title": h.note.title,
                         "score": h.score} for h in hits]
             model = resolve_model("writing", project.meta)
             calls = LEDGER.count()
         reply = research_writer(prompt, context, model, history=history)
-        return {"reply": reply, "sources": sources, "cost": self._spent(calls)}
+        return {"reply": reply, "sources": sources, "attached": attached, "cost": self._spent(calls)}
 
     # -- comments ---------------------------------------------------------------------
     # Author notes anchored to a passage (core.comments), in .comments/<scene>.json - never in the
@@ -1304,7 +1307,7 @@ class Api:
     @bridge
     def ask(self, prompt: str, scope: str, doc_id: str | None = None,
             text: str | None = None, cursor: int = 0,
-            history: list | None = None) -> dict:
+            history: list | None = None, attachments: list | None = None) -> dict:
         """Chat: answer a question about the scene or the whole project. The
         reply is text for the chat only; the manuscript is never touched."""
         with self._lock:
@@ -1322,9 +1325,71 @@ class Api:
                 context = build_context(
                     inp["text"], from_utf16(inp["text"], cursor), entities, canon,
                     style_md, originals=inp["originals"])
+            context, attached = self._with_attachments(project, context, attachments)
             calls = LEDGER.count()
         reply = ask_writer(prompt, context, model, history=history)
-        return {"reply": reply, "cost": self._spent(calls)}
+        return {"reply": reply, "attached": attached, "cost": self._spent(calls)}
+
+    @staticmethod
+    def _with_attachments(project: Project, context: str, attachments: list | None) -> tuple[str, list]:
+        """Append the author's attachments (capped, core.attach) to a chat context; the
+        report says what was truncated or skipped."""
+        text, report = attach.build(project, [a for a in attachments or [] if isinstance(a, dict)])
+        return (f"{context}\n\n{text}" if text else context), report
+
+    @bridge
+    def list_attachable(self) -> dict:
+        """Everything the paperclip can attach, with approximate sizes in words."""
+        with self._lock:
+            project = self._require()
+            return {"items": attach.attachable(project, self.entities),
+                    "maxWords": attach.TOTAL_CHARS // 6, "maxItems": attach.MAX_ITEMS}
+
+    # -- saved conversations (.assistant/chats/) -------------------------------------------
+
+    @staticmethod
+    def _chat_row(info: chats.ChatInfo) -> dict:
+        return {"id": info.id, "title": info.title, "created": info.created,
+                "updated": info.updated, "count": info.count}
+
+    @bridge
+    def list_chats(self) -> dict:
+        with self._lock:
+            return {"chats": [self._chat_row(i) for i in chats.list_chats(self._require())]}
+
+    @bridge
+    def open_chat(self, chat_id: str) -> dict:
+        with self._lock:
+            return {"chat": chats.load(self._require(), chat_id).as_dict()}
+
+    @bridge
+    def save_chat(self, chat_id: str | None, messages: list, scope: str = "scene",
+                  attachments: list | None = None) -> dict:
+        """Store the conversation as the client has it (see core.chats.save)."""
+        with self._lock:
+            chat = chats.save(self._require(), chat_id, messages, scope, attachments)
+            return {"id": chat.id, "title": chat.title}
+
+    @bridge
+    def rename_chat(self, chat_id: str, title: str) -> dict:
+        with self._lock:
+            chats.rename(self._require(), chat_id, title)
+            return {"chats": [self._chat_row(i) for i in chats.list_chats(self._require())]}
+
+    @bridge
+    def delete_chat(self, chat_id: str) -> dict:
+        with self._lock:
+            chats.delete(self._require(), chat_id)
+            return {"chats": [self._chat_row(i) for i in chats.list_chats(self._require())]}
+
+    @bridge
+    def save_reply_to_notes(self, prompt: str, reply: str) -> dict:
+        """Append an assistant reply, with the date and the prompt, to
+        research/assistant-notes.md (Save to notes)."""
+        with self._lock:
+            project = self._require()
+            path = research_notes.append_assistant_note(project, prompt, reply)
+            return {"id": ws.rel_id(project, path)}
 
     # -- window ---------------------------------------------------------------
 

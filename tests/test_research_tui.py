@@ -131,3 +131,61 @@ async def test_research_question_cites_notes_and_chat_mode_asks(tmp_path: Path, 
         assert calls["ask"][0] == "what now?"
         assert "Try a stranger" in _texts(app.screen)
         assert {"role": "user", "text": "when does the spur flood?"} in calls["ask"][2]   # history carries over
+
+
+async def test_conversations_are_saved_listed_reopened_and_replies_saved_to_notes(tmp_path: Path, monkeypatch):
+    from lorewrite.core import chats
+    from lorewrite.tui.assistantscreen import ChatsScreen
+
+    p = _project(tmp_path)
+    app = LorewriteApp(p)
+    monkeypatch.setattr(app_module, "ask_writer", lambda prompt, context, model, history=None, client=None: f"Re: {prompt}")
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.open_assistant()
+        await pilot.pause()
+        for q in ("first idea?", "second idea?"):
+            app.screen.query_one(Input).value = q
+            await pilot.press("enter")
+            await pilot.pause(0.3)
+            await pilot.pause()
+        (info,) = chats.list_chats(p)
+        assert info.title == "first idea?" and info.count == 4       # saved after each answer, one chat
+
+        await pilot.press("ctrl+s")                                  # save the last answer to notes
+        await pilot.pause()
+        notes = (p.root / "research" / "assistant-notes.md").read_text()
+        assert "**Prompt:** second idea?" in notes and "Re: second idea?" in notes and "first idea" not in notes.split("##")[-1]
+
+        await pilot.press("ctrl+n")                                  # a new chat: empty window, old one stays on disk
+        await pilot.pause()
+        assert isinstance(app.screen, AssistantScreen) and app.screen.messages == []
+        app.screen.query_one(Input).value = "other topic"
+        await pilot.press("enter")
+        await pilot.pause(0.3)
+        await pilot.pause()
+        assert [c.title for c in chats.list_chats(p)] == ["other topic", "first idea?"]
+
+        await pilot.press("ctrl+h")
+        await pilot.pause()
+        assert isinstance(app.screen, ChatsScreen)
+        await pilot.press("down")                                    # the older chat
+        await pilot.press("enter")
+        await pilot.pause()
+        assert isinstance(app.screen, AssistantScreen)
+        assert [m.text for m in app.screen.messages] == ["first idea?", "Re: first idea?", "second idea?", "Re: second idea?"]
+
+        await pilot.press("ctrl+h")
+        await pilot.pause()
+        await pilot.press("r")
+        await pilot.pause()
+        app.screen.query_one(Input).value = "Plot ideas"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert "Plot ideas" in [c.title for c in chats.list_chats(p)]
+        assert isinstance(app.screen, ChatsScreen)
+        await pilot.press("d")
+        await pilot.pause()
+        await pilot.press("y")
+        await pilot.pause()
+        assert len(chats.list_chats(p)) == 1

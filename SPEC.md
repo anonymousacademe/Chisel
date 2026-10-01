@@ -369,7 +369,7 @@ open and behave exactly as before.*
   - Not done: pull / fetch / merge (the status shows `behind` internally but nothing acts on it),
     branches, credentials management, a commit history view.
 
-### Notes around the manuscript (Wave 3, in progress; plan: docs/plan-workspace.md)
+### Notes around the manuscript ✅ (Wave 3, implemented 2026-10-01; plan: docs/plan-workspace.md)
 
 *Collections, comments, research and the assistant's conversation history. All plain files
 (§2); nothing here lives only in `.lorewrite/`, and none of it is git-ignored.*
@@ -449,6 +449,34 @@ open and behave exactly as before.*
     palette *Research · <title>* opens one; *New research note*, *New research note from a link*,
     *Delete research note*.
 
+- **Assistant conversations, attach and Save to notes** (3.4, `core/chats.py`, `core/attach.py`).
+  - *History.* Chats persist per project as `<project>/.assistant/chats/<id>.json` (id = `c` + 10 hex
+    characters): `{id, title, created, updated, scope, attachments, messages[{id, role, text,
+    error?, sources?}]}`. Title = the first prompt (60 characters), kept unless renamed. The client
+    sends its whole conversation after every answer (`save_chat`), so a regenerated answer simply
+    replaces the old one; failed answers (`error`) are not stored; at most 400 messages, 20,000
+    characters each. Chat ids come over the bridge, so every lookup refuses anything that is not a
+    plain id. GUI: the Assistant header's **History** button lists chats (newest activity first; open,
+    rename, delete after a confirmation, **New chat**), the AI menu has *New chat* and *Conversation
+    history…*; opening a chat restores its messages, scope and attachments. Terminal: palette *Action ·
+    Ask the assistant* opens the chat window (`ctrl+r` research mode, `ctrl+h` saved conversations,
+    `ctrl+n` new chat, `ctrl+s` save the last answer to notes, `ctrl+o` open a cited note); *Action ·
+    Saved conversations* goes straight to the list. The terminal chat has **no attach** in v1. A chat
+    about the open scene reads it (`build_context`); with no scene open, the project (titles + canon).
+  - *Attach* (GUI paperclip). Pick scenes, entity notes, research notes, or a scene's open
+    **comments** (the only way a comment reaches the AI). Chips above the composer, removable; a
+    change to a saved chat's attachments is saved. `core.attach.build` resolves them at send time:
+    each item at most 8,000 characters, all together at most 24,000, at most 12 items, below 200
+    characters of room an item is skipped; scene text loses its details block and pending AI drafts;
+    comment text loses `<!--`. The reply carries an `attached` report (truncated / skipped with the
+    reason) and the GUI says so in a notice: nothing is trimmed or dropped silently. The picker shows
+    approximate words against the cap (about 4,000 words). Both *Ask* and *Research* take attachments
+    as `ATTACHED …` sections after the normal context.
+  - *Save to notes.* The reply's bookmark button (was the placeholder thumb) appends the reply, under
+    `## <date> - <prompt>` with a `**Prompt:**` line, to `research/assistant-notes.md` (created with
+    `# Assistant notes`). It is an ordinary research note afterwards, so the Research action can
+    find it again. Nothing is sent anywhere.
+
 ### Desktop GUI (pywebview + the React design) ✅ (implemented; merged to main 2026-10-01)
 
 An Obsidian-style desktop front end over the same `core/` and `ai/`: a native
@@ -494,9 +522,9 @@ both edit the same plain-Markdown projects.
   as designed but dimmed, non-interactive, tooltip "Not in LoreWriter yet"
   (`gui/src/components/placeholder.ts`): the status-bar Streak item
   (the Draft badge and status item, Snapshots, Sync and the History button are real since Wave 2;
-  the Research row, Collections, the comment button and the Research quick action since Wave 3),
-  the Brainstorm quick action, conversation history, attach-context
-  and the reply "Helpful" button. No fake data is shown for them.
+  the Research row, Collections, the comment button, the Research quick action, conversation history,
+  attach-context and the reply's Save to notes since Wave 3), and the Brainstorm quick action.
+  No fake data is shown for them.
 - **Keys.** `ctrl+k` quick switcher, `ctrl+s` save, `ctrl+n` new scene, `f11`
   focus mode, `ctrl+j` in the editor: open the note under the cursor / make a note
   for the selected name (elsewhere it focuses the assistant composer, as in the

@@ -173,6 +173,19 @@ export interface DraftEdit { from: number; to: number; insert: string }
 export type ChatMessage =
   | { id: string; role: "user"; text: string }
   | { id: string; role: "assistant"; text: string; error?: boolean; sources?: ChatSource[] };
+/** A saved conversation (.assistant/chats/), newest activity first in lists. */
+export interface ChatSummary { id: string; title: string; created: string; updated: string; count: number }
+export interface SavedChat {
+  id: string; title: string; created: string; updated: string; scope: "scene" | "project";
+  attachments: { kind: AttachKind; id: string }[];
+  messages: { id: string; role: "user" | "assistant"; text: string; error?: boolean; sources?: ChatSource[] }[];
+}
+export type AttachKind = "scene" | "note" | "research" | "comments";
+/** Something the paperclip can add to a chat's context; `words` is approximate. */
+export interface AttachItem { kind: AttachKind; id: string; title: string; words: number; count?: number; detail?: string }
+/** What the chat reports back about its attachments: nothing is trimmed or dropped silently. */
+export interface AttachReport { kind: AttachKind; id: string; title: string; chars: number; truncated: boolean; skipped: boolean; reason?: string }
+
 /** A research note a Research answer was given; `index` is its citation number [n]. */
 export interface ChatSource { id: string; title: string }
 

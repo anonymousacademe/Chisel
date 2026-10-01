@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./backend/api";
 import type {
-  AliasSuggestion, BinderNode, CanonProposal, ChatMessage, CollectionColor, CommentRow, DetailsPatch, DocumentPayload, EntityInfo, EntityType, Issue, Remap, SceneMention, SettingsInfo, StyleStatus, SyncInfo, Workspace,
+  AliasSuggestion, AttachItem, AttachReport, BinderNode, CanonProposal, ChatMessage, ChatSummary, CollectionColor, CommentRow, DetailsPatch, DocumentPayload, EntityInfo, EntityType, Issue, Remap, SceneMention, SettingsInfo, StyleStatus, SyncInfo, Workspace,
 } from "./data/types";
 import type { BridgeResult } from "./backend/transport";
 import { anchorDraft } from "./editor/drafts";
@@ -28,6 +28,8 @@ import { SnapshotsDialog } from "./components/SnapshotsDialog";
 import { CollectionsManager, SceneCollectionsDialog } from "./components/CollectionDialogs";
 import { memberIds } from "./data/collections";
 import { AddCommentDialog, CommentPopover, CommentsPanel } from "./components/CommentComponents";
+import { AttachDialog, ChatHistoryDialog } from "./components/ChatDialogs";
+import type { Attachment } from "./data/chat";
 import { Toasts, type Notice } from "./components/Toast";
 
 const ZOOMS = [90, 100, 110, 125];
@@ -47,6 +49,8 @@ type Dialog =
   | { kind: "snapshots" }
   | { kind: "collections" }
   | { kind: "new-research" }
+  | { kind: "chats" }
+  | { kind: "attach"; items: AttachItem[]; maxWords: number; maxItems: number }
   | { kind: "research-url"; url: string }
   | { kind: "delete-research" }
   | { kind: "add-comment"; from: number; to: number; quote: string }
@@ -117,6 +121,12 @@ export default function App() {
   const [partFocus, setPartFocus] = useState<string | null>(null);
   const [collection, setCollection] = useState<string | null>(null);
   const [researchMode, setResearchMode] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [chatList, setChatList] = useState<ChatSummary[] | null>(null);
+  const chatIdRef = useRef<string | null>(null);   // the saved conversation behind the messages, if any
+  const [chatId, setChatId] = useState<string | null>(null);   // (the same, for rendering)
+  const setChat = (id: string | null) => { chatIdRef.current = id; setChatId(id); };
+  const persistChat = useRef(false);               // set after a completed turn: the next messages change is saved
   const [comments, setComments] = useState<CommentRow[] | null>(null);
   const [commentPop, setCommentPop] = useState<{ id: string; x: number; y: number } | null>(null);
   const noticeId = useRef(0);
@@ -125,6 +135,15 @@ export default function App() {
   const gotoRow = useRef<number | null>(null);
   const docRef = useRef<DocumentPayload | null>(null);
   useEffect(() => { docRef.current = doc; });
+  // A conversation is saved (.assistant/chats/) after every answer, as the panel shows it.
+  useEffect(() => {
+    if (!persistChat.current) return;
+    persistChat.current = false;
+    const kept = messages.filter((m) => !(m.role === "assistant" && m.error));
+    if (!kept.length) return;
+    void api.saveChat(chatIdRef.current, kept, scope, attachments.map(({ kind, id }) => ({ kind, id })))
+      .then((r) => { if (r.ok) { chatIdRef.current = r.id; setChatId(r.id); } });
+  }, [messages, scope, attachments]);
 
   const notify = useCallback((text: string, tone: Notice["tone"] = "info", action?: Notice["action"]) => {
     const id = ++noticeId.current;
@@ -532,6 +551,13 @@ export default function App() {
     return true;
   };
 
+  /** Say so when an attachment was trimmed to fit or could not be sent: nothing is dropped silently. */
+  const reportAttached = (report: AttachReport[]) => {
+    const trimmed = report.filter((a) => a.truncated && !a.skipped).map((a) => a.title);
+    const skipped = report.filter((a) => a.skipped);
+    if (trimmed.length) notify(`Shortened to fit: ${trimmed.join(", ")}.`);
+    if (skipped.length) notify(`Not attached: ${skipped.map((a) => `${a.title} (${a.reason})`).join("; ")}.`, "error");
+  };
   const sendChat = async (text: string, replaceId?: string) => {
     const ed = editorRef.current, d = docRef.current;
     let base = messages.filter((m) => !(m.role === "assistant" && m.error));
@@ -540,14 +566,19 @@ export default function App() {
     if (!requireAi()) return;
     if (!replaceId) setMessages((m) => [...m, { id: uid(), role: "user", text }]);
     else setMessages((m) => m.filter((x) => x.id !== replaceId));
+    const attached = attachments.map(({ kind, id }) => ({ kind, id }));
     if (researchMode) {
-      const r = await aiCall("Searching your notes…", () => api.research(text, history));
+      const r = await aiCall("Searching your notes…", () => api.research(text, history, attached));
+      if (r) reportAttached(r.attached);
+      persistChat.current = !!r;
       setMessages((m) => [...m, r
         ? { id: uid(), role: "assistant", text: r.reply, sources: r.sources.map((s) => ({ id: s.id, title: s.title })) }
         : { id: uid(), role: "assistant", text: "That request failed. Nothing was changed.", error: true }]);
       return;
     }
-    const r = await aiCall("Thinking…", () => api.ask(text, scope, d?.kind === "scene" ? d.id : null, ed ? ed.getText() : null, ed?.head() ?? 0, history));
+    const r = await aiCall("Thinking…", () => api.ask(text, scope, d?.kind === "scene" ? d.id : null, ed ? ed.getText() : null, ed?.head() ?? 0, history, attached));
+    if (r) reportAttached(r.attached);
+    persistChat.current = !!r;
     setMessages((m) => [...m, r ? { id: uid(), role: "assistant", text: r.reply } : { id: uid(), role: "assistant", text: "That request failed. Nothing was changed.", error: true }]);
   };
   const regenerate = (id: string) => {
@@ -571,6 +602,8 @@ export default function App() {
     } else void quickContinuity();
   };
   const openAiMenu = (anchor: HTMLElement) => setMenu({ anchor, items: [
+    { label: "New chat", onSelect: newChat },
+    { label: "Conversation history…", onSelect: () => void openChatHistory() },
     { label: "Draft at the cursor…", disabled: doc?.kind !== "scene", onSelect: () => { const ed = editorRef.current; const h = ed?.head() ?? 0; if (requireAi()) setDialog({ kind: "generate", mode: "draft", from: h, to: h, title: "Draft new prose here", label: "What should the AI write?", initial: "" }); } },
     { label: "Find aliases", disabled: doc?.kind !== "scene", onSelect: () => void findAliases() },
     { label: "Update story bible", disabled: doc?.kind !== "scene", onSelect: () => void updateBible() },
@@ -758,6 +791,64 @@ export default function App() {
     const c = await api.sceneContext(d.id, ed.getText());
     if (c.ok && docRef.current?.id === d.id) setMentions(c.mentions);
   };
+  // -- chat history, attachments, save to notes ------------------------------------------------
+  const newChat = () => {
+    setChat(null); persistChat.current = false;
+    setMessages([]); setAttachments([]); setDialog(null);
+  };
+  const openChatHistory = async () => {
+    setChatList(null);
+    setDialog({ kind: "chats" });
+    const r = await api.listChats();
+    if (r.ok) setChatList(r.chats); else notify(r.error, "error");
+  };
+  const loadChat = async (id: string) => {
+    const r = await api.openChat(id);
+    if (!r.ok) return notify(r.error, "error");
+    const c = r.chat;
+    const items = await api.listAttachable();
+    const known = new Map((items.ok ? items.items : []).map((i) => [`${i.kind}:${i.id}`, i]));
+    setChat(c.id); persistChat.current = false;
+    setMessages(c.messages.map((m) => (m.role === "user" ? { id: m.id, role: "user" as const, text: m.text }
+      : { id: m.id, role: "assistant" as const, text: m.text, ...(m.sources ? { sources: m.sources } : {}) })));
+    setScope(c.scope);
+    setAttachments(c.attachments.flatMap((a) => {
+      const hit = known.get(`${a.kind}:${a.id}`);
+      return hit ? [{ kind: a.kind, id: a.id, title: hit.title, words: hit.words }] : [];
+    }));
+    if (c.attachments.length && !c.attachments.every((a) => known.has(`${a.kind}:${a.id}`))) notify("Some attachments of this chat no longer exist and were left off.");
+    setDialog(null); setTab("assistant"); setAssistantOpen(true);
+  };
+  const renameChat = async (id: string, title: string) => {
+    const r = await api.renameChat(id, title);
+    if (!r.ok) { notify(r.error, "error"); return false; }
+    setChatList(r.chats);
+    return true;
+  };
+  const deleteChat = async (id: string) => {
+    const r = await api.deleteChat(id);
+    if (!r.ok) { notify(r.error, "error"); return false; }
+    setChatList(r.chats);
+    if (chatIdRef.current === id) setChat(null);   // the next answer starts a new saved chat
+    return true;
+  };
+  const openAttach = async () => {
+    const r = await api.listAttachable();
+    if (!r.ok) return notify(r.error, "error");
+    setDialog({ kind: "attach", items: r.items, maxWords: r.maxWords, maxItems: r.maxItems });
+  };
+  const saveReplyToNotes = async (id: string) => {
+    const i = messages.findIndex((m) => m.id === id);
+    const reply = messages[i];
+    if (!reply || reply.role !== "assistant") return;
+    const prompt = messages.slice(0, i).reverse().find((m) => m.role === "user")?.text ?? "";
+    const r = await api.saveReplyToNotes(prompt, reply.text);
+    if (!r.ok) return notify(r.error, "error");
+    await refresh();
+    setExpanded((s) => new Set(s).add("group:research"));
+    notify("Saved to research/assistant-notes.md", "info", { label: "Open", run: () => { void openDoc(r.id); } });
+  };
+
   // -- research notes ----------------------------------------------------------------------
   const createResearch = async (title: string) => {
     setDialog(null);
@@ -998,6 +1089,9 @@ export default function App() {
             messages={messages} busy={aiBusy} aiReady={aiReady} scope={scope} onScope={() => setScope((c) => (c === "scene" ? "project" : "scene"))}
             onSend={(t) => void sendChat(t)} onRegenerate={regenerate} onInsertDraft={(id) => void insertReplyAsDraft(id)}
             researchMode={researchMode} onOpenSource={(id) => void openDoc(id)}
+            onHistory={() => void openChatHistory()} onAttach={() => void openAttach()} attachments={attachments}
+            onRemoveAttachment={(a) => { if (chatIdRef.current) persistChat.current = true; setAttachments((l) => l.filter((x) => !(x.kind === a.kind && x.id === a.id))); }}
+            onSaveReply={(id) => void saveReplyToNotes(id)}
             onQuick={onQuick} onMenu={openAiMenu} canInsert={doc?.kind === "scene"} onClose={() => setAssistantOpen(false)}
             notesExtra={doc?.kind === "scene" ? (
               <CommentsPanel comments={comments} onOpen={openComment}
@@ -1117,6 +1211,14 @@ export default function App() {
           onSave={(body) => { setCommentPop(null); void commentCall((id, text) => api.editComment(id, popComment.id, body, text)); }}
           onResolve={(resolved) => { setCommentPop(null); void commentCall((id, text) => api.resolveComment(id, popComment.id, resolved, text)); }}
           onDelete={() => { setCommentPop(null); void commentCall((id, text) => api.deleteComment(id, popComment.id, text)); }} />
+      )}
+      {dialog?.kind === "chats" && (
+        <ChatHistoryDialog chats={chatList} currentId={chatId} onOpen={(id) => void loadChat(id)} onNew={newChat}
+          onRename={renameChat} onDelete={deleteChat} onClose={() => setDialog(null)} />
+      )}
+      {dialog?.kind === "attach" && (
+        <AttachDialog items={dialog.items} current={attachments} maxWords={dialog.maxWords} maxItems={dialog.maxItems}
+          onSave={(picked) => { if (chatIdRef.current) persistChat.current = true; setAttachments(picked); setDialog(null); }} onClose={() => setDialog(null)} />
       )}
       {dialog?.kind === "new-research" && (
         <PromptDialog title="New research note" label="Title" confirm="Create" onSubmit={(t) => void createResearch(t)} onClose={() => setDialog(null)} />

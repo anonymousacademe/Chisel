@@ -9,12 +9,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable
 
+from ..core.chats import ChatInfo
+
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Input, Label, Static
+from textual.widgets import Input, Label, ListItem, ListView, Static
 
 MODES = ("chat", "research")
 
@@ -43,7 +45,18 @@ def render(msg: ChatMsg) -> Text:
     return text
 
 
-class AssistantScreen(ModalScreen[None]):
+@dataclass
+class AssistantOps:
+    """What the window asks of the app (kept out of the widget so it is testable)."""
+    submit: Callable[["AssistantScreen", str, str], None]
+    open_source: Callable[[str], None]
+    save_reply: Callable[[str, str], None]
+
+
+class AssistantScreen(ModalScreen["str | None"]):
+    """Dismisses with "history" (open the saved conversations), "new" (start a
+    fresh chat) or None."""
+
     DEFAULT_CSS = """
     AssistantScreen { align: center middle; }
     #as-box { width: 100; height: 85%; background: $surface; border: solid $primary; padding: 1 2; }
@@ -58,16 +71,16 @@ class AssistantScreen(ModalScreen[None]):
         Binding("escape", "close", "Close"),
         Binding("ctrl+r", "toggle_mode", "Research mode"),
         Binding("ctrl+o", "open_source", "Open a note the answer cites"),
+        Binding("ctrl+s", "save_reply", "Save the last answer to your notes"),
+        Binding("ctrl+h", "history", "Saved conversations"),
+        Binding("ctrl+n", "new_chat", "New chat"),
     ]
 
-    def __init__(self, messages: list[ChatMsg], mode: str,
-                 on_submit: Callable[["AssistantScreen", str, str], None],
-                 on_open_source: Callable[[str], None]) -> None:
+    def __init__(self, messages: list[ChatMsg], mode: str, ops: AssistantOps) -> None:
         super().__init__()
         self.messages = messages
         self.mode = mode if mode in MODES else "chat"
-        self._on_submit = on_submit
-        self._on_open_source = on_open_source
+        self._ops = ops
         self.busy = False
 
     # -- layout ----------------------------------------------------------------------
@@ -77,8 +90,8 @@ class AssistantScreen(ModalScreen[None]):
             yield Label("", id="as-header")
             yield VerticalScroll(id="as-log")
             yield Input(id="as-input")
-            yield Label("enter send · ctrl+r research mode · ctrl+o open a cited note · esc close",
-                        id="as-hint")
+            yield Label("enter send · ctrl+r research · ctrl+o open cited note · ctrl+s save answer "
+                        "to notes · ctrl+h history · ctrl+n new chat · esc close", id="as-hint")
 
     def on_mount(self) -> None:
         log = self.query_one("#as-log", VerticalScroll)
@@ -119,7 +132,7 @@ class AssistantScreen(ModalScreen[None]):
             return
         event.input.value = ""
         self.add_message(ChatMsg("user", prompt))
-        self._on_submit(self, prompt, self.mode)
+        self._ops.submit(self, prompt, self.mode)
 
     def action_toggle_mode(self) -> None:
         self.mode = "chat" if self.mode == "research" else "research"
@@ -135,7 +148,87 @@ class AssistantScreen(ModalScreen[None]):
         self.app.push_screen(
             ChoiceScreen("Open which note?", [(f"[{i}] {t}", sid)
                                               for i, (sid, t) in enumerate(last.sources, 1)]),
-            lambda sid: sid and self._on_open_source(sid))
+            lambda sid: sid and self._ops.open_source(sid))
+
+    def action_save_reply(self) -> None:
+        """Append the last answer (with the date and its prompt) to research/assistant-notes.md."""
+        for i in range(len(self.messages) - 1, -1, -1):
+            m = self.messages[i]
+            if m.role == "assistant" and not m.error:
+                prompt = next((x.text for x in reversed(self.messages[:i]) if x.role == "user"), "")
+                self._ops.save_reply(prompt, m.text)
+                return
+        self.notify("There is no answer to save yet", severity="warning")
+
+    def action_history(self) -> None:
+        self.dismiss("history")
+
+    def action_new_chat(self) -> None:
+        self.dismiss("new")
 
     def action_close(self) -> None:
+        self.dismiss(None)
+
+
+class ChatsScreen(ModalScreen["tuple[str, str] | None"]):
+    """Saved conversations. Dismisses with (open | rename | delete, id), ("new", "") or None."""
+
+    DEFAULT_CSS = """
+    ChatsScreen { align: center middle; }
+    #chats-box { width: 90; height: auto; max-height: 80%;
+        background: $surface; border: solid $primary; padding: 1 2; }
+    #chats-header { text-style: bold; padding-bottom: 1; }
+    #chats-list { height: auto; max-height: 16; }
+    #chats-hint { color: $text-muted; padding-top: 1; }
+    """
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Close"),
+        Binding("r", "act('rename')", "Rename"),
+        Binding("d", "act('delete')", "Delete"),
+        Binding("n", "new", "New chat"),
+    ]
+
+    def __init__(self, chats: list[ChatInfo], current: str | None = None) -> None:
+        super().__init__()
+        self._chats = chats
+        self._current = current
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="chats-box"):
+            yield Label("Saved conversations", id="chats-header")
+            if self._chats:
+                yield ListView(*[ListItem(Label(Text(self._row(c)))) for c in self._chats],
+                               id="chats-list")
+            else:
+                yield Label("No saved conversations yet. A chat is saved after the assistant answers.",
+                            id="chats-empty")
+            yield Label("enter open · r rename · d delete · n new chat · esc close", id="chats-hint")
+
+    def _row(self, c: ChatInfo) -> str:
+        when = c.updated.replace("T", " ")[:16]
+        return f"{c.title}  -  {when}  ({c.count} messages){'  - open now' if c.id == self._current else ''}"
+
+    def on_mount(self) -> None:
+        if self._chats:
+            self.query_one("#chats-list", ListView).focus()
+
+    def _selected(self) -> ChatInfo | None:
+        if not self._chats:
+            return None
+        i = self.query_one("#chats-list", ListView).index
+        return self._chats[i] if i is not None and 0 <= i < len(self._chats) else None
+
+    def on_list_view_selected(self, event) -> None:
+        self.action_act("open")
+
+    def action_act(self, what: str) -> None:
+        c = self._selected()
+        if c is not None:
+            self.dismiss((what, c.id))
+
+    def action_new(self) -> None:
+        self.dismiss(("new", ""))
+
+    def action_cancel(self) -> None:
         self.dismiss(None)

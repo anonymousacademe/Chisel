@@ -13,6 +13,7 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
@@ -151,6 +152,34 @@ def delete_note(project, path: Path) -> None:
     if not is_research_path(project, path) or not path.is_file():
         raise FileNotFoundError("no such research note")
     path.unlink()
+
+
+def append_assistant_note(project, prompt: str, reply: str, when: datetime | None = None) -> Path:
+    """Save an assistant reply (*Save to notes*): append it, with the date and the
+    prompt, to ``research/assistant-notes.md`` (created with a heading). It is an
+    ordinary research note afterwards - the Research action can find it again."""
+    reply = (reply or "").strip()
+    if not reply:
+        raise ValueError("there is nothing to save")
+    prompt = " ".join((prompt or "").split())
+    when = when or datetime.now()
+    folder = research_dir(project)
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / ASSISTANT_NOTES
+    try:
+        existing = path.read_text(encoding="utf-8")
+    except OSError:
+        existing = "# Assistant notes\n\nAnswers saved from the assistant, newest last.\n\n"
+    heading = prompt if len(prompt) <= 70 else prompt[:69].rstrip() + "…"
+    entry = f"## {when:%Y-%m-%d} - {heading or 'Saved reply'}\n\n"
+    if prompt:
+        entry += f"**Prompt:** {prompt}\n\n"
+    entry += f"{reply}\n"
+    text = existing.rstrip("\n") + "\n\n" + entry
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(path)
+    return path
 
 
 # -- retrieval --------------------------------------------------------------------

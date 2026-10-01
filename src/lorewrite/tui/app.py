@@ -29,6 +29,7 @@ from ..ai.writing import (
     research_answer,
     research_context,
 )
+from ..core import chats
 from ..core import collections as coll
 from ..core import research as research_notes
 from ..core import comments
@@ -58,7 +59,7 @@ from ..core.style import (
     save_style,
     style_path,
 )
-from .assistantscreen import AssistantScreen, ChatMsg
+from .assistantscreen import AssistantOps, AssistantScreen, ChatMsg, ChatsScreen
 from .collectionscreens import CollectionsScreen
 from .commentscreens import CommentsScreen
 from .commands import (
@@ -126,6 +127,12 @@ HELP_TEXT = """\
   Start new draft — snapshot the whole book as "end of draft N", then count up
   Commit changes / Push / Initialize git — only when you pick them; the status
   bar shows Synced, N changes or Ahead N for a project under git
+  Scene · Collections — tick the scene's collections (sidebar filter: #name)
+  Scene · Add comment on selection / Scene · Comments — notes kept beside the
+  scene, never in the text; commented text is underlined faintly
+  Research · <note> / New research note / ... from a link — research/ notes
+  Ask the assistant (ctrl+r research mode: answers from your notes, citing them;
+  ctrl+h saved conversations, ctrl+n new chat, ctrl+s save an answer to notes)
   Toggle scene/chapter labels (wording only)
   Settings — API key, models, editor preferences, spell check
   Toggle spell check / Add selection to dictionary / Open project dictionary
@@ -447,6 +454,7 @@ class LorewriteApp(App):
         self._spell_timer = None
         self._spell_lines = 0
         self._chat_messages: list[ChatMsg] = []
+        self._chat_id: str | None = None      # the saved conversation behind it
         self._assistant_screen: AssistantScreen | None = None
         self._comment_list: list[comments.Comment] = []   # the open scene's comments
         self._comment_scene: Path | None = None
@@ -2187,9 +2195,90 @@ class LorewriteApp(App):
             return
         self.save_current()
         self._assistant_screen = AssistantScreen(
-            self._chat_messages, mode, self._assistant_submit,
-            lambda sid: self.open_file(self.project.root / sid))
-        self.push_screen(self._assistant_screen)
+            self._chat_messages, mode,
+            AssistantOps(self._assistant_submit,
+                         lambda sid: self.open_file(self.project.root / sid),
+                         self._save_reply_to_notes))
+        self.push_screen(self._assistant_screen, self._assistant_closed)
+
+    def _assistant_closed(self, result) -> None:
+        if result == "history":
+            self.open_chat_history()
+        elif result == "new":
+            self._new_chat()
+            self.open_assistant()
+
+    def _new_chat(self) -> None:
+        self._chat_messages = []
+        self._chat_id = None
+
+    def _save_chat(self) -> None:
+        """Keep the conversation (.assistant/chats/) after each answer."""
+        rows = [{"id": f"m{i}", "role": m.role, "text": m.text,
+                 **({"sources": [{"id": s, "title": t} for s, t in m.sources]} if m.sources else {})}
+                for i, m in enumerate(self._chat_messages) if not m.error]
+        if not rows:
+            return
+        scope = "scene" if self._current_scene_path() is not None else "project"
+        try:
+            self._chat_id = chats.save(self.project, self._chat_id, rows, scope).id
+        except (OSError, ValueError) as exc:
+            self.notify(f"Could not save the conversation: {exc}", severity="warning")
+
+    def _save_reply_to_notes(self, prompt: str, reply: str) -> None:
+        try:
+            path = research_notes.append_assistant_note(self.project, prompt, reply)
+        except (OSError, ValueError) as exc:
+            self.notify(str(exc), severity="warning")
+            return
+        self.notify(f"Saved to {path.relative_to(self.project.root)}", timeout=3)
+
+    def open_chat_history(self) -> None:
+        """The saved conversations: open, rename, delete, or start a new one."""
+        def _act(result) -> None:
+            if result is None:
+                self.open_assistant()
+                return
+            what, cid = result
+            if what == "new":
+                self._new_chat()
+                self.open_assistant()
+            elif what == "open":
+                try:
+                    chat = chats.load(self.project, cid)
+                except (OSError, ValueError) as exc:
+                    self.notify(str(exc), severity="warning")
+                    self.open_chat_history()
+                    return
+                self._chat_id = chat.id
+                self._chat_messages = [
+                    ChatMsg(m["role"], m["text"], sources=[(s["id"], s["title"]) for s in m.get("sources", [])])
+                    for m in chat.messages]
+                self.open_assistant()
+            elif what == "rename":
+                def _rename(title: str | None) -> None:
+                    if title:
+                        try:
+                            chats.rename(self.project, cid, title)
+                        except (OSError, ValueError) as exc:
+                            self.notify(str(exc), severity="warning")
+                    self.open_chat_history()
+
+                current = next((c.title for c in chats.list_chats(self.project) if c.id == cid), "")
+                self.push_screen(NamePrompt("Rename the conversation:", current), _rename)
+            elif what == "delete":
+                def _gone(ok: bool) -> None:
+                    if ok:
+                        chats.delete(self.project, cid)
+                        if self._chat_id == cid:
+                            self._chat_id = None       # the next answer starts a new saved chat
+                    self.open_chat_history()
+
+                self.push_screen(ConfirmScreen("Delete this saved conversation?\n"
+                                               "Answers you saved to notes stay in your notes.",
+                                               confirm_label="Delete conversation"), _gone)
+
+        self.push_screen(ChatsScreen(chats.list_chats(self.project), self._chat_id), _act)
 
     def open_research_question(self) -> None:
         self.open_assistant("research")
@@ -2233,6 +2322,9 @@ class LorewriteApp(App):
         if screen.is_attached:
             screen.set_busy(False)
             screen.add_message(msg)
+        else:                        # the window was closed while the model worked: keep the answer
+            self._chat_messages.append(msg)
+        self._save_chat()
         if cost:
             self.notify(f"Answered{cost}", timeout=3)
 

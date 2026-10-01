@@ -135,6 +135,8 @@ class ActionProvider(_Provider):
          "Delete the research note open in the editor, after a confirmation"),
         ("Ask the assistant", "open_assistant",
          "Chat about the open scene or the project (ctrl+r inside: research mode)"),
+        ("Saved conversations", "open_chat_history",
+         "Open, rename or delete past assistant chats, or start a new one"),
         ("Research question", "open_research_question",
          "AI: answer from your research notes and the canon, citing the notes used"),
         ("Add comment on selection", "add_comment_prompt",

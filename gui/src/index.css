@@ -581,3 +581,14 @@ button.lw-picklist__row:hover { border-color: var(--lw-accent); background: var(
 .lw-chip--source { cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lw-chip--source:hover { border-color: var(--lw-accent); color: var(--lw-accent-text); }
 .lw-binder.is-dropping { outline: 1px dashed var(--lw-accent); outline-offset: -4px; }
+
+/* assistant history, attachments, save to notes (Wave 3.4) */
+.lw-attach-group { display: flex; flex-direction: column; gap: 2px; }
+.lw-attach-group__label { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--lw-text-faint); padding: 6px 2px 2px; }
+.lw-picklist__row.is-current { border-color: var(--lw-accent); }
+.lw-attachments { display: flex; flex-wrap: wrap; gap: 4px 6px; padding: 0 2px 6px; }
+.lw-chip--attached { gap: 6px; max-width: 100%; }
+.lw-chip--attached button { color: var(--lw-text-faint); line-height: 1; }
+.lw-chip--attached button:hover { color: var(--lw-danger); }
+.lw-picklist__row.lw-collections__check { justify-content: flex-start; text-align: left; }
+.lw-collections__check .lw-picklist__main { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

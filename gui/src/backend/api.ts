@@ -1,6 +1,6 @@
 import type { Misspelling, Span } from "../editor/spans";
 import type {
-  AliasSuggestion, CanonProposal, CollectionColor, CommentRow, CollectionSummary, DiffSegment, SnapshotRow, SyncInfo, DetailsPatch, DocumentPayload, Remap, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
+  AliasSuggestion, AttachItem, AttachKind, AttachReport, CanonProposal, ChatSummary, CollectionColor, CommentRow, SavedChat, CollectionSummary, DiffSegment, SnapshotRow, SyncInfo, DetailsPatch, DocumentPayload, Remap, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
   Issue, ModelKind, ModelOption, RecentProject, SceneMention, SettingsInfo, EditorPrefs, StyleStatus, Workspace,
 } from "../data/types";
 import { call } from "./transport";
@@ -64,8 +64,8 @@ export const api = {
   newResearchFromUrl: (url: string, title = "") => call<{ id: string; title: string }>("new_research_from_url", url, title),
   deleteResearchNote: (id: string) => call("delete_research_note", id),
   /** Answer from the research notes + canon; `sources` are the notes it was given, in citation order. */
-  research: (prompt: string, history: { role: string; text: string }[]) =>
-    call<{ reply: string; sources: { id: string; title: string; score: number }[]; cost: number | null }>("research", prompt, history),
+  research: (prompt: string, history: { role: string; text: string }[], attachments: { kind: AttachKind; id: string }[] = []) =>
+    call<{ reply: string; sources: { id: string; title: string; score: number }[]; attached: AttachReport[]; cost: number | null }>("research", prompt, history, attachments),
   // comments: notes beside the scene (.comments/), positioned against the editor's text
   listComments: (id: string, text: string) => call<{ comments: CommentRow[] }>("list_comments", id, text),
   addComment: (id: string, text: string, start: number, end: number, body: string) =>
@@ -111,8 +111,19 @@ export const api = {
   resolveDrafts: (id: string, text: string, accept: boolean, index: number | null = null) =>
     call<{ edits: DraftEdit[]; skipped: number; found: number }>("resolve_drafts", id, text, accept, index),
   ask: (prompt: string, scope: "scene" | "project", id: string | null, text: string | null, cursor: number,
-    history: { role: string; text: string }[]) =>
-    call<{ reply: string; cost: number | null }>("ask", prompt, scope, id, text, cursor, history),
+    history: { role: string; text: string }[], attachments: { kind: AttachKind; id: string }[] = []) =>
+    call<{ reply: string; attached: AttachReport[]; cost: number | null }>("ask", prompt, scope, id, text, cursor, history, attachments),
+  // saved conversations and attachments (.assistant/chats/)
+  listAttachable: () => call<{ items: AttachItem[]; maxWords: number; maxItems: number }>("list_attachable"),
+  listChats: () => call<{ chats: ChatSummary[] }>("list_chats"),
+  openChat: (id: string) => call<{ chat: SavedChat }>("open_chat", id),
+  /** Stores the conversation exactly as the client has it; a null id makes a new chat. */
+  saveChat: (id: string | null, messages: unknown[], scope: "scene" | "project", attachments: { kind: AttachKind; id: string }[]) =>
+    call<{ id: string; title: string }>("save_chat", id, messages, scope, attachments),
+  renameChat: (id: string, title: string) => call<{ chats: ChatSummary[] }>("rename_chat", id, title),
+  deleteChat: (id: string) => call<{ chats: ChatSummary[] }>("delete_chat", id),
+  /** Appends the reply, with the date and the prompt, to research/assistant-notes.md. */
+  saveReplyToNotes: (prompt: string, reply: string) => call<{ id: string }>("save_reply_to_notes", prompt, reply),
   getSettings: () => call<SettingsInfo>("get_settings"),
   setSettings: (models?: Partial<Record<ModelKind, string>>, editor?: Partial<EditorPrefs>, spellcheck?: boolean, autoSnapshot?: boolean) =>
     call("set_settings", models ?? null, editor ?? null, spellcheck ?? null, autoSnapshot ?? null),

@@ -233,6 +233,8 @@ Rules:
 - You can only suggest. Never say or imply that you changed the manuscript.
 - When you propose prose, write it so the author could paste it in as-is.
 - Be concrete and brief; do not repeat the question.
+- Sections that start with ATTACHED are material the author chose to share for
+  this conversation (scenes, notes, research, comments): use them.
 - Never write HTML comments or the text "<!--".
 """
 
@@ -319,6 +321,8 @@ Rules:
   nothing else; never invent a source, a quotation or a fact.
 - If the notes do not cover the question, say so plainly and say what the author
   could look up. Do not fill the gap from memory as if it were in the notes.
+- Sections that start with ATTACHED are extra material the author shared; use
+  them, but cite only the numbered research notes.
 - The canon is the author's fiction. Use it to connect the facts to the story,
   but it is not a source: do not cite it.
 - Be concise. Plain text, no Markdown headings.

@@ -33,7 +33,9 @@ src/lorewrite/
     spelling.py         # spell check: check/suggestions, accepted terms, dictionary files
     collections.py      # collections: definitions in project.toml, membership in scene frontmatter
     comments.py         # comments: .comments/<scene>.json, anchored by quote + context
-    research.py         # research/ notes: list/new/from-url/delete, keyword search
+    research.py         # research/ notes: list/new/from-url/delete, keyword search, assistant-notes
+    chats.py            # saved assistant chats: .assistant/chats/<id>.json
+    attach.py           # chat attachments (scene/note/research/comments), capped and reported
   ai/
     client.py           # OpenRouter via openai SDK; keyring/env key resolution
     links.py            # alias finder (ctrl+l): prompt, schema, validate (never edits text)
@@ -153,6 +155,14 @@ PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --
   `ai.writing.research_context` + `research_answer` (shared by `gui/api.py` and `tui/app.py`; mock it
   in `gui/mockai.py` and `lorewrite.tui.app.research_answer`). It must refuse with no AI call when
   there are no notes. The palette has a `Research ·` category (like `Scene ·`).
+- **Chats and attachments** (`core/chats.py`, `core/attach.py`). The GUI saves the whole conversation
+  after each answer (`persistChat` ref + effect in `App.tsx`); keep it client-driven so regenerate /
+  delete / load stay consistent, and never store `error` messages. Chat ids and attachment ids
+  cross the bridge: `chats._path` and `attach._path` are the only doors, keep them. Comments reach
+  an AI **only** through an explicit attachment. Attachments are capped and every trim/skip is in
+  the `attached` report the UI shows - do not add a silent cap. The terminal chat window
+  (`tui/assistantscreen.py`) has no attach in v1; its AI calls are `lorewrite.tui.app.ask_writer` /
+  `research_answer` (mock those names).
 - **Git sync is explicit** (`core/sync.py`). `status()` is the only call that may run by itself
   (read-only, 5 s timeout, never on the UI thread: TUI worker, GUI debounced bridge call outside
   `self._lock`; `get_workspace` must not call it). `commit` / `push` / `init` run only from a
@@ -271,8 +281,9 @@ pywebview shell, real binder/editor/notes/AI over the same core, placeholders fo
 the parts of the design LoreWriter does not do yet.
 Spell check (offline, spelling only, personal + project dictionaries) is in both
 front ends (docs/plan-spelling.md, SPEC M6).
-**Wave 1 of docs/plan-workspace.md** (branch `features`): parts, Unplaced Scenes,
-Trash, scene details (frontmatter), GUI drag-to-reorder. Waves 2-4 (snapshots/drafts/
-sync, collections/comments/research/chat history, stats/timer/brainstorm) are not built.
+**Waves 1-3 of docs/plan-workspace.md** (branch `features`): parts, Unplaced Scenes,
+Trash, scene details (frontmatter), GUI drag-to-reorder; snapshots, drafts, git sync;
+collections, comments, research notes, assistant chat history / attach / save to notes.
+Wave 4 (stats/streak, focus timer, brainstorm) is not built.
 Known concern: user is unconvinced by the command palette as primary UI
 (SPEC §11b) — the GUI is the answer being tried.
