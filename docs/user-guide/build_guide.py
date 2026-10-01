@@ -3,6 +3,7 @@
 
     python3 docs/user-guide/build_guide.py            # use captured screens
     python3 docs/user-guide/build_guide.py --capture  # re-capture screens first
+                                                      # (terminal: Textual Pilot; desktop: headless Chromium)
 
 Uses the system python3 (ReportLab + Pillow). Screens are captured headlessly
 with the project venv (Textual Pilot) by build/capture.py, against a COPY of
@@ -136,7 +137,7 @@ class Story:
     def proc(self, lead, steps, idx=()):
         for t in idx:
             self.idx(t)
-        self.add(self._P(f"<b>{T(lead)}</b>", ST["body_tight"]))
+        self.add(self._P(f"<b>{T(lead)}</b>", ST["body_tight_k"]))
         for i, s in enumerate(steps, 1):
             self.add(Paragraph(T(s), ST["step"], bulletText=f"{i}."))
         self.add(Spacer(1, 5))
@@ -232,6 +233,15 @@ class Story:
         cap = Paragraph(f"{num}. {T(caption)}", ST["caption"])
         self.add(KeepTogether([Spacer(1, 4), box, cap]))
 
+    def gfigure(self, key, shot, caption, width=None, scale=None, crop=None):
+        """A figure of the desktop application (a grayscale screenshot)."""
+        num = self._num("Figure")
+        self.st["refs"][key] = num
+        img = gui_image(shot, width=width, scale=scale, crop=crop)
+        box = Ruled(img, pad=5)
+        cap = Paragraph(f"{num}. {T(caption)}", ST["caption"])
+        self.add(KeepTogether([Spacer(1, 4), box, cap]))
+
     def figure_flow(self, key, flow, caption):
         num = self._num("Figure")
         self.st["refs"][key] = num
@@ -242,6 +252,7 @@ class Story:
         return self.st["prev_refs"].get(key, "??")
 
 
+ST["body_tight_k"] = ST["body_tight"].clone("body_tight_k", keepWithNext=1)
 PT_PER_COL = 4.75           # every screen is drawn at the same scale
 CROP_OVERRIDES = {
     "palette": [0, 0, 100, 19], "palette_search": [0, 0, 100, 19],
@@ -254,6 +265,7 @@ CROP_OVERRIDES = {
     "rewrite_draft": [27, 0, 64, 31],
     "styleguide": [27, 0, 64, 31],
     "aliasnote": [27, 0, 64, 20],
+    "spell_underline": [27, 0, 64, 24],
 }
 
 
@@ -287,6 +299,33 @@ def fig_image(shot: str, width=None):
     return RLImage(str(dst), width=pts_w, height=pts_h)
 
 
+GUISHOTS = HERE / "build" / "guishots"
+PT_PER_CSS_PX = 0.52      # desktop figures: one CSS pixel of the window, in points
+MAX_FIG_W = 418
+
+
+def gui_image(shot: str, width=None, scale=None, crop=None):
+    """A desktop-application screenshot (captured at 2x) as a grayscale
+    figure. Without *width* it is drawn at a constant scale, so type is the
+    same size in every figure; wide shots are limited to the page."""
+    from PIL import ImageOps
+    FIGS.mkdir(parents=True, exist_ok=True)
+    src = GUISHOTS / f"{shot}.png"
+    dst = FIGS / f"g_{shot}.png"
+    im = Image.open(src).convert("L")
+    if crop:        # (left, right[, top, bottom]) as fractions of the size
+        t, b = (crop[2], crop[3]) if len(crop) == 4 else (0, 1)
+        im = im.crop((round(crop[0] * im.width), round(t * im.height),
+                      round(crop[1] * im.width), round(b * im.height)))
+    im = ImageOps.autocontrast(im, cutoff=0.5)
+    css_w = im.width / 2
+    pts_w = width if width else min(MAX_FIG_W, css_w * (scale or PT_PER_CSS_PX))
+    px_w = min(im.width, round(pts_w * 4))
+    im = im.resize((px_w, round(im.height * px_w / im.width)), Image.LANCZOS)
+    im.save(dst, optimize=True)
+    return RLImage(str(dst), width=pts_w, height=pts_w * im.height / im.width)
+
+
 class Cover(Flowable):
     def wrap(self, aw, ah):
         self.aw, self.ah = aw, ah
@@ -302,7 +341,7 @@ class Cover(Flowable):
         c.setFillColor(GREY)
         c.drawString(0, h - 4, gl.DOC_NUMBER)
         c.setFont("Sans-Bold", 9)
-        c.drawRightString(w, h - 4, "Second Edition")
+        c.drawRightString(w, h - 4, "Third Edition")
         c.setStrokeColor(INK)
         c.setLineWidth(3)
         c.line(0, h - 22, w, h - 22)
@@ -325,7 +364,7 @@ class Cover(Flowable):
         c.line(0, 74, w, 74)
         c.setFont("Sans", 9)
         c.setFillColor(GREY)
-        c.drawString(0, 58, "A terminal fiction-writing application")
+        c.drawString(0, 58, "A fiction-writing application: terminal and desktop")
         c.drawString(0, 45, "Plain text · Wiki-style links · AI that suggests, "
                             "never edits")
         c.setFont("Sans-Bold", 9)
@@ -333,7 +372,7 @@ class Cover(Flowable):
         c.drawRightString(w, 58, "Lorewrite Publications")
         c.setFont("Sans", 9)
         c.setFillColor(GREY)
-        c.drawRightString(w, 45, "September 2026")
+        c.drawRightString(w, 45, "October 2026")
 
 
 # ---------------------------------------------------------------------------
@@ -350,15 +389,17 @@ def build_story(st) -> list:
 
     # ------------------------------------------------------------ notice
     s.front("Edition Notice", toc=False)
-    s.p("**Second Edition (September 2026)**", style="notice")
-    s.p("This edition replaces and makes obsolete the First Edition, "
-        "LW00-0001-0.", style="notice")
+    s.p("**Third Edition (October 2026)**", style="notice")
+    s.p("This edition replaces and makes obsolete the Second Edition, "
+        "LW00-0001-1.", style="notice")
     s.p("This edition applies to Version 0.2.0 of Lorewrite, including the "
-        "AI writing features (style guide, drafting, pending AI text), and to all "
+        "desktop application (`lorewrite-gui`, whose window is titled "
+        "LoreWriter), spell check, and the AI writing features, and to all "
         "subsequent releases and modifications until otherwise indicated in "
         "new editions. Make sure you are using the correct edition for the "
         "level of the product. The version number is shown in the title bar "
-        "of the main window and at the top of the launch screen.",
+        "of the terminal application's main window and at the top of its "
+        "launch screen.",
         style="notice")
     s.p("Changes are made periodically to the information herein. Where this "
         "book and the program disagree, the program is right; please report "
@@ -372,7 +413,12 @@ def build_story(st) -> list:
         "any resemblance of its characters, companies or places to real ones "
         "is coincidental. All screens in this book were captured from "
         "Version 0.2.0 running against a sample project, the Residual "
-        "example that is supplied with Lorewrite. The results shown "
+        "example that is supplied with Lorewrite. Screens of the terminal "
+        "application come from a terminal; screens of the desktop "
+        "application come from its interface in a headless browser, "
+        "against the same code and the same sample project. The desktop "
+        "screens are printed in shades of gray; the application itself is "
+        "in color and dark. The results shown "
         "for the AI features were prepared in advance for the sample and "
         "were not obtained from any AI service.", style="notice")
     s.p("Product and company names that appear in this book, such as "
@@ -395,13 +441,16 @@ def build_story(st) -> list:
 
     # ------------------------------------------------------------ about
     s.front("About This Book")
-    s.p("This book describes Lorewrite, a program for writing fiction in a "
-        "terminal window. It explains what Lorewrite does, how to install "
-        "and start it, how to write scenes, how to keep track of your "
-        "characters and places, how to use its optional AI assistance, and "
-        "where every key, menu entry and setting is. It is both a guide, "
-        "which you can read from the front, and a reference, which you can "
-        "look things up in.")
+    s.p("This book describes Lorewrite, a program for writing fiction. It "
+        "comes in two forms that work on the same files: a //terminal "
+        "application//, started with `lorewrite`, and a //desktop "
+        "application//, started with `lorewrite-gui`, whose window is "
+        "titled LoreWriter. The book explains what Lorewrite does, how to "
+        "install and start it, how to write scenes, how to keep track of "
+        "your characters and places, how to check your spelling, how to use "
+        "its optional AI assistance, and where every key, menu entry and "
+        "setting is. It is both a guide, which you can read from the front, "
+        "and a reference, which you can look things up in.")
     s.h2("Who Should Read This Book")
     s.p("This book is for people who write stories, not for programmers. "
         "You do not need to know how Lorewrite works inside. You should be "
@@ -412,37 +461,47 @@ def build_story(st) -> list:
         "the appendixes so that it stays out of your way.")
     s.h2("How This Book Is Organized")
     s.p("The chapters are meant to be read in order the first time. The "
-        "appendixes and the index are for looking things up.")
+        "appendixes and the index are for looking things up. Where a "
+        "feature exists in both applications, its chapter describes both: "
+        "the keys of the terminal application and the controls of the "
+        "desktop application, side by side.")
     s.bullets([
         "**Chapter 1, Introducing Lorewrite**, explains the ideas the "
         "program is built on: projects, scenes, entities, mentions, links "
         "and backlinks, and the rule that AI only suggests.",
         "**Chapter 2, Installing and Starting**, tells you how to install "
-        "Lorewrite, start it, open or create a project, and what happens "
-        "the first time you run it.",
-        "**Chapter 3, Writing Scenes**, covers the editor, saving, the "
+        "Lorewrite, start either application, open or create a project, "
+        "and what happens the first time you run it.",
+        "**Chapter 3, The Desktop Application**, tours the window of "
+        "`lorewrite-gui`: the binder, the editor, the assistant, the status "
+        "bar and the dialogs.",
+        "**Chapter 4, Writing Scenes**, covers the editor, saving, the "
         "status bar, writer mode, and creating, renaming, reordering and "
         "deleting scenes.",
-        "**Chapter 4, Characters, Places and Mentions**, explains how to "
+        "**Chapter 5, Characters, Places and Mentions**, explains how to "
         "make notes for your characters and places and how Lorewrite "
         "recognizes them in your text.",
-        "**Chapter 5, AI Assistance**, describes how to set up an AI "
+        "**Chapter 6, Spelling**, describes the spell checker, what it "
+        "never flags, and the two dictionaries you can teach it.",
+        "**Chapter 7, AI Assistance**, describes how to set up an AI "
         "service and the three features that keep your story consistent: "
         "finding aliases, continuity checks and story-bible updates, "
         "with what they cost and send.",
-        "**Chapter 6, Writing with AI**, describes the features that "
+        "**Chapter 8, Writing with AI**, describes the features that "
         "write: the style guide, drafting at the cursor, expanding "
         "placeholders, rewriting a selection, and reviewing pending AI "
         "text.",
-        "**Chapter 7, Settings Reference**, lists every setting, where it "
+        "**Chapter 9, Settings Reference**, lists every setting, where it "
         "is stored, and its default.",
-        "**Chapter 8, Command and Key Reference**, lists every key and "
-        "every entry in the command palette.",
+        "**Chapter 10, Command and Key Reference**, lists every key and "
+        "every entry in the command palette and the desktop application's "
+        "menus.",
         "**Appendix A, File Formats**, describes the files Lorewrite reads "
         "and writes.",
         "**Appendix B, Messages and Problem Solving**, lists the messages "
-        "the program shows and what to do about them.",
-        "**Appendix C, Tutorial**, walks through the sample project.",
+        "the programs show and what to do about them.",
+        "**Appendix C, Tutorial**, walks through the sample project, once "
+        "in the terminal application and once in the desktop application.",
         "The **Glossary** defines the terms used in this book, and the "
         "**Index** helps you find things.",
     ])
@@ -452,8 +511,8 @@ def build_story(st) -> list:
         ["Monospace type", "Keys you press, text you type, file and folder "
          "names, and text shown exactly as it appears on the screen.",
          "`ctrl+j`, `project.toml`"],
-        ["**Bold type**", "Names of buttons, dialogs and screens.",
-         "Press **Save**."],
+        ["**Bold type**", "Names of buttons, dialogs, menu items and "
+         "screens.", "Press **Save**."],
         ["//Italic type//", "A term being defined, a title, or a value you "
          "replace with your own.", "//scene//, //PATH//"],
         ["`ctrl+j`", "Press and hold the first key, then press the second. "
@@ -461,69 +520,84 @@ def build_story(st) -> list:
          "screen.", "`ctrl+s` saves"],
         ["`alt+left`", "The Alt key together with the left arrow key. "
          "`alt+right` is the right arrow.", ""],
+        ["**Action · Name**", "A command in the terminal application's "
+         "command palette (`ctrl+p`).", "**Action · New scene**"],
+        ["**Menu \u203a Item**", "An entry of a menu in the desktop "
+         "application, reached from the button named first.",
+         "**AI menu \u203a Find aliases**"],
         ["**Note:**", "Information that is useful but not essential.", ""],
         ["**Attention:**", "Something that can lose work or surprise you if "
          "you overlook it.", ""],
     ], [0.20, 0.55, 0.25])
     s.p("Screens are shown as figures with a ruled border. Procedures are "
         "numbered lists; do the steps in order. Tables and figures are "
-        "numbered by chapter, so //Figure 3-1// is the first figure in "
-        "Chapter 3. Page numbers also carry the chapter: page //4-2// is "
-        "the second page of Chapter 4, and //B-1// is the first page of "
-        "Appendix B.")
+        "numbered by chapter, so //Figure 4-1// is the first figure in "
+        "Chapter 4. Page numbers also carry the chapter: page //5-2// is "
+        "the second page of Chapter 5, and //B-1// is the first page of "
+        "Appendix B. In figures of the terminal application the colors "
+        "depend on your theme; figures of the desktop application are "
+        "printed in shades of gray.")
     s.h2("Names and Terms")
-    s.p("The program is called Lorewrite; its command is `lorewrite`. "
-        "A //project// is one book: a folder of plain files. The Glossary "
-        "at the back defines the other terms.")
+    s.p("The program is called Lorewrite; its commands are `lorewrite` "
+        "(terminal) and `lorewrite-gui` (desktop). The desktop window and "
+        "its assistant call themselves //LoreWriter//; it is the same "
+        "program. A //project// is one book: a folder of plain files. The "
+        "Glossary at the back defines the other terms.")
 
     # ------------------------------------------------------------ changes
     s.front("Summary of Changes")
-    s.p("This Second Edition (LW00-0001-1) covers the same Version 0.2.0 "
-        "of Lorewrite as the First Edition, now including the AI writing "
-        "features. The changes from the First Edition are listed below; "
-        "each is described in the chapter shown. Chapters 6 and 7 of the "
-        "First Edition (Settings Reference, Command and Key Reference) are "
-        "now Chapters 7 and 8.")
+    s.p("This Third Edition (LW00-0001-2) covers Version 0.2.0 of "
+        "Lorewrite as it is now on its main line, which has gained a "
+        "desktop application and a spell checker since the Second "
+        "Edition. The changes are listed below; each is described in the "
+        "chapter shown. Chapters 3 to 5 of the Second Edition (Writing "
+        "Scenes, Characters, Places and Mentions, AI Assistance) are now "
+        "Chapters 4, 5 and 7, and its Chapters 6 to 8 are now Chapters 8 to "
+        "10.")
     s.table(None, None, ["Change", "Where described"], [
-        ["**New chapter, Writing with AI.** Learn a style guide from your "
-         "own prose (`style.md`); press `ctrl+g` to draft at the cursor, "
-         "expand a `{{expand: ...}}` placeholder, or rewrite a selection; "
-         "review the result as a pending AI draft and accept (`f7`) or "
-         "reject (`f8`) it. Pending text is stored in the scene file "
-         "between `<!--ai-->` comments, with replaced originals in "
-         "`.drafts/`.", "Chapter 6"],
-        ["**`ctrl+l` is now Find aliases.** It no longer inserts "
-         "`[[brackets]]` into your scene. Accepted suggestions become "
-         "aliases in your notes; the scene is never edited.",
-         "Chapter 5"],
-        ["**Story-bible updates add only.** The AI proposes new facts, "
-         "each shown in full and accepted one by one; existing canon is "
-         "never removed or rewritten. The old whole-section replacement, "
-         "and the warning about it, are gone.", "Chapter 5"],
-        ["**AI cost is shown** in the status bar (for the session) and in "
-         "each AI notification.", "Chapters 3 and 5"],
-        ["**Continuity report:** `enter` now jumps to the line and closes "
-         "the report. A new palette action, //Restore waived continuity "
-         "issues (this scene)//, brings waived issues back.",
-         "Chapter 5"],
-        ["**Writing model.** A third model setting for drafting, rewrites "
-         "and the style guide, with a picker that lists the whole "
-         "catalog; the Settings screen is more compact.",
-         "Chapters 5 and 7"],
-        ["**New keys:** `ctrl+g` (AI write), `f7` and `f8` (accept and "
-         "reject a draft), `f1` (help, also from the editor). "
-         "Select-all moved from `f7` to `f5`.", "Chapter 8"],
-        ["**Pending AI text is ignored** by word counts, continuity "
-         "checks, the story bible, the alias finder and backlinks.",
-         "Chapters 3, 4 and 6"],
-        ["**Tour** has a fifth page on AI writing. The launch-screen key "
-         "hint now wraps instead of being cut off.", "Chapter 2"],
-        ["**Appendixes:** `style.md`, `style.md.bak`, `.drafts/`, the "
-         "`<!--ai-->` marker format, `writing_model`, and the scene field "
-         "of `waivers.json` are described in Appendix A; every new "
-         "message is in Appendix B; the tutorial (Appendix C) now "
-         "uses the bundled Residual example and adds AI writing steps.",
-         "Appendixes A, B, C"],
+        ["**The desktop application.** `lorewrite-gui` opens a window "
+         "with a binder, a live-preview editor, a corkboard and an outline, "
+         "notes with backlinks, an AI assistant panel, a quick switcher "
+         "and a settings dialog. It works on the same project files as "
+         "the terminal application. A new chapter tours it, and every "
+         "feature chapter now gives the terminal keys and the desktop "
+         "controls side by side.", "Chapters 2 and 3, and throughout"],
+        ["**Spell check**, in both applications: underlined "
+         "misspellings, a fix window (`f6`) or popover, a project "
+         "dictionary (`dictionary.txt`) and a personal dictionary, "
+         "phrases, ignore, and a list of what is never flagged.",
+         "Chapter 6"],
+        ["**Learn my style.** The assistant's //Your style// card learns "
+         "or relearns the style guide in one click and says when it was "
+         "learned and whether it is out of date. The learned `style.md` "
+         "now begins with a provenance line.", "Chapters 3 and 8, and "
+         "Appendix A"],
+        ["**`ctrl+g` sends samples of your own prose** (about 2,000 words "
+         "from your other scenes) as examples of your voice, as well as "
+         "the style guide.", "Chapter 8"],
+        ["**Continuity pre-screen repaired.** When the optional helper "
+         "Jev is installed, the continuity check now really uses it to "
+         "skip entities the scene cannot contradict. **AI requests now "
+         "give up after 180 seconds** instead of waiting for many "
+         "minutes.", "Chapters 7 and 8, and Appendix B"],
+        ["**Both commands** (`lorewrite`, `lorewrite-gui`) are on your "
+         "PATH, and the desktop application has an application-menu entry "
+         "and a top-bar button on Omarchy.", "Chapter 2"],
+        ["**Keys.** `f6` (fix the next misspelling) in the terminal "
+         "application; `ctrl+k`, `ctrl+.` and click-to-open in the "
+         "desktop application. New palette actions: **Toggle spell "
+         "check**, **Add selection to dictionary**, **Open project "
+         "dictionary**. The key reference now has a table for each "
+         "application.", "Chapter 10"],
+        ["**Settings.** The terminal Settings screen has an //Underline "
+         "misspellings// box; the desktop Settings dialog has the key, "
+         "the three models, text size, flowing paragraphs and the same "
+         "spelling box.", "Chapter 9"],
+        ["**Appendixes.** `dictionary.txt` and the personal dictionary "
+         "(Appendix A); the messages of the desktop application and of "
+         "spell check, and new problems and answers (Appendix B); a "
+         "second path through the Residual tutorial for the desktop "
+         "application (Appendix C).", "Appendixes A, B, C"],
     ], [0.78, 0.22])
 
     # ============================================================ CH 1
@@ -531,16 +605,31 @@ def build_story(st) -> list:
               "What Lorewrite is for, and the handful of ideas that "
               "everything else in this book builds on.")
     s.p("Lorewrite is a program for writing novels and other long fiction "
-        "at a keyboard, inside a terminal window. You write your scenes in "
-        "a plain editor. As you go, you tell Lorewrite about the people, "
+        "at a keyboard. You can use it in a terminal window or in a desktop "
+        "window; both work on the same files, so you can switch between "
+        "them at will. You write your scenes in a plain editor. As you go, you tell Lorewrite about the people, "
         "places, things and organizations in your story, and it helps you "
         "keep them straight: it shows you where each one appears, lets you "
         "jump to the notes you keep on each, and, if you choose, uses an AI "
         "service to look for slips in continuity.",
         idx=["Lorewrite|purpose"])
-    s.p("It is deliberately modest. It does not format your book, publish "
-        "it, or write it for you. It keeps your files plain, your notes "
-        "close, and your story consistent.")
+    s.p("It is deliberately modest. It does not format your book or "
+        "publish it, and it writes only when you ask. It keeps your files "
+        "plain, your notes close, and your story consistent.")
+    s.h3("Two applications, one project", idx=["terminal application",
+                                              "desktop application"])
+    s.p("The //terminal application// (`lorewrite`) runs inside a terminal "
+        "window and is driven by keys and a command palette. The //desktop "
+        "application// (`lorewrite-gui`) is an ordinary window with a "
+        "binder of scenes and notes on the left, a page-like editor in the "
+        "middle and an assistant panel on the right; it is driven by the "
+        "mouse and by keys. Neither one needs the other. Both read and "
+        "write the same Markdown files, so a scene you were typing in one "
+        "can be opened in the other. If you leave one running while you "
+        "edit in the other, each notices changes made behind its back "
+        "(Chapters 3 and 4). Chapter 3 describes the desktop window; every "
+        "other chapter says what to press in the terminal application and "
+        "what to click in the desktop one.")
 
     s.h2("The Ideas Behind Lorewrite")
     s.h3("Your book is a folder of plain files", idx=["project", "plain text"])
@@ -587,13 +676,13 @@ def build_story(st) -> list:
         "entity. Whenever the name or an alias appears in a scene, "
         "Lorewrite recognizes it as a //mention// and colors it so that you "
         "can see, at a glance, that the program knows who or what you mean. "
-        "You do not have to type anything special; see Chapter 4.")
+        "You do not have to type anything special; see Chapter 5.")
     s.h3("Links and backlinks", idx=["link", "backlink"])
     s.p("You may also mark a name explicitly by wrapping it in double "
         "square brackets, like `[[Rook Tanaka]]`. This is a //link//. Links "
         "were how earlier versions of Lorewrite worked; they are now "
         "optional, but they still work and are useful in a few cases "
-        "described in Chapter 4.")
+        "described in Chapter 5.")
     s.p("The other side of a link is a //backlink//. When the cursor is on "
         "a name, Lorewrite shows the note for that entity and lists every "
         "line in your book that mentions it, so that you can jump straight "
@@ -616,23 +705,26 @@ def build_story(st) -> list:
         "scene as a clearly marked //pending draft// that stays marked "
         "until you accept it, and rejecting it puts back exactly what was "
         "there. If you never set up an AI service, Lorewrite works "
-        "exactly as described in Chapters 2 to 4 and makes no network "
+        "exactly as described in Chapters 2 to 6 and makes no network "
         "connections while you write.")
     s.attention("Accepting a proposal does change your files: accepted "
                 "aliases and canon facts are written into your notes, and "
                 "an accepted draft becomes part of your scene. The review "
                 "screens and the accept and reject keys are where you stay "
-                "in control. Chapters 5 and 6 describe what each one "
+                "in control. Chapters 7 and 8 describe what each one "
                 "will do.")
 
     s.h2("What You Need")
     s.bullets([
         "A computer with Python 3.11 or later and a terminal window "
-        "(Chapter 2).",
+        "(Chapter 2). For the desktop application, also the WebKitGTK "
+        "libraries it draws with (Chapter 2).",
         "For the AI features only: an OpenRouter account and an API key, "
-        "and a network connection when you use them (Chapters 5 and 6).",
-        "Nothing else. Lorewrite runs in a terminal of at least about "
-        "100 columns by 30 rows; larger is more comfortable.",
+        "and a network connection when you use them (Chapters 7 and 8).",
+        "Nothing else. The terminal application runs in a terminal of at "
+        "least about 100 columns by 30 rows; larger is more comfortable. "
+        "The desktop window asks for 1600 by 1000 pixels and is not "
+        "smaller than 1280 by 760.",
     ])
 
     # ============================================================ CH 2
@@ -659,6 +751,30 @@ def build_story(st) -> list:
     s.p("The installer places a command named `lorewrite` in "
         "`.venv/bin`. You can run it by its full path, add `.venv/bin` to "
         "your PATH, or make a shell alias.")
+    s.h3("Installing the desktop application", idx=["lorewrite-gui command",
+                                                   "pywebview"])
+    s.p("The desktop application (`lorewrite-gui`) needs a little more: "
+        "pywebview, which puts a web page in a native window, and the "
+        "WebKitGTK and PyGObject libraries that pywebview draws with, which "
+        "come from your operating system, not from Python. Its page is "
+        "built once with Node.js (version 20 or later).")
+    s.proc("To install the desktop application:", [
+        "In the Lorewrite folder, create an environment that can see the "
+        "system libraries: `python3 -m venv --system-site-packages "
+        ".venv-gui`.",
+        "Install: `.venv-gui/bin/pip install -e \".[dev,gui]\"`.",
+        "Build the window's pages: `cd gui`, then `npm install`, then "
+        "`npm run build`.",
+        "Start it with `.venv-gui/bin/lorewrite-gui`.",
+    ])
+    s.note("If you start `lorewrite-gui` before building the pages, it "
+           "stops with //the UI is not built// and tells you to run "
+           "`npm install && npm run build` in `gui`. If pywebview is "
+           "missing it says so and names the install command.")
+    s.p("On the computer this edition was prepared on, both commands are "
+        "linked into `~/.local/bin`, so `lorewrite` and `lorewrite-gui` "
+        "start by name from any folder. On yours, do the same with `ln -s`, "
+        "or put the environment's `bin` folder on your PATH.")
 
     s.h2("Starting Lorewrite", idx=["lorewrite command", "command line"])
     s.p(f"Start Lorewrite by typing the command name. {R('fig_syntax')} "
@@ -684,10 +800,35 @@ def build_story(st) -> list:
         ["-h, --help", "Print a summary of the options and stop."],
     ], [0.24, 0.76], mono_cols=(0,))
     s.p("With no options, Lorewrite shows the launch screen.")
-    s.attention("`--new` creates the project files directly in the folder "
-                "named by `--project`, or in the current folder. Run it "
-                "from an empty folder, not from a folder that already "
-                "holds other files you care about.")
+    s.attention("In the terminal application, `--new` creates the project "
+                "files directly in the folder named by `--project`, or in "
+                "the current folder. Run it from an empty folder, not from "
+                "a folder that already holds other files you care about.")
+    s.p(f"The desktop application is started the same way, with its own "
+        f"command ({R('fig_syntax2')}, {R('t_opts2')}).")
+    s.figure_flow("fig_syntax2", Railroad([
+        "lorewrite-gui",
+        ("opt", ["--project", ("var", "PATH")]),
+        ("opt", ["--new", ("var", "TITLE")]),
+    ]), "Syntax of the lorewrite-gui command")
+    s.table("t_opts2", "Options of the lorewrite-gui command",
+            ["Option", "Effect"], [
+        ["--project PATH",
+         "Open the project in the folder //PATH// at once. If it is not a "
+         "project, the launch screen shows."],
+        ["--new TITLE",
+         "Create a new project called //TITLE// and open it. The folder is "
+         "`~/novels/` followed by the title in lowercase with hyphens "
+         "(for example `~/novels/the-salt-road`), or the folder given by "
+         "`--project`. If the folder cannot be made, the command stops "
+         "with the reason."],
+        ["--dev URL", "For developers: load the window's pages from a "
+         "development server instead of the built ones."],
+        ["-h, --help", "Print a summary of the options and stop."],
+    ], [0.24, 0.76], mono_cols=(0,))
+    s.p("Whichever command you use, the application finds the same list of "
+        "recent projects and the same settings (see “Where Lorewrite Keeps "
+        "Its Own Settings” below).")
 
     s.h2("The Launch Screen", idx=["launch screen", "recent projects"])
     s.p(f"When you start Lorewrite without a project, the launch screen "
@@ -708,7 +849,7 @@ def build_story(st) -> list:
         ["enter", "Resume the highlighted project."],
         ["o", "Open a folder: type the path of a project."],
         ["n", "Start a new project."],
-        ["s", "Open the Settings screen (Chapter 7)."],
+        ["s", "Open the Settings screen (Chapter 9)."],
         ["q", "Quit Lorewrite. (If you reached the launch screen with "
          "//Return to main menu//, `q` instead returns to the project you "
          "were in.)"],
@@ -718,8 +859,36 @@ def build_story(st) -> list:
         "Type it (a leading `~` stands for your home folder) and press "
         "`enter`. If the folder does not contain a `project.toml` file, "
         "Lorewrite says //No lorewrite project in// followed by the path.")
+    s.h3("The launch screen of the desktop application",
+         idx=["launch screen|desktop"])
+    s.p(f"The desktop application shows its launch screen "
+        f"({R('fig_glaunch')}) when it is started without a project. It is "
+        "a single card with three sections.")
+    s.gfigure("fig_glaunch", "launch", "The launch screen of the desktop "
+              "application", width=300)
+    s.bullets([
+        "**Recent projects.** One button for each of the projects you "
+        "opened lately, with its folder under the title. Click one to open "
+        "it. A project whose folder has gone is shown with //(missing)// "
+        "after its path and cannot be clicked.",
+        "**New project.** Type a title. The folder line below fills in "
+        "with `~/novels/` and the title in lowercase with hyphens "
+        f"({R('fig_glaunch2')}); you may change it. Press `enter` or click "
+        "**Create**. If the folder is already a project it is opened, not "
+        "overwritten.",
+        "**Open an existing project.** Type or paste a folder, or click "
+        "**Browse** to choose one, then click **Open project**.",
+    ])
+    s.gfigure("fig_glaunch2", "launch_new", "Typing a title fills in the "
+              "folder", width=300)
+    s.p("A message in red under the card says what went wrong if the "
+        "project cannot be opened or created, for example //a project "
+        "needs a title//.")
 
     s.h2("Creating a New Project", idx=["new project", "creating a project"])
+    s.p("In the desktop application, use the **New project** section "
+        "described above. The steps below are for the terminal "
+        "application.")
     s.proc("To create a project from the launch screen:", [
         "Press `n`. The **New project** box appears "
         f"({R('fig_newproj')}).",
@@ -760,18 +929,22 @@ the-salt-road/
         "next page, `left` to go back, and `esc` to close it at any time. "
         "Pressing `space` on the last page also closes it.")
     s.figure("fig_tour", "tour4", "The first-run tour (page 4 of 5)")
-    s.p("The tour is shown once. Lorewrite records that you have seen it in "
+    s.p("The tour belongs to the terminal application; the desktop "
+        "application has none. It is shown once. Lorewrite records that you have seen it in "
         "its settings file (`tour_seen`). To see it again, open "
         "`settings.json` in the state folder (see below) and change "
         "`\"tour_seen\": true` to `false`.")
 
     s.h2("Where Lorewrite Keeps Its Own Settings",
          idx=["state folder", "settings.json", "recent.json"])
-    s.p("Apart from your projects, Lorewrite keeps two small files in "
+    s.p("Apart from your projects, Lorewrite keeps small files in "
         "`~/.local/state/lorewrite`: `recent.json` (the list on the launch "
-        "screen) and `settings.json` (whether you have seen the tour, and "
-        "your chosen AI models). They can be deleted safely; Lorewrite "
-        "recreates them. If you set the environment variable "
+        "screen), `settings.json` (whether you have seen the tour, your "
+        "chosen AI models, whether spelling is underlined, and the desktop "
+        "window's text size) and, once you have made one, `dictionary.txt` "
+        "(your personal dictionary; Chapter 6). The first two can be "
+        "deleted safely; Lorewrite recreates them. Both applications read "
+        "and write the same files. If you set the environment variable "
         "`LOREWRITE_STATE_DIR` to a folder, Lorewrite keeps them there "
         "instead. This is handy for trying the program without disturbing "
         "your real settings.")
@@ -788,27 +961,350 @@ the-salt-road/
         "Lorewrite starts; to pick up a new theme, quit and start it again. "
         "Off Omarchy, Lorewrite uses the terminal toolkit's own built-in "
         "theme, and everything else is unchanged.")
-    s.p("Omarchy can also add a launcher for a program to its application "
-        "menu or top bar. The design notes for Lorewrite describe using "
-        "Omarchy's `omarchy tui install` command with a command line such "
-        "as `lorewrite --project <path>`, and a top-bar button that runs "
-        "`omarchy launch or focus tui --app-id=lorewrite` so that a "
-        "running Lorewrite is brought to the front instead of a second copy "
-        "being started. Those are features of Omarchy, not of Lorewrite; "
-        "see the Omarchy documentation for the exact steps on your "
-        "system.")
+    s.p("The desktop application does not read the Omarchy theme; it has "
+        "one dark appearance of its own.")
+    s.p("On Omarchy, both applications can be started from the desktop "
+        "rather than from a terminal. On the computer this edition was "
+        "prepared on, the application menu has an entry named //LoreWriter// "
+        "that starts the desktop application (or, if its window is already "
+        "open, brings that window to the front instead of opening a second "
+        "copy), and the top-bar pencil button does the same on a left "
+        "click; a right click starts the terminal application. These "
+        "launchers are set up through Omarchy, not by Lorewrite; see the "
+        "Omarchy documentation for the steps on your system. The entry is "
+        "an ordinary desktop file that runs `lorewrite-gui`.",
+        idx=["launcher"])
 
     s.h2("Leaving Lorewrite", idx=["quitting", "ctrl+q"])
-    s.p("Press `ctrl+q`. Lorewrite saves the scene you are working on as "
-        "it closes, so there is nothing to save first.")
+    s.p("In the terminal application, press `ctrl+q`. Lorewrite saves the "
+        "scene you are working on as it closes, so there is nothing to save "
+        "first.")
+    s.p("In the desktop application, click the red dot at the left of the "
+        "title bar, or close the window with your window manager. The "
+        "application saves a moment after you stop typing and whenever the "
+        "window loses focus, so closing it does not lose work; if you want "
+        "to be sure, press `ctrl+s` first and wait for the title bar to say "
+        "//Saved//.")
+
+    # ============================================================ CH 3 (desktop)
+    s.chapter("3", "The Desktop Application",
+              "A tour of the window of lorewrite-gui: where everything is, "
+              "and what each control does.")
+    s.p("The desktop application is the same Lorewrite seen through a "
+        "window. It shows the project you opened, lets you write in a "
+        "page-like editor, and puts the notes and the AI assistant beside "
+        "the page. Nothing in it changes the rules of Chapter 1: your "
+        "scenes and notes are the same plain Markdown files, and every AI "
+        "result is a proposal you accept or reject. This chapter is a tour "
+        "of the window. The chapters after it say how to do each task, in "
+        "the terminal application and in this one.", idx=["desktop application|window"])
+
+    s.h2("The Window", idx=["window (desktop)"])
+    s.p(f"{R('fig_gmain')} shows the window with the Residual project "
+        f"open on its first scene. {R('t_gareas')} names its areas.")
+    s.gfigure("fig_gmain", "main", "The desktop window: the Residual project "
+              "at its first scene", width=418)
+    s.table("t_gareas", "Areas of the desktop window",
+            ["Area", "What it holds"], [
+        ["Title bar (top)", "Window buttons, the project and scene, whether "
+         "the file is saved, and three buttons: quick switcher, assistant "
+         "panel, and a menu."],
+        ["Activity rail (far left)", "Four views (Binder, Search, Assistant, "
+         "Library) and, below, Settings."],
+        ["Binder (left)", "The tree of your scenes and notes, with a button "
+         "to make a new scene and a menu of scene commands."],
+        ["Editor (center)", "A toolbar, the three views of the manuscript, "
+         "and the page you write on. Under it, a strip with the session's "
+         "words."],
+        ["Assistant (right)", "Three tabs: Assistant, Context and Notes. "
+         "The AI features, the style card and the notes live here."],
+        ["Status bar (bottom)", "Words written this session, project "
+         "words, AI cost, misspellings, the cursor position and the "
+         "text size."],
+    ], [0.27, 0.73])
+    s.p("The window asks for 1600 by 1000 pixels and will not shrink below "
+        "1280 by 760. It has no frame of its own: the title bar is part of "
+        "the page, and you move the window by dragging it. Where the "
+        "window appears, and how it can be resized, is up to your window "
+        "manager.")
+
+    s.h2("The Title Bar and the Rail", idx=["title bar (desktop)",
+                                            "activity rail"])
+    s.gfigure("fig_gtitle", "titlebar", "The right half of the title bar",
+              crop=(0.38, 1.0), width=418)
+    s.p("At the left are three colored dots: close, minimize and maximize. "
+        "Next come the project's title and, after a slash, the open file "
+        "(for a scene, //Scene 01 · Rain on the Spur//). The dimmed //Draft// "
+        "tag is a placeholder (see “Parts Not Built Yet” below). At the "
+        "right, a label says whether your work is safe:")
+    s.table("t_gsave", "The save label in the title bar",
+            ["Label", "Meaning"], [
+        ["Saved", "The open file on disk matches the page."],
+        ["Unsaved", "You have typed since the last save. The window saves "
+         "by itself 1.5 seconds after you stop."],
+        ["Saving…", "A save is under way."],
+        ["Changed on disk", "Another program changed the file; see "
+         "“Saving and Conflicts” below."],
+        ["Save failed", "The file could not be written. A message says "
+         "why."],
+    ], [0.25, 0.75])
+    s.p("The three buttons after the label are the //quick switcher// (the "
+        "magnifying glass, `ctrl+k`), the //assistant panel// toggle, and "
+        "the **More** (three dots) menu, whose entries are **Switch "
+        "project…**, **Rebuild the link index** and **Settings…**. "
+        "**Switch project…** saves your work and returns to the launch "
+        "screen. **Rebuild the link index** is the desktop's `f9` "
+        "(Chapter 5).")
+    s.p("The rail, at the far left, chooses what the left column shows. "
+        "From the top: **Binder** (your scenes and notes); **Search** "
+        "(the binder with a filter box above it); **Assistant** (opens or "
+        "closes the right panel); and **Library** (only the "
+        "notes, the style guide and the dictionary). At the bottom are a "
+        "dimmed //Snapshots// button, **Settings**, and a round badge with "
+        "your initials, taken from the `author` line of `project.toml`.")
+
+    s.h2("The Binder", idx=["binder"])
+    s.gfigure("fig_gbinder", "binder", "The binder", width=150,
+              crop=(0, 1, 0, 0.8))
+    s.p(f"The binder ({R('fig_gbinder')}) lists the whole project as a "
+        "tree. Click the little arrow beside a folder to open or close it; "
+        "click a scene or note to open it in the editor, and use the "
+        "arrow keys and `enter` to move through it from the keyboard. "
+        "Beside each scene is its word count (without pending AI text), "
+        "and beside the project and **Manuscript** the total, written "
+        "like //1.5k//.")
+    s.bullets([
+        "**Manuscript** holds your scenes in order, each shown with its "
+        "number. **Characters** holds the notes whose kind is //character//; "
+        "**World Bible** holds places, objects and factions, with the kind "
+        "beside each name.",
+        "**Style Guide** opens `style.md`. Before the file exists it is "
+        "marked //new//; opening it creates it with the six headings of "
+        "Chapter 8. **Dictionary** opens your project dictionary "
+        "`dictionary.txt` (Chapter 6), creating it with a short comment if "
+        "need be. Both open as plain text, without a title block.",
+        "The dimmed rows (//Front Matter//, //Part I// to //III//, "
+        "//Research//, //Unplaced Scenes//, //Trash// and the "
+        "//Collections// list below the tree) are placeholders.",
+    ])
+    s.p("The **New scene** button at the top of the binder (a page with "
+        "a plus) asks for a title and makes a scene, like `ctrl+n`. The "
+        "three-dots button opens the //scene options// menu: **New "
+        "scene**, **Rename scene…**, **Move up**, **Move down** and "
+        "**Delete scene…**. They work as in Chapter 4; deleting asks you "
+        "to confirm, and the confirmation names the file it will remove. "
+        "Move up and Move down renumber the files exactly as the terminal "
+        "application does.")
+    s.p("The **Search** view puts a //Filter binder…// box above the tree; "
+        "typing narrows it to titles that contain what you typed. The "
+        "**Library** view shows only characters, world notes, the style "
+        "guide and the dictionary; in it, the first button reads **New "
+        "note** and asks for a name and a kind (character, place, object "
+        "or faction), so that objects and factions, which the terminal "
+        "application cannot create directly, can be made here.")
+
+    s.h2("The Editor", idx=["editor (desktop)", "live preview"])
+    s.p("The editor is the middle of the window. At the top is a toolbar; "
+        "below it a thin line with the path (//Manuscript › Scene 01//) and "
+        "the scene's word count; then the page; and at the foot a strip "
+        "of figures about the scene (see “Parts Not Built Yet”) of which "
+        "only //Session// is live.")
+    s.gfigure("fig_gtoolbar", "toolbar", "The editor toolbar", width=418)
+    s.table("t_gtoolbar", "The editor toolbar",
+            ["Control", "What it does"], [
+        ["Manuscript, Corkboard, Outline", "Three views of the scenes; see "
+         "below."],
+        ["Undo, Redo", "Step back and forward through your edits. "
+         "(`ctrl+z` and `ctrl+y` also work.)"],
+        ["Bold, Italic", "Wrap the selection in `**` or `*`, which is how "
+         "Markdown marks them; on text already wrapped they take the marks "
+         "off again. With nothing selected, they insert a pair of marks "
+         "and put the cursor between them."],
+        ["Link", "Make a note from the selection: the desktop's `ctrl+j` "
+         "(Chapter 5)."],
+        ["Add to dictionary", "Add the selected word or phrase to the "
+         "project dictionary (Chapter 6). Dimmed until something is "
+         "selected."],
+        ["Comment", "A placeholder."],
+        ["Focus mode", "Hide the binder, the assistant and the bars, as "
+         "`f11` does."],
+    ], [0.34, 0.66])
+    s.p("The page is a column of text set in a book face, headed by a "
+        "small label (//SCENE 01//), the scene's title and a line naming "
+        "the notes it mentions. The title is the first `# ` heading of the "
+        "file; you edit it in the text like any other line. What you see "
+        "is a //live preview// of the Markdown file:")
+    s.bullets([
+        "Mentions are in color, as in the terminal application. Names "
+        "that are wrapped in `[[double brackets]]` are shown without the "
+        "brackets, unless the cursor is inside the link, when they "
+        "appear so that you can edit them.",
+        "The `<!--ai-->` markers that surround pending AI text are hidden. "
+        "The pending text is shown in color and italics, and followed by "
+        "small **Accept** and **Reject** buttons (Chapter 8).",
+        "`{{expand: ...}}` placeholders are shown as a rounded tag.",
+        "Misspelled words have a wavy red underline (Chapter 6).",
+        "Hard-wrapped lines (a scene typed in an editor that broke lines "
+        "at 70 columns) are shown as flowing paragraphs. This is only a "
+        "display; the file is not changed, and you can turn it off in "
+        "Settings.",
+    ])
+    s.p("Rest the pointer on a colored name for a moment and a //hover "
+        "card// shows its kind and the beginning of its note "
+        f"({R('fig_ghover')}). Hold `ctrl` and click the name to open the "
+        "note in the **Notes** tab of the assistant. Put the cursor on a "
+        "name and press `ctrl+j` to do the same from the keyboard; with a "
+        "name selected, or on a link that has no note, `ctrl+j` makes the "
+        "note (Chapter 5).")
+    s.gfigure("fig_ghover", "hovercard", "A hover card over a mention",
+              width=300)
+    s.h3("Corkboard and Outline", idx=["corkboard", "outline"])
+    s.p("The **Corkboard** view shows each scene as a card with its "
+        "number, title, the opening of its text and its word count; click "
+        "a card to open the scene. The **Outline** view lists the scenes "
+        "in order with their word counts, and under each scene any headings "
+        "(lines beginning with `#`) that follow its title. Dragging cards to reorder "
+        "them is not built yet; use **Move up** and **Move down** in the "
+        "binder menu.")
+    s.gfigure("fig_gcork", "corkboard", "The corkboard view", width=300)
+
+    s.h2("The Assistant", idx=["assistant panel"])
+    s.p("The panel at the right is called LoreWriter and carries a green "
+        "//Project aware// tag, meaning that it reads your notes. Close "
+        "it with the button at its top right or with the title bar's "
+        "panel button; the three dots at its top open the //AI menu//, "
+        "which has every AI command (Chapters 7 and 8). The panel's "
+        "three tabs are listed in " + R("t_gtabs") + ".")
+    s.gfigure("fig_gassist", "assistant", "The Assistant tab", width=215)
+    s.table("t_gtabs", "Tabs of the assistant panel",
+            ["Tab", "What it holds"], [
+        ["Assistant", "Quick actions, the //Your style// card, continuity "
+         "cards, the conversation, and the list of notes the scene "
+         "mentions."],
+        ["Context", "Only that list, //Retrieved context//: the notes "
+         "the open scene mentions, how many times, and how many lines "
+         "of the project mention each. Click one to read it."],
+        ["Notes", "The note under the cursor (or the one you opened), with "
+         "its aliases and backlinks; see Chapter 5."],
+    ], [0.20, 0.80])
+    s.p("The //Quick actions// are four buttons. **Rewrite** rewrites "
+        "the selected passage (Chapter 8), **Continuity** checks the scene "
+        "(Chapter 7), and **Brainstorm** and **Research** are "
+        "placeholders. `ctrl+j` outside the editor moves the cursor to the "
+        "question box at the foot of the panel.")
+    s.p("Below the quick actions is the //Your style// card (Chapter 8), "
+        "then any continuity cards, then the conversation, then the "
+        "retrieved context. At the foot, the question box lets you ask "
+        "about the scene; the small tag beside the paperclip switches "
+        "between **Current scene** and **Project**, which decides how much "
+        "of your book the assistant reads for that question. Answers "
+        "appear in the panel only. They never change your text unless you "
+        "choose **Insert as a draft at the cursor** under an answer, which "
+        "puts it in the scene as a pending draft you must accept (Chapter 8). "
+        "Without an API key the AI parts of the panel are off and say so.")
+
+    s.h2("The Status Bar", idx=["status bar (desktop)"])
+    s.gfigure("fig_gstatus", "statusbar", "The right half of the status "
+              "bar", crop=(0.42, 1.0), width=418)
+    s.table("t_gstatus", "Items of the desktop status bar",
+            ["Item", "Meaning"], [
+        ["+120 session words", "Words gained (or lost, shown with a minus) "
+         "since the project was opened, not counting pending AI text."],
+        ["1,502 project words", "Words in all scenes together."],
+        ["AI $0.0269", "What the AI calls of this session cost, as "
+         "reported by OpenRouter."],
+        ["3 spelling", "Misspelled words in the open scene. Click it to "
+         "jump to the next one. Shown only for scenes."],
+        ["Ln 11, Col 42", "The cursor's line and column."],
+        ["100%", "Text size. Click it to step through 90%, 100%, 110% and "
+         "125%."],
+    ], [0.30, 0.70])
+
+    s.h2("Dialogs and the Quick Switcher", idx=["quick switcher", "ctrl+k"])
+    s.p("Dialogs appear over the window and close with `esc`, with "
+        "**Cancel**, or by clicking outside them. The //quick switcher// "
+        f"({R('fig_gswitch')}), opened with `ctrl+k` or the magnifying "
+        "glass, is a search box over every scene and note. Type a few "
+        "letters of a title, a name or an alias; use `up` and `down` and "
+        "`enter` to open the highlighted row.")
+    s.gfigure("fig_gswitch", "switcher", "The quick switcher, searching "
+              "for //sal//", width=300)
+    s.p("Other dialogs are described where their task is: new scene and "
+        "rename (Chapter 4), new note (Chapter 5), the spelling popover "
+        "(Chapter 6), the review of alias and story-bible suggestions and "
+        "the style guide (Chapters 7 and 8), the prompt for drafting "
+        "(Chapter 8) and Settings (Chapter 9).")
+
+    s.h2("Saving and Conflicts", idx=["autosave|desktop", "conflict banner"])
+    s.p("The window saves the open file 1.5 seconds after you stop typing, "
+        "when the window loses focus, when you open another file, and on "
+        "`ctrl+s`. Because the terminal application may be open on the "
+        "same project, every save carries the time the file had when it "
+        "was opened, and a save is refused if the file on disk has changed "
+        "since. A refused save never overwrites anything. Instead the "
+        f"title bar reads //Changed on disk// and a banner ({R('fig_gconf')}) "
+        "appears above the page.")
+    s.gfigure("fig_gconf", "conflict", "The conflict banner", width=418)
+    s.p("Click **Reload from disk** to take the other program's version and "
+        "lose what you typed since, or **Keep my version** to write yours "
+        "over it. When you return to the window after being away and the "
+        "file has changed on disk, with nothing unsaved of yours, the "
+        "window simply reloads it and says //Reloaded: the file changed on "
+        "disk.//")
+
+    s.h2("Parts Not Built Yet", idx=["placeholders"])
+    s.p("The desktop window was designed with more in it than Lorewrite "
+        "does yet. Those parts are drawn dimmed, do nothing when clicked, "
+        "and say //Not in LoreWriter yet// when you rest the pointer on "
+        "them. They show no invented data. Among them are the //Draft// "
+        "tag in the title bar, the //Snapshots//, //Draft// and //Sync// "
+        "and //Streak// items of the status bar, the history button, "
+        "the //Front Matter//, //Parts//, //Research//, //Unplaced "
+        "Scenes// and //Trash// rows and //Collections// of the binder, "
+        "the comment button, the status tag and word target of a scene, "
+        "the //Status//, //POV / Place// and //Scene purpose// fields, "
+        "the //Brainstorm// and //Research// quick actions, "
+        "conversation history, //Attach context// and the //Helpful// "
+        "button under an answer.")
+    s.gfigure("fig_gplace", "placeholders", "Placeholders: the "
+              "//Collections// list is drawn but not built", width=200)
+    s.attention("A dimmed control is a promise, not a feature. If it is "
+                "dimmed, nothing you do with it is saved.")
+
+    s.h2("Keys in the Desktop Window", idx=["keys|desktop"])
+    s.p(f"The desktop window has few keys of its own ({R('t_gkeys')}); "
+        "the full list for both applications is in Chapter 10.")
+    s.table("t_gkeys", "Keys of the desktop window",
+            ["Key", "Action"], [
+        ["ctrl+k", "Quick switcher."],
+        ["ctrl+n", "New scene."],
+        ["ctrl+s", "Save now."],
+        ["f11", "Focus mode."],
+        ["ctrl+j", "In the editor: open the note under the cursor, or make "
+         "one for the selected name. Elsewhere: go to the assistant's "
+         "question box."],
+        ["ctrl+g", "AI: draft at the cursor, expand the placeholder, or "
+         "rewrite the selection."],
+        ["f7, f8", "Accept or reject the AI draft under the cursor."],
+        ["ctrl+.", "Spelling popover for the word at the cursor, or the "
+         "selected phrase."],
+        ["ctrl+click", "Open the note under the pointer."],
+        ["esc", "Close a dialog or menu."],
+    ], [0.22, 0.78], mono_cols=(0,))
 
     # ============================================================ CH 3
-    s.chapter("3", "Writing Scenes",
+    s.chapter("4", "Writing Scenes",
               "The editor, saving, the status bar, writer mode, and "
               "everything you can do with scenes.")
+    s.p("This chapter describes the terminal application and says, for "
+        "each task, what to do in the desktop application instead; the "
+        "desktop window itself is described in Chapter 3. "
+        f"{R('t_scenetasks')}, at the end of the chapter, puts the two "
+        "side by side.")
     s.h2("The Main Window", idx=["main window"])
-    s.p(f"After you open a project, the main window appears "
-        f"({R('fig_main')}). It has five areas, listed in {R('t_areas')}.")
+    s.p(f"After you open a project in the terminal application, the main "
+        f"window appears ({R('fig_main')}). It has five areas, listed in "
+        f"{R('t_areas')}.")
     s.figure("fig_main", "main", "The main window")
     s.table("t_areas", "Areas of the main window",
             ["Area", "What it shows"], [
@@ -818,7 +1314,7 @@ the-salt-road/
          "of entities with their kinds."],
         ["Editor (center)", "The open scene or note, with line numbers."],
         ["Entity panel (right)", "The note for the name under the cursor, "
-         "and a list of backlinks. See Chapter 4."],
+         "and a list of backlinks. See Chapter 5."],
         ["Status bar", "Details of the open file. See "
          "//The Status Bar// below."],
         ["Footer", "The most useful keys. What fits depends on the width "
@@ -830,7 +1326,7 @@ the-salt-road/
     s.h2("Typing and Markdown", idx=["editor", "Markdown|headings"])
     s.p("The editor is an ordinary text editor with a few conveniences. "
         "It wraps long lines to the width of the window, shows line "
-        "numbers (which you can turn off; see Chapter 6), and colors "
+        "numbers (which you can turn off; see Chapter 9), and colors "
         "Markdown as you type: headings, //italic// text between single "
         "asterisks, and **bold** text between double asterisks.")
     s.p("Begin each scene with a heading line, for example "
@@ -845,7 +1341,9 @@ the-salt-road/
         ["ctrl+left, ctrl+right", "Move by a word."],
         ["pageup, pagedown", "Move by a screenful."],
         ["shift + any movement key", "Select text."],
-        ["f6, f5", "Select the current line; select everything. (`f7` and `f8` accept and reject AI drafts; see Chapter 6.)"],
+        ["f5", "Select everything. (`f6` fixes the next misspelled word, "
+         "Chapter 6; `f7` and `f8` accept and reject AI drafts, "
+         "Chapter 8.)"],
         ["ctrl+c, ctrl+x, ctrl+v", "Copy, cut and paste."],
         ["ctrl+z, ctrl+y", "Undo and redo."],
         ["backspace, delete", "Delete a character. `ctrl+w` deletes the "
@@ -864,12 +1362,20 @@ the-salt-road/
         "//Saved//. Files are written safely: Lorewrite writes a temporary "
         "copy and then swaps it into place, so a power failure cannot leave "
         "a half-written scene.")
-    s.attention("Lorewrite writes the contents of its editor over the file "
-                "on disk. If you change the scene you have open using "
-                "another program while Lorewrite is running, your change "
-                "is lost the next time Lorewrite saves. Quit Lorewrite, or "
-                "switch to a different scene, before editing that file "
-                "elsewhere.")
+    s.p("The desktop application saves 1.5 seconds after you stop typing, "
+        "when its window loses focus, and on `ctrl+s`, and shows the "
+        "state in the title bar (Chapter 3).")
+    s.attention("The terminal application writes the contents of its "
+                "editor over the file on disk. If you change the scene you "
+                "have open using another program while Lorewrite is "
+                "running, your change is lost the next time Lorewrite "
+                "saves. Quit Lorewrite, or switch to a different scene, "
+                "before editing that file elsewhere. The desktop "
+                "application is more careful: it refuses to overwrite a "
+                "file that changed on disk and offers you the choice "
+                "(Chapter 3), so it is safe to leave open beside the "
+                "terminal one; but the terminal application does not do "
+                "the same, so the last one to save a file wins.")
 
     s.h2("The Status Bar", idx=["status bar", "word count"])
     s.p("The line above the footer describes the open file. Its fields, "
@@ -886,7 +1392,7 @@ the-salt-road/
          "Words in the open file, and words in all scenes together. Words "
          "are runs of characters separated by spaces or line breaks. The "
          "project total is refreshed each time a file is saved. Text in "
-         "pending AI drafts (Chapter 6) is not counted."],
+         "pending AI drafts (Chapter 8) is not counted."],
         ["`Ln 11, Col 42`", "The line and column of the cursor."],
         ["A link hint", "When the cursor is on a name, the name and what "
          "`ctrl+j` will do: //to open// its note, or //no note, ctrl+j "
@@ -908,6 +1414,12 @@ the-salt-road/
     s.p("To hide only the sidebar, press `ctrl+b`; press it again to bring "
         "it back. The entity panel has no separate key; it is hidden in "
         "writer mode only.", idx=["ctrl+b"])
+    s.p("In the desktop application the same idea is called //focus "
+        "mode//: press `f11` or click the focus button at the right of the "
+        "editor toolbar. The binder, the assistant and the bars go away "
+        "and only the page remains; press `f11` again to come back.")
+    s.gfigure("fig_gfocus", "focus", "Focus mode in the desktop "
+              "application", width=300)
 
     s.h2("Moving Between Scenes", idx=["scene|navigating", "alt+left", "alt+right"])
     s.p("Press `alt+right` for the next scene and `alt+left` for the "
@@ -916,7 +1428,7 @@ the-salt-road/
         "scenes this way// appears. If you are looking at an entity note "
         "when you press either key, Lorewrite takes you back to the first "
         "scene. You can also click a scene in the sidebar, or use the "
-        "command palette (Chapter 7) to open a scene by title.")
+        "command palette (Chapter 10) to open a scene by title.")
 
     s.h2("Creating a Scene", idx=["scene|creating", "new scene", "ctrl+n"])
     s.proc("To create a scene:", [
@@ -948,7 +1460,7 @@ the-salt-road/
         "both files are renamed. A message says //Moved to// and the new "
         "file name. At the top or bottom of the book it says //Scene is "
         "already at the edge//.")
-    s.p("If the scene has pending AI drafts (Chapter 6), the file that "
+    s.p("If the scene has pending AI drafts (Chapter 8), the file that "
         "holds their originals moves along with it.")
     s.attention("Moving a scene renames files. If your project is under "
                 "version control, the change appears as two renames. A "
@@ -975,7 +1487,7 @@ the-salt-road/
                 "there.")
     s.p("Afterward, Lorewrite opens the first remaining scene and says "
         "//Deleted// followed by the title. The scene's file of pending-draft "
-        "originals, if it has one (Chapter 6), is deleted with it.")
+        "originals, if it has one (Chapter 8), is deleted with it.")
 
     s.h2("Finding a Scene or Note: the Sidebar Filter",
          idx=["filter", "sidebar|filter"])
@@ -988,9 +1500,37 @@ the-salt-road/
     s.p("The lists are empty at first; they say //ctrl+n — your first "
         "scene// and //select a name, then ctrl+j// to point you to the "
         "next step.")
+    s.p("In the desktop application, click **Search** on the rail for a "
+        "filter box above the binder, or press `ctrl+k` for the quick "
+        "switcher, which searches every scene and note at once "
+        "(Chapter 3).")
+
+    s.h2("Scene Tasks at a Glance")
+    s.table("t_scenetasks", "Scene tasks in the two applications",
+            ["Task", "Terminal application", "Desktop application"], [
+        ["New scene", "`ctrl+n`, type a title, `enter`.", "`ctrl+n`, or the "
+         "**New scene** button of the binder; type a title and click "
+         "**Create** (or press `enter`)."],
+        ["Open a scene", "Click it in the sidebar; `alt+left` and "
+         "`alt+right` for the previous and next.", "Click it in the "
+         "binder, a corkboard card or an outline row; or `ctrl+k`."],
+        ["Rename", "**Action · Rename current scene**.", "Binder menu "
+         "(three dots) \u203a **Rename scene…**."],
+        ["Move", "**Action · Move current scene up**, **down**.",
+         "Binder menu \u203a **Move up**, **Move down**."],
+        ["Delete", "**Action · Delete current scene**, then `y`.",
+         "Binder menu \u203a **Delete scene…**, then **Delete**."],
+        ["Save now", "`ctrl+s`.", "`ctrl+s`."],
+        ["Hide everything but the page", "`f11` (writer mode).",
+         "`f11` (focus mode)."],
+        ["Undo", "`ctrl+z`.", "`ctrl+z`, or the Undo button."],
+    ], [0.20, 0.38, 0.42])
+    s.p("Deleting a scene removes its file at once in both applications; "
+        "neither has a trash. The desktop confirmation names the file it "
+        "is about to delete.")
 
     # ============================================================ CH 4
-    s.chapter("4", "Characters, Places and Mentions",
+    s.chapter("5", "Characters, Places and Mentions",
               "How to tell Lorewrite about the people and places in your "
               "story, and how it recognizes them in your writing.")
     s.h2("Making a Note", idx=["note (entity)|creating", "ctrl+j"])
@@ -1021,6 +1561,18 @@ the-salt-road/
            "is not on a name, Lorewrite says //Select a name and press "
            "ctrl+j to make a note for it//. A selection that spans more "
            "than one line is ignored.")
+    s.h3("In the desktop application", idx=["note (entity)|desktop"])
+    s.p("Select the name in the page and press `ctrl+j`, or click the "
+        "**Link** button of the editor toolbar. A **New note** box asks "
+        "for the name (filled in with your selection) and a kind: "
+        "**character**, **place**, **object** or **faction**. Click "
+        "**Create**. The note is made and shown in the **Notes** tab of "
+        "the assistant, and every mention of the name is colored. If the "
+        "selection already names a note, that note is shown instead. You "
+        "can also make a note from the **Library** view of the binder with "
+        "its **New note** button, which opens the new note in the editor. "
+        "Because all four kinds can be chosen here, there is no need to "
+        "edit the `type:` line by hand for objects and factions.")
 
     s.h2("Anatomy of a Note", idx=["frontmatter", "note (entity)|format"])
     s.p(f"A note ({R('fig_note')}) is a text file in one of the folders "
@@ -1038,7 +1590,7 @@ the-salt-road/
     ], [0.20, 0.80], mono_cols=(0,))
     s.p(f"Everything below the frontmatter is yours. The note shown in "
         f"{R('fig_note')} also has a section headed `## Canon (auto)`; that is "
-        "managed by the story-bible feature described in Chapter 5, and "
+        "managed by the story-bible feature described in Chapter 7, and "
         "you can ignore it until then.")
     s.h3("Adding aliases", idx=["alias|adding"])
     s.p("Open the note (put the cursor on the name and press `ctrl+j`, or "
@@ -1047,7 +1599,11 @@ the-salt-road/
         "quotation marks. When the note is saved (a moment after you "
         "stop typing), Lorewrite reloads its list of names, recolors your "
         "scenes and updates the backlinks. Lorewrite can also suggest "
-        "aliases for you; see //Find Aliases// in Chapter 5.")
+        "aliases for you; see //Find Aliases// in Chapter 7.")
+    s.p("In the desktop application you can also add an alias without "
+        "opening the file: in the **Notes** tab, type it into the //Add "
+        "alias// box under the name and press `enter`. The colors and the "
+        "backlinks update at once.")
     s.attention("The `name` field controls what is recognized. If you "
                 "change the name of an entity, its old name stops being "
                 "recognized in your scenes unless you add it to the "
@@ -1124,7 +1680,7 @@ the-salt-road/
     ]), "Syntax of a link")
     s.p("The //name// may be an entity's name or one of its aliases; "
         "capital letters do not matter here. Lorewrite never adds "
-        "brackets to your text: not even the AI features do (Chapters 5 "
+        "brackets to your text: not even the AI features do (Chapters 7 "
         "and 6).")
 
     s.h2("Opening a Note from Your Text", idx=["ctrl+j|opening a note"])
@@ -1142,7 +1698,7 @@ the-salt-road/
         "name that has no note, it says //no note yet//. Below the note is "
         "the //Backlinks// list.")
     s.p("Each backlink is one line of your book that names the entity. "
-        "Names inside pending AI drafts (Chapter 6) are not counted. It "
+        "Names inside pending AI drafts (Chapter 8) are not counted. It "
         "shows the file, the line number and the beginning of the line, "
         "like `manuscript/03-the-stairwell.md:22`. Backlinks count "
         "mentions and links, by name or by any alias. Select one and press "
@@ -1151,6 +1707,18 @@ the-salt-road/
     s.note("The panel changes only when the cursor is on a name. When you "
            "move to plain text it keeps showing the last entity you looked "
            "at.")
+    s.p("In the desktop application the same information is in the "
+        f"**Notes** tab of the assistant ({R('fig_gnotes')}). It is shown "
+        "when you press `ctrl+j` on a name, `ctrl`-click a name, click a "
+        "note in the binder's Library view, or click a note in the "
+        "**Context** tab. The tab shows the name and kind, the aliases as small tags "
+        "with the //Add alias// box, the text of the note, a button **Open "
+        "in editor**, and the //Backlinks// list: each entry names the "
+        "scene and the line, and shows the line; click it to open the "
+        "scene at that line. For a name in `[[brackets]]` that has no note, "
+        "the tab offers **Create note**.")
+    s.gfigure("fig_gnotes", "assistant_notes", "The Notes tab for Rook "
+              "Tanaka: aliases, the note and its backlinks", width=215)
 
     s.h2("Rebuilding the Index", idx=["index (cache)|rebuilding", "f9", "rebuild index"])
     s.p("Backlinks come from the index, a cache kept in the project's "
@@ -1159,7 +1727,8 @@ the-salt-road/
         "backlink list looks out of date, press `f9`. Lorewrite saves the "
         "open file, rebuilds the index from every scene and note, reloads "
         "the notes, and says //Index rebuilt//. It is always safe to "
-        "press `f9`.")
+        "press `f9`. In the desktop application use **More \u203a Rebuild the link "
+        "index**; it says //Index rebuilt from the files.//")
 
     s.h2("Renaming or Deleting an Entity", idx=["entity|deleting", "entity|renaming"])
     s.p("Lorewrite has no command for deleting a note. To remove an "
@@ -1170,8 +1739,211 @@ the-salt-road/
         "to `aliases`. The file's own name is unchanged by either edit, "
         "which is harmless.")
 
+    # ============================================================ CH 6 (spelling)
+    s.chapter("6", "Spelling",
+              "Underlined misspellings, how to fix them, and how to teach "
+              "Lorewrite the words of your world.")
+    s.p("Lorewrite checks the spelling of your scenes as you write, in both "
+        "applications, and underlines the words it does not know. It "
+        "checks //spelling only//; it does not look at grammar, style or "
+        "punctuation. It works entirely on your computer, with a built-in "
+        "English word list (American spelling), and sends nothing "
+        "anywhere. Its list does not know your invented words, so the "
+        "chapter spends most of its time on how to tell it which of them "
+        "are right.", idx=["spell check", "spelling"])
+    s.p("Spell check applies to //scenes// only. Entity notes, the style "
+        "guide and the dictionary files are not underlined. You can turn "
+        "the underlining off (see “Turning It Off” below).")
+
+    s.h2("What Gets Underlined", idx=["misspelling"])
+    s.p("In the terminal application a misspelled word is underlined in "
+        f"red ({R('fig_spellu')}); in the desktop application it has a "
+        "wavy red underline. The check runs a moment after you stop "
+        "typing (0.6 seconds in the terminal), so the marks catch up "
+        "with a fast typist rather than flickering under them.")
+    s.figure("fig_spellu", "spell_underline", "A misspelled word, underlined "
+             "in the terminal application (here //maglev//, a word of the "
+             "story's world)")
+    s.p("A word is //not// underlined if any of these is true. They are the "
+        "things Lorewrite assumes you meant.")
+    s.table("t_nospell", "What is never flagged",
+            ["Kind of text", "Notes"], [
+        ["Names and aliases of your notes", "Every word of every entity "
+         "name and alias, and each whole name. A character called "
+         "//Kessler-Voss// is never flagged, nor is the alias //the "
+         "Hollow//."],
+        ["Your dictionaries", "Every word and phrase in the project "
+         "dictionary and in your personal dictionary (below)."],
+        ["Words you chose to ignore", "Ignored words, for the rest of the "
+         "session (below)."],
+        ["Possessives and contractions", "//Rook's// is checked as "
+         "//Rook//; //don't//, //he'd//, //they're// and similar are "
+         "accepted. Straight and curly apostrophes are the same."],
+        ["Hyphenated words", "Each part is checked, so //noodle-stall// "
+         "passes when //noodle// and //stall// do, or when the whole "
+         "compound is a known word."],
+        ["Acronyms", "Words in capitals of five letters or fewer, such as "
+         "//NYPD// or //K-V//."],
+        ["Words with digits, single letters, and words in other "
+         "alphabets", "Skipped."],
+        ["Markup and machinery", "The title block of a note, code in "
+         "back-quotes or in fenced blocks, web and e-mail addresses, "
+         "`<!--` comments (which includes the markers of AI drafts and the "
+         "provenance line of `style.md`), `{{expand: ...}}` placeholders, "
+         "and the name inside a `[[link]]` (the words you show after a "
+         "`|` are still checked)."],
+    ], [0.34, 0.66])
+    s.p("Capital letters count in one direction. A word that is in the "
+        "dictionary in lower case is accepted in any capitalization, but "
+        "a name you added with a capital letter is accepted only with "
+        "one: after adding //Kowloon//, the lower-case //kowloon// is "
+        "still underlined. Text inside a pending AI draft //is// checked "
+        "(Chapter 8), because you are about to decide whether to keep it.")
+
+    s.h2("Fixing a Word in the Terminal Application", idx=["f6", "spell check|terminal"])
+    s.p(f"Press `f6`. Lorewrite moves the cursor to the end of the next "
+        "misspelled word after the cursor (starting again at the top "
+        "after the last one) and opens a small window "
+        f"({R('fig_spellfix')}) with the word and up to five suggestions "
+        "ranked by how common they are, in the capitalization of the word "
+        "you typed. Press the key for what you want to do:")
+    s.figure("fig_spellfix", "spell_fix", "The f6 window: one suggestion "
+             "for //unnattractive//", )
+    s.table("t_spellkeys", "Keys in the f6 window",
+            ["Key", "Action"], [
+        ["1 to 5, enter", "Replace the word with that suggestion. `enter` "
+         "takes the first. The replacement is an ordinary edit, so "
+         "`ctrl+z` undoes it."],
+        ["a", "Add the word to the project dictionary."],
+        ["p", "Add the word to your personal dictionary."],
+        ["i", "Ignore the word until you quit Lorewrite."],
+        ["esc", "Close the window and change nothing."],
+    ], [0.22, 0.78], mono_cols=(0,))
+    s.p("If there is nothing to fix, Lorewrite says //No misspellings//; "
+        "in a note or the style guide it says //Spell check applies to "
+        "scenes//. Press `f6` again for the next word. The three palette "
+        f"actions of {R('t_spellact')} work on dictionaries from the "
+        "keyboard.")
+    s.table("t_spellact", "Palette actions for spelling",
+            ["Entry", "What it does"], [
+        ["Toggle spell check", "Turn the underlining on or off (the same "
+         "setting as in Settings). A message says //Spell check on// or "
+         "//Spell check off//."],
+        ["Add selection to dictionary", "Add the selected word or phrase "
+         "to the project dictionary; the selection may span several "
+         "words. If nothing is selected it says //Select a word or phrase "
+         "first//."],
+        ["Open project dictionary", "Open `dictionary.txt` in the editor "
+         "(creating it with a short comment if need be), to edit by "
+         "hand."],
+    ], [0.34, 0.66])
+
+    s.h2("Fixing a Word in the Desktop Application", idx=["spell check|desktop"])
+    s.p("Click a misspelled word, or right-click it, or put the cursor in "
+        f"it and press `ctrl+.`. A popover ({R('fig_gspell')}) lists "
+        "suggestions; click one to replace the word. As in the terminal "
+        "application the replacement is an ordinary, undoable edit. Below "
+        "the suggestions are three commands.")
+    s.gfigure("fig_gspell", "spell_popover", "The spelling popover for "
+              "//maglev//. Suggestions for invented words are poor; the "
+              "dictionary commands are what you want", width=250)
+    s.bullets([
+        "**Add to dictionary** adds the word to the project dictionary.",
+        "**Add to my dictionary (all projects)** adds it to your personal "
+        "dictionary.",
+        "**Ignore** hides the underline on that word until you quit the "
+        "application. It is not saved anywhere.",
+    ])
+    s.p("To add a //phrase//, select two or more words and press `ctrl+.` "
+        "(or right-click inside the selection, or click the "
+        f"**Add to dictionary** button of the toolbar). The popover "
+        f"({R('fig_gphrase')}) then offers the two dictionaries and no "
+        "suggestions. A message confirms it: //Added “sweet rot” to the "
+        "project dictionary.//, or //“sweet rot” is already in the "
+        "dictionary.//")
+    s.gfigure("fig_gphrase", "spell_phrase", "A phrase selected: the "
+              "popover offers to add it to a dictionary", width=250)
+    s.p("The status bar shows how many misspellings the open scene has "
+        "(//3 spelling//); click it to jump to and select the next one. "
+        "When there are none it reads //0 spelling// and "
+        "dims. A message says //No misspelled words.// if you jump with "
+        "none left. "
+        "The count is not shown for notes, the style guide or the "
+        "dictionary.")
+
+    s.h2("The Two Dictionaries", idx=["dictionary", "dictionary.txt",
+                                      "personal dictionary",
+                                      "project dictionary"])
+    s.p("What you teach Lorewrite goes into one of two plain text files. "
+        "They have the same format and the same effect; they differ only "
+        "in how far they reach.")
+    s.table("t_dicts", "The two dictionaries",
+            ["Dictionary", "File", "Applies to"], [
+        ["Project dictionary", "`dictionary.txt` in the project folder, "
+         "beside `project.toml`.", "That project only. It travels with "
+         "the project when you copy or back it up, and is kept by version "
+         "control."],
+        ["Personal dictionary", "`dictionary.txt` in Lorewrite's state "
+         "folder (`~/.local/state/lorewrite`, or the folder named by "
+         "`LOREWRITE_STATE_DIR`).", "Every project you open on this "
+         "computer."],
+    ], [0.22, 0.46, 0.32])
+    s.p("Put a word of your world (a place, an invented material, a "
+        "shared slang) in the project dictionary; put a word that is yours "
+        "wherever you write (a name you often use, a spelling you prefer) "
+        "in the personal one. The format is one word or phrase per line. "
+        "Blank lines and lines that begin with `#` are ignored. A file "
+        "that Lorewrite creates begins with a comment that says so:")
+    s.code("""\
+# One word or phrase per line; these are never flagged as misspelled.
+# Lines starting with # and blank lines are ignored.
+maglev
+Kowloon
+sweet rot""")
+    s.p("A line with a space in it is a //phrase//. It accepts the words "
+        "inside every occurrence of that phrase, in any capitalization and "
+        "with any spacing, even if one of them would be underlined on its "
+        "own. Adding a term never duplicates a line that is already "
+        "there. To remove a word, delete its line in a text editor. In the "
+        "desktop application the binder's **Dictionary** row opens the "
+        "project file; in the terminal application, **Action · Open "
+        "project dictionary** does. The personal dictionary has no "
+        "button; open it with any editor.")
+    s.attention("`dictionary.txt` is your data, not a cache: it is not in "
+                "the `.lorewrite` folder and the `.gitignore` of a new "
+                "project does not list it. It is not a scene and not a "
+                "note, so it never appears in the sidebar's scene list, the "
+                "word counts or the index.")
+
+    s.h2("Turning It Off", idx=["spell check|turning off"])
+    s.p("In the terminal application, tick or untick //Underline "
+        "misspellings// in Settings (Chapter 9), or choose **Action · "
+        "Toggle spell check**. In the desktop application, use the same "
+        "box in the Settings dialog. The setting, `spellcheck`, is kept in "
+        "`settings.json` and is shared: turning it off in one application "
+        "turns it off in the other. With it off, `f6` still opens the fix "
+        "window in the terminal application.")
+
+    s.h2("Limits")
+    s.bullets([
+        "**English only**, with American spelling: //colour// and "
+        "//favourite// are underlined, //color// and //favorite// are not. Words in other alphabets are skipped; accented "
+        "Latin letters are checked after removing the accents.",
+        "**Suggestions come from a list of common words.** They are good "
+        "for typing slips (//recieve//, //unnattractive//) and poor for "
+        "invented words, which have no right answer to find. For those, "
+        "use the dictionary commands rather than a suggestion.",
+        "**It cannot tell a correct wrong word from a right one:** "
+        "//their// for //there// is a spelling-correct word and is not "
+        "flagged.",
+        "**Names keep their capitals.** A name taken from a note, or added "
+        "with a capital letter, is accepted only with that capital: "
+        "//kuroda// is underlined even though //Kuroda// is not. A "
+        "lower-case entry accepts any capitalization.",
+    ])
+
     # ============================================================ CH 5
-    s.chapter("5", "AI Assistance",
+    s.chapter("7", "AI Assistance",
               "Setting up an AI service, and the three features that help "
               "you keep your story consistent. All are proposals you "
               "confirm.")
@@ -1179,7 +1951,7 @@ the-salt-road/
     s.p("Lorewrite can use an AI service, called OpenRouter, to help with "
         "your story. This chapter describes how to set it up and the three "
         f"features summarized in {R('t_ai')}, which check and record "
-        "consistency. The features that write prose are in Chapter 6. "
+        "consistency. The features that write prose are in Chapter 8. "
         "None of them is needed to write. None runs unless you start it. "
         "And none changes anything until you have reviewed its proposals "
         "and pressed `enter`.")
@@ -1196,12 +1968,28 @@ the-salt-road/
               "scene**", "Strong", "New facts to add to the //Canon// "
               "section of your notes. Only adds."]],
             [0.19, 0.31, 0.11, 0.39])
+    s.p(f"In the desktop application the same features are started from "
+        f"the assistant panel ({R('t_aigui')}).")
+    s.table("t_aigui", "Starting the consistency features in the two "
+            "applications",
+            ["Feature", "Terminal application", "Desktop application"], [
+        ["Find aliases", "`ctrl+l`", "AI menu (the three dots at the top "
+         "of the assistant) \u203a **Find aliases**"],
+        ["Continuity check", "**Action · Check scene for continuity "
+         "issues**", "**Continuity** quick action"],
+        ["Waive an issue", "`space` in the report", "**Dismiss** on its "
+         "card"],
+        ["Restore waived issues", "**Action · Restore waived continuity "
+         "issues (this scene)**", "AI menu \u203a **Restore waived issues**"],
+        ["Story-bible update", "**Action · Update story bible from "
+         "scene**", "AI menu \u203a **Update story bible**"],
+    ], [0.22, 0.38, 0.40])
     s.p("There are three models in all, because the jobs differ. Finding "
         "names is easy and can be done by a small, cheap model (the "
         "//fast// model). Judging whether a scene contradicts your notes "
         "takes a more capable one (the //strong// model). Writing prose "
         "is a third kind of job, with its own //writing// model "
-        "(Chapter 6).")
+        "(Chapter 8).")
     s.attention("When you start an AI feature, text from your scene "
                 "leaves your computer. See //Costs and Privacy// at the "
                 "end of this chapter before you use it on anything "
@@ -1238,6 +2026,15 @@ the-salt-road/
         "variable.")
     s.note("If `OPENROUTER_API_KEY` is set, it is used even when a "
            "different key is stored in the keyring.")
+    s.p("In the desktop application, open Settings (the gear at the foot of "
+        "the rail) and use the first section, //AI (OpenRouter)//. It says "
+        "whether a key is set and where it comes from: //from the "
+        "OPENROUTER_API_KEY environment variable// or //stored in the "
+        "system keyring//. Paste a key into the box and click **Save "
+        "key**; **Clear** removes the keyring's key. Without a key the AI "
+        "controls of the assistant are dimmed, and trying one opens "
+        "Settings with the message //Add your OpenRouter API key first. "
+        "AI features are off until then.//")
 
     s.h2("Choosing Models", idx=["model", "fast model", "strong model",
                                  "writing model", "model picker",
@@ -1269,6 +2066,12 @@ the-salt-road/
     s.p("A model can be set for every project in Settings, or for one "
         "project by adding an `[ai]` section to that project's "
         f"`project.toml` (see {R('t_models')} and Appendix A).")
+    s.p("In the desktop Settings dialog the three rows are //Fast "
+        "model//, //Strong model// and //Writing model//, each with a "
+        "**Choose…** button that opens a searchable list of the same "
+        "catalog under the row (Chapter 9). An empty box means the "
+        "default, which is shown in the box in gray; a project that "
+        "overrides a model in `project.toml` says so under the row.")
     s.table("t_models", "Which model is used",
             ["Priority", "Source", "Where"], [
         ["1 (highest)", "The project", "`fast_model`, `strong_model` or "
@@ -1285,7 +2088,7 @@ the-salt-road/
         "character named Borin. It reads the scene and proposes each one "
         "as a new //alias// for that entity's note. Once an alias is in "
         "the note, it is recognized everywhere, in every scene, without "
-        "further help (Chapter 4).")
+        "further help (Chapter 5).")
     s.attention("Find aliases never changes your scene. In earlier "
                 "versions `ctrl+l` wrapped words in `[[brackets]]`; it "
                 "does not any more. Accepting a suggestion only adds "
@@ -1316,9 +2119,21 @@ the-salt-road/
         "for Kessler-Voss.")
     s.figure("fig_aliasnote", "aliasnote", "The note for Kessler-Voss after "
              "accepting //The flyers//: the alias is added to the list")
-    s.p("Text in pending AI drafts (Chapter 6) is ignored, so the line "
+    s.p("Text in pending AI drafts (Chapter 8) is ignored, so the line "
         "numbers in the review are always the real line numbers of your "
         "scene.")
+    s.h3("In the desktop application")
+    s.p("Open a scene, open the AI menu and choose **Find aliases**. When "
+        f"the answer arrives a dialog titled **Possible aliases** opens "
+        f"({R('fig_galias')}). Each suggestion is a box with the words "
+        "highlighted in their sentence and, below, the entity they would "
+        "become an alias of. //None// are ticked to begin with: tick the "
+        "ones you want, or click **Select all**, then click **Add //N// "
+        "aliases**. The scene is not changed. If there is nothing to "
+        "suggest, a message says //No new aliases found// with the cost.")
+    s.gfigure("fig_galias", "aliasreview", "The Possible aliases dialog. "
+              "Ticks are yours to give; the scene is never edited",
+              width=330)
 
     s.h2("Continuity Checking", idx=["continuity", "Contextual Tracker",
                                      "contradiction"])
@@ -1384,15 +2199,32 @@ the-salt-road/
         "cannot be restored this way; to reinstate one, edit "
         "`.lorewrite/waivers.json` and remove its code from the list.")
     s.figure("fig_waived", "continuity_waived", "A waived issue")
-    s.p("Pending AI drafts (Chapter 6) are removed from the scene before "
+    s.p("Pending AI drafts (Chapter 8) are removed from the scene before "
         "it is checked: unaccepted AI text is not part of your story yet.")
+    s.h3("In the desktop application")
+    s.p("Click **Continuity** in the quick actions. A message says how "
+        "many possible conflicts were found, with the cost, and one card "
+        f"per conflict appears in the Assistant tab ({R('fig_gcont')}). A "
+        "card gives the kind of issue and the entity, the words of the "
+        "scene that conflict, in quotation marks, and a suggested fix, "
+        "which is only a suggestion. **Review passage** scrolls the scene "
+        "to the line (it is the desktop's `enter`); **Dismiss** is the "
+        "desktop's waive: the issue will not be reported again, and a "
+        "message says so. **Restore waived issues** in the AI menu brings "
+        "back the open scene's waived issues, as in the terminal "
+        "application. If you dismiss by mistake, restore and check again.")
+    s.gfigure("fig_gcont", "continuity_card", "A continuity card in the "
+              "assistant panel", width=240)
     s.idx("Jev")
     s.note("If the optional helper program Jev is installed on your "
            "computer (as `~/.config/jev/jev.py`), Lorewrite first asks it "
            "a quick question about each entity, so that the more expensive "
            "model is asked only about entities the scene might "
-           "contradict. If Jev is not installed, or fails, every entity is "
-           "checked. You can ignore this if you have never installed it.")
+           "contradict. If Jev is not installed, or fails, or answers in a "
+           "way Lorewrite cannot read, every entity is checked. In earlier "
+           "versions this screening did not take effect even when Jev was "
+           "installed; now it does. You can ignore this if you have never "
+           "installed Jev.")
 
     s.h2("Updating the Story Bible", idx=["story bible", "canon|section",
                                           "Canon (auto)"])
@@ -1426,8 +2258,17 @@ the-salt-road/
         "is ever touched, so your own writing in the note is safe, and "
         "running the update on later scenes never removes a fact from "
         "earlier ones.")
+    s.p("In the desktop application choose **Update story bible** in the AI "
+        f"menu. The **Update the story bible** dialog ({R('fig_gcanon')}) "
+        "lists, for each entity, the reason the AI gives and its proposed "
+        "new facts, each with its own box; open //Existing canon// to "
+        "see what is already there. Tick the facts you want (**Select "
+        "all** ticks them all), then click **Add //N// facts**. The "
+        "message says //Added canon to N notes.//")
+    s.gfigure("fig_gcanon", "canonreview", "The story-bible dialog: new "
+              "facts, ticked one by one", width=330)
     s.note("Facts in the review are wrapped, so a long fact is shown in "
-           "full. Pending AI drafts (Chapter 6) are removed from the scene "
+           "full. Pending AI drafts (Chapter 8) are removed from the scene "
            "before it is read, so text the AI wrote but you have not "
            "accepted does not become canon.")
 
@@ -1441,6 +2282,11 @@ the-salt-road/
         "$0.0042)//. The total starts again from nothing each time you "
         "start Lorewrite. If the provider does not report a cost, nothing "
         "is shown.")
+    s.p("If an AI service does not answer, Lorewrite gives up after 180 "
+        "seconds (three minutes) and tells you the request failed, and "
+        "tries one more time before that if the connection drops; earlier "
+        "it could wait for many minutes with nothing on the screen. You "
+        "can then start the feature again.")
     s.bullets([
         "**Nothing is sent unless you ask.** Lorewrite contacts an AI "
         "service only when you start one of the AI features, and "
@@ -1451,7 +2297,7 @@ the-salt-road/
         "continuity check: the scene and the canon of the entities "
         "being checked. For a story-bible update: the scene, and each "
         "entity's name, kind, aliases and existing canon. The writing "
-        "features send other text; see Chapter 6. Pending AI drafts are "
+        "features send other text; see Chapter 8. Pending AI drafts are "
         "never sent as part of your scene. OpenRouter passes the text to "
         "the company that runs the model you chose; read their terms.",
         "**What it costs.** OpenRouter charges your account for the amount "
@@ -1468,7 +2314,7 @@ the-salt-road/
         "writing failed//, followed by the error. Appendix B lists them.")
 
     # ============================================================ CH 6
-    s.chapter("6", "Writing with AI",
+    s.chapter("8", "Writing with AI",
               "Teach Lorewrite your style, then have it draft, expand and "
               "rewrite prose. Everything it writes is a draft you accept "
               "or reject.")
@@ -1485,7 +2331,7 @@ the-salt-road/
         "Rejecting puts back exactly what was there before.")
     s.h3("The writing model")
     s.p("Writing uses its own model, the //writing model//, separate from "
-        "the fast and strong models of Chapter 5. It is a separate "
+        "the fast and strong models of Chapter 7. It is a separate "
         "choice because writing is a different kind of job: what matters "
         "is the quality of the prose and the price per word, and what "
         "comes back is ordinary text, not the strict structured answer "
@@ -1493,10 +2339,34 @@ the-salt-road/
         "will do, and the picker for this model lists the whole catalog. "
         "The writing model is also the one that learns your style guide. "
         "Its built-in default is `anthropic/claude-sonnet-4.5`; set "
-        "your own with **Choose…** in Settings (Chapter 7) or with "
+        "your own with **Choose…** in Settings (Chapter 9) or with "
         "`writing_model` in the `[ai]` section of `project.toml` "
-        "(Appendix A). You need an API key first (Chapter 5).")
+        "(Appendix A). You need an API key first (Chapter 7).")
 
+    s.p("Most of this chapter describes the terminal application's keys. "
+        "The desktop application does the same things with buttons and "
+        f"menus; {R('t_wgui')} lists where.")
+    s.table("t_wgui", "Writing with AI in the two applications",
+            ["Task", "Terminal application", "Desktop application"], [
+        ["Learn a style guide", "**Action · AI: learn style guide from "
+         "manuscript**", "**Learn my style** (or **Relearn my style**) on "
+         "the //Your style// card; or AI menu \u203a **Learn style guide**"],
+        ["Open the style guide", "**Action · Open style guide**",
+         "**Style Guide** in the binder, or **Open guide** on the card"],
+        ["Draft at the cursor", "`ctrl+g` with nothing selected",
+         "`ctrl+g`, or AI menu \u203a **Draft at the cursor…**"],
+        ["Expand a placeholder", "`ctrl+g` inside `{{expand: ...}}`",
+         "`ctrl+g` inside the placeholder"],
+        ["Rewrite a selection", "`ctrl+g` with text selected",
+         "`ctrl+g`, or the **Rewrite** quick action"],
+        ["Accept, reject one draft", "`f7`, `f8`", "`f7`, `f8`, or the "
+         "**Accept** and **Reject** buttons beside the draft"],
+        ["Accept, reject all", "**Action · Accept all AI drafts in this "
+         "scene**, **Reject all ...**", "AI menu \u203a **Accept all "
+         "drafts**, **Reject all drafts**"],
+        ["Ask a question", "(not available)", "The question box of the "
+         "assistant; **Insert as a draft** under an answer"],
+    ], [0.22, 0.38, 0.40])
     s.h2("The Style Guide", idx=["style guide", "style.md"])
     s.p("The style guide is a plain Markdown file named `style.md` in the "
         "project folder, beside `project.toml`. It describes how you write, "
@@ -1559,6 +2429,58 @@ the-salt-road/
         "`alt+right`.")
     s.figure("fig_styleguide", "styleguide", "The style guide open in the "
              "editor, like any note")
+    s.h3("The Your style card in the desktop application",
+         idx=["Your style card", "Learn my style"])
+    s.p("At the top of the Assistant tab, under the quick actions, the "
+        f"//Your style// card ({R('fig_gstyle1')}) does in one click what "
+        "the palette does in two steps. What it says depends on the "
+        "state of your project:")
+    s.table("t_stylecard", "What the Your style card says",
+            ["State", "The card says", "Buttons"], [
+        ["No style guide, fewer than 300 words in your scenes",
+         "//Write a few hundred words first; then LoreWriter can learn "
+         "your voice from them.//", "**Learn my style**, dimmed"],
+        ["No style guide, 300 words or more",
+         "//LoreWriter writes in a generic voice until it learns yours "
+         "from your scenes.// The card is outlined to catch your eye.",
+         "**Learn my style**"],
+        ["A guide you wrote or edited by hand, with no provenance line",
+         "//You have a style guide. Relearn it from your scenes, or edit "
+         "it by hand.//", "**Relearn my style**, **Open guide**"],
+        ["A guide learned by Lorewrite", "//Learned// and the date, //from// "
+         "the number of words it was shown, //of your prose.//",
+         "**Relearn my style**, **Open guide**"],
+        ["The same, when the manuscript has since grown by half and by "
+         "at least 1,000 words", "The line above, then //Your manuscript "
+         "has grown to// the new total //since; relearn to keep up.// A tag "
+         "//Out of date// appears and the card is outlined again.",
+         "the same"],
+    ], [0.30, 0.46, 0.24])
+    s.gfigure("fig_gstyle1", "stylecard_before", "The Your style card "
+              "before a guide exists", width=230)
+    s.p("Click **Learn my style**. Lorewrite saves the open scene, reads "
+        "your scenes as described above, and says //Learning your "
+        "style…//. When the answer arrives a dialog titled **Style guide "
+        f"learned from your prose** ({R('fig_gstylerev')}) shows the "
+        "proposed file in a box that you can //edit//. Nothing is saved "
+        "yet. If there is a style guide already the dialog says that "
+        "saving replaces it and that a copy is kept as `style.md.bak`. "
+        "Click **Save style guide** to write `style.md`, or **Cancel**.")
+    s.gfigure("fig_gstylerev", "stylereview", "The learned guide, "
+              "editable before it is saved. Its second line is the "
+              "provenance line", width=330)
+    s.gfigure("fig_gstyle2", "stylecard_after", "The card after "
+              "learning: when, and from how much prose", width=230)
+    s.p("The second line of the proposal, `<!-- learned 2026-10-01 from "
+        "1,099 sampled words; manuscript 1,502 words in 4 scenes -->`, is "
+        "the //provenance line//. It is an HTML comment, so Markdown "
+        "programs hide it, and it is how the card knows the date, how "
+        "much of your prose the AI saw, and how large the manuscript was "
+        "(it is compared with the manuscript now to decide when the guide "
+        "is out of date). You may delete it, or write a guide by hand "
+        "without one; the card then simply cannot say when the guide was "
+        "learned and never calls it out of date. The terminal application "
+        "writes the same line.")
     s.note("You can use `ctrl+g` without a style guide; the AI then "
            "writes in a general style. The first time you do, Lorewrite "
            "shows the tip //learn a style guide first// once for that "
@@ -1589,6 +2511,24 @@ the-salt-road/
         "you can keep writing. The reply is cleaned of code fences, "
         "labels such as //Here's the paragraph:// and quotation marks "
         "around the whole text, and an empty reply is an error.")
+    s.h3("Your own prose as examples", idx=["voice samples"])
+    s.p("A style guide describes your voice in words. To help the AI match "
+        "it, every `ctrl+g` request now also carries about two thousand "
+        "words of your own writing as examples. Lorewrite picks whole "
+        "paragraphs from your //other// scenes (from the rest of the "
+        "scene itself only if it is your only scene), preferring "
+        "paragraphs that involve the same characters and places as the "
+        "scene you are writing and that have about the same share of "
+        "dialogue. Text in pending AI drafts is never used: it is not "
+        "yours. The AI is told to imitate your rhythm, paragraph shape, "
+        "word choice and punctuation, and never to reuse your events, "
+        "images or sentences.")
+    s.attention("The examples make every drafting, expanding and "
+                "rewriting request larger by roughly two thousand words, "
+                "which OpenRouter charges for like any other input. The "
+                "cost still appears in the status bar and after each "
+                "call (Chapter 7). The examples leave your computer along "
+                "with the rest of the request, like the style guide does.")
     s.h3("Draft at the cursor", idx=["draft at cursor"])
     s.proc("To draft new prose:", [
         "Put the cursor where the new text should go: at the end of the "
@@ -1608,6 +2548,19 @@ the-salt-road/
              "draft. The same key that opened it submits it")
     s.figure("fig_draft", "draft", "A pending AI draft at the end of a "
              "scene: colored italics, with the marker comments faded")
+    s.p(f"In the desktop application `ctrl+g` opens a box with one line "
+        f"({R('fig_ggen')}). Type what you want and press `enter` or click "
+        "**Generate**; the box is not multi-line. The draft appears at the "
+        f"cursor ({R('fig_gdraft')}) in color and italics, with small "
+        "**Accept** and **Reject** buttons after it, and a message says "
+        "//AI draft ready: F7 accept, F8 reject// and the cost. The "
+        "`<!--ai-->` comments around it are hidden. If you have no style "
+        "guide, a second message says //Tip: learn a style guide first "
+        "(AI menu, Learn style guide).//")
+    s.gfigure("fig_ggen", "generate_dialog", "The desktop prompt for "
+              "a draft", width=300)
+    s.gfigure("fig_gdraft", "draft", "A pending draft in the desktop "
+              "application, with its Accept and Reject buttons", width=300)
     s.p("If the cursor follows a word with no space, Lorewrite puts a "
         "space at the start of the draft so the sentences do not run "
         "together; the space is part of the draft, so rejecting it "
@@ -1650,6 +2603,20 @@ the-salt-road/
              "for a rewrite, prefilled")
     s.figure("fig_rewrite", "rewrite_draft", "A rewrite, pending. Your "
              "original is safe and comes back on `f8`")
+    s.p("In the desktop application, select the passage and press "
+        f"`ctrl+g` or click **Rewrite** in the quick actions. The box "
+        f"titled **Rewrite the selection** ({R('fig_grew')}) is filled "
+        "in with //Rewrite this in my style.// and selected, so typing "
+        "replaces it. If you choose **Rewrite** with nothing selected, a "
+        "message says //Select a passage in the text first, then choose "
+        "Rewrite.//  To expand a placeholder, put the cursor in it "
+        "(click it) and press `ctrl+g`: the desktop also uses the "
+        "placeholder's words as the instruction, and says //Empty "
+        "{{expand: }} marker: say what to write.// if there are none.")
+    s.gfigure("fig_grew", "rewrite_dialog", "The desktop prompt for a "
+              "rewrite", width=300)
+    s.gfigure("fig_grewd", "rewrite_draft", "A pending rewrite; Reject "
+              "restores the original sentence", width=300)
     s.p("If you switch to another scene while the AI is working, the "
         "draft is thrown away: Lorewrite says //Scene changed while "
         "drafting — draft discarded//. The same happens to a rewrite or "
@@ -1667,6 +2634,11 @@ the-salt-road/
         "figures of this book a draft shows as italic text on a dark "
         "tint. While the cursor is inside a draft, the status bar says "
         "//AI draft — f7 accept · f8 reject//.")
+    s.p("In the desktop application a pending draft is colored the same "
+        "way, and the buttons **Accept** and **Reject** after it do what "
+        "`f7` and `f8` do. The cost of each call is in the status bar "
+        f"({R('fig_gcost')}).")
+    s.gfigure("fig_gcost", "draftbar", "A draft with its buttons", width=300)
     s.h3("Where it is stored", idx=[".drafts folder", "marker (AI)"])
     s.p("A pending draft is part of the scene file. It sits between two "
         "HTML comments, which most Markdown programs, such as Obsidian, "
@@ -1694,11 +2666,19 @@ the koi holo.<!--/ai-->""")
         "project does not list it, so version control keeps it. Lorewrite "
         "deletes each entry when you accept or reject the draft, removes "
         "the file when it is empty, and moves or deletes it together with "
-        "its scene (Chapter 3).")
+        "its scene (Chapter 4).")
     s.h3("Accept and reject", idx=["accept draft", "reject draft", "f7", "f8"])
     s.p(f"Put the cursor inside a draft, or at either edge of it, and use "
         f"the keys in {R('t_draftkeys')}. If the cursor is not in a draft "
         "Lorewrite says //No AI draft under the cursor//.")
+    s.p("In the desktop application, **AI menu \u203a Accept all drafts** and "
+        "**Reject all drafts** apply to every draft in the open scene, and "
+        "an answer in the assistant's conversation can be put into the "
+        "scene as a draft with its **Insert as a draft at the cursor** "
+        "button (the icon of a cursor in a text box); the message is "
+        "//Inserted as an AI draft: F7 accept, F8 reject.// If a reject "
+        "cannot find an original, the message is //N draft(s) left: the "
+        "original text is missing. Accept it or edit by hand.//")
     s.table("t_draftkeys", "Keys for pending AI drafts",
             ["Key or command", "Effect", "Message"], [
         ["f7", "Accept the draft under the cursor: the markers go and the "
@@ -1749,22 +2729,28 @@ the koi holo.<!--/ai-->""")
     s.p("Once you accept a draft, all of these treat it as ordinary text.")
 
     s.h2("What the Writing Features Send", idx=["privacy|writing"])
-    s.p("Like the features of Chapter 5, these send text to OpenRouter, "
+    s.p("Like the features of Chapter 7, these send text to OpenRouter, "
         "and to the company that runs the writing model, when you start "
         "them, and to no one otherwise. Learning a style guide sends about "
         "six thousand words of your prose, as numbered paragraphs with "
         "their scene file names. `ctrl+g` sends your style guide, about "
         "a thousand words of the scene around the cursor, the notes of the "
         "characters and places the scene mentions, and your instruction; "
-        "for a rewrite, it also sends the selected passage. Each call's "
+        "about two thousand words of your other scenes as examples of "
+        "your voice (see “Your own prose as examples” in Chapter 8); "
+        "for a rewrite, it also sends the selected passage. The desktop "
+        "assistant's question box sends your question, the style guide, "
+        "the notes, and the text of the open scene or, in //Project// "
+        "scope, the titles of all scenes and the canon of every note, "
+        "plus the last few turns of the conversation. Each call's "
         "cost appears in the message that follows it and in the status "
-        "bar (Chapter 5).")
+        "bar (Chapter 7).")
 
     s.h2("Walkthrough: Writing in the Residual Project",
          idx=["tutorial|writing"])
     s.p("This walkthrough uses the Residual example that is supplied with "
         "Lorewrite (Appendix C says how to open a copy of it). You need "
-        "an API key set up (Chapter 5). The figures in this chapter were "
+        "an API key set up (Chapter 7). The figures in this chapter were "
         "made with it, so what you see should look much like them, though "
         "the AI's words will differ.")
     s.proc("Teach Lorewrite your style:", [
@@ -1803,15 +2789,16 @@ the koi holo.<!--/ai-->""")
     ])
 
     # ============================================================ CH 7
-    s.chapter("7", "Settings Reference",
+    s.chapter("9", "Settings Reference",
               "Every setting, where it is kept, and what it does.")
     s.h2("The Settings Screen", idx=["Settings screen"])
     s.p(f"Open the Settings screen ({R('fig_settings')}) from the command "
         "palette (**Action · Settings**), or by pressing `s` on the launch "
         "screen. It has the fields listed in "
         f"{R('t_settings')}.")
-    s.figure("fig_settings", "settings", "The Settings screen with a "
-             "project open, showing the three model rows")
+    s.figure("fig_settings", "settings_v3", "The Settings screen with a "
+             "project open, showing the three model rows and the Spelling "
+             "box")
     s.table("t_settings", "Fields of the Settings screen",
             ["Field", "Effect", "Stored in"], [
         ["API key status", "Shows whether a key is found, and its last "
@@ -1825,7 +2812,7 @@ the koi holo.<!--/ai-->""")
          "and story-bible updates. Empty means the default.",
          "`settings.json`"],
         ["Writing model (drafting & rewrites)", "Model used by `ctrl+g` and "
-         "by learning the style guide (Chapter 6). Empty means the "
+         "by learning the style guide (Chapter 8). Empty means the "
          "default.", "`settings.json`"],
         ["Choose…", "Opens the model picker to fill in the box beside "
          "it. The picker for the writing model lists the whole catalog; "
@@ -1837,13 +2824,16 @@ the koi holo.<!--/ai-->""")
          "`project.toml`"],
         ["Line numbers", "Show line numbers in the editor. Shown only "
          "when a project is open.", "`project.toml`"],
-        ["Save", "Stores the models and, if a project is open, the editor "
-         "settings, and closes the screen. A message says //Settings "
-         "saved//.", ""],
+        ["Underline misspellings", "Underline misspelled words in scenes "
+         "(Chapter 6). Ticked by default. Shown only when a project is "
+         "open.", "`settings.json`"],
+        ["Save", "Stores the models, the spelling box and, if a project is "
+         "open, the editor settings, and closes the screen. A message says "
+         "//Settings saved//.", ""],
     ], [0.24, 0.52, 0.24])
     s.p("The screen is compact: the boxes are one line tall so that all "
-        "three model rows, the editor settings and the buttons fit in a "
-        "window about 40 rows high. **Save** applies every field at once; the padding and line "
+        "three model rows, the editor settings, the Spelling box and the "
+        "buttons fit in a window about 44 rows high. **Save** applies every field at once; the padding and line "
         "numbers change immediately. Pressing `esc` closes the screen and "
         "discards changes to the boxes. (The key buttons act at once and "
         "are not undone by `esc`.) From the launch screen, with no "
@@ -1851,6 +2841,51 @@ the koi holo.<!--/ai-->""")
     s.figure("fig_settings2", "settings_nokey_launch",
              "The Settings screen when no project is open (from the launch "
              "screen): only the AI settings appear")
+    s.h2("The Settings Dialog of the Desktop Application",
+         idx=["Settings dialog"])
+    s.p(f"Open the Settings dialog ({R('fig_gsettings')}) with the gear at "
+        "the foot of the activity rail, with **More \u203a Settings…** in the "
+        "title bar, or by trying an AI feature before you have a key. It "
+        f"has three sections ({R('t_gsettings')}). **Save** applies "
+        "everything at once and closes the dialog; **Cancel** or `esc` "
+        "discards your changes to the boxes. (**Save key** and **Clear** "
+        "act at once.)")
+    s.gfigure("fig_gsettings", "settings", "The desktop Settings dialog",
+              width=330)
+    s.table("t_gsettings", "Fields of the desktop Settings dialog",
+            ["Field", "Effect", "Stored in"], [
+        ["API key box, **Save key**, **Clear**", "Store or remove the "
+         "OpenRouter key. The line above says whether a key is set and "
+         "where it comes from.", "Keyring"],
+        ["Fast model, Strong model, Writing model", "As in the terminal "
+         "application. The default is shown in gray in an empty box; "
+         "**Choose…** opens a list under the row.", "`settings.json`"],
+        ["Text size (90%, 100%, 110%, 125%)", "The size of the page text. "
+         "The status bar's percentage steps through the same values.",
+         "`settings.json` (`gui_zoom`)"],
+        ["Show hard-wrapped lines as flowing paragraphs", "Display only; "
+         "files are never changed. Ticked by default.",
+         "`settings.json` (`gui_reflow`)"],
+        ["Underline misspellings", "Spell check on or off (Chapter 6). "
+         "Shared with the terminal application.",
+         "`settings.json` (`spellcheck`)"],
+    ], [0.30, 0.46, 0.24])
+    s.gfigure("fig_gpicker", "settings_picker", "The list opened by "
+              "**Choose…** on the writing model, filtered by //llama//. "
+              "Each row gives the model's name, its identifier and its "
+              "prices", width=330)
+    s.p("The list is fetched from OpenRouter when you open it (this needs "
+        "a network connection but no key), shows up to 80 matches, and "
+        "narrows as you type; every word you type must appear in the "
+        "model's name or identifier. Click a row to put its identifier in "
+        "the box. For the fast and strong models it lists only models "
+        "that can return strict structured answers; for the writing "
+        "model it lists everything. If it cannot be loaded it says //Could "
+        "not load the model list// and the reason; you can still type a "
+        "model identifier. The desktop editor settings are not per "
+        "project: unlike the terminal application's side padding and line "
+        "numbers, they apply to every project.")
+
     s.h2("Settings Files", idx=["project.toml|settings", "settings.json"])
     s.p("Settings live in three places, according to what they affect.")
     s.table("t_where", "Where settings are stored",
@@ -1858,7 +2893,10 @@ the koi holo.<!--/ai-->""")
         ["`project.toml` in the project", "Title, author, `[editor]` "
          "and `[ai]` sections.", "That project only."],
         ["`~/.local/state/lorewrite/settings.json`", "`tour_seen`, "
-         "`fast_model`, `strong_model`, `writing_model`.", "All projects."],
+         "`fast_model`, `strong_model`, `writing_model`, `spellcheck`, "
+         "`gui_zoom`, `gui_reflow`.", "All projects."],
+        ["`~/.local/state/lorewrite/dictionary.txt`", "Your personal "
+         "dictionary (Chapter 6).", "All projects."],
         ["System keyring", "Your OpenRouter API key.", "All projects."],
     ], [0.36, 0.38, 0.26])
     s.table("t_env", "Environment variables",
@@ -1872,33 +2910,37 @@ the koi holo.<!--/ai-->""")
         "Appendix A.")
 
     # ============================================================ CH 8
-    s.chapter("8", "Command and Key Reference",
+    s.chapter("10", "Command and Key Reference",
               "Every key, every command-palette entry, and the keys of "
               "every dialog.")
     s.h2("Keys in the Main Window", idx=["keys|main window",
                                          "key bindings", "question mark", "terminal limits"])
-    s.table("t_keys", "Keys in the main window",
+    s.p("This section is for the terminal application; the desktop "
+        f"application's keys are in {R('t_gkeys2')}, further on.")
+    s.table("t_keys", "Keys in the main window of the terminal application",
             ["Key", "Action", "See"], [
-        ["ctrl+n", "New scene.", "Chapter 3"],
-        ["alt+left, alt+right", "Previous scene, next scene.", "Chapter 3"],
+        ["ctrl+n", "New scene.", "Chapter 4"],
+        ["alt+left, alt+right", "Previous scene, next scene.", "Chapter 4"],
         ["ctrl+p", "Open the command palette.", "This chapter"],
         ["ctrl+j", "Open the note for the name under the cursor; with a "
          "name selected, or on a link with no note, create the note.",
-         "Chapter 4"],
+         "Chapter 5"],
         ["ctrl+l", "AI: find other names your prose uses for your "
          "characters and places, and add them as aliases (never edits "
-         "the scene).", "Chapter 5"],
+         "the scene).", "Chapter 7"],
         ["ctrl+g", "AI write: draft at the cursor (prompt window), expand "
          "the `{{expand: ...}}` placeholder under the cursor, or rewrite "
-         "the selection. Also submits the prompt window.", "Chapter 6"],
-        ["f7", "Accept the AI draft under the cursor.", "Chapter 6"],
-        ["f8", "Reject the AI draft under the cursor.", "Chapter 6"],
+         "the selection. Also submits the prompt window.", "Chapter 8"],
+        ["f7", "Accept the AI draft under the cursor.", "Chapter 8"],
+        ["f8", "Reject the AI draft under the cursor.", "Chapter 8"],
+        ["f6", "Spell check: go to the next misspelled word and open the "
+         "fix window.", "Chapter 6"],
         ["f5", "Select all text in the editor. (It was `f7` before "
-         "AI drafts.)", "Chapter 3"],
-        ["ctrl+s", "Save now.", "Chapter 3"],
-        ["ctrl+b", "Hide or show the sidebar.", "Chapter 3"],
-        ["f11", "Writer mode.", "Chapter 3"],
-        ["f9", "Rebuild the index from disk.", "Chapter 4"],
+         "AI drafts.)", "Chapter 4"],
+        ["ctrl+s", "Save now.", "Chapter 4"],
+        ["ctrl+b", "Hide or show the sidebar.", "Chapter 4"],
+        ["f11", "Writer mode.", "Chapter 4"],
+        ["f9", "Rebuild the index from disk.", "Chapter 5"],
         ["f1", "Show the help screen. Works everywhere, including while "
          "you type in the editor.", "This chapter"],
         ["?", "Also shows the help screen, but only when the focus is not "
@@ -1911,8 +2953,8 @@ the koi holo.<!--/ai-->""")
         "`ctrl+[` is the same key as `esc`, and `ctrl+enter` is not "
         "delivered to programs by most terminals. That is why scenes are "
         "flipped with `alt+left` and `alt+right`, and writer mode is on "
-        "`f11`. `f7` is used for accepting AI drafts, which is why select-all "
-        "is on `f5`. The keys inside dialogs are listed in "
+        "`f11`. `f7` is used for accepting AI drafts and `f6` for fixing "
+        "spelling, which is why select-all is on `f5`. The keys inside dialogs are listed in "
         f"{R('t_dialogkeys')}.")
 
     s.h2("The Command Palette", idx=["command palette", "ctrl+p", "palette|actions"])
@@ -1977,6 +3019,12 @@ the koi holo.<!--/ai-->""")
          "draft as normal text.", "f7 (one)"],
         ["Reject all AI drafts in this scene", "Restore the original "
          "text for every pending AI draft.", "f8 (one)"],
+        ["Toggle spell check", "Turn the underlining of misspelled words "
+         "on or off.", "f6 fixes"],
+        ["Add selection to dictionary", "Never flag the selected word or "
+         "phrase in this project.", ""],
+        ["Open project dictionary", "Edit `dictionary.txt`, the words this "
+         "project never flags.", ""],
         ["Set OpenRouter API key", "Store the key for AI features in the "
          "system keyring.", ""],
         ["Settings", "API key, models and editor preferences.", ""],
@@ -2006,6 +3054,9 @@ the koi holo.<!--/ai-->""")
          "to the line and close the report; `esc` close."],
         ["Story-bible review", "`space` tick or untick a fact; `a` tick "
          "all; `enter` apply; `esc` cancel."],
+        ["Spelling window (`f6`)", "`1` to `5` or `enter` replace; `a` add "
+         "to the project dictionary; `p` add to your dictionary; `i` "
+         "ignore; `esc` cancel."],
         ["Prompt window (`ctrl+g`)", "Type the instruction; `enter` "
          "starts a new line; `ctrl+g` submit; `esc` cancel."],
         ["Style guide review", "`up`, `down` scroll; `enter` save "
@@ -2032,6 +3083,58 @@ the koi holo.<!--/ai-->""")
         "narrower, and scrolls if your window is too short to show all of "
         "it.")
 
+    s.h2("Keys of the Desktop Application", idx=["keys|desktop reference"])
+    s.p("The desktop window shares the names of most terminal keys. "
+        f"{R('t_gkeys2')} is complete; where a key does something "
+        "different elsewhere in the window, both uses are given.")
+    s.table("t_gkeys2", "Keys of the desktop application",
+            ["Key", "Action", "See"], [
+        ["ctrl+k", "Quick switcher over every scene and note.", "Chapter 3"],
+        ["ctrl+n", "New scene.", "Chapter 4"],
+        ["ctrl+s", "Save now.", "Chapter 4"],
+        ["f11", "Focus mode.", "Chapter 4"],
+        ["ctrl+j", "In the editor: open the note under the cursor, or "
+         "make one for the selected name. Anywhere else: put the cursor "
+         "in the assistant's question box.", "Chapter 5"],
+        ["ctrl+click", "Open the note under the pointer in the Notes tab.",
+         "Chapter 5"],
+        ["ctrl+g", "AI: draft at the cursor, expand the placeholder under "
+         "it, or rewrite the selection.", "Chapter 8"],
+        ["f7, f8", "Accept, reject the AI draft under the cursor.",
+         "Chapter 8"],
+        ["ctrl+.", "Spelling popover for the word under the cursor, or "
+         "for the selected phrase.", "Chapter 6"],
+        ["ctrl+z, ctrl+y", "Undo, redo.", "Chapter 3"],
+        ["enter (quick switcher)", "Open the highlighted row; `up` and "
+         "`down` move, `esc` closes.", "Chapter 3"],
+        ["enter (question box)", "Send the question; `shift+enter` starts "
+         "a new line.", "Chapter 3"],
+        ["esc", "Close a dialog, menu or popover.", "Chapter 3"],
+    ], [0.24, 0.58, 0.18], mono_cols=(0,))
+    s.note("The terminal application's `ctrl+p`, `ctrl+l`, `ctrl+b`, "
+           "`alt+left`, `alt+right`, `f1`, `f5`, `f6` and `f9` have no key "
+           "in the desktop window; the buttons and menus below take their "
+           "place.")
+    s.h2("Menus of the Desktop Application", idx=["menus (desktop)"])
+    s.table("t_gmenus", "Menus and what is in them",
+            ["Menu (how to open it)", "Entries"], [
+        ["Scene options (three dots at the top of the binder)",
+         "**New scene**, **Rename scene…**, **Move up**, **Move down**, "
+         "**Delete scene…**. The last four are dimmed when no scene is "
+         "open."],
+        ["More (three dots in the title bar)", "**Switch project…**, "
+         "**Rebuild the link index**, **Settings…**."],
+        ["AI menu (three dots at the top of the assistant)", "**Draft at "
+         "the cursor…**, **Find aliases**, **Update story bible**, **Learn "
+         "style guide**, **Accept all drafts**, **Reject all drafts**, "
+         "**Restore waived issues**."],
+        ["Spelling popover (click a misspelled word, or `ctrl+.`)",
+         "Suggestions; **Add to dictionary**; **Add to my dictionary (all "
+         "projects)**; **Ignore**. For a selected phrase, only the two "
+         "dictionary entries."],
+    ], [0.34, 0.66])
+    s.gfigure("fig_gmenu", "aimenu", "The AI menu", width=200)
+
     # ============================================================ APP A
     s.chapter("A", "File Formats",
               "What Lorewrite reads and writes on disk.")
@@ -2042,6 +3145,7 @@ my-novel/
   .gitignore                 excludes .lorewrite/
   style.md                   your style guide (optional; you or the AI)
   style.md.bak               the guide before the last replacement
+  dictionary.txt             words and phrases never flagged (optional)
   manuscript/                scenes: 01-opening.md, 02-tavern.md, ...
   entities/                  entity notes, one folder for each kind
     characters/  places/  objects/  factions/
@@ -2052,8 +3156,8 @@ my-novel/
     waivers.json             waived continuity issues""")
     s.p("Lorewrite only reads `manuscript/*.md` for scenes and "
         "`entities/*/*.md` for notes (the note's folder name does not "
-        "matter; its `type:` line does), plus `style.md` and the `.drafts` "
-        "folder described below. Everything else in the project "
+        "matter; its `type:` line does), plus `style.md`, `dictionary.txt` "
+        "and the `.drafts` folder described below. Everything else in the project "
         "folder is ignored, so you may keep research files beside them.")
     s.h2("project.toml", idx=["project.toml", "TOML"])
     s.p("A small file in TOML format. Lorewrite writes `title` and "
@@ -2075,9 +3179,12 @@ writing_model = "anthropic/claude-sonnet-4.5\"""")
             ["Key", "Meaning", "Default"], [
         ["title", "The project's title, shown in the title bar and on the "
          "launch screen.", "Untitled if missing"],
-        ["author", "Your name. Not used by the program yet.", "empty"],
-        ["[editor] padding", "Side padding of the editor, 0 to 8.", "0"],
-        ["[editor] line_numbers", "`true` or `false`.", "true"],
+        ["author", "Your name. The desktop application shows its initials "
+         "in the badge at the foot of the rail.", "empty"],
+        ["[editor] padding", "Side padding of the terminal editor, 0 to "
+         "8. (The desktop application does not use it.)", "0"],
+        ["[editor] line_numbers", "`true` or `false`. Terminal "
+         "application only.", "true"],
         ["[ai] fast_model", "Model for Find aliases, for this "
          "project.", "your setting, else the built-in"],
         ["[ai] strong_model", "Model for continuity checks and "
@@ -2127,7 +3234,7 @@ favor and resents it.
         "there.")
     s.h2("The Style Guide: style.md", idx=["style.md|format"])
     s.p("`style.md` is a plain Markdown file at the top of the project, "
-        "created by //learn style guide// (Chapter 6) or, with the "
+        "created by //learn style guide// (Chapter 8) or, with the "
         "headings and a hint under each, by //Open style guide//. It is "
         "yours to edit. Lorewrite reads it whole and sends it with every "
         "writing request; a file that is empty or only blanks counts as "
@@ -2152,12 +3259,20 @@ favor and resents it.
 >
 > — 02-capsule-7-19.md""")
     s.p("(The middle headings are shown without their bullets here to save "
-        "space.) When a new guide replaces an old one, the old file is "
+        "space.) A guide that Lorewrite learned has one more line, directly "
+        "under the title: the //provenance line//, for example "
+        "`<!-- learned 2026-10-01 from 1,099 sampled words; manuscript "
+        "1,502 words in 4 scenes -->`. It is an HTML comment that records the date, the number of words of "
+        "your prose the AI was shown, and the size of the manuscript then, "
+        "in words and scenes. The desktop application reads it to say "
+        "when the guide was learned and when it has become out of date "
+        "(Chapter 8). Delete it if you do not want that; nothing else "
+        "depends on it. When a new guide replaces an old one, the old file is "
         "first copied to `style.md.bak`, next to it. Both files are "
         "written safely, with a temporary copy swapped into place.")
     s.h2("Pending AI Text: the Marker and .drafts",
          idx=["marker (AI)|format", ".drafts folder|format"])
-    s.p("A pending AI draft (Chapter 6) is stored in the scene file "
+    s.p("A pending AI draft (Chapter 8) is stored in the scene file "
         "itself, between two HTML comments:")
     s.code("""\
 <!--ai-->text the AI wrote<!--/ai-->
@@ -2179,14 +3294,32 @@ favor and resents it.
         "under `.lorewrite`, and the `.gitignore` of a new project does "
         "not list it. Accepting a draft removes the markers and the "
         "entry; rejecting restores the original and removes the entry. If "
-        "an id has no entry, reject refuses (Chapter 6). A body that "
+        "an id has no entry, reject refuses (Chapter 8). A body that "
         "contains `<!--` has it changed to `<!-` when written, so a "
         "draft cannot contain a marker of its own. Markers that are "
         "nested, or missing one half, are not drafts; they are ordinary "
         "text. Moving a scene (which renames its file) carries its `.drafts` "
         "file along, and deleting a scene deletes it.")
+    s.h2("The Dictionaries: dictionary.txt", idx=["dictionary.txt|format",
+                                                  "personal dictionary|format"])
+    s.p("Two files of the same plain format hold the words that spell check "
+        "never flags (Chapter 6). The project dictionary is "
+        "`dictionary.txt` at the top of the project; the personal "
+        "dictionary is `dictionary.txt` in Lorewrite's state folder. Each "
+        "is UTF-8 text with one word or phrase per line; blank lines and "
+        "lines that begin with `#` are ignored. A word with a capital "
+        "letter is accepted only capitalized; a lower-case word is "
+        "accepted in any capitalization; a line with a space is a phrase. "
+        "Lorewrite appends new terms to the end, keeps your comments, and "
+        "writes the file safely (a temporary copy swapped into place). "
+        "Neither file is a scene, a note or part of the index.")
+    s.code("""\
+# One word or phrase per line; these are never flagged as misspelled.
+# Lines starting with # and blank lines are ignored.
+hundered
+maglev spur""")
     s.h2("The .lorewrite Folder", idx=[".lorewrite folder"])
-    s.p("`index.sqlite` is the backlink index (see Chapter 4); it is "
+    s.p("`index.sqlite` is the backlink index (see Chapter 5); it is "
         "rebuilt when the project opens and by `f9`. `waivers.json` "
         "records waived continuity issues as a list of short codes, with, "
         "in the `scenes` object, the scene each was waived in (used by "
@@ -2208,7 +3341,9 @@ favor and resents it.
     s.code("""\
 ~/.local/state/lorewrite/
   recent.json      recent projects: path, title, time opened (max 10)
-  settings.json    {"tour_seen": true, "fast_model": null, ...}""")
+  settings.json    {"tour_seen": true, "fast_model": null, "spellcheck": true,
+                    "gui_zoom": 100, "gui_reflow": true, ...}
+  dictionary.txt   your personal dictionary (created when first used)""")
 
     # ============================================================ APP B
     s.chapter("B", "Messages and Problem Solving",
@@ -2218,7 +3353,9 @@ favor and resents it.
     s.p("Lorewrite reports what it has done with brief messages at the "
         "bottom right of the window. They fade after a few seconds. "
         "Warnings and errors are colored differently. Text in italic "
-        "type below stands for something that varies.")
+        "type below stands for something that varies. The first three "
+        "tables are for the terminal application; the messages of the "
+        f"desktop application are in {R('t_msgs_gui')}, further on.")
     s.table("t_msgs_info", "Information messages",
             ["Message", "Meaning"], [
         ["Saved", "You pressed `ctrl+s` and the file was saved."],
@@ -2264,6 +3401,15 @@ favor and resents it.
          "continuity issues//."],
         ["No waived continuity issues recorded for this scene", "There "
          "was nothing to restore for the open scene."],
+        ["Spell check on, Spell check off", "You chose **Toggle spell "
+         "check**."],
+        ["Added \"//word//\" to the project dictionary", "You pressed `a` in "
+         "the `f6` window, or chose **Add selection to dictionary** (the "
+         "latter also says it for a phrase)."],
+        ["Added \"//word//\" to your dictionary", "You pressed `p` in the "
+         "`f6` window."],
+        ["\"//word//\" is already in the dictionary", "**Add selection to "
+         "dictionary** found the term in the project dictionary."],
         ["Tip: learn a style guide first (ctrl+p → learn style)", "Shown "
          "once per session the first time you use `ctrl+g` with no "
          "`style.md`."],
@@ -2287,7 +3433,7 @@ favor and resents it.
          "in that direction, or its file name has no leading number "
          "(rename the file to `NN-name.md`)."],
         ["No entities yet — create some notes first", "Find aliases and "
-         "the story-bible update need at least one note. See Chapter 4."],
+         "the story-bible update need at least one note. See Chapter 5."],
         ["No AI draft under the cursor", "`f7` or `f8` was pressed with "
          "the cursor outside any pending draft."],
         ["Empty {{expand: }} marker — say what to write", "The "
@@ -2305,9 +3451,14 @@ favor and resents it.
          "draft could not be placed safely."],
         ["//N// AI draft(s) rejected; //M// left because the original "
          "text is missing — accept them or edit by hand", "Some drafts "
-         "have no entry in `.drafts`; see Chapter 6."],
+         "have no entry in `.drafts`; see Chapter 8."],
         ["No entities yet — nothing to check against", "The continuity "
          "check needs at least one note."],
+        ["No misspellings", "`f6` found nothing to fix in this scene."],
+        ["Spell check applies to scenes", "`f6` was pressed in a note, the "
+         "style guide or the dictionary."],
+        ["Select a word or phrase first", "**Add selection to dictionary** "
+         "was chosen with nothing selected."],
         ["Select a name and press ctrl+j to make a note for it",
          "`ctrl+j` was pressed with nothing selected and the cursor not "
          "on a name."],
@@ -2326,7 +3477,7 @@ favor and resents it.
          "writing model."],
         ["Original text for this draft is missing — accept it or edit by "
          "hand", "`f8` was pressed on a draft whose original is not in "
-         "`.drafts`. Nothing was changed. See Chapter 6."],
+         "`.drafts`. Nothing was changed. See Chapter 8."],
         ["Continuity check failed: //reason//", "Same, for the continuity "
          "check."],
         ["Story-bible update failed: //reason//", "Same, for the "
@@ -2350,9 +3501,86 @@ favor and resents it.
         ["No OpenRouter API key. Set OPENROUTER_API_KEY or store one via "
          "lorewrite.ai.client.set_api_key().",
          "Shown after //failed:// when no key is found. Store a key "
-         "(Chapter 5); you do not need to use the technical name in the "
+         "(Chapter 7); you do not need to use the technical name in the "
          "message."],
     ], [0.42, 0.58])
+    s.table("t_msgs_gui", "Messages of the desktop application",
+            ["Message", "Meaning and action"], [
+        ["Saved", "You pressed `ctrl+s` and the file was saved."],
+        ["Save failed: //reason//", "A save could not be written. Your "
+         "text is still in the window; fix the cause (a full disk, a "
+         "read-only folder) and press `ctrl+s`."],
+        ["Resolve the save conflict first (reload or keep your version).",
+         "You tried to open another file while the banner of Chapter 3 is "
+         "showing. Click **Reload from disk** or **Keep my version**."],
+        ["Could not save the current document first.", "The window "
+         "refused to leave the open file because it could not save it; "
+         "the cause is usually shown beside it."],
+        ["Reloaded: the file changed on disk.", "You came back to the "
+         "window, the file had changed, and you had nothing unsaved, so "
+         "it was reloaded."],
+        ["Kept your version. / Could not save your version.", "The result "
+         "of **Keep my version**."],
+        ["Index rebuilt from the files.", "**Rebuild the link index** "
+         "finished."],
+        ["Settings saved.", "You clicked **Save** in Settings."],
+        ["API key stored in the system keyring.", "**Save key** worked. "
+         "If the keyring is not available the message explains and tells "
+         "you to set `OPENROUTER_API_KEY`."],
+        ["Add your OpenRouter API key first. AI features are off until "
+         "then.", "An AI control was used with no key; Settings opens."],
+        ["Wait for the current AI request to finish.", "Only one AI "
+         "request runs at a time."],
+        ["Open a scene first.", "The command works on scenes, not on "
+         "notes, the style guide or the dictionary."],
+        ["//N// possible conflict(s) / No continuity issues found",
+         "Result of **Continuity**, followed by \"(//N// waived)\" and "
+         "the cost when they apply."],
+        ["Dismissed. It will not be reported again (Restore waived issues "
+         "brings it back).", "You clicked **Dismiss** on a card."],
+        ["Restored //N// waived issue(s); the next check reports them "
+         "again. / No waived issues are recorded for this scene.",
+         "The result of **Restore waived issues**."],
+        ["Could not locate that passage; the quote on the card is what the "
+         "assistant flagged.", "**Review passage** could not find the "
+         "words, usually because you have edited them."],
+        ["No new aliases found / Added //N// alias(es) to your notes.",
+         "Results of **Find aliases**."],
+        ["No new canon found in this scene / Added canon to //N// "
+         "note(s).", "Results of **Update story bible**."],
+        ["Saved style.md", "You clicked **Save style guide**."],
+        ["AI draft ready: F7 accept, F8 reject", "A draft was inserted; the "
+         "cost follows. Also: //Inserted as an AI draft: F7 accept, F8 "
+         "reject.// after **Insert as a draft**."],
+        ["Tip: learn a style guide first (AI menu, Learn style guide).",
+         "You drafted with no `style.md`."],
+        ["AI draft accepted. / AI draft rejected. / //N// AI drafts "
+         "accepted. / //N// AI drafts rejected.", "The results of F7, F8 "
+         "and of the all-drafts commands."],
+        ["No AI draft under the cursor. / No AI drafts in this scene.",
+         "There was nothing pending where you pressed."],
+        ["//N// draft(s) left: the original text is missing. Accept it or "
+         "edit by hand.", "A reject was refused for lack of the original "
+         "in `.drafts` (Chapter 8)."],
+        ["Scene changed while drafting; draft discarded. / The text "
+         "changed while drafting; draft discarded.", "You moved or edited "
+         "the words the draft was for before the AI finished. The call is "
+         "still charged."],
+        ["Empty {{expand: }} marker: say what to write.", "The "
+         "placeholder has no instruction."],
+        ["Select a passage in the text first, then choose Rewrite.",
+         "**Rewrite** needs a selection."],
+        ["Select a name in the text (or put the cursor on a [[link]]) "
+         "first.", "`ctrl+j` was pressed with nothing to open or make."],
+        ["“//name//” already has a note.", "You asked to make a note that "
+         "exists; it was opened."],
+        ["Added “//word//” to the project dictionary. / ... to your "
+         "dictionary. / “//word//” is already in the dictionary.",
+         "Results of the spelling commands (Chapter 6)."],
+        ["No misspelled words.", "You jumped to the next misspelling and "
+         "there is none."],
+        ["Scene deleted.", "A scene was deleted."],
+    ], [0.46, 0.54])
     s.add(CondPageBreak(330))
     s.h2("Problem Solving", idx=["problem solving", "troubleshooting"])
     s.p("Use this table for troubleshooting the everyday problems. "
@@ -2372,7 +3600,7 @@ favor and resents it.
         ["`f7` no longer selects all.", "It accepts an AI draft now. "
          "Select all is `f5`."],
         ["A reject says the original is missing.", "The draft's entry in "
-         "the `.drafts` folder is gone (Chapter 6). Accept the draft and "
+         "the `.drafts` folder is gone (Chapter 8). Accept the draft and "
          "edit it by hand, or restore the `.drafts` file from a backup."],
         ["`ctrl+g` does nothing in a note.", "It works in scenes only. "
          "Open a scene."],
@@ -2395,10 +3623,36 @@ favor and resents it.
          "name in Settings and in the project's `project.toml` "
          "(a project setting overrides yours)."],
         ["My edits to a file were lost.", "You edited the open scene "
-         "with another program (Chapter 3). Recover the file from a "
+         "with another program (Chapter 4). Recover the file from a "
          "backup or version control."],
         ["The screen is garbled after a crash.", "Type `reset` in the "
          "terminal. Your files are safe; Lorewrite saves as you work."],
+        ["A word of my story's world is underlined.", "Add it to a "
+         "dictionary (Chapter 6): `a` or `p` in the `f6` window, or **Add "
+         "to dictionary** in the popover of the desktop application. "
+         "Names of your notes are never flagged; add an alias or a note "
+         "instead if it is a character or place."],
+        ["Nothing is underlined.", "Spell check applies to scenes only, "
+         "and may be off: tick //Underline misspellings// in Settings, "
+         "or use **Action · Toggle spell check**. In a new scene the "
+         "marks appear a moment after you stop typing."],
+        ["Suggestions for a word are useless.", "Suggestions come from a "
+         "list of common English words and cannot guess invented ones. Add "
+         "the word to a dictionary instead."],
+        ["The desktop application does not start.", "It says why on the "
+         "terminal: //the UI is not built// (run `npm install && npm run "
+         "build` in `gui`) or //pywebview is not installed// (install "
+         "with `pip install -e \".[gui]\"`). It also needs the WebKitGTK "
+         "libraries of your system (Chapter 2)."],
+        ["The desktop window says //Changed on disk//.", "The terminal "
+         "application, or another program, saved the same file. Choose "
+         "**Reload from disk** or **Keep my version** in the banner "
+         "(Chapter 3)."],
+        ["A dimmed button does nothing.", "It is a part of the design "
+         "that is not built yet (Chapter 3)."],
+        ["An AI request seems stuck.", "Requests give up after 180 "
+         "seconds with an error. Start the feature again, or check your "
+         "network."],
         ["I cannot remember a key.", "Press `f1` for the help screen (it works "
          "while you type), or `ctrl+p` and type what you want to do."],
         ["I want to see the tour again.", "Set `tour_seen` to `false` "
@@ -2420,14 +3674,19 @@ favor and resents it.
         "In the terminal, change to the Lorewrite folder you installed "
         "from (Chapter 2).",
         "Copy the example: `cp -r examples/residual /tmp/residual`.",
-        "Open the copy: `lorewrite --project /tmp/residual`.",
+        "Open the copy: `lorewrite --project /tmp/residual` for the "
+        "terminal application, or `lorewrite-gui --project /tmp/residual` "
+        "for the desktop application.",
     ], idx=["Residual example", "examples folder"])
+    s.p("Steps 1 to 8 use the terminal application. “The Same Story in "
+        "the Desktop Application” at the end of this appendix repeats "
+        "the tour in the desktop window.")
     s.attention("Always open a //copy//. Lorewrite saves as you work, and "
                 "the AI features write notes, `style.md` and `.drafts/` "
                 "into the project, so the original would no longer be "
                 "the clean example. If you start a second run, delete "
                 "`/tmp/residual` and copy it again. The steps that use AI "
-                "need an API key (Chapter 5).")
+                "need an API key (Chapter 7).")
     s.table("t_residual", "The cast of the Residual project",
             ["Name", "Kind", "Aliases"], [
         ["Rook Tanaka", "character", "Rook, Tanaka"],
@@ -2450,7 +3709,7 @@ favor and resents it.
         "Read the first paragraphs. Names such as //Hollow Market//, "
         "//Rook// and //Kessler-Voss// are colored, though they are "
         "written without brackets. That is mention recognition "
-        "(Chapter 4).",
+        "(Chapter 5).",
     ])
     s.h2("Step 2. Look Around a Name")
     s.proc("Inspect a character:", [
@@ -2546,6 +3805,67 @@ favor and resents it.
     s.p("To finish, try writer mode with `f11`, add a scene with `ctrl+n`, and "
         "move it with **Action · Move current scene up**. When you are "
         "done, press `ctrl+q`. Your work has already been saved.")
+    s.h2("The Same Story in the Desktop Application")
+    s.p("Quit the terminal application, delete `/tmp/residual`, copy the "
+        "example again (a fresh copy shows the same results as the "
+        "figures), and start `lorewrite-gui --project /tmp/residual`. "
+        f"The window opens as in {R('fig_gmain')}. The steps that use AI "
+        "need an API key (Chapter 7).")
+    s.proc("Look around:", [
+        "In the binder, open //Manuscript// if it is closed. Click //02 "
+        "Capsule 7-19//. The title bar reads //Scene 02 · Capsule 7-19//.",
+        "Rest the pointer on //Dr. Sallow// until a card appears, then "
+        f"`ctrl`-click it. The **Notes** tab ({R('fig_gnotes')}) shows "
+        "Imogen Sallow's note, her aliases, and every line that mentions "
+        "her; click a backlink to open that scene at that line.",
+        "Press `ctrl+k`, type //sal//, and press `enter` on //Sallow's "
+        "Shard//. The note opens in the editor.",
+    ])
+    s.proc("Make a note:", [
+        "Open //Rain on the Spur//. Select the word //Lin// in the sentence "
+        "that mentions //Lin's counter// and press `ctrl+j`.",
+        "In the **New note** box leave the kind as **character** and click "
+        "**Create**. //Lin// is now colored in every scene, and the "
+        "**Notes** tab shows the new note.",
+    ])
+    s.proc("Check spelling:", [
+        "In //Rain on the Spur//, look at the status bar: it reads //3 "
+        "spelling//. Click //maglev// (underlined in the first "
+        f"paragraph). In the popover ({R('fig_gspell')}) choose **Add to "
+        "dictionary**. The underline goes and the count drops to 2.",
+        "Open **Dictionary** in the binder: `dictionary.txt` now lists "
+        "//maglev//.",
+    ])
+    s.proc("Find aliases and check continuity:", [
+        "Open //The Stairwell//, open the AI menu and choose **Find "
+        f"aliases**. In the dialog ({R('fig_galias')}) click **Select "
+        "all**, then **Add 2 aliases**. The scene is unchanged.",
+        "Open //Capsule 7-19// and click **Continuity**. The card "
+        f"({R('fig_gcont')}) says Imogen Sallow's green eyes conflict "
+        "with her note. Click **Review passage**, change //green// to "
+        "//grey// in the page, and click **Continuity** again.",
+        "Choose **Update story bible** in the AI menu, click **Select "
+        f"all** and **Add 2 facts** ({R('fig_gcanon')}). Open Wren's note "
+        "in the **Library** to see them under //Canon (auto)//.",
+    ])
+    s.proc("Teach it your style and write:", [
+        f"On the //Your style// card ({R('fig_gstyle1')}) click **Learn my "
+        f"style**, read the proposal ({R('fig_gstylerev')}) and click "
+        "**Save style guide**. The card now says when it was learned "
+        f"({R('fig_gstyle2')}).",
+        "Open //Ghost in the Ice//, put the cursor at the end of the last "
+        f"paragraph and press `ctrl+g` ({R('fig_ggen')}). Type an "
+        "instruction and press `enter`. Read the draft, then click "
+        "**Accept**. The word count in the binder grows by its length.",
+        "In //Capsule 7-19// type "
+        "`{{expand: the lobby of the Meridian at 3 a.m.}}` on a line of "
+        "its own, click inside the tag and press `ctrl+g`. Click "
+        "**Reject**: the tag comes back as you wrote it.",
+        "In //The Stairwell//, select //The shard sat in Rook's pocket "
+        f"like a coin from another country.// and press `ctrl+g` "
+        f"({R('fig_grew')}), then `enter`. Press `f8`: your sentence "
+        "returns.",
+    ])
 
     # ============================================================ GLOSSARY
     s.chapter("G", "Glossary", mode="back", numbered=False)
@@ -2593,6 +3913,8 @@ def _parts_diagram():
   |
   +-- style.md                       your style guide (optional)
   |
+  +-- dictionary.txt                 words this project never flags (optional)
+  |
   +-- entities/                      notes on your story's things
   |     +-- characters/
   |     |     +-- elara-vance.md     name, type, aliases + free text
@@ -2609,6 +3931,46 @@ def _parts_diagram():
 
 
 GLOSSARY = [
+    ("assistant (desktop)", "The panel at the right of the desktop window, "
+     "with the tabs Assistant, Context and Notes; it holds the AI features, "
+     "the Your style card and the notes."),
+    ("binder", "The tree at the left of the desktop window that lists the "
+     "scenes and notes of the project."),
+    ("conflict banner", "The bar the desktop application shows when a file "
+     "changed on disk while you were editing it; it offers Reload from "
+     "disk or Keep my version."),
+    ("corkboard", "A view of the desktop editor that shows each scene as a "
+     "card."),
+    ("desktop application", "`lorewrite-gui`: the windowed form of "
+     "Lorewrite. Its window is titled LoreWriter."),
+    ("dictionary", "A plain text file of words and phrases that spell check "
+     "never flags. There is one for each project (`dictionary.txt`) and one "
+     "personal one."),
+    ("focus mode", "The desktop's name for writer mode: `f11` hides "
+     "everything but the page."),
+    ("hover card", "The small card that appears when you rest the pointer "
+     "on a mention in the desktop editor."),
+    ("misspelling", "A word that spell check does not know and underlines."),
+    ("outline", "A view of the desktop editor that lists the scenes with "
+     "their headings."),
+    ("phrase (dictionary)", "A dictionary entry of two or more words; it "
+     "accepts the words inside every occurrence of the phrase."),
+    ("placeholder (desktop)", "A dimmed control for a feature that is not "
+     "built yet; its tooltip says //Not in LoreWriter yet//."),
+    ("provenance line", "The comment under the title of a learned "
+     "`style.md` that records when it was learned and from how much "
+     "prose."),
+    ("quick switcher", "The search box opened by `ctrl+k` in the desktop "
+     "application, which opens any scene or note."),
+    ("spell check", "Underlining of misspelled words in scenes; spelling "
+     "only, never grammar."),
+    ("terminal application", "`lorewrite`: the form of Lorewrite that runs "
+     "in a terminal window."),
+    ("voice samples", "About two thousand words of your own paragraphs "
+     "that `ctrl+g` sends as examples of your style."),
+    ("Your style card", "The card at the top of the desktop assistant that "
+     "learns, relearns and opens the style guide and says when it is out "
+     "of date."),
     ("alias finder", "The AI feature, started with `ctrl+l`, that finds "
      "other ways your prose refers to your characters and places and "
      "offers them as aliases. It never edits the scene."),
@@ -2641,7 +4003,8 @@ GLOSSARY = [
     ("index", "The cache of where each entity is mentioned, stored in "
      "`.lorewrite/index.sqlite`. Rebuilt with `f9`."),
     ("launch screen", "The screen shown when Lorewrite starts without a "
-     "project: recent projects, open, new, settings."),
+     "project: recent projects, open, new (and, in the terminal "
+     "application, settings)."),
     ("link", "A name wrapped in double square brackets, "
      "`[[like this]]`. Also called a wiki-link."),
     ("Markdown", "A way of writing formatted text with plain characters, "
@@ -2716,5 +4079,11 @@ if __name__ == "__main__":
                         str(HERE / "build" / "capture.py")], check=True,
                        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1",
                             "PYTHONPATH": str(HERE.parents[1] / "src")})
+        # the desktop application's figures: headless Chromium against the
+        # headless backend with canned AI (needs Node and chromium; no window
+        # opens on the desktop)
+        subprocess.run([str(HERE.parents[1] / ".venv-gui/bin/python"),
+                        str(HERE / "build" / "gui_capture.py")], check=True,
+                       env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
     pages = build()
     print(f"wrote {OUT} ({pages} pages)")

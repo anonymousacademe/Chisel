@@ -144,12 +144,17 @@ STYLE_FIELDS = {
 }
 
 
-def canned_learn_style(samples, model, client=None):
+def canned_learn_style(samples, model, client=None, manuscript=None):
     LEDGER.record(model, "style", 0.0153)
     picks = [min(1, len(samples) - 1), min(4, len(samples) - 1),
              min(7, len(samples) - 1)]
     data = dict(STYLE_FIELDS, exemplar_indexes=picks)
-    return build_proposal(data, samples)
+    learned = None
+    if manuscript is not None:   # the provenance line, as the real call writes it
+        from lorewrite.core.style import learned_note
+        learned = learned_note(sum(len(p.split()) for _, p in samples),
+                               manuscript, "2026-10-01")
+    return build_proposal(data, samples, learned)
 
 
 app_mod.suggest_links = canned_aliases
@@ -536,6 +541,51 @@ async def main():
         shot(app, "keyprompt", modal=True)
 
 
+async def spell_shots():
+    """Spell check (TUI): the underline, the f6 window, the project dictionary."""
+    from lorewrite.tui.spellscreen import SpellScreen
+    shutil.rmtree(DEMO)
+    shutil.copytree(REAL_DEMO, DEMO)
+    reset_state()
+    s1 = DEMO / "manuscript" / "01-rain-on-the-spur.md"
+    t = s1.read_text()
+    assert "receive" not in t
+    t = t.replace("Rook", "Rook", 1)
+    # plant two typos in a paragraph near the top
+    t = t.replace("It's unattractive in a man", "It's unnattractive in a man", 1)
+    t = t.replace("owes Lin four hundred", "owes Lin four hundered", 1)
+    s1.write_text(t)
+    assert "unnattractive" in t and "hundered" in t
+    app = mk(Project.open(DEMO))
+    async with app.run_test(size=SIZE) as pilot:
+        await pilot.pause(1.2)
+        r, c = find_pos(app.editor.text, "unnattractive")
+        app.editor.move_cursor((r, 0))
+        await pilot.pause(1.2)
+        shot(app, "spell_underline")
+        await pilot.press("f6")
+        await pilot.pause(0.6)
+        assert isinstance(app.screen, SpellScreen), app.screen
+        shot(app, "spell_fix", modal=True)
+        await pilot.press("1")
+        await pilot.pause(0.5)
+        assert "unnattractive" not in app.editor.text
+        await pilot.press("f6")
+        await pilot.pause(0.6)
+        await pilot.press("a")             # add "hundered" to the project dictionary
+        await pilot.pause(0.5)
+        print((DEMO / "dictionary.txt").read_text())
+        (OUT / "dictionary_example.txt").write_text(
+            (DEMO / "dictionary.txt").read_text(), encoding="utf-8")
+    reset_state()
+    app = mk(Project.open(DEMO))
+    async with app.run_test(size=(100, 44)) as pilot:
+        await pilot.pause(0.5)
+        app.action_settings()
+        await pilot.pause()
+        shot(app, "settings_v3", modal=True)
+
+
 async def help_shot():
     reset_state()
     app = mk(Project.open(DEMO))
@@ -548,5 +598,6 @@ async def help_shot():
 
 if "--help-only" not in sys.argv:
     asyncio.run(main())
+    asyncio.run(spell_shots())
 asyncio.run(help_shot())
 print("TMP", TMP)
