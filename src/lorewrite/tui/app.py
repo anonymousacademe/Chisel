@@ -10,7 +10,7 @@ from pathlib import Path
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal
+from textual.containers import Horizontal, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Footer, Header, Input, Label, Static
 from textual import work
@@ -111,14 +111,28 @@ def _word_count(text: str, originals: dict[str, str] | None = None) -> int:
     return drafts.count_words(text, originals)
 
 
+def help_renderable() -> Text:
+    """HELP_TEXT with every line on its own row. (Markdown collapses single
+    line breaks, which ran the keybinding lists together.) Lines starting
+    with '# ' are section headings, shown bold and colored."""
+    out = Text()
+    for i, line in enumerate(HELP_TEXT.rstrip("\n").split("\n")):
+        if i:
+            out.append("\n")
+        if line.startswith("# "):
+            out.append(line[2:], style="bold underline")
+        else:
+            out.append(line)
+    return out
+
+
 class HelpScreen(ModalScreen[None]):
     BINDINGS = [Binding("escape", "close"), Binding("question_mark", "close"),
                 Binding("f1", "close")]
 
     def compose(self) -> ComposeResult:
-        from textual.widgets import Markdown
-
-        yield Markdown(HELP_TEXT, id="help")
+        with VerticalScroll(id="help-scroll"):
+            yield Static(help_renderable(), id="help")
 
     def action_close(self) -> None:
         self.dismiss(None)
@@ -254,10 +268,11 @@ class LorewriteApp(App):
     }
     #tour-hint { width: 76; padding: 0 2; color: $text-muted; }
     HelpScreen { align: center middle; }
-    HelpScreen #help {
-        width: 72; height: auto; max-height: 90%;
+    HelpScreen #help-scroll {
+        width: 100; max-width: 100%; height: auto; max-height: 90%;
         padding: 1 2; background: $surface; border: solid $primary;
     }
+    HelpScreen #help { width: 100%; height: auto; }
     NamePrompt, EntityTypePrompt { align: center middle; }
     NamePrompt > *, EntityTypePrompt > * { width: 60; }
     EntityTypePrompt Button { width: 100%; margin-top: 1; }

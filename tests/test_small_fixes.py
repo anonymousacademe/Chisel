@@ -61,3 +61,38 @@ def test_pyproject_version_matches_package():
     root = Path(lorewrite.__file__).resolve().parents[2]
     data = tomllib.loads((root / "pyproject.toml").read_text())
     assert data["project"]["version"] == lorewrite.__version__
+
+
+async def test_help_lines_render_on_separate_rows(tmp_path: Path):
+    from lorewrite.tui.app import HELP_TEXT
+
+    proj = Project.create(tmp_path / "n", title="N")
+    app = LorewriteApp(proj)
+    async with app.run_test(size=(120, 50)) as pilot:
+        await pilot.pause()
+        await pilot.press("f1")
+        await pilot.pause(0.5)
+        help_widget = app.screen.query_one("#help")
+        rows = [strip.text.strip() for strip in help_widget.render_lines(
+            help_widget.region.reset_offset)]
+
+        def row_of(fragment: str) -> int:
+            hits = [i for i, r in enumerate(rows) if fragment in r]
+            assert hits, (fragment, rows)
+            return hits[0]
+
+        # consecutive keybinding lines sit on different rows, in order
+        assert row_of("new scene") < row_of("previous / next scene") \
+            < row_of("command palette")
+        assert row_of("new scene") != row_of("command palette")
+        # no help line is merged with another
+        assert not any("new scene" in r and "command palette" in r for r in rows)
+        # headings are still their own, distinct rows
+        assert row_of("Keybindings") < row_of("Also in the palette") < row_of("Links")
+        for heading in ("Keybindings", "Also in the palette", "Links"):
+            assert rows[row_of(heading)].strip("│ ").startswith(heading)
+        # every non-empty help line is present somewhere
+        for line in HELP_TEXT.splitlines():
+            text = line.strip().removeprefix("# ")
+            if text and len(text) < 50:
+                assert text in " ".join(rows), text
