@@ -348,7 +348,7 @@ def initials(name: str, fallback: str = "LW") -> str:
 
 def build_workspace(project: Project, entities: list[ent.Entity], *,
                     baseline_words: int, session_minutes: int,
-                    ai_cost: float) -> dict:
+                    ai_cost: float, stats: dict | None = None) -> dict:
     scenes = scene_summaries(project)
     summaries = entity_summaries(project, entities)
     parts = part_summaries(project, scenes)
@@ -378,5 +378,6 @@ def build_workspace(project: Project, entities: list[ent.Entity], *,
             "aiCost": ai_cost,
             "hasStyle": has_style,
             "trashCount": trash_count,
+            "stats": stats,
         },
     }

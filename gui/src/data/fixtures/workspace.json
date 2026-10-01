@@ -177,6 +177,7 @@
     "sessionMinutes": 3,
     "aiCost": 0.0123,
     "hasStyle": false,
-    "trashCount": 0
+    "trashCount": 0,
+    "stats": null
   }
 }

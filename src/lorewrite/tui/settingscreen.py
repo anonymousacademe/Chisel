@@ -26,6 +26,7 @@ from ..ai.client import (
     set_api_key,
 )
 from ..core import settings as user_settings
+from ..core import stats as writing_stats
 
 
 class SettingsScreen(ModalScreen[None]):
@@ -63,6 +64,9 @@ class SettingsScreen(ModalScreen[None]):
                 yield Checkbox("Line numbers", id="line-numbers")
             yield Label("Spelling", classes="settings-heading")
             yield Checkbox("Underline misspellings", id="spellcheck")
+            yield Label("Writing goals", classes="settings-heading")
+            yield Label("Daily word target (0 = off):")
+            yield Input(id="daily-target")
             yield Label("History", classes="settings-heading")
             yield Checkbox("Snapshot a scene the first time it is edited each day",
                            id="auto-snapshot")
@@ -83,6 +87,7 @@ class SettingsScreen(ModalScreen[None]):
             user_settings.get("spellcheck", True))
         self.query_one("#auto-snapshot", Checkbox).value = bool(
             user_settings.get("auto_snapshot", True))
+        self.query_one("#daily-target", Input).value = str(writing_stats.get_target())
         if self._project is not None:
             prefs = self._project.editor_settings()
             self.query_one("#padding", Input).value = str(prefs["padding"])
@@ -151,6 +156,10 @@ class SettingsScreen(ModalScreen[None]):
                           self.query_one("#spellcheck", Checkbox).value)
         user_settings.set("auto_snapshot",
                           self.query_one("#auto-snapshot", Checkbox).value)
+        try:
+            writing_stats.set_target(int(self.query_one("#daily-target", Input).value.strip() or 0))
+        except ValueError:
+            self.app.notify("The daily target must be a number from 0 to 100,000", severity="warning")
         if self._project is not None:
             raw = self.query_one("#padding", Input).value.strip()
             try:

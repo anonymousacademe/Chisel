@@ -28,6 +28,7 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
   const [editor, setEditor] = useState(initial.editor);
   const [spellcheck, setSpellcheck] = useState(initial.spellcheck);
   const [autoSnapshot, setAutoSnapshot] = useState(initial.autoSnapshot);
+  const [dailyTarget, setDailyTarget] = useState(String(initial.dailyTarget));
   const [picking, setPicking] = useState<ModelKind | null>(null);
 
   const reload = async () => { const r = await api.getSettings(); if (r.ok) setInfo(r); };
@@ -42,7 +43,9 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
     notify(r.note || "API key removed."); await reload();
   };
   const save = async () => {
-    const r = await api.setSettings(models, editor, spellcheck, autoSnapshot);
+    const target = Number(dailyTarget.trim() || 0);
+    if (!Number.isInteger(target) || target < 0 || target > 100000) return notify("The daily target must be a whole number from 0 to 100,000.", "error");
+    const r = await api.setSettings(models, editor, spellcheck, autoSnapshot, target);
     if (!r.ok) return notify(r.error, "error");
     onSaved(editor, spellcheck); onClose();
   };
@@ -104,6 +107,15 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
           <label className="lw-check">
             <input type="checkbox" checked={spellcheck} onChange={(e) => setSpellcheck(e.target.checked)} />
             Underline misspellings <span className="lw-faint">(scenes only; names in your notes and your dictionaries are never flagged)</span>
+          </label>
+        </section>
+        <section className="lw-settings__section">
+          <h3>Writing goals</h3>
+          <label className="lw-check">
+            Daily word target
+            <input className="lw-launch__input lw-settings__narrow" inputMode="numeric" value={dailyTarget} aria-label="Daily word target"
+              onChange={(e) => setDailyTarget(e.target.value.replace(/[^\d]/g, ""))} />
+            <span className="lw-faint">words; 0 turns the target off. Your streak counts the days you met it.</span>
           </label>
         </section>
         <section className="lw-settings__section">

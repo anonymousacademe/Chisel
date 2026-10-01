@@ -37,6 +37,7 @@ from ..core import drafts, scenemeta, snapshots, sync
 from ..core import entities as ent
 from ..core import settings as user_settings
 from ..core import spelling
+from ..core import stats as writing_stats
 from ..core.continuity import (
     apply_canon_update,
     canon_map,
@@ -80,6 +81,7 @@ from .sidebar import OpenFile, Sidebar
 from .spellscreen import SpellScreen
 from .snapshotscreens import CompareScreen, LabelPrompt, SnapshotsScreen, label_text
 from .syncscreens import MessagePrompt
+from .statsscreens import StatsScreen
 from .structurescreens import ChoiceScreen, DetailsScreen, TrashScreen
 from .stylereview import StyleReviewScreen
 from .theme import (
@@ -124,6 +126,7 @@ HELP_TEXT = """\
   Scene · Edit details — POV, place, purpose, status, word target
   Open Trash — restore deleted scenes, delete forever, empty the Trash
   Scene · Snapshots / Snapshot scene / Snapshot all scenes — compare and restore
+  Session stats — today, this session, 30-day sparkline, streak, daily target (Settings)
   Start new draft — snapshot the whole book as "end of draft N", then count up
   Commit changes / Push / Initialize git — only when you pick them; the status
   bar shows Synced, N changes or Ahead N for a project under git
@@ -328,14 +331,16 @@ class LorewriteApp(App):
     }
     NamePrompt Input { border: solid $primary; }
     EntityTypePrompt Button { border: solid $primary; }
-    ChoiceScreen, TrashScreen, DetailsScreen { align: center middle; }
-    #choice-box, #trash-box, #details-box, #snap-box, #compare-box {
+    ChoiceScreen, TrashScreen, DetailsScreen, StatsScreen { align: center middle; }
+    #choice-box, #trash-box, #details-box, #snap-box, #compare-box, #stats-box {
         width: 76; height: auto; max-height: 80%;
         background: $surface; border: solid $primary; padding: 1 2;
     }
-    #choice-header, #trash-header, #details-header, #snap-header, #compare-header { text-style: bold; padding-bottom: 1; }
+    #choice-header, #trash-header, #details-header, #snap-header, #compare-header, #stats-header { text-style: bold; padding-bottom: 1; }
     #choice-list, #trash-list, #snap-list { height: auto; max-height: 16; }
-    #choice-hint, #trash-hint, #details-hint, #snap-hint, #compare-hint { color: $text-muted; padding-top: 1; }
+    #choice-hint, #trash-hint, #details-hint, #snap-hint, #compare-hint, #stats-hint { color: $text-muted; padding-top: 1; }
+    #stats-box { width: 100; }
+    #stats-scroll { height: auto; max-height: 20; }
     #compare-box { width: 110; height: 80%; }
     #compare-scroll { height: 1fr; border: round $primary-darken-2; padding: 0 1; }
     .details-label { color: $text-muted; padding-top: 1; }
@@ -459,6 +464,9 @@ class LorewriteApp(App):
         self._comment_list: list[comments.Comment] = []   # the open scene's comments
         self._comment_scene: Path | None = None
         self._spell_ignores = spelling.SessionIgnores()
+        self.stats: writing_stats.Tracker | None = None   # personal writing stats (state dir)
+        self._stats_brief: dict | None = None
+        self._skip_touch = False   # the Changed event of a programmatic load is not typing
 
     # -- layout ---------------------------------------------------------------
 
@@ -549,7 +557,11 @@ class LorewriteApp(App):
         self.editor.show_line_numbers = editor_prefs["line_numbers"]
         self._editor_padding = editor_prefs["padding"]
         self._apply_editor_padding()
+        if self.stats is not None:
+            self.stats.close()
+        self.stats = writing_stats.Tracker(project.root)
         self._recount_project_words()
+        self._refresh_stats()
         scenes = project.list_scenes()
         if scenes:
             self.open_file(scenes[0])
@@ -563,6 +575,52 @@ class LorewriteApp(App):
     def _apply_editor_padding(self) -> None:
         if not self._writer_mode:
             self.editor.styles.padding = (0, getattr(self, "_editor_padding", 0))
+
+    # -- writing stats (core.stats): counted on save, kept in the state dir ------------
+
+    def _stats_key(self, path: Path) -> str:
+        return path.relative_to(self.project.root).as_posix()
+
+    def _stats_seen(self, text: str, path: Path | None = None) -> None:
+        """A scene was opened or replaced wholesale: its baseline, nothing counted."""
+        path = path or self.current_path
+        if self.stats is None or not self._is_scene(path):
+            return
+        self.stats.seen(self._stats_key(path), _word_count(text, self._originals(text, path)))
+
+    def _stats_record(self, text: str) -> None:
+        if self.stats is None or not self._is_scene(self.current_path):
+            return
+        try:
+            self.stats.record(self._stats_key(self.current_path),
+                              _word_count(text, self._originals(text)))
+            self._refresh_stats()
+        except OSError:
+            pass  # stats are a convenience; never block a save
+
+    def _stats_accepted(self, pending, body: str) -> None:
+        """An AI draft is about to become prose: AI words, not the author's."""
+        if self.stats is None or not self._is_scene(self.current_path):
+            return
+        original = self._originals(self.editor.text).get(pending.id, "") if pending.id else ""
+        self.stats.accepted(self._stats_key(self.current_path), len(body.split()),
+                            len(original.split()))
+
+    def _refresh_stats(self) -> None:
+        if self.stats is None:
+            self._stats_brief = None
+            return
+        s = self.stats.summary()
+        self._stats_brief = {"target": s["target"], "streak": s["streak"],
+                             "todayWords": s["today"]["words"], "sprint": s["sprint"]}
+
+    def open_stats(self) -> None:
+        """Action · Session stats: today, this session, the last 30 days, streak."""
+        if self.stats is None:
+            return
+        self.save_current()
+        summary = self.stats.summary(project_words=self._project_words)
+        self.push_screen(StatsScreen(writing_stats.format_summary(summary)))
 
     def _recount_project_words(self) -> None:
         if self.project is None:
@@ -588,6 +646,11 @@ class LorewriteApp(App):
             self._write_to_disk()  # final flush; UI updates skipped on teardown
         except Exception:
             pass
+        if self.stats is not None:
+            try:
+                self.stats.close()
+            except OSError:
+                pass
         if self.index is not None:
             self.index.close()
 
@@ -647,7 +710,10 @@ class LorewriteApp(App):
         self._dirty = False
         self._sync_mention_names()
         self._refresh_snapshot_time()
-        self.editor.load_text(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
+        self._stats_seen(text)
+        self._skip_touch = True
+        self.editor.load_text(text)
         self.editor.refresh_links()
         self.refresh_comments(reload=True)
         self.editor.set_misspellings(None)
@@ -665,6 +731,7 @@ class LorewriteApp(App):
             except Exception:
                 pass
         write_atomic(self.current_path, text)
+        self._stats_record(text)
         if self._is_scene(self.current_path) and \
                 comments.sidecar_path(self.project.root, self.current_path).is_file():
             try:  # comments follow edited passages: refresh what they quote
@@ -700,6 +767,10 @@ class LorewriteApp(App):
 
     def on_text_area_changed(self) -> None:
         self._dirty = True
+        if self._skip_touch:
+            self._skip_touch = False
+        elif self.stats is not None:
+            self.stats.touch()
         self.editor.refresh_links()
         self.refresh_comments()
         self._spelling_edited()
@@ -752,6 +823,12 @@ class LorewriteApp(App):
             parts.append(hint)
         if LEDGER.session_total() > 0:
             parts.append(format_cost(LEDGER.session_total()))
+        if self._stats_brief:
+            b = self._stats_brief
+            goal = f"{b['todayWords']:+} / {b['target']:,} today" if b["target"] else f"{b['todayWords']:+} today"
+            parts.insert(3, goal)
+            if b["streak"]:
+                parts.insert(4, f"streak {b['streak']}")
         parts.insert(1, f"Draft {self.project.draft}")
         if self._sync is not None:
             parts.insert(2, self._sync.label)
@@ -1136,6 +1213,7 @@ class LorewriteApp(App):
                         timeout=2)
             return
         body = self.editor.text[pending.body_start:pending.body_end]
+        self._stats_accepted(pending, body)
         self.editor.replace_offsets(pending.start, pending.end, body)
         self._forget_originals([pending])
         self.notify("AI draft accepted", timeout=1)
@@ -1186,6 +1264,7 @@ class LorewriteApp(App):
         for p in reversed(found):  # back to front so offsets hold
             if accept:
                 text = self.editor.text
+                self._stats_accepted(p, text[p.body_start:p.body_end])
                 self.editor.replace_offsets(
                     p.start, p.end, text[p.body_start:p.body_end])
                 self._forget_originals([p])
@@ -1970,6 +2049,7 @@ class LorewriteApp(App):
             self.save_current()
             # the current text is snapshotted first (before-restore), then replaced
             text = snapshots.restore(self.project, path, name, self.editor.text)
+            self._stats_seen(text)  # restoring is not writing
             self.editor.load_text(text)
             self.save_current()
             self.editor.refresh_links()

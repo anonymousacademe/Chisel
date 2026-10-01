@@ -155,6 +155,8 @@ class ActionProvider(_Provider):
          "git: push the current branch to its remote, after a confirmation (never forced)"),
         ("Initialize git for this project", "sync_init_confirm",
          "Make the project folder a git repository (.gitignore hides .lorewrite/)"),
+        ("Session stats", "open_stats",
+         "Today, this session, the last 30 days, your streak and daily target"),
         ("Start new draft", "start_new_draft",
          "Snapshot every scene as the end of this draft, then count up to the next draft"),
         ("New part", "new_part_prompt", "Add a part (a folder under manuscript/)"),

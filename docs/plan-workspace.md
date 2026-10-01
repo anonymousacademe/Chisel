@@ -243,6 +243,14 @@ separately.
 
 ---
 
+### 4.4 Research notes go to Trash (review follow-up from Wave 3)
+- Deleting a research note is permanent today (`core/research.delete_note`).
+  Author data should be recoverable like scenes: move it to the project Trash
+  (`.trash/`, name keeps its `research/` relative path), list it in the Trash
+  view with a "research note" kind, restore to its original path (or
+  `research/` if the folder is gone), delete forever / empty as for scenes.
+  Both UIs; update the confirmation text ("Move to Trash"), tests, docs.
+
 ## Future (do not build): AI inspiration images
 Generate an image of a described setting ("a dark subway platform") to keep
 on screen while writing; reference only, never inserted into prose; likely an

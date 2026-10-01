@@ -80,6 +80,11 @@ design and roadmap.
   *Action · Open project dictionary*). Toggle in Settings or the palette. The
   desktop app underlines too: click a word for suggestions, *Add to dictionary*
   and *Ignore* (`ctrl+.` also opens it).
+- **Session stats and a streak** (your own numbers, kept in `~/.local/state/lorewrite/stats/`,
+  never in the project): words you wrote today (accepted AI drafts are counted separately, pending
+  ones not at all), active minutes, sessions, a 30-day chart and a streak of days that met your daily
+  word target (Settings; default 500, 0 = off). The status bar shows the streak and
+  `+N / target words today`; click it (desktop) or pick *Action · Session stats* (terminal).
 - Writer mode (`f11`), first-run tour, sidebar filter, focus-friendly
   keybindings (`alt+←/→` to flip scenes)
 - **AI alias finder** (`ctrl+l`): finds other ways your prose refers to known

@@ -1,7 +1,7 @@
 import type { Misspelling, Span } from "../editor/spans";
 import type {
   AliasSuggestion, AttachItem, AttachKind, AttachReport, CanonProposal, ChatSummary, CollectionColor, CommentRow, SavedChat, CollectionSummary, DiffSegment, SnapshotRow, SyncInfo, DetailsPatch, DocumentPayload, Remap, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
-  Issue, ModelKind, ModelOption, RecentProject, SceneMention, SettingsInfo, EditorPrefs, StyleStatus, Workspace,
+  Issue, ModelKind, ModelOption, RecentProject, SceneMention, SettingsInfo, EditorPrefs, StatsSummary, StyleStatus, Workspace,
 } from "../data/types";
 import { call } from "./transport";
 
@@ -125,8 +125,12 @@ export const api = {
   /** Appends the reply, with the date and the prompt, to research/assistant-notes.md. */
   saveReplyToNotes: (prompt: string, reply: string) => call<{ id: string }>("save_reply_to_notes", prompt, reply),
   getSettings: () => call<SettingsInfo>("get_settings"),
-  setSettings: (models?: Partial<Record<ModelKind, string>>, editor?: Partial<EditorPrefs>, spellcheck?: boolean, autoSnapshot?: boolean) =>
-    call("set_settings", models ?? null, editor ?? null, spellcheck ?? null, autoSnapshot ?? null),
+  setSettings: (models?: Partial<Record<ModelKind, string>>, editor?: Partial<EditorPrefs>, spellcheck?: boolean, autoSnapshot?: boolean, dailyTarget?: number) =>
+    call("set_settings", models ?? null, editor ?? null, spellcheck ?? null, autoSnapshot ?? null, dailyTarget ?? null),
+  /** Session stats page data; stats live in the user state dir, not the project. */
+  statsSummary: () => call<{ stats: StatsSummary }>("stats_summary"),
+  /** The author is typing (active-time ping, throttled by the caller). */
+  statsTouch: () => call("stats_touch"),
   setApiKey: (key: string) => call("set_api_key", key),
   clearApiKey: () => call<{ stillSet: boolean; note: string }>("clear_api_key"),
   listModels: (structuredOnly: boolean) => call<{ models: ModelOption[] }>("list_models", structuredOnly),

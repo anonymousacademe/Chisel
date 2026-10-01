@@ -130,7 +130,37 @@ export interface Workspace {
     aiCost: number;
     hasStyle: boolean;
     trashCount: number;
+    /** Writing stats for the status bar (null without a project). */
+    stats: StatsBrief | null;
   };
+}
+
+/** A focus sprint in progress (core.stats.Tracker.sprint_state); times are epoch seconds. */
+export interface SprintState { minutes: number; startedAt: number; endsAt: number; remaining: number; words: number; done: boolean }
+/** A finished sprint as recorded in the day's stats. */
+export interface SprintRecord { at: string; minutes: number; elapsed: number; words: number; completed: boolean }
+
+export interface StatsBrief {
+  /** Daily word target; 0 = off. */
+  target: number;
+  streak: number;
+  todayMet: boolean;
+  /** Net words written today, all sessions (accepted AI drafts are not counted). */
+  todayWords: number;
+  sprint: SprintState | null;
+}
+
+/** The Session stats page (core.stats.Tracker.summary). */
+export interface StatsSummary {
+  target: number; streak: number; todayMet: boolean;
+  today: { words: number; aiWords: number; minutes: number; sessions: number };
+  session: { words: number; aiWords: number; minutes: number; startedAt: number };
+  chart: { date: string; words: number }[];
+  averagePerSession: number;
+  bestDay: { date: string; words: number } | null;
+  daysWritten: number; totalWords: number; projectWords: number;
+  sprints: SprintRecord[];
+  sprint: SprintState | null;
 }
 
 /** What the "Your style" card shows (lorewrite.core.style.style_info). */
@@ -201,6 +231,8 @@ export interface SettingsInfo {
   spellcheck: boolean;
   /** Snapshot a scene the first time it is edited each day. */
   autoSnapshot: boolean;
+  /** Daily word target; 0 = off. */
+  dailyTarget: number;
 }
 export interface ModelOption { id: string; name: string; promptPerM: number | null; completionPerM: number | null; context: number | null }
 

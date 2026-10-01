@@ -41,6 +41,7 @@ from ..core import attach, chats
 from ..core import collections as coll
 from ..core import comments
 from ..core import research as research_notes
+from ..core import stats as writing_stats
 from ..core import drafts, scenemeta, snapshots, sync
 from ..core import settings as user_settings
 from ..core import spelling
@@ -100,6 +101,7 @@ class Api:
         self.entities: list[ent.Entity] = []
         self._session_start = time.time()
         self._baseline_words = 0
+        self.stats: writing_stats.Tracker | None = None
         self._spell_ignores = spelling.SessionIgnores()  # in memory only
 
     @bridge
@@ -117,7 +119,10 @@ class Api:
         """Make *project* the open project: index, entities, session baseline."""
         if self.index is not None:
             self.index.close()
+        if self.stats is not None:
+            self.stats.close()
         self.project = project
+        self.stats = writing_stats.Tracker(project.root)
         self.index = Index(project.index_path, check_same_thread=False)
         self.index.rebuild(project)
         self.reload_entities()
@@ -183,7 +188,21 @@ class Api:
                 self.project, self.entities,
                 baseline_words=self._baseline_words,
                 session_minutes=int((time.time() - self._session_start) // 60),
-                ai_cost=LEDGER.session_total())}
+                ai_cost=LEDGER.session_total(), stats=self._stats_brief())}
+
+    def _stats_brief(self) -> dict | None:
+        """What the status bar needs of the writing stats (the full page is `stats`)."""
+        if self.stats is None:
+            return None
+        s = self.stats.summary()
+        return {"target": s["target"], "streak": s["streak"], "todayMet": s["todayMet"],
+                "todayWords": s["today"]["words"], "sprint": s["sprint"]}
+
+    def _scene_key(self, path: Path) -> str:
+        return ws.rel_id(self._require(), path)
+
+    def _author_words(self, project: Project, path: Path, text: str) -> int:
+        return drafts.count_words(text, drafts.load_originals(project.root, path))
 
     # -- documents ------------------------------------------------------------
 
@@ -229,6 +248,8 @@ class Api:
                 part = project.part_of(path)
                 parent = (project.part_title(part) if part
                           else "Unplaced Scenes" if project.is_unplaced(path) else "Manuscript")
+                if self.stats is not None:  # baseline for the stats; nothing is counted here
+                    self.stats.seen(self._scene_key(path), drafts.count_words(text, originals))
                 extra = {
                     "details": scenemeta.details(text),
                     "bodyStart": index_to_utf16(text, scenemeta.body_offset(text)),
@@ -301,6 +322,8 @@ class Api:
                 current = str(path.stat().st_mtime_ns)
             self._index_file(path, kind, text)
             _, originals = ws.read_text(project, path)
+            if kind == "scene" and self.stats is not None:
+                self.stats.record(self._scene_key(path), drafts.count_words(text, originals))
             return {"saved": True, "mtime": current,
                     "words": drafts.count_words(text, originals),
                     **({"snapshotAt": self._snapshot_at(path)} if kind == "scene" else {})}
@@ -670,6 +693,8 @@ class Api:
             path = self._scene_path(doc_id)
             restored = snapshots.restore(project, path, snapshot_id, text)
             self._index_file(path, "scene", restored)
+            if self.stats is not None:  # restoring is not writing: new baseline
+                self.stats.seen(self._scene_key(path), self._author_words(project, path, restored))
             return {"snapshotAt": self._snapshot_at(path)}
 
     @bridge
@@ -956,12 +981,14 @@ class Api:
         editor = {k: user_settings.get(f"gui_{k}", v) for k, v in self.EDITOR_DEFAULTS.items()}
         return {"hasKey": source != "none", "keySource": source, "models": models, "editor": editor,
                 "spellcheck": self.spellcheck_enabled(),
-                "autoSnapshot": snapshots.auto_enabled()}
+                "autoSnapshot": snapshots.auto_enabled(),
+                "dailyTarget": writing_stats.get_target()}
 
     @bridge
     def set_settings(self, models: dict | None = None, editor: dict | None = None,
                      spellcheck: bool | None = None,
-                     auto_snapshot: bool | None = None) -> dict:
+                     auto_snapshot: bool | None = None,
+                     daily_target: int | None = None) -> dict:
         """Save model choices ("" resets to the default), GUI editor prefs and
         the spell-check toggle (shared with the TUI)."""
         with self._lock:
@@ -984,6 +1011,8 @@ class Api:
                 user_settings.set("spellcheck", bool(spellcheck))
             if auto_snapshot is not None:
                 user_settings.set("auto_snapshot", bool(auto_snapshot))
+            if daily_target is not None:
+                writing_stats.set_target(int(daily_target))
         return {}
 
     @bridge
@@ -1058,6 +1087,42 @@ class Api:
     @bridge
     def usage(self) -> dict:
         return {"cost": LEDGER.session_total(), "calls": LEDGER.count()}
+
+    # -- writing stats and focus sprints (core.stats) ----------------------------------
+    # Personal data in the user state dir, never in the project folder.
+
+    @bridge
+    def stats_summary(self) -> dict:
+        """The Session stats page: today, this session, the last 30 days, streak."""
+        with self._lock:
+            project = self._require()
+            words = ws.book_words(ws.scene_summaries(project))
+            return {"stats": self.stats.summary(project_words=words)}
+
+    @bridge
+    def stats_touch(self) -> dict:
+        """The author is typing (the editor pings this every few seconds)."""
+        with self._lock:
+            self._require()
+            self.stats.touch()
+            return {}
+
+    @bridge
+    def sprint_start(self, minutes: int) -> dict:
+        with self._lock:
+            self._require()
+            self.stats.start_sprint(int(minutes))
+            return {"sprint": self.stats.sprint_state()}
+
+    @bridge
+    def sprint_end(self, cancelled: bool = False) -> dict:
+        """End the sprint; its words are recorded in today's stats."""
+        with self._lock:
+            self._require()
+            rec = self.stats.finish_sprint(cancelled=bool(cancelled))
+            if rec is None:
+                raise ValueError("no sprint is running")
+            return {"sprint": rec}
 
     @bridge
     def find_aliases(self, doc_id: str, text: str | None = None) -> dict:
@@ -1300,6 +1365,9 @@ class Api:
                     continue
                 edits.append({"from": index_to_utf16(text, p.start),
                               "to": index_to_utf16(text, p.end), "insert": insert})
+                if accept and self.stats is not None:  # AI words, not the author's
+                    self.stats.accepted(self._scene_key(path), len(insert.split()),
+                                        len((originals.get(p.id) or "").split()) if p.id else 0)
                 if p.id is not None:
                     drafts.drop_original(project.root, path, p.id)
             return {"edits": edits, "skipped": skipped, "found": len(chosen)}

@@ -36,6 +36,7 @@ src/lorewrite/
     research.py         # research/ notes: list/new/from-url/delete, keyword search, assistant-notes
     chats.py            # saved assistant chats: .assistant/chats/<id>.json
     attach.py           # chat attachments (scene/note/research/comments), capped and reported
+    stats.py            # writing stats/streak/sprints: Tracker, state dir stats/<project-id>.json
   ai/
     client.py           # OpenRouter via openai SDK; keyring/env key resolution
     links.py            # alias finder (ctrl+l): prompt, schema, validate (never edits text)
@@ -163,6 +164,13 @@ PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --
   the `attached` report the UI shows - do not add a silent cap. The terminal chat window
   (`tui/assistantscreen.py`) has no attach in v1; its AI calls are `lorewrite.tui.app.ask_writer` /
   `research_answer` (mock those names).
+- **Writing stats** (`core/stats.py`) are personal: `<state dir>/stats/<project-id>.json`, never in the
+  project folder, and they MUST honour `LOREWRITE_STATE_DIR` (tests/screenshots point it at a temp dir).
+  Both front ends call `Tracker.seen(key, words)` when a scene is opened or replaced wholesale (snapshot
+  restore!) and `record(key, words)` on save; anything that rewrites a scene's prose behind the editor's
+  back must `seen` it or the difference is counted as writing. Accepting an AI draft calls `accepted`
+  (AI words; the baseline moves) *before* the text changes. The GUI Api holds one Tracker per open
+  project (`Api.stats`); typing pings arrive through `stats_touch` (throttled client-side).
 - **Git sync is explicit** (`core/sync.py`). `status()` is the only call that may run by itself
   (read-only, 5 s timeout, never on the UI thread: TUI worker, GUI debounced bridge call outside
   `self._lock`; `get_workspace` must not call it). `commit` / `push` / `init` run only from a

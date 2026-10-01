@@ -201,7 +201,11 @@ rejection — the author explicitly wants a lightweight version.*
   - *Terminal app*: red underline (lowest-priority span in `LinkedTextArea`, computed in a worker thread on a 0.6 s debounce; stale underlines are dropped as you type); `f6` jumps to the next misspelling after the cursor (wrapping) and opens a small window: `1`–`5`/`enter` replace, `a` add to the project dictionary, `p` add to the personal dictionary, `i` ignore this session, `esc` cancel. `f6` was TextArea's select-line, which the editor now overrides (like `f7`). Setting `spellcheck` (default on; Settings checkbox "Underline misspellings", palette *Action · Toggle spell check*); palette *Add selection to dictionary* (word or phrase, project) and *Open project dictionary*.
   - *Desktop GUI*: wavy red underline; click a misspelled word, right-click it, or press `ctrl+.` for a popover (suggestions replace as a normal undoable edit, **Add to dictionary**, **Add to my dictionary (all projects)**, **Ignore**); with a multi-word selection the popover (or the toolbar button) offers **Add phrase to dictionary**. Same `spellcheck` setting (Settings dialog); status bar `N spelling` jumps to the next one; the binder lists `Dictionary` next to the Style Guide so `dictionary.txt` can be edited by hand.
 - **Focus timer**: set a sprint length; countdown shown in the status bar; pairs naturally with writer mode (`f11`).
-- **Session stats page**: words written this session, session average, current streak. Read-only summary screen, not a dashboard.
+- **Session stats page** ✅ (Wave 4.1, `core/stats.py`). Read-only summary, not a dashboard. Personal data, so it lives in the user state dir, **not** the project: `<state>/stats/<project-id>.json` (project id = first 16 hex characters of the SHA-1 of the resolved project path; `LOREWRITE_STATE_DIR` honoured), `{version: 1, project, days: {"YYYY-MM-DD": {words, ai_words, seconds, sessions, sprints: [...]}}}`.
+  - *Words* = net change of the author's own prose per scene, counted when a scene is **saved** (baseline taken when it is opened or replaced from disk, so opening, snapshot restore and reload count nothing; the first save of a scene never seen counts nothing). It can be negative on a day of cutting. Pending `<!--ai-->` drafts are not prose (`drafts.count_words`). **Accepted AI drafts** are counted as `ai_words` instead and the baseline moves with them, so they are never also the author's. Scene details frontmatter is not counted.
+  - *Active minutes*: each typing ping adds the gap since the previous one if it is at most 2 minutes. A *session* starts at the first activity after 30 idle minutes (or in a new process); sessions are counted on the day they start. Per-day totals and "this session" (since the tracker started or the last 30 idle minutes) are both shown.
+  - *Daily target* (user setting `daily_target`, default 500, 0 = off; Settings in both front ends). *Streak* = consecutive days with words >= target (>= 1 when off), counted back from today; today only breaks it once the day is over.
+  - *Status bar* (both): `Streak N` and `+N / target words today` (today's words across sessions, not the net change since opening; with the target off, `+N words today`). Desktop: click either for the **Session stats** dialog (today, this session, streak, best day, average per session, project words, 30-day bar chart with days that met the target highlighted). Terminal: palette *Action · Session stats* (text plus a 30-day sparkline).
 - **Idea generator**: AI "unstuck" prompts (writing techniques, what-if questions about current scene/characters).
 
 ### M7 — Manuscript organization + export
@@ -520,8 +524,8 @@ both edit the same plain-Markdown projects.
   chat (`ask`) answers in the panel only, with *Insert as draft*.
 - **Placeholders.** Parts of the design that LoreWriter does not do yet are drawn
   as designed but dimmed, non-interactive, tooltip "Not in LoreWriter yet"
-  (`gui/src/components/placeholder.ts`): the status-bar Streak item
-  (the Draft badge and status item, Snapshots, Sync and the History button are real since Wave 2;
+  (`gui/src/components/placeholder.ts`): nothing but the Brainstorm quick action since Wave 4
+  (the status-bar Streak and `session words / target` are real since 4.1; the Draft badge and status item, Snapshots, Sync and the History button are real since Wave 2;
   the Research row, Collections, the comment button, the Research quick action, conversation history,
   attach-context and the reply's Save to notes since Wave 3), and the Brainstorm quick action.
   No fake data is shown for them.

@@ -20,6 +20,7 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { AliasReviewDialog, CanonReviewDialog, StyleReviewDialog } from "./components/ReviewDialogs";
 import { SpellMenu } from "./components/SpellMenu";
 import { StatusBar } from "./components/StatusBar";
+import { StatsDialog } from "./components/StatsDialog";
 import { Launch } from "./components/Launch";
 import { QuickSwitcher } from "./components/QuickSwitcher";
 import { ConfirmDialog, Menu, PromptDialog, type MenuItem } from "./components/Dialogs";
@@ -47,6 +48,7 @@ type Dialog =
   | { kind: "trash" }
   | { kind: "details" }
   | { kind: "snapshots" }
+  | { kind: "stats" }
   | { kind: "collections" }
   | { kind: "new-research" }
   | { kind: "chats" }
@@ -76,6 +78,7 @@ export default function App() {
   // undefined = still loading, null = no project open (launch screen)
   const [ws, setWs] = useState<Workspace | null | undefined>(undefined);
   const [styleStatus, setStyleStatus] = useState<StyleStatus | null>(null);
+  const lastPing = useRef(0);   // writing stats: last typing ping (ms)
   // The "Your style" card follows the project (refresh() runs after every save of style.md).
   useEffect(() => {
     if (!ws) return;
@@ -960,6 +963,13 @@ export default function App() {
     notify("Snapshot restored. The text from before is kept as “Before a restore”.");
     return true;
   };
+  // Active-time ping for the writing stats: at most one every 15 s while typing.
+  const pingTyping = () => {
+    const now = Date.now();
+    if (now - lastPing.current < 15_000) return;
+    lastPing.current = now;
+    void api.statsTouch();
+  };
   const openDraftMenu = (anchor: HTMLElement) => setMenu({ anchor, items: [
     { label: `Draft ${ws.project.draft}`, separator: true, onSelect: () => {} },
     { label: `Start draft ${ws.project.draft + 1}…`, onSelect: () => setDialog({ kind: "new-draft" }) },
@@ -1068,7 +1078,7 @@ export default function App() {
           onEditDetails={() => setDialog({ kind: "details" })} onMoveRequest={(plan) => setDialog({ kind: "move", plan })}
           mode={mode} onMode={setMode} focus={focus} onFocus={() => setFocus((f) => !f)} onOpen={(id) => void openDoc(id)}
           editorRef={editorRef} docRev={docRev} spansVersion={spansVersion} cursor={cursor} saveState={saveState}
-          onChange={(t) => saver.edit(t)} onCursor={onCursor} onBlur={() => void saver.flush()}
+          onChange={(t) => { saver.edit(t); pingTyping(); }} onCursor={onCursor} onBlur={() => void saver.flush()}
           onSaveNow={() => void saveNow()} onReload={() => void reloadFromDisk()} onKeepMine={() => void keepMine()}
           onMakeNote={() => makeNote(false)} getCard={getCard} onOpenEntity={openEntitySpan}
           onResolveDraft={(i, a) => void resolveDraft(i, a)}
@@ -1100,7 +1110,7 @@ export default function App() {
             style={ws ? styleStatus : null} onLearnStyle={() => void learnStyle()} onOpenStyle={() => void openStyle()} />
         )}
       </div>
-      <StatusBar sessionWords={ws.status.sessionWords} projectWords={ws.status.projectWords} aiCost={ws.status.aiCost}
+      <StatusBar stats={ws.status.stats} onStats={() => setDialog({ kind: "stats" })} projectWords={ws.status.projectWords} aiCost={ws.status.aiCost}
         line={cursor.line} col={cursor.col} zoom={zoom} onZoom={cycleZoom}
         spelling={isScene ? spellCount : null} onSpelling={jumpToMisspelling}
         snapshotAt={isScene ? snapshotAt : undefined} onSnapshots={openHistory}
@@ -1169,6 +1179,7 @@ export default function App() {
         <ConfirmDialog title={`Move ${unit}`} confirm="Move" tone="primary" message={dialog.plan.sentence}
           onConfirm={() => void performMove(dialog.plan)} onClose={() => setDialog(null)} />
       )}
+      {dialog?.kind === "stats" && <StatsDialog onClose={() => setDialog(null)} notify={notify} />}
       {dialog?.kind === "trash" && (
         <TrashDialog onClose={() => setDialog(null)} notify={notify}
           onChanged={() => void refresh()}

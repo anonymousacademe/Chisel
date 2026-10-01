@@ -300,6 +300,7 @@
     "sessionMinutes": 0,
     "aiCost": 0,
     "hasStyle": false,
-    "trashCount": 1
+    "trashCount": 1,
+    "stats": null
   }
 }
