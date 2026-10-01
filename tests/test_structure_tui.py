@@ -208,10 +208,35 @@ async def test_move_part_keeps_the_open_scene_open(tmp_path: Path):
         app.open_file(p.manuscript_dir / "01-the-recall" / "01-a.md")
         app.move_part_down()
         await pilot.pause()
+        assert isinstance(app.screen, ChoiceScreen)
+        assert app.screen.query_one("#choice-list", ListView).index == 1   # the open scene's part
+        await pilot.press("enter")
+        await pilot.pause()
         assert app.current_path == p.manuscript_dir / "02-the-recall" / "01-a.md"
         assert app.current_path.is_file()
         assert [p.part_title(x) for x in p.list_parts()] == [
             "Front Matter", "Ghost Frequency", "The Recall"]
+
+
+async def test_delete_empty_part_asks_which_part_with_a_part_scene_open(tmp_path: Path):
+    p = _book(tmp_path)
+    empty = p.new_part("Epilogue")
+    app = LorewriteApp(p)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.open_file(p.manuscript_dir / "01-the-recall" / "01-a.md")
+        app.delete_part_confirm()
+        await pilot.pause()
+        assert isinstance(app.screen, ChoiceScreen)
+        lv = app.screen.query_one("#choice-list", ListView)
+        assert lv.index == 1                      # defaults to the open scene's part
+        lv.index = len(p.list_parts()) - 1        # but any part can be picked
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.press("enter")                # confirm the delete
+        await pilot.pause()
+        assert not empty.exists()
+        assert (p.manuscript_dir / "01-the-recall" / "01-a.md").is_file()
 
 
 async def test_chapter_unit_changes_palette_words_only(tmp_path: Path):

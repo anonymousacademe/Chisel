@@ -1867,18 +1867,15 @@ class LorewriteApp(App):
         return options
 
     def _with_part(self, prompt: str, then) -> None:
-        """Run then(part) for the open scene's part, else a picked part."""
-        path = self._current_scene_path()
-        part = self.project.part_of(path) if path else None
-        if part is not None:
-            then(part)
-            return
+        """Ask which part, defaulting to the open scene's part; run then(part)."""
         options = self._part_options()
         if not options:
             self.notify("There are no parts yet - Action · New part",
                         severity="warning")
             return
-        self.push_screen(ChoiceScreen(prompt, options),
+        path = self._current_scene_path()
+        current = self.project.part_of(path) if path else None
+        self.push_screen(ChoiceScreen(prompt, options, initial=current),
                          lambda chosen: chosen is not None and then(chosen))
 
     def _structure_changed(self, reopen: Path | None = None) -> None:

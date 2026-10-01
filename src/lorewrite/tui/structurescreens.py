@@ -20,10 +20,13 @@ class ChoiceScreen(ModalScreen["object | None"]):
 
     BINDINGS = [Binding("escape", "cancel", "Cancel")]
 
-    def __init__(self, prompt: str, options: list[tuple[str, object]]) -> None:
+    def __init__(self, prompt: str, options: list[tuple[str, object]],
+                 initial: object | None = None) -> None:
         super().__init__()
         self._prompt = prompt
         self._options = options
+        self._initial = next((i for i, (_, v) in enumerate(options)
+                              if initial is not None and v == initial), 0)
 
     def compose(self) -> ComposeResult:
         with Vertical(id="choice-box"):
@@ -33,7 +36,9 @@ class ChoiceScreen(ModalScreen["object | None"]):
             yield Label("enter choose · esc cancel", id="choice-hint")
 
     def on_mount(self) -> None:
-        self.query_one("#choice-list", ListView).focus()
+        lv = self.query_one("#choice-list", ListView)
+        lv.index = self._initial
+        lv.focus()
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         index = event.list_view.index

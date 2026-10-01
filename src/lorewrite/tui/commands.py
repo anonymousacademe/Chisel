@@ -164,7 +164,7 @@ class ActionProvider(_Provider):
         ("Start new draft", "start_new_draft",
          "Snapshot every scene as the end of this draft, then count up to the next draft"),
         ("New part", "new_part_prompt", "Add a part (a folder under manuscript/)"),
-        ("Rename part", "rename_part_prompt", "Retitle the open scene's part"),
+        ("Rename part", "rename_part_prompt", "Retitle a part (asks which, open scene's part first)"),
         ("Move part up", "move_part_up", "Swap the part with the one before it"),
         ("Move part down", "move_part_down", "Swap the part with the one after it"),
         ("Delete empty part", "delete_part_confirm",
