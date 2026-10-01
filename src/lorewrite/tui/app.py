@@ -30,7 +30,7 @@ from ..ai.writing import (
     research_answer,
     research_context,
 )
-from ..core import chats
+from ..core import chats, inspiration
 from ..core import collections as coll
 from ..core import research as research_notes
 from ..core import comments
@@ -2017,7 +2017,9 @@ class LorewriteApp(App):
             what, name = result
             if what == "restore":
                 new = self.project.restore_scene(name)
-                if research_notes.is_research_path(self.project, new):   # not indexed, no sidebar row
+                if new.parent == inspiration.inspiration_dir(self.project):   # reference images: no sidebar row
+                    self.notify("Restored the inspiration image", timeout=3)
+                elif research_notes.is_research_path(self.project, new):   # not indexed, no sidebar row
                     self.notify(f"Restored the research note to {new.relative_to(self.project.root)}", timeout=3)
                 else:
                     self.idx.rebuild(self.project)

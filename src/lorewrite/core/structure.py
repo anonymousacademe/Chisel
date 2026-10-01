@@ -11,6 +11,7 @@
       05-loose-scene.md       scenes may still sit directly in manuscript/
     .trash/20261001-101500-manuscript__01-the-recall__01-a.md
     .trash/20261001-102200-research__tides__almanac.md     (a research note, Wave 4.4)
+    .trash/20261001-103000-inspiration__subway.md          (+ ...subway.md.jpg: an inspiration image)
 
 Everything is plain files; ``Project`` mixes this class in. Scenes carry a
 ``.drafts`` sidecar (core.drafts) that always travels with them.
@@ -25,6 +26,7 @@ from datetime import datetime
 from pathlib import Path
 
 from . import comments, drafts
+from . import inspiration
 from . import entities as ent
 from . import research as research_notes
 from . import snapshots
@@ -35,7 +37,7 @@ TRASH_DIR = ".trash"
 FRONT_SLUG = "front-matter"
 
 _PREFIX_RE = re.compile(r"(\d+)-(.+)")
-_TRASH_RE = re.compile(r"^(\d{8}-\d{6})(?:-(\d+))?-((?:manuscript|research)__.+)$")
+_TRASH_RE = re.compile(r"^(\d{8}-\d{6})(?:-(\d+))?-((?:manuscript|research|inspiration)__.+)$")
 
 
 def _sort_key(name: str) -> tuple[int, int, str]:
@@ -67,7 +69,7 @@ class TrashItem:
     original: str        # project-relative path the scene (or research note) had
     deleted: datetime
     title: str
-    kind: str = "scene"  # "scene" | "research"
+    kind: str = "scene"  # "scene" | "research" | "inspiration"
 
 
 class Structure:
@@ -264,6 +266,7 @@ class Structure:
                 snapshots.unstage(self.root, snap_tmp, new)
             if note_tmp is not None:
                 comments.unstage(self.root, note_tmp, new)
+        inspiration.remap_paths(self, self.last_renames)
 
     def move_scene(self, path: Path, delta: int) -> Path | None:
         """Swap a scene's numeric prefix with a neighbor's within its part
@@ -392,6 +395,7 @@ class Structure:
             snapshots.unstage(self.root, snap, new)
         for note, new in note_staged:
             comments.unstage(self.root, note, new)
+        inspiration.remap_paths(self, self.last_renames)
         return new_a
 
     def delete_part(self, part: Path) -> None:
@@ -428,6 +432,16 @@ class Structure:
         path.replace(dest)
         return dest
 
+    def trash_inspiration(self, image_id: str) -> Path:
+        """Move an inspiration image (picture + sidecar) to the Trash: the sidecar
+        becomes the ``.md`` item, the picture rides along as ``<item>.<ext>``.
+        Returns the item's path inside ``.trash/``."""
+        image = inspiration.get(self, image_id)
+        dest = self._trash_dest(image.meta_path)
+        image.path.replace(dest.with_name(f"{dest.name}.{image.ext}"))
+        image.meta_path.replace(dest)
+        return dest
+
     def delete_scene(self, path: Path) -> Path:
         """Move a scene to the Trash (with its draft sidecar). Returns the
         file's new path inside ``.trash/``."""
@@ -462,6 +476,8 @@ class Structure:
             original = m.group(3).replace("__", "/")
             if original.startswith("research/"):
                 items.append(TrashItem(p.name, p, original, when, research_notes.title_of(p), "research"))
+            elif original.startswith("inspiration/"):
+                items.append(TrashItem(p.name, p, original, when, inspiration.trashed_label(p), "inspiration"))
             else:
                 items.append(TrashItem(p.name, p, original, when, self.scene_title(p)))
         return sorted(items, key=lambda i: (i.deleted, i.name), reverse=True)
@@ -480,6 +496,25 @@ class Structure:
         folder.mkdir(parents=True, exist_ok=True)
         final = orig if orig.parent == folder and not orig.exists() \
             else research_notes._free_path(folder, orig.stem)
+        item.path.replace(final)
+        self._tidy_trash()
+        return final
+
+    def _restore_inspiration(self, item: TrashItem) -> Path:
+        """Picture and sidecar back into ``inspiration/`` (a free name if one was
+        made since). Returns the sidecar's path."""
+        folder = inspiration.inspiration_dir(self)
+        folder.mkdir(parents=True, exist_ok=True)
+        stem = Path(item.original).stem
+        picture = next((p for e in inspiration.EXTENSIONS
+                        if (p := item.path.with_name(f"{item.path.name}.{e}")).is_file()), None)
+        ext = picture.suffix.lstrip(".") if picture else "jpg"
+        final, n = folder / f"{stem}.md", 1
+        while final.exists() or any((folder / f"{final.stem}.{e}").exists() for e in inspiration.EXTENSIONS):
+            n += 1
+            final = folder / f"{stem}-{n}.md"
+        if picture is not None:
+            picture.replace(folder / f"{final.stem}.{ext}")
         item.path.replace(final)
         self._tidy_trash()
         return final
@@ -505,6 +540,8 @@ class Structure:
         item = self._trash_item(name)
         if item.kind == "research":
             return self._restore_research(item)
+        if item.kind == "inspiration":
+            return self._restore_inspiration(item)
         orig = self.root / item.original
         folder = orig.parent
         if folder == self.manuscript_dir or folder in self.list_parts():
@@ -535,6 +572,8 @@ class Structure:
         item.path.unlink(missing_ok=True)
         item.path.with_name(item.path.name + ".drafts.json").unlink(missing_ok=True)
         item.path.with_name(item.path.name + ".comments.json").unlink(missing_ok=True)
+        for ext in inspiration.EXTENSIONS:
+            item.path.with_name(f"{item.path.name}.{ext}").unlink(missing_ok=True)
         shutil.rmtree(item.path.with_name(item.path.name + ".snapshots"), ignore_errors=True)
         self._tidy_trash()
 

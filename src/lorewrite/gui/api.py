@@ -611,8 +611,10 @@ class Api:
         with self._lock:
             project = self._require()
             kind = next((i.kind for i in project.list_trash() if i.name == name), "scene")
-            place = ("book", "") if kind == "research" else project.restore_place(name)
+            place = ("book", "") if kind != "scene" else project.restore_place(name)
             path = project.restore_scene(name)
+            if kind == "inspiration":   # reference images: no document, no index
+                return {"id": path.stem, "unplaced": False, "kind": kind}
             if kind == "research":   # research notes are not in the link index
                 return {"id": ws.rel_id(project, path), "unplaced": False, "kind": kind}
             self.index.rebuild(project)

@@ -22,17 +22,19 @@ KEYRING_USER = "openrouter"
 DEFAULT_FAST_MODEL = "google/gemini-2.5-flash"
 DEFAULT_STRONG_MODEL = "anthropic/claude-sonnet-4.5"
 DEFAULT_WRITING_MODEL = DEFAULT_STRONG_MODEL  # drafting & rewrites (plain text)
-
+# The cheapest OpenRouter model with image output (about $0.03 per picture).
+DEFAULT_IMAGE_MODEL = "google/gemini-3.1-flash-lite-image"
 
 MODEL_DEFAULTS = {
     "fast": DEFAULT_FAST_MODEL,
     "strong": DEFAULT_STRONG_MODEL,
     "writing": DEFAULT_WRITING_MODEL,
+    "image": DEFAULT_IMAGE_MODEL,
 }
 
 
 def resolve_model(kind: str, project_meta: dict | None = None) -> str:
-    """The model for *kind* (fast | strong | writing).
+    """The model for *kind* (fast | strong | writing | image).
 
     Precedence: project.toml [ai] <kind>_model > global settings
     <kind>_model > built-in default.
@@ -116,6 +118,8 @@ class ModelInfo:
     prompt_per_m: float | None  # USD per million tokens
     completion_per_m: float | None
     context_length: int | None
+    output_modalities: tuple[str, ...] = ()
+    image_price: float | None = None  # USD per generated image, when the catalog says
 
 
 _models_payload: dict | None = None
@@ -128,13 +132,24 @@ def _per_million(raw) -> float | None:
         return None
 
 
-def parse_models(payload: dict, structured_only: bool = True) -> list[ModelInfo]:
+def _num_or_none(raw) -> float | None:
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def parse_models(payload: dict, structured_only: bool = True,
+                 output_modality: str | None = None) -> list[ModelInfo]:
     """Models usable by lorewrite, sorted by name.
 
     The structured-output calls (linking, continuity) send a strict JSON schema
     with provider.require_parameters, so by default models without
     structured-output support are left out. Drafting is plain text, so the
     writing-model picker passes structured_only=False for the whole catalog.
+    *output_modality* ("image") keeps only models whose
+    ``architecture.output_modalities`` lists it (the image-model picker, which
+    also passes structured_only=False: image models take no JSON schema).
     """
     models = []
     for m in payload.get("data") or []:
@@ -143,6 +158,10 @@ def parse_models(payload: dict, structured_only: bool = True) -> list[ModelInfo]
         if structured_only and "structured_outputs" not in (
                 m.get("supported_parameters") or []):
             continue
+        modalities = tuple(str(x) for x in
+                           ((m.get("architecture") or {}).get("output_modalities") or []))
+        if output_modality is not None and output_modality not in modalities:
+            continue
         pricing = m.get("pricing") or {}
         models.append(ModelInfo(
             id=m["id"],
@@ -150,11 +169,14 @@ def parse_models(payload: dict, structured_only: bool = True) -> list[ModelInfo]
             prompt_per_m=_per_million(pricing.get("prompt")),
             completion_per_m=_per_million(pricing.get("completion")),
             context_length=m.get("context_length"),
+            output_modalities=modalities,
+            image_price=_num_or_none(pricing.get("image")),
         ))
     return sorted(models, key=lambda m: m.name.lower())
 
 
-def list_models(timeout: float = 10, structured_only: bool = True) -> list[ModelInfo]:
+def list_models(timeout: float = 10, structured_only: bool = True,
+                output_modality: str | None = None) -> list[ModelInfo]:
     """Fetch the OpenRouter model catalog (public; no key needed).
 
     The raw payload is cached for the session and filtered per call.
@@ -166,4 +188,4 @@ def list_models(timeout: float = 10, structured_only: bool = True) -> list[Model
             f"{OPENROUTER_BASE_URL}/models", timeout=timeout
         ) as resp:
             _models_payload = json.load(resp)
-    return parse_models(_models_payload, structured_only)
+    return parse_models(_models_payload, structured_only, output_modality)
