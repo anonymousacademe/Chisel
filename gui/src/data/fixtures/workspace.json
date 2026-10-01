@@ -102,6 +102,11 @@
       "meta": "new"
     },
     {
+      "id": "dictionary.txt",
+      "title": "Dictionary",
+      "kind": "dictionary"
+    },
+    {
       "id": "ph:research",
       "title": "Research",
       "kind": "research",

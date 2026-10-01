@@ -18,6 +18,7 @@ from ..core.project import Project
 from ..core.style import style_path
 
 STYLE_ID = "style.md"
+DICTIONARY_ID = "dictionary.txt"
 WORLD_TYPES = ("place", "object", "faction")
 
 
@@ -199,6 +200,8 @@ def build_binder(project: Project, scenes: list[dict], entities: list[dict],
     # always listed: opening it before it exists creates the stub (Api.ensure_style)
     binder.append({"id": STYLE_ID, "title": "Style Guide", "kind": "style",
                    **({} if has_style else {"meta": "new"})})
+    # always listed: opening it creates it with a comment header (Api.open_dictionary)
+    binder.append({"id": DICTIONARY_ID, "title": "Dictionary", "kind": "dictionary"})
     binder += [
         _placeholder("research", "Research", "research"),
         _placeholder("unplaced", "Unplaced Scenes", "inbox"),

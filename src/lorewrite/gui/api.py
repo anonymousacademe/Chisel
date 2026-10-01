@@ -37,6 +37,7 @@ from ..ai.writing import (
 )
 from ..core import drafts
 from ..core import settings as user_settings
+from ..core import spelling
 from ..core import entities as ent
 from ..core.index import Index
 from ..core.continuity import (
@@ -92,6 +93,7 @@ class Api:
         self.entities: list[ent.Entity] = []
         self._session_start = time.time()
         self._baseline_words = 0
+        self._spell_ignores = spelling.SessionIgnores()  # in memory only
 
     @bridge
     def ping(self) -> dict:
@@ -187,6 +189,8 @@ class Api:
             return "entity"
         if path == style_path(project).resolve():
             return "style"
+        if path == spelling.project_dictionary_path(project).resolve():
+            return "dictionary"
         return None
 
     def resolve_document(self, doc_id: str) -> tuple[Path, str]:
@@ -194,7 +198,8 @@ class Api:
         ValueError. Ids never escape the project or name non-note files."""
         project = self._require()
         path = (project.root / doc_id).resolve()
-        if not path.is_relative_to(project.root.resolve()) or path.suffix != ".md":
+        if not path.is_relative_to(project.root.resolve()) or (
+                path.suffix != ".md" and doc_id != ws.DICTIONARY_ID):
             raise ValueError("invalid document id")
         kind = self._doc_kind(path)
         if kind is None or not path.is_file():
@@ -214,6 +219,8 @@ class Api:
                 kicker, parent = ws.scene_kicker(path), "Manuscript"
             elif kind == "entity":
                 title, kicker, parent = entity.name, entity.type.upper(), "Notes"
+            elif kind == "dictionary":
+                title, kicker, parent = "Dictionary", "DICTIONARY", "Project"
             else:
                 title, kicker, parent = "Style guide", "STYLE GUIDE", "Project"
             mentions = (ws.scene_context(text, self.entities, self.index)
@@ -232,8 +239,8 @@ class Api:
     def _index_file(self, path: Path, kind: str, text: str) -> None:
         """Refresh derived state after *path* was written with *text*."""
         project = self._require()
-        if kind == "style":
-            return  # the style guide isn't part of the link index
+        if kind in ("style", "dictionary"):
+            return  # not part of the link index
         self.index.update_file(ws.rel_id(project, path), text,
                                self._all_names() if kind == "scene" else None)
         if kind == "entity":
@@ -292,6 +299,63 @@ class Api:
             if text is None:
                 text, _ = ws.read_text(project, path)
             return {"mentions": ws.scene_context(text, self.entities, self.index)}
+
+    # -- spelling ---------------------------------------------------------------
+
+    @staticmethod
+    def spellcheck_enabled() -> bool:
+        return bool(user_settings.get("spellcheck", True))
+
+    @bridge
+    def spelling(self, doc_id: str, text: str) -> dict:
+        """Misspelled words in the editor buffer (scenes only, when the setting
+        is on), offsets in UTF-16 units. Computed outside the lock: it is pure
+        and can take a moment on a long scene."""
+        with self._lock:
+            project = self._require()
+            _, kind = self.resolve_document(doc_id)
+            if kind != "scene" or not self.spellcheck_enabled():
+                return {"enabled": False, "spans": []}
+            accepted = spelling.accepted_terms(
+                project, entities=self.entities,
+                ignored=self._spell_ignores.for_project(project.root))
+        found = spelling.check(text, accepted)
+        spans = to_utf16(text, [{"start": m.start, "end": m.end, "word": m.word}
+                                for m in found])
+        return {"enabled": True, "spans": spans}
+
+    @bridge
+    def spelling_suggestions(self, word: str) -> dict:
+        return {"suggestions": spelling.suggestions(str(word))}
+
+    @bridge
+    def add_to_dictionary(self, term: str, scope: str = "project") -> dict:
+        """Never flag *term* (a word or phrase) again: in this project's
+        dictionary.txt, or in the personal one shared by all projects."""
+        with self._lock:
+            if scope == "project":
+                path = spelling.project_dictionary_path(self._require())
+            elif scope == "personal":
+                path = spelling.personal_dictionary_path()
+            else:
+                raise ValueError("scope must be 'project' or 'personal'")
+            if not " ".join(str(term).split()):
+                raise ValueError("nothing to add")
+            return {"added": spelling.add_to_dictionary(path, str(term))}
+
+    @bridge
+    def ignore_word(self, word: str) -> dict:
+        """Ignore *word* until the app is closed (not saved anywhere)."""
+        with self._lock:
+            self._spell_ignores.add(self._require().root, str(word))
+        return {}
+
+    @bridge
+    def open_dictionary(self) -> dict:
+        """Create dictionary.txt (with a comment header) if missing; its id."""
+        with self._lock:
+            spelling.ensure_dictionary(spelling.project_dictionary_path(self._require()))
+            return {"id": ws.DICTIONARY_ID}
 
     # -- entities -------------------------------------------------------------
 
@@ -435,11 +499,14 @@ class Api:
                 "projectOverride": str(overrides.get(key) or ""),
             }
         editor = {k: user_settings.get(f"gui_{k}", v) for k, v in self.EDITOR_DEFAULTS.items()}
-        return {"hasKey": source != "none", "keySource": source, "models": models, "editor": editor}
+        return {"hasKey": source != "none", "keySource": source, "models": models, "editor": editor,
+                "spellcheck": self.spellcheck_enabled()}
 
     @bridge
-    def set_settings(self, models: dict | None = None, editor: dict | None = None) -> dict:
-        """Save model choices ("" resets to the default) and GUI editor prefs."""
+    def set_settings(self, models: dict | None = None, editor: dict | None = None,
+                     spellcheck: bool | None = None) -> dict:
+        """Save model choices ("" resets to the default), GUI editor prefs and
+        the spell-check toggle (shared with the TUI)."""
         with self._lock:
             for kind, value in (models or {}).items():
                 if kind not in MODEL_DEFAULTS:
@@ -456,6 +523,8 @@ class Api:
                 else:
                     raise ValueError(f"unknown editor setting: {key}")
                 user_settings.set(f"gui_{key}", value)
+            if spellcheck is not None:
+                user_settings.set("spellcheck", bool(spellcheck))
         return {}
 
     @bridge
