@@ -99,6 +99,21 @@ def summarize(project, opts: ExportOptions) -> dict:
     return out
 
 
+def summary_line(s: dict, unit: str = "scene") -> str:
+    """"4 scenes, 1,502 words, 2 parts; 1 scene has unaccepted AI drafts" (the
+    same sentence the desktop dialog shows) from ``summarize``."""
+    def plural(n: int, word: str) -> str:
+        return f"{n:,} {word}{'' if n == 1 else 's'}"
+    bits = [plural(s["scenes"], unit), plural(s["words"], "word")]
+    if s["parts"]:
+        bits.append(plural(s["parts"], "part"))
+    line = ", ".join(bits)
+    if s["draft_scenes"]:
+        n = s["draft_scenes"]
+        line += f"; {plural(n, unit)} {'has' if n == 1 else 'have'} unaccepted AI drafts"
+    return line
+
+
 # -- running an export ------------------------------------------------------------------
 
 

@@ -4,6 +4,7 @@ import type {
   AliasSuggestion, AttachItem, AttachKind, AttachReport, CanonProposal, ChatSummary, CollectionColor, CommentRow, SavedChat, CollectionSummary, DiffSegment, SnapshotRow, SyncInfo, DetailsPatch, DocumentPayload, Remap, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
   Issue, ModelKind, ModelOption, RecentProject, SceneMention, SettingsInfo, EditorPrefs, SprintRecord, SprintState, StatsSummary, StyleStatus, Workspace,
 } from "../data/types";
+import type { ExportInfo, ExportOptions, ExportStatus, ExportSummary } from "../data/export";
 import { call } from "./transport";
 
 /** Typed wrappers over the bridge; method names match lorewrite.gui.api.Api. */
@@ -60,6 +61,12 @@ export const api = {
   syncCommit: (message: string) => call<{ summary: string; sync: SyncInfo | null }>("sync_commit", message),
   syncPush: () => call<{ summary: string; sync: SyncInfo | null }>("sync_push"),
   syncInit: () => call<{ sync: SyncInfo | null }>("sync_init"),
+  // export (M7): the file is written by a worker thread; poll exportStatus. Open only on a click.
+  exportInfo: () => call<ExportInfo>("export_info"),
+  exportSummary: (options: ExportOptions) => call<{ summary: ExportSummary }>("export_summary", options),
+  exportStart: (options: ExportOptions) => call<{ job: string }>("export_start", options),
+  exportStatus: (job: string) => call<ExportStatus>("export_status", job),
+  exportOpen: (name: string, folder = false) => call("export_open", name, folder),
   // research notes (research/): plain Markdown, never indexed
   newResearchNote: (title: string) => call<{ id: string }>("new_research_note", title),
   newResearchFromUrl: (url: string, title = "") => call<{ id: string; title: string }>("new_research_from_url", url, title),

@@ -27,6 +27,7 @@ import { QuickSwitcher } from "./components/QuickSwitcher";
 import { ConfirmDialog, Menu, PromptDialog, type MenuItem } from "./components/Dialogs";
 import { DetailsDialog, PartPickerDialog, TrashDialog } from "./components/StructureDialogs";
 import { SnapshotsDialog } from "./components/SnapshotsDialog";
+import { ExportDialog } from "./components/ExportDialog";
 import { CollectionsManager, SceneCollectionsDialog } from "./components/CollectionDialogs";
 import { memberIds } from "./data/collections";
 import { AddCommentDialog, CommentPopover, CommentsPanel } from "./components/CommentComponents";
@@ -49,6 +50,7 @@ type Dialog =
   | { kind: "trash" }
   | { kind: "details" }
   | { kind: "snapshots" }
+  | { kind: "export" }
   | { kind: "stats" }
   | { kind: "sprint" }
   | { kind: "stop-sprint" }
@@ -730,12 +732,17 @@ export default function App() {
     setZoom(next);
     void api.setSettings(undefined, { zoom: next });
   };
+  const openExport = async () => {
+    if (!(await saver.flush())) return notify("Could not save the current document first.", "error");
+    setDialog({ kind: "export" });
+  };
   const switchProject = async () => {
     if (!(await saver.flush())) return notify("Could not save the current document first.", "error");
     saver.detach(); setDoc(null); setWs(null);
   };
   const openProjectMenu = (anchor: HTMLElement) => setMenu({ anchor, items: [
     { label: "Switch project…", onSelect: () => void switchProject() },
+    { label: "Export…", onSelect: () => void openExport() },
     { label: "Rebuild the link index", onSelect: async () => {
       const r = await api.rebuildIndex();
       if (!r.ok) return notify(r.error, "error");
@@ -1123,6 +1130,8 @@ export default function App() {
       { label: "Move this research note to the Trash…", disabled: doc?.kind !== "research", onSelect: () => setDialog({ kind: "delete-research" }) },
       { label: "trash", separator: true, onSelect: () => {} },
       { label: "Open Trash…", onSelect: () => setDialog({ kind: "trash" }) },
+      { label: "export", separator: true, onSelect: () => {} },
+      { label: "Export…", onSelect: () => void openExport() },
     ],
   });
 
@@ -1270,6 +1279,7 @@ export default function App() {
         <SnapshotsDialog docId={doc.id} title={doc.title} unit={unit} getText={liveText} notify={notify}
           onChanged={setSnapshotAt} onRestore={restoreSnapshot} onClose={() => setDialog(null)} />
       )}
+      {dialog?.kind === "export" && <ExportDialog unit={unit} notify={notify} onClose={() => setDialog(null)} />}
       {dialog?.kind === "new-draft" && (
         <ConfirmDialog title={`Start draft ${ws.project.draft + 1}`} confirm="Start new draft" tone="primary"
           message={<>Every {unit} is snapshotted now as “End of draft {ws.project.draft}” (look for it under History), then the book counts as draft {ws.project.draft + 1}. Your text is not changed.</>}
