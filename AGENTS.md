@@ -37,23 +37,27 @@ src/lorewrite/
     chats.py            # saved assistant chats: .assistant/chats/<id>.json
     attach.py           # chat attachments (scene/note/research/comments), capped and reported
     stats.py            # writing stats/streak/sprints: Tracker, state dir stats/<project-id>.json
+    inspiration.py      # inspiration/ pictures + .md sidecars: save/list/update/pin, scene-link remap
   ai/
     client.py           # OpenRouter via openai SDK; keyring/env key resolution
     links.py            # alias finder (ctrl+l): prompt, schema, validate (never edits text)
     usage.py            # AI spend ledger (usage.cost) -> status bar
     style.py            # learn a style guide from sampled prose
     writing.py          # draft / expand / rewrite: context builder + plain-text generate
+    images.py           # inspiration pictures: generate (OpenRouter image output), suggest_prompt
   gui/                  # desktop GUI backend (pywebview); no Textual
     api.py              # Api: JSON bridge (every method -> {ok,...}); facade() = js_api
     workspace.py        # Project -> Workspace JSON for the React UI
     devserver.py        # headless: gui/dist + POST /api/<method> (+ --mock-ai)
     mockai.py           # canned AI for screenshots/demos (never the real app)
+    inspiration.py      # bridge helpers for the inspiration images (rows, data URLs, save batch)
     app.py              # lorewrite-gui: pywebview window
   tui/                  # everything Textual
     app.py              # LorewriteApp: layout, save, status, actions, AI wiring
     editor.py           # LinkedTextArea — see "fragile spots" below
     sidebar.py panels.py launch.py commands.py linkreview.py (alias review)
     structurescreens.py (part picker, Trash, scene details form)
+    inspirationmixin.py inspirationscreens.py (inspiration images: LorewriteApp mixin + modals)
     spellscreen.py (f6 fix window)
     stylereview.py promptscreen.py tour.py theme.py
 gui/                    # React/TS front end (see gui/README.md); src-tauri/ is unused
@@ -151,14 +155,35 @@ PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --
   them (`softBreakSet` in `editor/cm.ts`); the marker is outside the editor's box, so its click is
   caught on `.lw-editor__scroll` (`marginClick`), not in CodeMirror.
 - **Research notes go to the Trash** (`Project.trash_research`, `research.delete_note`): `.trash/` holds
-  scenes (`manuscript__…`) and research notes (`research__…`) told apart by `TrashItem.kind`; code that lists,
-  restores or empties the Trash must handle both (`restore_scene` returns the restored path of either).
+  scenes (`manuscript__…`), research notes (`research__…`) and inspiration pictures (`inspiration__…`) told
+  apart by `TrashItem.kind`; code that lists, restores or empties the Trash must handle all three
+  (`restore_scene` returns the restored path of any).
 - **Research notes** (`core/research.py`) are documents of kind `research` in the GUI bridge
   (`Api._doc_kind`) but are **never indexed** (`_index_file`, TUI `_write_to_disk` skip them), never
   spell-checked, and not scenes (`is_scene_path` is false). The Research question is
   `ai.writing.research_context` + `research_answer` (shared by `gui/api.py` and `tui/app.py`; mock it
   in `gui/mockai.py` and `lorewrite.tui.app.research_answer`). It must refuse with no AI call when
   there are no notes. The palette has a `Research ·` category (like `Scene ·`).
+- **Inspiration images** (`core/inspiration.py`, `ai/images.py`; SPEC "Inspiration images") are
+  reference only: never in the prose, never indexed, counted, spell-checked or sent to an AI. They
+  cost money (~$0.03), so generation is only ever started by a click / palette pick, never
+  automatically (Describe this scene fills a box; Generate is a second click). Files are
+  `inspiration/<stem>.<jpg|png|webp>` + `<stem>.md` (YAML: prompt, model, scene, created, cost,
+  pinned, title; body = notes); ids cross the bridge, so go through `inspiration._sidecar` /
+  `_picture` / `read_file` (they refuse non-plain ids and symlinks out of the folder) and serve
+  pictures only via `inspiration_image`. `scene:` is a project-relative path: anything that renames
+  or moves scenes goes through `Structure._apply_renames` / `move_part`, which call
+  `inspiration.remap_paths` (do not add another rename path). Deleting goes to the Trash
+  (`Project.trash_inspiration`; `TrashItem.kind == "inspiration"`, the picture rides beside the
+  sidecar as `<item>.<ext>`) - code that lists, restores or empties the Trash handles three kinds
+  now. `image` is a fourth model role (`resolve_model("image")`); the picker lists only
+  `output_modalities` containing `image`. Never send `provider.require_parameters` or a JSON schema
+  to an image model. The TUI app calls `lorewrite.tui.app.generate_image` /
+  `suggest_image_prompt` and the GUI `lorewrite.gui.api.generate_images` / `suggest_image_prompt`
+  (mock those names; `gui/mockai.py` returns a generated PNG, and the signature test lists them).
+  `xdg-open` runs only when the author chooses (`inspiration.open_path`; tests stub
+  `LorewriteApp.open_external`). Method names on `InspirationMixin` must not collide with
+  `LorewriteApp`'s (`_generate_worker` already exists - the mixin's are `_inspiration_*`).
 - **Chats and attachments** (`core/chats.py`, `core/attach.py`). The GUI saves the whole conversation
   after each answer (`persistChat` ref + effect in `App.tsx`); keep it client-driven so regenerate /
   delete / load stay consistent, and never store `error` messages. Chat ids and attachment ids
@@ -302,6 +327,8 @@ front ends (docs/plan-spelling.md, SPEC M6).
 **Waves 1-3 of docs/plan-workspace.md** (branch `features`): parts, Unplaced Scenes,
 Trash, scene details (frontmatter), GUI drag-to-reorder; snapshots, drafts, git sync;
 collections, comments, research notes, assistant chat history / attach / save to notes.
+**Inspiration images** (branch `inspiration`, docs/plan-inspiration.md): `core/inspiration.py`,
+`ai/images.py`, an Inspiration tab in the GUI assistant panel, palette actions in the terminal.
 **Wave 4** (branch `features`): session stats/streak/daily target and focus sprints (`core/stats.py`), Brainstorm
 (`ai.writing.brainstorm`), research notes go to the Trash (4.4).
 Known concern: user is unconvinced by the command palette as primary UI

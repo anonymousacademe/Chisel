@@ -192,3 +192,10 @@ def test_trash_lists_scenes_research_and_images_together(project):
 def test_a_project_without_the_folder_is_unchanged(tmp_path):
     p = Project.create(tmp_path / "plain", "Plain")
     assert insp.list_images(p) == [] and not (p.root / "inspiration").exists()
+
+
+def test_the_folder_is_not_git_ignored(tmp_path):
+    p = Project.create(tmp_path / "ignored", "Ignored")
+    insp.save(p, JPEG, "jpg", {"prompt": "x"})
+    ignore = (p.root / ".gitignore").read_text()
+    assert "inspiration" not in ignore and ".lorewrite/" in ignore

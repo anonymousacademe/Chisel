@@ -36,10 +36,11 @@ my-novel/
 │   ├── 00-front-matter/      # optional parts (folders): see "Manuscript structure"
 │   ├── 01-the-recall/        #   _part.md = title + notes; scenes 01-…md inside
 │   └── _unplaced/            # written, but not in the book
-├── .trash/                   # deleted scenes (restorable); .drafts/ = AI draft originals
+├── .trash/                   # deleted scenes, research notes, pictures (restorable); .drafts/ = AI draft originals
 ├── .snapshots/               # verbatim copies of scenes, one folder per scene (History)
 ├── .comments/                # author notes anchored to passages, one JSON file per scene
 ├── research/                 # plain Markdown research notes (any subfolders; not entities)
+├── inspiration/              # AI pictures of settings + a .md sidecar each (prompt, scene, notes)
 ├── .assistant/chats/         # saved assistant conversations, one JSON file per chat
 └── entities/
     ├── characters/
@@ -227,15 +228,69 @@ fiction workflow is solid.*
 - **Technical documents/textbooks**: figures, tables, captions, and LaTeX equations become the "entities" (first-class linkable, checked for consistency); AI format-consistency checking; figure generation from a figure/table design guide
 - **Screenplay mode**: screenplay formatting rules in the editor, same AI toolset, LaTeX screenplay export
 
-### Future — AI inspiration images (planned, not scheduled)
+### Inspiration images ✅ (implemented 2026-10-01; plan: docs/plan-inspiration.md)
 
-*Requested by the author 2026-10-01.* Describe a setting while writing ("a dark
-subway platform, flickering lights") and generate a picture to keep on screen
-as visual inspiration. Reference material only — never inserted into the
-prose (SPEC §2: AI suggests, never edits). Likely an image model on OpenRouter
-with the existing key; images saved as plain files in `<project>/inspiration/`
-(with the prompt beside each), shown in a GUI side panel next to the scene
-they were made for. Cost shown per image like other AI calls.
+*Requested by the author 2026-10-01.* Describe a setting while writing ("a dark subway platform,
+flickering lights") and get a picture to keep on screen as visual inspiration. **Reference only -
+never inserted into the prose, counted, indexed, spell-checked or sent to an AI** (SPEC §2: AI
+suggests, never edits). An image costs real money (about $0.03), so nothing is automatic: two
+explicit clicks - *Describe this scene*, then *Generate*.
+
+- **The call** (`ai/images.py`). An OpenRouter chat completion with
+  `extra_body={"modalities": ["image", "text"], "usage": {"include": True}}` on the image model
+  (default `google/gemini-3.1-flash-lite-image`, the cheapest; measured 3.8 s, one 1408x768 JPEG,
+  `usage.cost` $0.034). The reply's `message.images` holds `data:image/...;base64` URLs: all are
+  kept, JPEG / PNG / WebP are told apart by their bytes (the mime type can lie), remote URLs are never
+  fetched, junk parts are skipped. No picture in the reply raises `ImageError` carrying what the model
+  said (text or refusal). No JSON schema and no `provider.require_parameters`. The call is recorded in
+  the spend ledger as feature `image` (the status-bar total). A **style suffix** (Settings; default
+  "cinematic, atmospheric, no text, no watermark", empty = off) is appended when sending; the saved
+  prompt is the author's own text, so a changed suffix applies to *Regenerate* too.
+- **Describe this scene** (`ai.images.suggest_prompt`). The **fast** model turns the passage around
+  the cursor (`writing.build_context` with no style guide: +-500 words, pending AI drafts stripped,
+  the notes of the places and characters it mentions, the scene's POV / place) into one paragraph:
+  setting, light, mood, era; no text in the image; no named real people. Fast, not writing, because it
+  is a short mechanical summary where prose skill buys nothing, it is cheaper, and the click should
+  come back quickly. The author edits the description before generating; describing saves nothing.
+- **Model role.** A fourth model, `image` (`image_model` user setting, `project.toml [ai] image_model`
+  overrides, like the others). The picker lists only models whose
+  `architecture.output_modalities` contains `"image"` (`parse_models(..., output_modality="image")`,
+  not limited to structured-output models) with the catalog's per-image price when it has one; the
+  settings say "about $0.03 per image". `image_style` is a user setting.
+- **Storage** (`core/inspiration.py`). `<project>/inspiration/<YYYYMMDD-HHMMSS>-<slug>.<jpg|png|webp>`
+  plus a sidecar `<same stem>.md`: YAML frontmatter `prompt`, `model`, `scene` (project-relative scene
+  path, optional), `created` (ISO local), `cost` (USD, split between the pictures of one call),
+  `pinned` (true = shown with that scene; needs a `scene`), `title` (optional name); the body is the
+  author's notes. Plain author data in the project folder, not git-ignored, never in `.lorewrite/`. An
+  image's id is its file stem; ids cross the bridge, so `_sidecar` / `_picture` refuse anything that
+  is not a plain id and `read_file` refuses a symlink pointing out of the folder. Operations: `save`,
+  `save_batch`, `get`, `list_images(scene=None)`, `pinned_for`, `update` (pin / unpin, scene, title,
+  notes), `read_file`, `remap_scenes`. Several pictures can be pinned to one scene; pinning from another
+  scene moves the link.
+- **Scene moves keep the link.** `Structure._apply_renames` and `move_part` call
+  `inspiration.remap_paths` with `last_renames` once all moves are known (so swaps do not collide).
+  Deleting a scene leaves its pictures where they are (listed under *All*); a restored scene may get a
+  new number, in which case pin the picture again.
+- **Trash.** Deleting a picture moves the sidecar to `.trash/<stamp>-inspiration__<stem>.md` and the
+  picture beside it as `<that name>.<ext>`; `TrashItem.kind == "inspiration"`. Restore puts both back
+  (a free name if one was taken since); delete forever and empty remove both.
+- **Desktop GUI.** An **Inspiration** tab in the assistant panel (kept mounted, so a half-written
+  description survives switching tabs): prompt box, *Describe this scene*, *Generate* with "about
+  $0.03 per image", "Pin to this scene" (default on); the open scene's pinned pictures large at the top
+  (they follow the open scene), a grid of this scene's other pictures with a *This scene / All* toggle;
+  per picture a menu and a large view (lightbox): open large, pin / unpin, regenerate (a new picture
+  from the same prompt; the old one stays), rename / notes, copy prompt, reveal file (opens the folder
+  in the real window only), move to Trash (confirmed). Pictures reach the page as data URLs from
+  `inspiration_image` (only files inside `inspiration/`). Bridge: `list_inspiration`,
+  `inspiration_image`, `describe_scene`, `generate_inspiration`, `regenerate_inspiration`,
+  `update_inspiration`, `delete_inspiration`, `reveal_inspiration`. The focus-mode corner picture
+  from the plan was not built.
+- **Terminal.** Terminals cannot show images well, so: palette *Action · Inspiration image…* (a prompt
+  form: `ctrl+d` describe this scene, `ctrl+g` generate, a pin checkbox) saves the picture and says its
+  path; *Action · Inspiration images* lists the open scene's pictures (prompt, date, pinned; `enter`/`o`
+  open, `p` pin, `t` Trash, `a` all); *Open last inspiration image* and *Open inspiration folder* use
+  `xdg-open` **only when chosen**. Settings has an *Image model* row (picker limited to image models)
+  and an *Image style* field.
 
 ### Manuscript structure ✅ (Wave 1, implemented 2026-10-01; plan: docs/plan-workspace.md)
 

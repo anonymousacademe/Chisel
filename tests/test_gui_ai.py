@@ -29,12 +29,14 @@ def test_ai_status_and_unmocked_calls_fail_cleanly(tmp_path, monkeypatch):
     api, root = open_api(tmp_path)
     monkeypatch.setattr(api_module, "get_api_key", lambda: None)
     status = api.ai_status()
-    assert status["hasKey"] is False and set(status["models"]) == {"fast", "strong", "writing"}
+    assert status["hasKey"] is False and set(status["models"]) == {"fast", "strong", "writing", "image"}
     before = (root / SCENE).read_text()
     for call in (lambda: api.find_aliases(SCENE), lambda: api.check_continuity(SCENE),
                  lambda: api.propose_canon(SCENE), lambda: api.learn_style(),
                  lambda: api.ask("hi", "scene", SCENE),
-                 lambda: api.generate("draft", "x", SCENE, before, 0, 0)):
+                 lambda: api.generate("draft", "x", SCENE, before, 0, 0),
+                 lambda: api.describe_scene(SCENE, None, 0),
+                 lambda: api.generate_inspiration("a pier", SCENE)):
         r = call()
         assert r["ok"] is False and "API key" in r["error"]
     assert (root / SCENE).read_text() == before

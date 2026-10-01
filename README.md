@@ -91,6 +91,14 @@ design and roadmap.
   character. They are suggestions only: *Draft from this* opens the draft prompt with the idea filled
   in (the result is still a pending draft you accept or reject), *Save to notes* keeps it in
   `research/assistant-notes.md`. Desktop: the Brainstorm quick action; terminal: *Action · Brainstorm*.
+- **Inspiration images** (AI, about $0.03 each): describe a setting ("a dark subway platform,
+  flickering lights") - or press *Describe this scene* to have it written from the passage around your
+  cursor, then edit it - and get a picture to keep beside you while you write. Reference only: it is
+  never put into your prose. The picture and its prompt are plain files in `inspiration/`; pin a
+  picture to a scene and it is shown large whenever that scene is open. Deleting one moves it to the
+  Trash. Desktop: the **Inspiration** tab of the assistant panel; terminal (no inline images):
+  *Action · Inspiration image…*, *Inspiration images*, *Open last inspiration image*. The image model
+  and a style suffix are in Settings.
 - **Focus sprints**: 15 / 25 / 45 / custom minutes with a countdown in the status bar, optional
   writer / focus mode, a quiet notice (no sound) with the words you wrote, recorded in your stats.
   Desktop: the timer button in the status bar; terminal: *Action · Focus sprint*.
@@ -231,6 +239,7 @@ my-novel/
 ├── .snapshots/           # History: a folder of snapshots per scene (plain copies)
 ├── .comments/            # your comments on passages, one small JSON file per scene
 ├── research/             # reference notes (plain Markdown, any subfolders)
+├── inspiration/          # AI pictures of settings, each with a .md sidecar (prompt, notes)
 ├── .assistant/chats/     # saved assistant conversations, one JSON file per chat
 └── entities/
     ├── characters/elara-vance.md   # free-text note + YAML frontmatter
