@@ -126,7 +126,7 @@ def test_find_mentions_scales_to_a_huge_dense_scene():
     from lorewrite.core.links import find_mentions
 
     text = " ".join(["Rook said Wren spoke in the Hollow Market"] * 6000)  # ~250 KB, ~18k mentions
-    t = time.time()
+    t = time.process_time()  # CPU time: wall time flakes on a busy machine
     found = find_mentions(text, ["Rook", "Wren", "Hollow Market"])
     assert len(found) == 18000
-    assert time.time() - t < 3.0  # was tens of seconds when quadratic
+    assert time.process_time() - t < 3.0  # was tens of seconds when quadratic

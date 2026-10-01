@@ -178,12 +178,18 @@ def test_suggestions_keep_capitalisation():
 # -- performance --------------------------------------------------------------------
 
 def test_check_50k_words_is_fast():
+    # CPU time, best of three, and a ceiling ~5x the idle cost (0.17 s): the
+    # old wall-clock 0.3 s bound failed about one full run in four on a busy
+    # machine (parallel agents) with nothing wrong. A real regression (the
+    # tokenizer going quadratic) costs seconds, which this still catches.
     para = ("The quick brown fox jumped over the lazy dog while Kessler watched "
             "the noodle-stall and Rook's recieve of it. ")
     text = para * 2500  # ~55k words
     sp.check("warm")
-    t0 = time.perf_counter()
-    found = sp.check(text)
-    elapsed = time.perf_counter() - t0
+    best = float("inf")
+    for _ in range(3):
+        t0 = time.process_time()
+        found = sp.check(text)
+        best = min(best, time.process_time() - t0)
     assert found
-    assert elapsed < 0.3, elapsed
+    assert best < 1.0, best
