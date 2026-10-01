@@ -61,6 +61,8 @@ class SettingsScreen(ModalScreen[None]):
                 yield Label("Side padding (0–8):")
                 yield Input(id="padding")
                 yield Checkbox("Line numbers", id="line-numbers")
+            yield Label("Spelling", classes="settings-heading")
+            yield Checkbox("Underline misspellings", id="spellcheck")
             yield Button("Save", id="save", variant="primary")
             yield Label("enter a field, then Save · esc closes without saving",
                         id="settings-hint")
@@ -74,6 +76,8 @@ class SettingsScreen(ModalScreen[None]):
             user_settings.get("strong_model") or "")
         self.query_one("#writing-model", Input).value = str(
             user_settings.get("writing_model") or "")
+        self.query_one("#spellcheck", Checkbox).value = bool(
+            user_settings.get("spellcheck", True))
         if self._project is not None:
             prefs = self._project.editor_settings()
             self.query_one("#padding", Input).value = str(prefs["padding"])
@@ -138,6 +142,8 @@ class SettingsScreen(ModalScreen[None]):
         user_settings.set("strong_model", strong or None)
         writing = self.query_one("#writing-model", Input).value.strip()
         user_settings.set("writing_model", writing or None)
+        user_settings.set("spellcheck",
+                          self.query_one("#spellcheck", Checkbox).value)
         if self._project is not None:
             raw = self.query_one("#padding", Input).value.strip()
             try:

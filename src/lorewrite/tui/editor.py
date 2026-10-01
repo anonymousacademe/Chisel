@@ -12,6 +12,7 @@ drift degrades to a plain TextArea, never a crash).
 
 from __future__ import annotations
 
+from bisect import bisect_right
 from typing import Callable
 
 from rich.segment import Segment
@@ -29,6 +30,7 @@ UNRESOLVED_STYLE = Style(color="orange1", bold=True, underline=True)
 MENTION_STYLE = Style(color="cyan")
 BRACKET_STYLE = Style(dim=True)
 AI_STYLE = Style(color="green", bgcolor="grey19", italic=True)
+MISSPELLED_STYLE = Style(underline=True, color="red")
 
 
 def _style_cell_range(
@@ -69,8 +71,9 @@ class LinkedTextArea(TextArea):
     """TextArea with [[wiki-link]] highlighting and pending-AI-draft marking."""
 
     # TextArea binds f7 to select-all, which would shadow accepting a draft;
-    # select-all moves to f5 (f6, select-line, stays).
+    # select-all moves to f5. f6 (select-line in TextArea) is the spell check.
     BINDINGS = [
+        Binding("f6", "app.spell_next", "Next misspelling", show=False),
         Binding("f7", "app.accept_draft", "Accept AI draft", show=False),
         Binding("f8", "app.reject_draft", "Reject AI draft", show=False),
         Binding("f5", "select_all", "Select all", show=False),
@@ -92,6 +95,9 @@ class LinkedTextArea(TextArea):
         # row -> [(start_col, end_col, kind, target)], kind in
         # "bracket" | "link" | "mention" | "ai" | "marker"
         self._spans: dict[int, list[tuple[int, int, str, str]]] = {}
+        # row -> [(start_col, end_col)] misspelled words (lowest priority)
+        self._spelling: dict[int, list[tuple[int, int]]] = {}
+        self.misspelled_style = MISSPELLED_STYLE
         # overridable by the app to follow the system theme
         self.resolved_style = RESOLVED_STYLE
         self.unresolved_style = UNRESOLVED_STYLE
@@ -146,6 +152,25 @@ class LinkedTextArea(TextArea):
             pass
         self.refresh()
 
+    def set_misspellings(self, misspellings) -> None:
+        """Underline these core.spelling.Misspelling spans (None/[] clears)."""
+        text = self.text
+        spans: dict[int, list[tuple[int, int]]] = {}
+        # line start offsets once: offset_to_rowcol per word is O(n) each
+        starts = [0] + [i + 1 for i, c in enumerate(text) if c == "\n"]
+        for m in misspellings or []:
+            row = bisect_right(starts, m.start) - 1
+            col = m.start - starts[row]
+            spans.setdefault(row, []).append((col, col + (m.end - m.start)))
+        if spans == self._spelling:
+            return
+        self._spelling = spans
+        try:
+            self._line_cache.clear()
+        except AttributeError:
+            pass
+        self.refresh()
+
     def replace_offsets(self, start: int, end: int, new: str) -> None:
         """Replace text[start:end] with *new*, keeping undo history."""
         text = self.text
@@ -162,14 +187,16 @@ class LinkedTextArea(TextArea):
             return strip
 
     def _apply_link_styles(self, strip: Strip, y: int) -> Strip:
-        if not self._spans:
+        if not self._spans and not self._spelling:
             return strip
         y_offset = y + int(self.scroll_offset.y)
         line_info = self.wrapped_document._offset_to_line_info[y_offset]
         if line_info is None:
             return strip
         line_index, section_offset = line_info
-        row_spans = self._spans.get(line_index)
+        row_spans = [(lo, hi, "misspelled", "")
+                     for lo, hi in self._spelling.get(line_index, ())]
+        row_spans += self._spans.get(line_index, [])
         if not row_spans:
             return strip
         line = self.get_line(line_index).plain
@@ -193,7 +220,9 @@ class LinkedTextArea(TextArea):
             hi = min(end_col, section_end)
             cell_lo = gutter + cell(lo) - cell(section_start)
             cell_hi = gutter + cell(hi) - cell(section_start)
-            if kind in ("bracket", "marker"):
+            if kind == "misspelled":
+                style = self.misspelled_style
+            elif kind in ("bracket", "marker"):
                 style = self.bracket_style
             elif kind == "ai":
                 style = self.ai_style

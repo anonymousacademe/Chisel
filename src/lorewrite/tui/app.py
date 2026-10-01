@@ -24,6 +24,7 @@ from ..ai.writing import build_context, generate
 from ..core import drafts
 from ..core import entities as ent
 from ..core import settings as user_settings
+from ..core import spelling
 from ..core.continuity import (
     apply_canon_update,
     canon_map,
@@ -34,7 +35,7 @@ from ..core.continuity import (
     save_waiver,
 )
 from ..core.index import Index
-from ..core.links import link_at, rowcol_to_offset
+from ..core.links import link_at, offset_to_rowcol, rowcol_to_offset
 from ..core.project import Project, retitle_text, write_atomic
 from ..core.recents import add_recent
 from ..core.style import (
@@ -55,6 +56,7 @@ from .panels import BacklinkSelected, EntityPanel
 from .promptscreen import PromptScreen
 from .settingscreen import KeyPrompt
 from .sidebar import OpenFile, Sidebar
+from .spellscreen import SpellScreen
 from .stylereview import StyleReviewScreen
 from .theme import (
     distinct_color,
@@ -345,6 +347,15 @@ class LorewriteApp(App):
         background: $surface; border: solid $primary; padding: 0 1;
     }
     #style-hint { width: 84; padding: 0 2; color: $text-muted; }
+    SpellScreen { align: center middle; }
+    #spell-header {
+        width: 60; padding: 1 2; background: $surface; border: solid $primary;
+    }
+    #spell-suggestions {
+        width: 60; height: auto; padding: 0 2; background: $surface;
+        border: solid $primary;
+    }
+    #spell-hint { width: 60; padding: 0 2; color: $text-muted; }
     SettingsScreen { align: center middle; }
     #settings {
         width: 64; height: auto; max-height: 90%;
@@ -382,6 +393,9 @@ class LorewriteApp(App):
         self._panel: EntityPanel | None = None
         self._status: Static | None = None
         self._style_tip_shown = False
+        self._spell_timer = None
+        self._spell_lines = 0
+        self._spell_ignores = spelling.SessionIgnores()
 
     # -- layout ---------------------------------------------------------------
 
@@ -502,6 +516,8 @@ class LorewriteApp(App):
     def on_unmount(self) -> None:
         if self._save_timer is not None:
             self._save_timer.stop()
+        if self._spell_timer is not None:
+            self._spell_timer.stop()
         try:
             self._write_to_disk()  # final flush; UI updates skipped on teardown
         except Exception:
@@ -550,6 +566,8 @@ class LorewriteApp(App):
         self._sync_mention_names()
         self.editor.load_text(path.read_text(encoding="utf-8"))
         self.editor.refresh_links()
+        self.editor.set_misspellings(None)
+        self.schedule_spelling(0.05)
         self.editor.focus()
         self.update_status()
 
@@ -558,8 +576,9 @@ class LorewriteApp(App):
             return
         text = self._editor.text
         write_atomic(self.current_path, text)
-        if self.current_path == style_path(self.project):
-            return  # the style guide isn't part of the link index
+        if self.current_path in (style_path(self.project),
+                                 spelling.project_dictionary_path(self.project)):
+            return  # the style guide and dictionary aren't part of the link index
         rel = str(self.current_path.relative_to(self.project.root))
         names = self._all_names() if self._is_scene(self.current_path) else None
         self.idx.update_file(rel, text, names)
@@ -584,6 +603,7 @@ class LorewriteApp(App):
     def on_text_area_changed(self) -> None:
         self._dirty = True
         self.editor.refresh_links()
+        self._spelling_edited()
         self.update_status()
         self._save_token += 1
         token = self._save_token
@@ -691,6 +711,140 @@ class LorewriteApp(App):
             self.open_file(path)
             self.editor.move_cursor((message.row, 0))
 
+    # -- spell check ---------------------------------------------------------------------
+
+    def _spell_active(self) -> bool:
+        """Spelling applies to scenes only (not notes, style.md, dictionary)."""
+        return (self.project is not None and self._editor is not None
+                and self._is_scene(self.current_path))
+
+    def _spell_on(self) -> bool:
+        return bool(user_settings.get("spellcheck", True)) and self._spell_active()
+
+    def _accepted(self) -> spelling.AcceptedTerms:
+        return spelling.accepted_terms(
+            self.project, entities=self.entities,
+            ignored=self._spell_ignores.for_project(self.project.root))
+
+    def _spelling_edited(self) -> None:
+        """Keep underlines honest between checks: a line-count change shifts
+        every later row, so clear; otherwise the edited row is dropped."""
+        if not self._spell_on():
+            return
+        lines = self.editor.document.line_count
+        if lines != self._spell_lines:
+            self.editor.set_misspellings(None)
+        else:
+            row = self.editor.cursor_location[0]
+            self.editor._spelling.pop(row, None)
+        self.schedule_spelling()
+
+    def schedule_spelling(self, delay: float = 0.6) -> None:
+        if self._spell_timer is not None:
+            self._spell_timer.stop()
+        self._spell_timer = self.set_timer(delay, self._spell_start)
+
+    def _spell_start(self) -> None:
+        if self._editor is None:
+            return
+        if not self._spell_on():
+            self.editor.set_misspellings(None)
+            return
+        text = self.editor.text
+        accepted = self._accepted()
+        self._spell_lines = self.editor.document.line_count
+
+        def work() -> None:
+            found = spelling.check(text, accepted)
+            try:
+                self.call_from_thread(self._spell_apply, text, found)
+            except Exception:  # app shutting down
+                pass
+
+        self.run_worker(work, thread=True, exclusive=True, group="spell")
+
+    def _spell_apply(self, text: str, found) -> None:
+        if self._editor is not None and self._editor.text == text \
+                and self._spell_on():
+            self.editor.set_misspellings(found)
+
+    def refresh_spelling(self) -> None:
+        """Re-check right now (after a dictionary change)."""
+        if self._editor is None:
+            return
+        if not self._spell_on():
+            self.editor.set_misspellings(None)
+            return
+        self._spell_lines = self.editor.document.line_count
+        self.editor.set_misspellings(
+            spelling.check(self.editor.text, self._accepted()))
+
+    def toggle_spellcheck(self) -> None:
+        on = not user_settings.get("spellcheck", True)
+        user_settings.set("spellcheck", on)
+        self.refresh_spelling()
+        self.notify(f"Spell check {'on' if on else 'off'}", timeout=2)
+
+    def action_spell_next(self) -> None:
+        """f6: jump to the next misspelling after the cursor and fix it."""
+        if not self._spell_active():
+            self.notify("Spell check applies to scenes", timeout=2)
+            return
+        text = self.editor.text
+        found = spelling.check(text, self._accepted())
+        if not found:
+            self.notify("No misspellings", timeout=2)
+            return
+        offset = rowcol_to_offset(text, *self.editor.cursor_location)
+        m = next((m for m in found if m.start >= offset), found[0])
+        self.editor.move_cursor(offset_to_rowcol(text, m.end))
+        word = text[m.start:m.end]
+
+        def _done(result: tuple[str, str] | None) -> None:
+            if result is None:
+                return
+            kind, value = result
+            self._spell_resolve(m, word, kind, value)
+
+        self.push_screen(SpellScreen(word, spelling.suggestions(word)), _done)
+
+    def _spell_resolve(self, m, word: str, kind: str, value: str) -> None:
+        if kind == "replace":
+            if self.editor.text[m.start:m.end] == word:
+                self.editor.replace_offsets(m.start, m.end, value)
+            return
+        if kind == "project":
+            spelling.add_to_dictionary(
+                spelling.project_dictionary_path(self.project), word)
+            self.notify(f'Added "{word}" to the project dictionary', timeout=2)
+        elif kind == "personal":
+            spelling.add_to_dictionary(spelling.personal_dictionary_path(), word)
+            self.notify(f'Added "{word}" to your dictionary', timeout=2)
+        elif kind == "ignore":
+            self._spell_ignores.add(self.project.root, word)
+        self.refresh_spelling()
+
+    def add_selection_to_dictionary(self) -> None:
+        """Palette: selected word or phrase -> project dictionary."""
+        if self.project is None or self._editor is None:
+            return
+        term = " ".join(self.editor.selected_text.split())
+        if not term:
+            self.notify("Select a word or phrase first", timeout=2)
+            return
+        added = spelling.add_to_dictionary(
+            spelling.project_dictionary_path(self.project), term)
+        self.notify(f'Added "{term}" to the project dictionary' if added
+                    else f'"{term}" is already in the dictionary', timeout=2)
+        self.refresh_spelling()
+
+    def open_project_dictionary(self) -> None:
+        if self.project is None:
+            return
+        self.save_current()
+        self.open_file(spelling.ensure_dictionary(
+            spelling.project_dictionary_path(self.project)))
+
     # -- actions ---------------------------------------------------------------------
 
     def action_save(self) -> None:
@@ -784,6 +938,7 @@ class LorewriteApp(App):
             self.editor.show_line_numbers = prefs["line_numbers"]
             self._editor_padding = prefs["padding"]
             self._apply_editor_padding()
+        self.refresh_spelling()
 
     # -- AI: alias finder ----------------------------------------------------
 
