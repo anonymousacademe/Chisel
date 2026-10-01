@@ -1,0 +1,250 @@
+{
+  "project": {
+    "title": "Test Novel",
+    "author": "Jane Writer",
+    "initials": "TA",
+    "path": "<root>",
+    "documentCount": 6,
+    "unit": "scene"
+  },
+  "binder": [
+    {
+      "id": "project",
+      "title": "Test Novel",
+      "kind": "project",
+      "meta": "5",
+      "expanded": true,
+      "children": [
+        {
+          "id": "part:manuscript/00-front-matter",
+          "title": "Front Matter",
+          "kind": "part",
+          "muted": true,
+          "meta": "7",
+          "children": [
+            {
+              "id": "manuscript/00-front-matter/01-title.md",
+              "title": "Title Page",
+              "kind": "document",
+              "meta": "7",
+              "muted": true
+            }
+          ]
+        },
+        {
+          "id": "part:manuscript/01-the-recall",
+          "title": "The Recall",
+          "kind": "part",
+          "meta": "5",
+          "expanded": true,
+          "children": [
+            {
+              "id": "manuscript/01-the-recall/01-rain.md",
+              "title": "01  Rain",
+              "kind": "document",
+              "meta": "5"
+            }
+          ]
+        },
+        {
+          "id": "part:manuscript/02-ghost",
+          "title": "Ghost",
+          "kind": "part",
+          "meta": "0",
+          "expanded": true,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "group:characters",
+      "title": "Characters",
+      "kind": "characters",
+      "children": [
+        {
+          "id": "entities/characters/elias-vale.md",
+          "title": "Elias Vale",
+          "kind": "entity"
+        },
+        {
+          "id": "entities/characters/mara-vale.md",
+          "title": "Mara Vale",
+          "kind": "entity"
+        }
+      ]
+    },
+    {
+      "id": "group:world",
+      "title": "World Bible",
+      "kind": "world",
+      "children": [
+        {
+          "id": "entities/places/lower-meridian.md",
+          "title": "Lower Meridian",
+          "kind": "entity",
+          "meta": "place"
+        }
+      ]
+    },
+    {
+      "id": "style.md",
+      "title": "Style Guide",
+      "kind": "style",
+      "meta": "new"
+    },
+    {
+      "id": "dictionary.txt",
+      "title": "Dictionary",
+      "kind": "dictionary"
+    },
+    {
+      "id": "ph:research",
+      "title": "Research",
+      "kind": "research",
+      "placeholder": true,
+      "muted": true
+    },
+    {
+      "id": "group:unplaced",
+      "title": "Unplaced Scenes",
+      "kind": "inbox",
+      "meta": "1",
+      "children": [
+        {
+          "id": "manuscript/_unplaced/01-capsule.md",
+          "title": "Capsule",
+          "kind": "document",
+          "meta": "12"
+        }
+      ]
+    },
+    {
+      "id": "group:trash",
+      "title": "Trash",
+      "kind": "trash",
+      "meta": "1",
+      "muted": false
+    }
+  ],
+  "scenes": [
+    {
+      "id": "manuscript/00-front-matter/01-title.md",
+      "number": "",
+      "title": "Title Page",
+      "words": 7,
+      "excerpt": "front front front front",
+      "headings": [],
+      "part": "part:manuscript/00-front-matter",
+      "frontMatter": true,
+      "unplaced": false,
+      "details": {
+        "pov": "",
+        "place": "",
+        "purpose": "",
+        "status": "",
+        "target": null,
+        "collections": []
+      }
+    },
+    {
+      "id": "manuscript/01-the-recall/01-rain.md",
+      "number": "01",
+      "title": "Rain",
+      "words": 5,
+      "excerpt": "rain rain rain",
+      "headings": [],
+      "part": "part:manuscript/01-the-recall",
+      "frontMatter": false,
+      "unplaced": false,
+      "details": {
+        "pov": "Mara Vale",
+        "place": "Lower Meridian",
+        "purpose": "",
+        "status": "revising",
+        "target": 2400,
+        "collections": []
+      }
+    },
+    {
+      "id": "manuscript/_unplaced/01-capsule.md",
+      "number": "",
+      "title": "Capsule",
+      "words": 12,
+      "excerpt": "capsule capsule capsule capsule capsule capsule capsule capsule capsule capsule",
+      "headings": [],
+      "part": null,
+      "frontMatter": false,
+      "unplaced": true,
+      "details": {
+        "pov": "",
+        "place": "",
+        "purpose": "",
+        "status": "",
+        "target": null,
+        "collections": []
+      }
+    }
+  ],
+  "parts": [
+    {
+      "id": "part:manuscript/00-front-matter",
+      "title": "Front Matter",
+      "frontMatter": true,
+      "words": 7,
+      "sceneIds": [
+        "manuscript/00-front-matter/01-title.md"
+      ]
+    },
+    {
+      "id": "part:manuscript/01-the-recall",
+      "title": "The Recall",
+      "frontMatter": false,
+      "words": 5,
+      "sceneIds": [
+        "manuscript/01-the-recall/01-rain.md"
+      ]
+    },
+    {
+      "id": "part:manuscript/02-ghost",
+      "title": "Ghost",
+      "frontMatter": false,
+      "words": 0,
+      "sceneIds": []
+    }
+  ],
+  "entities": [
+    {
+      "id": "entities/characters/elias-vale.md",
+      "name": "Elias Vale",
+      "type": "character",
+      "aliases": [
+        "Elias"
+      ],
+      "words": 0
+    },
+    {
+      "id": "entities/characters/mara-vale.md",
+      "name": "Mara Vale",
+      "type": "character",
+      "aliases": [
+        "Mara"
+      ],
+      "words": 0
+    },
+    {
+      "id": "entities/places/lower-meridian.md",
+      "name": "Lower Meridian",
+      "type": "place",
+      "aliases": [],
+      "words": 0
+    }
+  ],
+  "status": {
+    "projectWords": 5,
+    "sessionWords": 5,
+    "sessionMinutes": 0,
+    "aiCost": 0,
+    "hasStyle": false,
+    "trashCount": 1
+  }
+}

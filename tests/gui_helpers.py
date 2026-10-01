@@ -34,3 +34,22 @@ def make_project(root: Path) -> Project:
     (root / "project.toml").write_text(
         'title = "Test Novel"\nauthor = "Jane Writer"\n', encoding="utf-8")
     return Project.open(root)
+
+
+def make_book(root: Path) -> Project:
+    """make_project's cast, but the manuscript is a book: front matter and two
+    parts (folders) instead of flat scenes."""
+    project = make_project(root)
+    for f in (root / "manuscript").glob("0*.md"):
+        f.unlink()
+
+    def scene(rel: str, title: str, body: str) -> None:
+        path = root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"# {title}\n\n{body}\n", encoding="utf-8")
+
+    scene("manuscript/00-front-matter/01-title.md", "Title Page", "front " * 4)
+    scene("manuscript/01-the-recall/01-rain.md", "Rain", "rain " * 10)
+    scene("manuscript/01-the-recall/02-capsule.md", "Capsule", "capsule " * 10)
+    scene("manuscript/02-ghost/01-signal.md", "Signal", "signal " * 10)
+    return Project.open(root)

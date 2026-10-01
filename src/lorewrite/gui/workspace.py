@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from ..core import drafts
+from ..core import drafts, scenemeta
 from ..core import entities as ent
 from ..core.continuity import get_canon
 from ..core.links import find_all_links
@@ -41,18 +41,41 @@ def read_text(project: Project, path: Path) -> tuple[str, dict[str, str]]:
     return text, originals
 
 
-def scene_number(path: Path) -> str:
-    m = re.match(r"(\d+)-", path.name)
-    return m.group(1) if m else ""
+def unit_word(project: Project) -> str:
+    return project.unit.upper()
 
 
-def scene_kicker(path: Path) -> str:
-    n = scene_number(path)
-    return f"SCENE {n}" if n else "SCENE"
+def scene_kicker(project: Project, path: Path) -> str:
+    """"SCENE 03" / "CHAPTER 03" (numbered globally across parts); front
+    matter and unplaced scenes have no number."""
+    n = project.scene_number(path)
+    if project.is_front_matter(path):
+        return "FRONT MATTER"
+    if project.is_unplaced(path):
+        return "UNPLACED"
+    return f"{unit_word(project)} {n}" if n else unit_word(project)
+
+
+def part_id(project: Project, part: Path) -> str:
+    return "part:" + rel_id(project, part)
+
+
+def part_for_id(project: Project, ident: str | None) -> Path | None:
+    """The part folder behind a "part:manuscript/01-x" id; None for no part.
+    ValueError when it names no part of this project."""
+    if not ident:
+        return None
+    rel = ident[len("part:"):] if ident.startswith("part:") else ident
+    path = project.root / rel
+    if path not in project.list_parts():
+        raise ValueError("no such part")
+    return path
 
 
 def split_title(text: str) -> tuple[str | None, str]:
-    """(first '# ' heading, rest of the text after that heading line)."""
+    """(first '# ' heading, rest of the text after that heading line).
+    A scene's frontmatter block is skipped."""
+    text = scenemeta.strip(text)
     lines = text.splitlines()
     for i, line in enumerate(lines):
         if line.startswith("# "):
@@ -62,7 +85,7 @@ def split_title(text: str) -> tuple[str | None, str]:
 
 def excerpt(text: str, limit: int = 180) -> str:
     """First prose of a scene (no headings, no draft markers), for the corkboard."""
-    _, body = split_title(drafts.strip_pending(text))
+    _, body = split_title(scenemeta.strip(drafts.strip_pending(text)))
     prose = " ".join(ln.strip() for ln in body.splitlines()
                      if ln.strip() and not ln.lstrip().startswith("#"))
     return prose if len(prose) <= limit else prose[:limit].rsplit(" ", 1)[0] + "…"
@@ -70,18 +93,20 @@ def excerpt(text: str, limit: int = 180) -> str:
 
 def headings(text: str) -> list[str]:
     """Markdown headings after the scene title, for the outline view."""
-    _, body = split_title(text)
+    _, body = split_title(scenemeta.strip(text))
     return [re.sub(r"^#+\s*", "", ln).strip() for ln in body.splitlines()
             if re.match(r"#{1,6}\s+\S", ln)]
 
 
 def mention_counts(text: str, entities: list[ent.Entity]) -> list[tuple[ent.Entity, int]]:
     """(entity, occurrences) for everything a scene links to or mentions,
-    ordered by first appearance. Pending AI drafts don't count."""
+    ordered by first appearance. Pending AI drafts don't count, nor does the
+    details block (except a POV / place that names an entity)."""
     names = [n for e in entities for n in e.names]
     order: list[ent.Entity] = []
     counts: dict[str, int] = {}
-    for link in find_all_links(drafts.blank_pending(text), names):
+    scan = scenemeta.blank(drafts.blank_pending(text), keep=scenemeta.MENTION_FIELDS)
+    for link in find_all_links(scan, names):
         entity = ent.resolve(link.target, entities)
         if entity is None:
             continue
@@ -119,7 +144,7 @@ def entity_payload(project: Project, entity: ent.Entity, index) -> dict:
         except OSError:
             continue
         title, _ = split_title(text)
-        if path.parent == project.manuscript_dir:
+        if project.is_scene_path(path):
             kind, label = "scene", title or path.stem
         else:
             kind, label = "entity", ent.Entity.from_markdown(text, path).name
@@ -134,22 +159,33 @@ def entity_payload(project: Project, entity: ent.Entity, index) -> dict:
 
 
 def scene_summaries(project: Project) -> list[dict]:
+    """Every scene in reading order (book scenes, then unplaced ones)."""
     out = []
-    for path in project.list_scenes():
+    for path in project.all_scene_files():
         try:
             text, originals = read_text(project, path)
         except OSError:
             continue
         title, _ = split_title(text)
+        part = project.part_of(path)
         out.append({
             "id": rel_id(project, path),
-            "number": scene_number(path),
+            "number": project.scene_number(path),
             "title": title or path.stem,
             "words": drafts.count_words(text, originals),
             "excerpt": excerpt(text),
             "headings": headings(text),
+            "part": part_id(project, part) if part else None,
+            "frontMatter": project.is_front_matter(path),
+            "unplaced": project.is_unplaced(path),
+            "details": scenemeta.details(text),
         })
     return out
+
+
+def book_words(scenes: list[dict]) -> int:
+    """Words of the book: front matter and unplaced scenes do not count."""
+    return sum(s["words"] for s in scenes if not s["frontMatter"] and not s["unplaced"])
 
 
 def entity_summaries(project: Project, entities: list[ent.Entity]) -> list[dict]:
@@ -159,35 +195,73 @@ def entity_summaries(project: Project, entities: list[ent.Entity]) -> list[dict]
     } for e in entities if e.path is not None]
 
 
+def part_summaries(project: Project, scenes: list[dict]) -> list[dict]:
+    """Parts in book order with their scene ids (pickers and drag-to-reorder)."""
+    out = []
+    for part in project.list_parts():
+        pid = part_id(project, part)
+        mine = [s for s in scenes if s["part"] == pid]
+        out.append({
+            "id": pid, "title": project.part_title(part),
+            "frontMatter": project.part_is_front_matter(part),
+            "words": sum(s["words"] for s in mine),
+            "sceneIds": [s["id"] for s in mine],
+        })
+    return out
+
+
 def _placeholder(id: str, title: str, kind: str = "folder", **extra) -> dict:
     return {"id": f"ph:{id}", "title": title, "kind": kind, "placeholder": True,
             "muted": True, **extra}
 
 
-def build_binder(project: Project, scenes: list[dict], entities: list[dict],
-                 has_style: bool) -> list[dict]:
-    total = sum(s["words"] for s in scenes)
-    manuscript = {
-        "id": "group:manuscript", "title": "Manuscript", "kind": "folder",
-        "meta": fmt_words(total), "expanded": True,
-        "children": [{
-            "id": s["id"],
-            "title": f"{s['number']}  {s['title']}" if s["number"] else s["title"],
-            "kind": "document", "meta": fmt_words(s["words"]),
-        } for s in scenes],
+def _scene_node(s: dict, project: Project) -> dict:
+    node = {
+        "id": s["id"],
+        "title": f"{s['number']}  {s['title']}" if s["number"] else s["title"],
+        "kind": "document", "meta": fmt_words(s["words"]),
     }
+    if s["frontMatter"]:
+        node["muted"] = True
+    return node
+
+
+def build_binder(project: Project, scenes: list[dict], entities: list[dict],
+                 has_style: bool, parts: list[dict] | None = None,
+                 trash_count: int = 0) -> list[dict]:
+    parts = parts if parts is not None else part_summaries(project, scenes)
+    placed = [s for s in scenes if not s["unplaced"]]
+    unplaced = [s for s in scenes if s["unplaced"]]
+    loose = [s for s in placed if s["part"] is None]
+    by_id = {s["id"]: s for s in scenes}
+    total = book_words(scenes)
+
+    children: list[dict] = []
+    for p in parts:
+        if p["frontMatter"]:  # first, muted, as designed; not in the word total
+            children.append({
+                "id": p["id"], "title": p["title"], "kind": "part", "muted": True,
+                "meta": fmt_words(p["words"]) if p["words"] else None,
+                "children": [_scene_node(by_id[i], project) for i in p["sceneIds"]],
+            })
+    if loose or not any(not p["frontMatter"] for p in parts):
+        children.append({
+            "id": "group:manuscript", "title": "Manuscript", "kind": "folder",
+            "meta": fmt_words(sum(s["words"] for s in loose)), "expanded": True,
+            "children": [_scene_node(s, project) for s in loose],
+        })
+    for p in parts:
+        if not p["frontMatter"]:
+            children.append({
+                "id": p["id"], "title": p["title"], "kind": "part",
+                "meta": fmt_words(p["words"]), "expanded": True,
+                "children": [_scene_node(by_id[i], project) for i in p["sceneIds"]],
+            })
     characters = [e for e in entities if e["type"] == "character"]
     world = [e for e in entities if e["type"] in WORLD_TYPES]
     binder = [{
         "id": "project", "title": project.title, "kind": "project",
-        "meta": fmt_words(total), "expanded": True,
-        "children": [
-            _placeholder("front", "Front Matter"),
-            manuscript,
-            _placeholder("part1", "Part I"),
-            _placeholder("part2", "Part II"),
-            _placeholder("part3", "Part III"),
-        ],
+        "meta": fmt_words(total), "expanded": True, "children": children,
     }, {
         "id": "group:characters", "title": "Characters", "kind": "characters",
         "children": [{"id": e["id"], "title": e["name"], "kind": "entity"}
@@ -204,10 +278,21 @@ def build_binder(project: Project, scenes: list[dict], entities: list[dict],
     binder.append({"id": DICTIONARY_ID, "title": "Dictionary", "kind": "dictionary"})
     binder += [
         _placeholder("research", "Research", "research"),
-        _placeholder("unplaced", "Unplaced Scenes", "inbox"),
-        _placeholder("trash", "Trash", "trash"),
+        {"id": "group:unplaced", "title": "Unplaced Scenes", "kind": "inbox",
+         "meta": str(len(unplaced)) if unplaced else None,
+         "children": [_scene_node(s, project) for s in unplaced]},
+        {"id": "group:trash", "title": "Trash", "kind": "trash",
+         "meta": str(trash_count) if trash_count else None, "muted": not trash_count},
     ]
-    return binder
+    return [_drop_none(n) for n in binder]
+
+
+def _drop_none(node: dict) -> dict:
+    """Optional keys are absent, not null (the TS types say `meta?: string`)."""
+    out = {k: v for k, v in node.items() if v is not None}
+    if "children" in out:
+        out["children"] = [_drop_none(c) for c in out["children"]]
+    return out
 
 
 def initials(name: str, fallback: str = "LW") -> str:
@@ -224,17 +309,21 @@ def build_workspace(project: Project, entities: list[ent.Entity], *,
                     ai_cost: float) -> dict:
     scenes = scene_summaries(project)
     summaries = entity_summaries(project, entities)
+    parts = part_summaries(project, scenes)
     has_style = style_path(project).is_file()
-    project_words = sum(s["words"] for s in scenes)
+    project_words = book_words(scenes)
+    trash_count = len(project.list_trash())
     author = str(project.meta.get("author") or "")
     return {
         "project": {
             "title": project.title, "author": author,
             "initials": initials(author), "path": str(project.root),
             "documentCount": len(scenes) + len(summaries) + (1 if has_style else 0),
+            "unit": project.unit,
         },
-        "binder": build_binder(project, scenes, summaries, has_style),
+        "binder": build_binder(project, scenes, summaries, has_style, parts, trash_count),
         "scenes": scenes,
+        "parts": parts,
         "entities": summaries,
         "status": {
             "projectWords": project_words,
@@ -242,5 +331,6 @@ def build_workspace(project: Project, entities: list[ent.Entity], *,
             "sessionMinutes": session_minutes,
             "aiCost": ai_cost,
             "hasStyle": has_style,
+            "trashCount": trash_count,
         },
     }

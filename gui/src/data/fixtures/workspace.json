@@ -4,7 +4,8 @@
     "author": "Jane Writer",
     "initials": "TA",
     "path": "<root>",
-    "documentCount": 5
+    "documentCount": 5,
+    "unit": "scene"
   },
   "binder": [
     {
@@ -14,13 +15,6 @@
       "meta": "42",
       "expanded": true,
       "children": [
-        {
-          "id": "ph:front",
-          "title": "Front Matter",
-          "kind": "folder",
-          "placeholder": true,
-          "muted": true
-        },
         {
           "id": "group:manuscript",
           "title": "Manuscript",
@@ -41,27 +35,6 @@
               "meta": "12"
             }
           ]
-        },
-        {
-          "id": "ph:part1",
-          "title": "Part I",
-          "kind": "folder",
-          "placeholder": true,
-          "muted": true
-        },
-        {
-          "id": "ph:part2",
-          "title": "Part II",
-          "kind": "folder",
-          "placeholder": true,
-          "muted": true
-        },
-        {
-          "id": "ph:part3",
-          "title": "Part III",
-          "kind": "folder",
-          "placeholder": true,
-          "muted": true
         }
       ]
     },
@@ -114,17 +87,15 @@
       "muted": true
     },
     {
-      "id": "ph:unplaced",
+      "id": "group:unplaced",
       "title": "Unplaced Scenes",
       "kind": "inbox",
-      "placeholder": true,
-      "muted": true
+      "children": []
     },
     {
-      "id": "ph:trash",
+      "id": "group:trash",
       "title": "Trash",
       "kind": "trash",
-      "placeholder": true,
       "muted": true
     }
   ],
@@ -135,7 +106,18 @@
       "title": "Arrival",
       "words": 30,
       "excerpt": "Mara stepped off the tram into Lower Meridian. The rain had not stopped for three days and the city smelled of copper. Elias was waiting under the clock.",
-      "headings": []
+      "headings": [],
+      "part": null,
+      "frontMatter": false,
+      "unplaced": false,
+      "details": {
+        "pov": "",
+        "place": "",
+        "purpose": "",
+        "status": "",
+        "target": null,
+        "collections": []
+      }
     },
     {
       "id": "manuscript/02-the-archive.md",
@@ -145,9 +127,21 @@
       "excerpt": "Mara read the files until dawn.",
       "headings": [
         "Night shift"
-      ]
+      ],
+      "part": null,
+      "frontMatter": false,
+      "unplaced": false,
+      "details": {
+        "pov": "",
+        "place": "",
+        "purpose": "",
+        "status": "",
+        "target": null,
+        "collections": []
+      }
     }
   ],
+  "parts": [],
   "entities": [
     {
       "id": "entities/characters/elias-vale.md",
@@ -180,6 +174,7 @@
     "sessionWords": 37,
     "sessionMinutes": 3,
     "aiCost": 0.0123,
-    "hasStyle": false
+    "hasStyle": false,
+    "trashCount": 0
   }
 }
