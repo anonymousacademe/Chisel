@@ -219,3 +219,38 @@ anonymity grep; then merge to `main` and push (CI on three systems).
 
 **Rough cost shape.** Batch 1 ≈ two Sonnet runs + one Haiku run; Batch 2 ≈ one
 Sonnet run; Batch 4 ≈ one Sonnet run; real-AI checks < $0.10 total.
+
+---
+
+## Appendix — the AI job contract for 1.5 (written by the managing session 2026-10-02)
+
+Two agents build 1.5 in parallel against this contract: **A (backend)** owns
+`ai/`, `gui/api.py` job methods, `gui/aijobs.py`, `gui/mockai.py`, the TUI;
+**B (desktop UI)** owns `gui/src/**` (1.3 Markdown rendering, the working
+states, Stop, the drafting panel). Neither edits the other's files; the
+managing session merges and wires them together.
+
+**Bridge (Python, `gui/api.py`, all `@bridge`, never raise):**
+- `ai_start(kind: str, args: dict) -> {"job": "<id>"}` — kinds:
+  `ask`, `research`, `brainstorm`, `generate` (streaming) and `continuity`,
+  `canon`, `aliases`, `style`, `image`, `describe_scene` (non-streaming).
+  `args` are exactly the keyword arguments of the existing synchronous bridge
+  method for that kind (`ask(prompt, scope, doc_id, text, cursor, history,
+  attachments)`, `generate(mode, instruction, doc_id, text, start, end)`, …);
+  the existing synchronous methods stay (tests and TUI use them).
+- `ai_poll(job: str, since: int = 0) -> {"state": "running"|"done"|"cancelled"|"error",
+  "text": <new streamed text from character offset `since`>, "length": <total
+  streamed chars>, "elapsed": <seconds>, "result": <the exact dict the
+  synchronous method returns, only when done>, "error": <message, only when
+  error>, "cost": <float|null>}`. Non-streaming kinds return `text: ""`.
+- `ai_cancel(job: str) -> {"state": "cancelled"}` — idempotent; closes the HTTP
+  stream / abandons the request; the job's result is discarded (nothing is
+  saved, inserted or registered — for `generate` no draft sidecar entry).
+- Jobs run on worker threads, the project lock is NOT held during the network
+  call (existing rule); finished jobs are kept 5 minutes for a late poll.
+
+**Client (`gui/src`):** one `runAiJob(kind, args, {onText, label})` helper
+replacing the body of `aiCall`: start, poll every 100 ms, call `onText` with
+deltas, resolve with `result`, reject on error, `cancel()` returns a promise.
+The mock backend (`gui/src/backend/mock.ts`) implements the three methods with
+a fake word-by-word stream so the UI works in `npm run dev` before A lands.
