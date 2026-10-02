@@ -22,7 +22,7 @@ and Rich data, tree-sitter grammars, ReportLab data, the TLS roots, keyring back
 | OS | Webview | Package |
 |---|---|---|
 | Windows x64 | WebView2 (EdgeChromium, `pythonnet`) | Inno Setup installer + portable zip |
-| macOS | WKWebView (Cocoa, pyobjc), one build per CPU (arm64 and x86_64) | `LoreWriter.app` in a DMG |
+| macOS | WKWebView (Cocoa, pyobjc), one build per CPU (arm64 required; x86_64 best effort) | `LoreWriter.app` in a DMG |
 | Linux x86-64 | **Qt WebEngine** (PySide6 + qtpy; WebKitGTK cannot be bundled reliably) | AppImage (`AppRun` also starts the terminal app: `--terminal`, or a link named `lorewrite`) |
 
 From-source Linux runs keep using GTK; only the bundle uses Qt (`PYWEBVIEW_GUI=qt`
@@ -68,7 +68,10 @@ desktop app from a test script.
 1. Bump `__version__` in `src/lorewrite/__init__.py`; update the docs if needed; merge to `main`.
 2. `git tag vX.Y.Z && git push --tags`. The workflow refuses a tag that differs from the version.
 3. Wait for the `Release` workflow: web UI, sdist + wheel, Linux AppImage, Windows installer + zip,
-   macOS arm64 + x86_64 DMGs, each self-tested; then a **draft** release with `SHA256SUMS.txt`.
+   macOS arm64 DMG, each self-tested; then a **draft** release with `SHA256SUMS.txt`. The macOS Intel (x86_64)
+   DMG is **best effort**: its job runs too, but the release job does not need it to succeed; the DMG is
+   attached only if that job passed, and `SHA256SUMS.txt` covers whatever is attached. If it fails, rerun
+   just that job, or ship without it.
 4. Look at the draft, download one file per system if you can, then publish it.
 
 ## Not done yet
