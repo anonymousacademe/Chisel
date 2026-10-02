@@ -23,6 +23,8 @@ export interface EditorHandle {
   /** Put generated text in place of [from, to) and leave the cursor after it. */
   insertDraft(from: number, to: number, insert: string): void;
   head(): number;
+  /** Viewport point just under the cursor (for the drafting panel), or null. */
+  cursorPoint(): { x: number; y: number } | null;
   /** Index (document order) of the pending draft containing the cursor, or -1. */
   pendingIndexAtCursor(): number;
   /** Span of a link/mention/unresolved link containing the cursor. */
@@ -103,6 +105,11 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
     },
     insertDraft: (from, to, insert) => view.current && replaceRange(view.current, from, to, insert),
     head: () => view.current?.state.selection.main.head ?? 0,
+    cursorPoint: () => {
+      const v = view.current;
+      const c = v?.coordsAtPos(v.state.selection.main.head);
+      return c ? { x: c.left, y: c.bottom } : null;
+    },
     pendingIndexAtCursor: () => {
       const v = view.current;
       if (!v) return -1;

@@ -6,6 +6,8 @@ import { syncTip } from "../data/syncText";
 import { fmt } from "../data/tree";
 import { agoText } from "../data/snapshots";
 import { clock, signedWords } from "../data/stats";
+import { AiStatus } from "./AiProgress";
+import type { AiRunView } from "./aiRun";
 
 export function StatusBar(props: {
   projectWords: number; aiCost: number;
@@ -21,6 +23,8 @@ export function StatusBar(props: {
   stats: StatsBrief | null; onStats: () => void;
   /** Seconds left in the running sprint (null: none); the button starts one or stops it. */
   sprintLeft: number | null; onSprint: () => void;
+  /** The AI job that is running, if any (item "AI: drafting… 12 s · Stop"). */
+  ai: AiRunView | null; onStopAi: () => void;
 }) {
   const [, tick] = useState(0);
   useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 30_000); return () => clearInterval(t); }, []);
@@ -52,6 +56,7 @@ export function StatusBar(props: {
         )}
       </div>
       <div className="lw-row">
+        {props.ai && <AiStatus run={props.ai} onStop={props.onStopAi} />}
         {stats && (
           <>
             <button className={`lw-status__item${props.sprintLeft !== null ? " is-accent" : ""}`} onClick={props.onSprint}

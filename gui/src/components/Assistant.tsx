@@ -9,6 +9,9 @@ import { NotesPanel } from "./NotesPanel";
 import { attachKey, type Attachment } from "../data/chat";
 import { Icon, IconButton, SectionLabel, Tag } from "./primitives";
 import { placeholderProps } from "./placeholder";
+import { Markdown } from "./Markdown";
+import { StopButton } from "./AiProgress";
+import { stopOnEsc, useElapsed, secs, type AiRunView } from "./aiRun";
 
 export type AssistantTab = "assistant" | "context" | "notes" | "inspiration";
 export type QuickAction = "brainstorm" | "rewrite" | "continuity" | "research";
@@ -35,6 +38,8 @@ export function Assistant(props: {
   onCreateNote: (target: string) => void; onOpenBacklink: (sourceId: string, row: number) => void;
   issues: Issue[]; onReviewIssue: (i: Issue) => void; onDismissIssue: (i: Issue) => void;
   messages: ChatMessage[]; busy: string | null; aiReady: boolean;
+  /** The running AI job (chat replies type in live while it runs); onStop cancels it. */
+  run: AiRunView | null; onStop: () => void;
   scope: "scene" | "project"; onScope: () => void;
   onSend: (text: string) => void; onRegenerate: (id: string) => void; onInsertDraft: (id: string) => void;
   /** Research mode: the next question is answered from the research notes (and canon), citing them. */
@@ -172,7 +177,8 @@ export function Assistant(props: {
                       ))}
                     </ol>
                   ) : (
-                    <p className={`lw-msg-ai__text${m.error ? " is-error" : ""}`}>{m.text}</p>
+                    m.error ? <p className={`lw-msg-ai__text${m.stopped ? " is-stopped" : " is-error"}`}>{m.text}</p>
+                      : <Markdown text={m.text} />
                   )}
                   {m.sources && m.sources.length > 0 && (
                     <div className="lw-sources-line" aria-label="Research notes used">
@@ -193,7 +199,7 @@ export function Assistant(props: {
                 </div>
               </div>
             ))}
-            {busy && <div className="lw-msg-ai"><span className="lw-mark"><Icon icon={Sparkles} size={12} stroke={1.7} /></span><p className="lw-msg-ai__intro lw-pulse">{props.busy}</p></div>}
+            {props.run?.mode === "chat" && <LiveReply run={props.run} onStop={props.onStop} />}
 
             <Sources mentions={props.mentions} onPick={props.onPickEntity} />
           </>
@@ -239,6 +245,20 @@ export function Assistant(props: {
         <p className="lw-disclaimer">LoreWriter can be wrong. Review changes before applying.</p>
       </div>
     </aside>
+  );
+}
+
+/** The reply as it is written: Markdown typing in, with the elapsed time and Stop. */
+function LiveReply({ run, onStop }: { run: AiRunView; onStop: () => void }) {
+  const elapsed = useElapsed(run.startedAt);
+  return (
+    <div className="lw-msg-ai" tabIndex={0} aria-label="AI is replying" onKeyDown={stopOnEsc(onStop)}>
+      <span className="lw-mark"><Icon icon={Sparkles} size={12} stroke={1.7} /></span>
+      <div className="lw-msg-ai__body">
+        {run.text ? <Markdown text={run.text} /> : <p className="lw-msg-ai__intro lw-pulse">{run.label}</p>}
+        <div className="lw-row lw-gap-8"><StopButton onStop={onStop} small /><span className="lw-faint lw-mono">{secs(elapsed)}</span></div>
+      </div>
+    </div>
   );
 }
 

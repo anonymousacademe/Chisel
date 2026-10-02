@@ -7,6 +7,23 @@ import type {
 import type { ExportInfo, ExportOptions, ExportStatus, ExportSummary } from "../data/export";
 import { call } from "./transport";
 
+/** AI job kinds (the AI job contract): the first four stream text, the rest answer once. */
+export type AiKind = "ask" | "research" | "brainstorm" | "generate" | "continuity" | "canon" | "aliases" | "style" | "image" | "describe_scene";
+export const STREAMING_KINDS: readonly AiKind[] = ["ask", "research", "brainstorm", "generate"];
+export type AiState = "running" | "done" | "cancelled" | "error";
+export interface AiPoll {
+  state: AiState;
+  /** Streamed text from character offset `since`; "" for non-streaming kinds. */
+  text: string;
+  /** Total streamed characters so far. */
+  length: number;
+  elapsed: number;
+  /** Exactly what the synchronous bridge method returns; only when done. */
+  result?: Record<string, unknown>;
+  error?: string;
+  cost: number | null;
+}
+
 /** Typed wrappers over the bridge; method names match lorewrite.gui.api.Api. */
 export const api = {
   getWorkspace: () => call<{ workspace: Workspace | null }>("get_workspace"),
@@ -97,6 +114,10 @@ export const api = {
   getEntity: (name: string) => call<EntityInfo>("get_entity", name),
   createEntity: (name: string, type: EntityType) => call<{ id: string; name: string; existed: boolean }>("create_entity", name, type),
   addAlias: (name: string, alias: string) => call("add_alias", name, alias),
+  // AI jobs: `args` are the keyword arguments of the synchronous method for that kind (snake_case)
+  aiStart: (kind: AiKind, args: Record<string, unknown>) => call<{ job: string }>("ai_start", kind, args),
+  aiPoll: (job: string, since = 0) => call<AiPoll>("ai_poll", job, since),
+  aiCancel: (job: string) => call<{ state: "cancelled" }>("ai_cancel", job),
   // AI (every result is a suggestion the UI must confirm; nothing here edits prose)
   aiStatus: () => call<{ hasKey: boolean; models: Record<ModelKind, string> }>("ai_status"),
   usage: () => call<{ cost: number; calls: number }>("usage"),
