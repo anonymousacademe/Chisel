@@ -1,11 +1,30 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "lorewrite"
-version = "0.2.0"
-description = "Terminal-native fiction writing with wiki-linked characters and places"
+name = "lorewriter"
+version = "0.3.0"
+description = "A desktop and terminal fiction-writing app: plain Markdown projects, wiki-linked characters and places, AI that only suggests"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Mishkin", email = "anonymousacademe@proton.me" }]
+keywords = ["fiction", "writing", "novel", "markdown", "wiki-links", "textual", "editor"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Environment :: X11 Applications",
+    "Environment :: Win32 (MS Windows)",
+    "Environment :: MacOS X",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Text Editors",
+]
 requires-python = ">=3.11"
 dependencies = [
     "textual[syntax]>=3.0",
@@ -28,6 +47,15 @@ export = [
     "reportlab>=4",
     "pyphen>=0.14",
 ]
+all = [
+    "pywebview>=6",
+    "reportlab>=4",
+    "pyphen>=0.14",
+]
+
+[project.urls]
+Homepage = "https://github.com/anonymousacademe/lorewriter"
+Issues = "https://github.com/anonymousacademe/lorewriter/issues"
 
 [project.scripts]
 lorewrite = "lorewrite.tui.app:main"
