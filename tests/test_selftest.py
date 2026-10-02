@@ -30,3 +30,11 @@ def test_version_has_a_single_source():
     cfg = tomllib.loads((Path(__file__).parents[1] / "pyproject.toml").read_text(encoding="utf-8"))
     assert "version" in cfg["project"]["dynamic"] and "version" not in cfg["project"]
     assert cfg["tool"]["setuptools"]["dynamic"]["version"] == {"attr": "lorewrite.__version__"}
+
+
+def test_render_check_is_linux_only(monkeypatch):
+    monkeypatch.setenv("LOREWRITE_SELFTEST_RENDER", "1")
+    monkeypatch.setattr(selftest.sys, "platform", "win32")
+    assert selftest._render().startswith("skipped")   # no qtpy off Linux: must not import it
+    monkeypatch.setattr(selftest.sys, "platform", "darwin")
+    assert selftest._render().startswith("skipped")
