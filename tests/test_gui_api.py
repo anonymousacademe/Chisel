@@ -30,7 +30,7 @@ def test_open_and_workspace(tmp_path):
     api, root = open_api(tmp_path)
     w = api.get_workspace()["workspace"]
     assert w["project"]["title"] == "Test Novel"
-    assert w["project"]["initials"] == "TA"
+    assert w["project"]["initials"] == "JW"
     assert [s["title"] for s in w["scenes"]] == ["Arrival", "The Archive"]
     assert w["status"]["sessionWords"] == 0
     assert api.recent_projects()["recents"][0]["path"] == str(root.resolve())
