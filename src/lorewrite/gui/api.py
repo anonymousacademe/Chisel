@@ -1154,6 +1154,26 @@ class Api:
         return {}
 
     @bridge
+    def get_project_info(self) -> dict:
+        """Read the project's author and publication details."""
+        if not self.project:
+            raise ValueError("no project open")
+        return self.project.author_info()
+
+    @bridge
+    def set_project_info(self, author: str = "", pen_name: str = "",
+                        subtitle: str = "", copyright_: str = "",
+                        contact: str = "", language: str = "") -> dict:
+        """Save the project's author and publication details."""
+        if not self.project:
+            raise ValueError("no project open")
+        with self._lock:
+            self.project.update_author_info(
+                author=author, pen_name=pen_name, subtitle=subtitle,
+                copyright_=copyright_, contact=contact, language=language)
+        return {}
+
+    @bridge
     def set_api_key(self, key: str) -> dict:
         key = (key or "").strip()
         if not key:

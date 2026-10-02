@@ -351,11 +351,13 @@ def build_workspace(project: Project, entities: list[ent.Entity], *,
     project_words = book_words(scenes)
     trash_count = len(project.list_trash())
     research = research_summaries(project)
-    author = str(project.meta.get("author") or "")
+    info = project.author_info()
+    # Show pen_name if set, otherwise author
+    display_name = info["pen_name"] or info["author"]
     return {
         "project": {
-            "title": project.title, "author": author,
-            "initials": initials(author), "path": str(project.root),
+            "title": project.title, "author": display_name,
+            "initials": initials(display_name), "path": str(project.root),
             "documentCount": len(scenes) + len(summaries) + (1 if has_style else 0),
             "unit": project.unit,
             "draft": project.draft,

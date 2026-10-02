@@ -360,7 +360,9 @@ def _scene_text(project, path: Path, opts: ExportOptions, book: Book,
 
 def assemble(project, options: ExportOptions | None = None) -> Book:
     opts = options or ExportOptions()
-    author = str(project.meta.get("author") or "").strip()
+    info = project.author_info()
+    # Use pen_name if set, otherwise author
+    author = info["pen_name"] or info["author"]
     book = Book(title=project.title, author=author, options=opts)
     unit_word = "Chapter" if project.unit == "chapter" else "Scene"
 
