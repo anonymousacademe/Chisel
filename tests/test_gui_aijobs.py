@@ -97,7 +97,7 @@ def test_errors_and_bad_calls_are_reported_not_raised(tmp_path, monkeypatch):
     assert api.ai_poll("a999")["ok"] is False and api.ai_cancel("a999")["ok"] is False
     job = api.ai_start("research", {"prompt": "tides?"})["job"]     # no notes: refuses
     r = wait(api, job)
-    assert r["state"] == "error" and "no research notes" in r["error"]
+    assert r["state"] == "error" and "notebook is empty" in r["error"]
 
 
 def test_non_streaming_kind_is_abandoned_on_stop(tmp_path, monkeypatch):

@@ -131,7 +131,7 @@ def test_mock_research_answers_from_notes(tmp_path, monkeypatch):
     mockai.install(api_module)
     api, root = open_api(tmp_path)
     assert api.research("tides?")["ok"] is False          # no notes yet: clean refusal, no AI call
-    (root / "research").mkdir()
-    (root / "research" / "tides.md").write_text("# Tides\n\nThe tide table says the spur floods at dusk.\n")
+    (root / "notebook").mkdir()
+    (root / "notebook" / "tides.md").write_text("# Tides\n\nThe tide table says the spur floods at dusk.\n")
     r = api.research("when does the spur flood?")
-    assert r["ok"] and "[1]" in r["reply"] and r["sources"][0]["id"] == "research/tides.md"
+    assert r["ok"] and "[1]" in r["reply"] and r["sources"][0]["id"] == "notebook/tides.md"

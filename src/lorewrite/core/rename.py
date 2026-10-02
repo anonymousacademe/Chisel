@@ -32,7 +32,7 @@ from . import comments, drafts, fsutil, research, scenemeta, snapshots
 from . import entities as ent
 from .links import find_links, find_mentions
 
-SCOPES = ("scenes", "entities", "research", "comments")
+SCOPES = ("scenes", "entities", "research", "notebook", "comments")   # notebook = research (same notes)
 DEFAULT_SCOPE = ("scenes", "entities")
 JOURNAL_DIR = ".lorewrite/rename-undo"
 _KEEP_JOURNALS = 10
@@ -312,7 +312,7 @@ def plan_rename(project, entity: ent.Entity, new_name: str, *,
         for path in project.list_entity_files():
             text = _read(path)
             add(path, "entity", text, _scan(_blank_entity_frontmatter(text), mapping, all_names))
-    if "research" in scope:
+    if "research" in scope or "notebook" in scope:
         for note in research.list_notes(project):
             text = _read(note.path)
             add(note.path, "research", text, _scan(text, mapping, all_names))

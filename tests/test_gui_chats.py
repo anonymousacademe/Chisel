@@ -39,8 +39,8 @@ def test_chat_history_round_trip(tmp_path):
 
 def test_ask_and_research_get_attachments_in_their_context(tmp_path, monkeypatch):
     api, root = open_api(tmp_path)
-    (root / "research").mkdir()
-    (root / "research" / "tides.md").write_text("# Tides\n\nThe spur floods at dusk.\n")
+    (root / "notebook").mkdir()
+    (root / "notebook" / "tides.md").write_text("# Tides\n\nThe spur floods at dusk.\n")
     scene = root / A
     comments.add(root, scene, scene.read_text(), 3, 9, "make this punchier")
     seen = {}
@@ -55,11 +55,11 @@ def test_ask_and_research_get_attachments_in_their_context(tmp_path, monkeypatch
 
     monkeypatch.setattr(api_module, "ask_writer", fake_ask)
     monkeypatch.setattr(api_module, "research_writer", fake_research)
-    att = [{"kind": "research", "id": "research/tides.md"}, {"kind": "comments", "id": A},
+    att = [{"kind": "research", "id": "notebook/tides.md"}, {"kind": "comments", "id": A},
            {"kind": "scene", "id": "manuscript/02-the-archive.md"}, {"kind": "scene", "id": "nope.md"}]
     r = api.ask("what next?", "project", None, None, 0, [], att)
     assert r["ok"]
-    assert "ATTACHED RESEARCH NOTE: Tides" in seen["ask"] and "ATTACHED COMMENTS ON SCENE: Arrival" in seen["ask"]
+    assert "ATTACHED NOTEBOOK NOTE: Tides" in seen["ask"] and "ATTACHED COMMENTS ON SCENE: Arrival" in seen["ask"]
     assert "make this punchier" in seen["ask"] and "ATTACHED SCENE: The Archive" in seen["ask"]
     assert "Pending AI" not in seen["ask"] and "unaccepted AI draft" not in seen["ask"]       # drafts are not canon
     skipped = [x for x in r["attached"] if x["skipped"]]
@@ -81,9 +81,9 @@ def test_list_attachable_and_save_to_notes(tmp_path):
     assert r["maxWords"] > 1000
 
     s = api.save_reply_to_notes("Why zeros?", "Because the caller was masked.")
-    assert s["ok"] and s["id"] == "research/assistant-notes.md"
+    assert s["ok"] and s["id"] == "notebook/assistant-notes.md"
     text = (root / s["id"]).read_text()
     assert "**Prompt:** Why zeros?" in text and "Because the caller was masked." in text
     assert api.save_reply_to_notes("p", "")["ok"] is False
     ws = api.get_workspace()["workspace"]
-    assert [x["id"] for x in ws["research"]] == ["research/assistant-notes.md"]       # a normal research note
+    assert [x["id"] for x in ws["research"]] == ["notebook/assistant-notes.md"]       # a normal research note

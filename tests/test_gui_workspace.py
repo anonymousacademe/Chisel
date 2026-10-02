@@ -65,9 +65,9 @@ def test_workspace_with_parts_matches_fixture(tmp_path):
     rain.write_text("---\npov: Mara Vale\nplace: Lower Meridian\nstatus: revising\ntarget: 2400\n"
                     "collections: [Needs continuity pass]\n---\n"
                     "# Rain\n\nrain rain rain\n", encoding="utf-8")
-    (project.root / "research" / "tides").mkdir(parents=True)
-    (project.root / "research" / "tides" / "almanac.md").write_text("# Tide almanac\n\nHigh water at dusk.\n")
-    (project.root / "research" / "trams.md").write_text("Trams stop at midnight.\n")
+    (project.root / "notebook" / "tides").mkdir(parents=True)
+    (project.root / "notebook" / "tides" / "almanac.md").write_text("# Tide almanac\n\nHigh water at dusk.\n")
+    (project.root / "notebook" / "trams.md").write_text("Trams stop at midnight.\n")
     coll.create(project, "Needs continuity pass", "amber")
     coll.create(project, "Mara's arc", "violet")
     project.unplace_scene(project.manuscript_dir / "01-the-recall" / "02-capsule.md")

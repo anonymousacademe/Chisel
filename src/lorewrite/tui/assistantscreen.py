@@ -70,7 +70,7 @@ class AssistantScreen(ModalScreen["str | None"]):
     BINDINGS = [
         Binding("escape", "close", "Close (or stop a running answer)"),
         Binding("ctrl+x", "stop", "Stop the answer", priority=True, show=False),
-        Binding("ctrl+r", "toggle_mode", "Research mode"),
+        Binding("ctrl+r", "toggle_mode", "Ask my notebook"),
         Binding("ctrl+o", "open_source", "Open a note the answer cites"),
         Binding("ctrl+s", "save_reply", "Save the last answer to your notes"),
         Binding("ctrl+t", "history", "Saved conversations"),
@@ -97,7 +97,7 @@ class AssistantScreen(ModalScreen["str | None"]):
             yield Label("", id="as-header")
             yield VerticalScroll(id="as-log")
             yield Input(id="as-input")
-            yield Label("enter send · ctrl+x stop · ctrl+r research · ctrl+o open cited note · ctrl+s save answer "
+            yield Label("enter send · ctrl+x stop · ctrl+r notebook · ctrl+o open cited note · ctrl+s save answer "
                         "to notes · ctrl+t history · ctrl+n new chat · esc close", id="as-hint")
 
     def on_mount(self) -> None:
@@ -109,11 +109,11 @@ class AssistantScreen(ModalScreen["str | None"]):
         self.query_one("#as-input", Input).focus()
 
     def _refresh_header(self) -> None:
-        mode = ("Research - answers from your notes/ research folder and the canon, citing them"
+        mode = ("Ask my notebook - answers from your notebook notes and the canon, citing them"
                 if self.mode == "research" else "Assistant - about the open scene, or the project")
         self.query_one("#as-header", Label).update(Text(mode + ("   (working...)" if self.busy else "")))
         self.query_one("#as-input", Input).placeholder = (
-            "Ask a question your research notes can answer..." if self.mode == "research"
+            "Ask a question your notebook can answer..." if self.mode == "research"
             else "Ask about this scene or your project...")
 
     # -- messages ----------------------------------------------------------------------
@@ -172,7 +172,7 @@ class AssistantScreen(ModalScreen["str | None"]):
     def action_open_source(self) -> None:
         last = next((m for m in reversed(self.messages) if m.sources), None)
         if last is None:
-            self.notify("No answer here cites a research note", severity="warning")
+            self.notify("No answer here cites a notebook note", severity="warning")
             return
         from .structurescreens import ChoiceScreen
 
@@ -182,7 +182,7 @@ class AssistantScreen(ModalScreen["str | None"]):
             lambda sid: sid and self._ops.open_source(sid))
 
     def action_save_reply(self) -> None:
-        """Append the last answer (with the date and its prompt) to research/assistant-notes.md."""
+        """Append the last answer (with the date and its prompt) to notebook/assistant-notes.md."""
         for i in range(len(self.messages) - 1, -1, -1):
             m = self.messages[i]
             if m.role == "assistant" and not m.error:

@@ -100,7 +100,7 @@
     },
     {
       "id": "group:research",
-      "title": "Research",
+      "title": "Notebook",
       "kind": "research",
       "meta": "2",
       "children": [
@@ -110,7 +110,7 @@
           "kind": "folder",
           "children": [
             {
-              "id": "research/tides/almanac.md",
+              "id": "notebook/tides/almanac.md",
               "title": "Tide almanac",
               "kind": "document",
               "meta": "7"
@@ -118,7 +118,7 @@
           ]
         },
         {
-          "id": "research/trams.md",
+          "id": "notebook/trams.md",
           "title": "Trams",
           "kind": "document",
           "meta": "4"
@@ -255,13 +255,13 @@
   ],
   "research": [
     {
-      "id": "research/tides/almanac.md",
+      "id": "notebook/tides/almanac.md",
       "title": "Tide almanac",
       "words": 7,
       "folder": "tides"
     },
     {
-      "id": "research/trams.md",
+      "id": "notebook/trams.md",
       "title": "Trams",
       "words": 4,
       "folder": ""

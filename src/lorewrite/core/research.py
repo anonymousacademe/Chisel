@@ -1,9 +1,13 @@
-"""Research notes: plain Markdown under ``<project>/research/`` (any subfolders).
+"""Notebook notes: plain Markdown under ``<project>/notebook/`` (any subfolders).
 
-They are the author's reference material - a magazine article on tide tables, a
-link, a half-remembered fact. Not scenes (not in the book, not counted, not
+(Called "research notes" before the Notebook rename; the module and the bridge
+kind keep that name. A project's old ``research/`` folder is moved to
+``notebook/`` on open by ``migrate_folder``; if both folders exist, both are read.)
+
+They are the author's notes about anything that is not the manuscript - ideas,
+world-building, an outline, a magazine article on tide tables, a link. Not scenes (not in the book, not counted, not
 read by continuity) and not entities (no frontmatter, not in the link index).
-The assistant's *Research* action answers a question from them: keyword
+The assistant's *Ask my notebook* action answers a question from them: keyword
 retrieval with a simple score (no embeddings, no web), and it cites the notes it
 used. ``project`` arguments are duck-typed: ``root`` only (deleting needs a real
 ``Project``: notes go to its Trash).
@@ -20,7 +24,17 @@ from urllib.parse import unquote, urlparse
 
 from . import fsutil
 
-RESEARCH_DIR = "research"
+TEMPLATES = {
+    "blank": ("Blank", ""),
+    "idea": ("Idea", "**The idea**\n\n\n**Why it matters**\n\n\n**Where it could go**\n"),
+    "location": ("Location", "**What it looks like**\n\n\n**Who is there**\n\n\n**History**\n\n\n**Scenes set here**\n"),
+    "timeline": ("Timeline", "| When | What happens | Where |\n| --- | --- | --- |\n|  |  |  |\n|  |  |  |\n"),
+}
+
+NOTEBOOK_DIR = "notebook"
+LEGACY_DIR = "research"       # read (and migrated) for projects made before the rename
+RESEARCH_DIR = NOTEBOOK_DIR   # old name
+CLIPPINGS = "clippings.md"                # "Send selection to notebook" appends here
 ASSISTANT_NOTES = "assistant-notes.md"   # "Save to notes" appends here (3.4)
 EXCERPT_CHARS = 1500
 _STOP = frozenset("""a an and are as at be but by can did do does for from had has have how i if in is it its
@@ -31,9 +45,15 @@ where which who why will with would you your about into over under also any all 
 @dataclass(frozen=True)
 class Note:
     path: Path
-    rel: str          # path inside research/, "/"-separated ("tides/almanac.md")
+    rel: str          # path inside its folder, "/"-separated ("tides/almanac.md")
     title: str
     words: int
+    base: str = NOTEBOOK_DIR   # notebook, or research for a legacy folder that still exists
+
+    @property
+    def id(self) -> str:
+        """Project-relative id ("notebook/tides/almanac.md")."""
+        return f"{self.base}/{self.rel}"
 
 
 @dataclass(frozen=True)
@@ -44,18 +64,71 @@ class Hit:
 
 
 def research_dir(project) -> Path:
-    return project.root / RESEARCH_DIR
+    """The folder new notes go to."""
+    return project.root / NOTEBOOK_DIR
+
+
+def note_dirs(project) -> list[Path]:
+    """Folders read for notes: notebook/, plus a legacy research/ when it exists."""
+    dirs = [project.root / NOTEBOOK_DIR]
+    legacy = project.root / LEGACY_DIR
+    if legacy.is_dir():
+        dirs.append(legacy)
+    return dirs
+
+
+def _relative(project, path: Path) -> tuple[Path, Path] | None:
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return None
+    for base in note_dirs(project):
+        try:
+            return base, resolved.relative_to(base.resolve())
+        except (OSError, ValueError):
+            continue
+    return None
 
 
 def is_research_path(project, path: Path | None) -> bool:
-    """A Markdown file inside research/ (not a dot-file)."""
+    """A Markdown file inside notebook/ (or a legacy research/), not a dot-file."""
     if path is None or path.suffix != ".md" or path.name.startswith("."):
         return False
+    found = _relative(project, path)
+    return found is not None and not any(part.startswith(".") for part in found[1].parts)
+
+
+def migrate_folder(root: Path) -> int:
+    """Move ``research/`` into ``notebook/`` (project open). Idempotent; never
+    overwrites: a file whose name is taken in notebook/ stays in research/, which
+    is then kept and still read. Returns how many files were moved."""
+    old, new = root / LEGACY_DIR, root / NOTEBOOK_DIR
+    if not old.is_dir() or old.is_symlink():
+        return 0
+    moved = 0
     try:
-        rel = path.resolve().relative_to(research_dir(project).resolve())
-    except (OSError, ValueError):
-        return False
-    return not any(part.startswith(".") for part in rel.parts)
+        if not new.exists():
+            fsutil.replace(old, new)
+            return sum(1 for p in new.rglob("*") if p.is_file())
+        for src in sorted(p for p in old.rglob("*") if p.is_file() and not p.is_symlink()):
+            dest = new / src.relative_to(old)
+            if dest.exists():
+                continue
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            fsutil.replace(src, dest)
+            moved += 1
+        for folder in sorted((p for p in old.rglob("*") if p.is_dir()), reverse=True):
+            try:
+                folder.rmdir()
+            except OSError:
+                pass
+        try:
+            old.rmdir()
+        except OSError:
+            pass
+    except OSError:
+        pass   # a locked file: the next open tries again; research/ is still read meanwhile
+    return moved
 
 
 def title_of(path: Path, text: str | None = None) -> str:
@@ -77,17 +150,19 @@ def _note(project, path: Path) -> Note:
         text = path.read_text(encoding="utf-8")
     except OSError:
         text = ""
-    rel = path.relative_to(research_dir(project)).as_posix()
-    return Note(path, rel, title_of(path, text), len(text.split()))
+    base, inner = _relative(project, path)
+    return Note(path, inner.as_posix(), title_of(path, text), len(text.split()), base.name)
 
 
 def list_notes(project) -> list[Note]:
-    """Every research note, folders first-level order then name (stable)."""
-    base = research_dir(project)
-    if not base.is_dir():
-        return []
-    paths = [p for p in base.rglob("*.md") if is_research_path(project, p)]
-    return [_note(project, p) for p in sorted(paths, key=lambda p: p.relative_to(base).as_posix().casefold())]
+    """Every note, folders first-level order then name (stable); notebook/ first."""
+    out: list[Note] = []
+    for base in note_dirs(project):
+        if not base.is_dir():
+            continue
+        paths = [p for p in base.rglob("*.md") if is_research_path(project, p)]
+        out += [_note(project, p) for p in sorted(paths, key=lambda p: p.relative_to(base).as_posix().casefold())]
+    return out
 
 
 def read(project, path: Path) -> str:
@@ -110,15 +185,20 @@ def _free_path(folder: Path, slug: str) -> Path:
     return path
 
 
-def new_note(project, title: str, body: str = "") -> Path:
-    """Create ``research/<slug>.md`` with a ``# title`` heading."""
+def new_note(project, title: str, body: str = "", template: str = "") -> Path:
+    """Create ``notebook/<slug>.md`` with a ``# title`` heading; *template* (a key
+    of ``TEMPLATES``) fills the body when no *body* is given."""
     title = " ".join((title or "").split())
     if not title:
-        raise ValueError("a research note needs a title")
+        raise ValueError("a note needs a title")
+    if template and template not in TEMPLATES:
+        raise ValueError("unknown note template")
+    if not body.strip() and template:
+        body = TEMPLATES[template][1]
     folder = research_dir(project)
     folder.mkdir(parents=True, exist_ok=True)
     path = _free_path(folder, _slug(title))
-    path.write_text(f"# {title}\n\n{body.strip()}\n" if body.strip() else f"# {title}\n\n",
+    path.write_text(f"# {title}\n\n{body.strip("\n")}\n" if body.strip() else f"# {title}\n\n",
                     encoding="utf-8", newline="\n")
     return path
 
@@ -151,15 +231,15 @@ def note_from_url(project, url: str, title: str = "") -> Path:
 
 
 def delete_note(project, path: Path) -> Path:
-    """Move a research note to the project Trash (``.trash/``; restore it from
+    """Move a notebook note to the project Trash (``.trash/``; restore it from
     the Trash view). Returns its new path. The UIs confirm first."""
     return project.trash_research(path)
 
 
 def append_assistant_note(project, prompt: str, reply: str, when: datetime | None = None) -> Path:
     """Save an assistant reply (*Save to notes*): append it, with the date and the
-    prompt, to ``research/assistant-notes.md`` (created with a heading). It is an
-    ordinary research note afterwards - the Research action can find it again."""
+    prompt, to ``notebook/assistant-notes.md`` (created with a heading). It is an
+    ordinary note afterwards - Ask my notebook can find it again."""
     reply = (reply or "").strip()
     if not reply:
         raise ValueError("there is nothing to save")
@@ -180,6 +260,30 @@ def append_assistant_note(project, prompt: str, reply: str, when: datetime | Non
     text = existing.rstrip("\n") + "\n\n" + entry
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(text, encoding="utf-8", newline="\n")
+    fsutil.replace(tmp, path)
+    return path
+
+
+def append_clipping(project, text: str, source: str = "", when: datetime | None = None) -> Path:
+    """Send a passage to the notebook (*Send selection to notebook*): append it,
+    quoted, with the date and where it came from, to ``notebook/clippings.md``
+    (created with a heading). The scene is never touched; the passage is a copy."""
+    text = (text or "").strip()
+    if not text:
+        raise ValueError("select some text first")
+    when = when or datetime.now()
+    folder = research_dir(project)
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / CLIPPINGS
+    try:
+        existing = path.read_text(encoding="utf-8")
+    except OSError:
+        existing = "# Clippings\n\nPassages sent from the manuscript, newest last.\n\n"
+    source = " ".join((source or "").split())
+    entry = f"## {when:%Y-%m-%d}" + (f" - from {source}" if source else "") + "\n\n"
+    entry += "\n".join(f"> {line}" if line.strip() else ">" for line in text.splitlines()) + "\n"
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(existing.rstrip("\n") + "\n\n" + entry, encoding="utf-8", newline="\n")
     fsutil.replace(tmp, path)
     return path
 

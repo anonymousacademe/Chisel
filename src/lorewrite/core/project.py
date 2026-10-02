@@ -8,7 +8,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import drafts
+from . import drafts, research
 from . import entities as ent
 from . import scenemeta, snapshots
 from .structure import Structure
@@ -113,6 +113,7 @@ class Project(Structure):
         with (root / PROJECT_FILE).open("rb") as f:
             meta = tomllib.load(f)
         drafts.migrate_sidecars(root)  # pre-parts sidecars -> path-keyed names
+        research.migrate_folder(root)  # research/ -> notebook/ (Notebook rename)
         return cls(root=root, title=str(meta.get("title", "Untitled")), meta=meta)
 
     def author_info(self) -> dict:

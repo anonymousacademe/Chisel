@@ -46,12 +46,12 @@ def test_resave_keeps_title_and_created_and_drops_errors(tmp_path):
 def test_list_open_rename_delete_and_id_safety(tmp_path):
     project = make_project(tmp_path / "p")
     a = chats.save(project, None, [U("older"), A("x")])
-    b = chats.save(project, None, [U("newer"), A("y", sources=[{"id": "research/t.md", "title": "T"}])])
+    b = chats.save(project, None, [U("newer"), A("y", sources=[{"id": "notebook/t.md", "title": "T"}])])
     # newest activity first (touch a later)
     chats.save(project, a.id, [U("older"), A("x"), U("again", 2), A("z", 2)])
     assert [i.title for i in chats.list_chats(project)] == ["older", "newer"]
     assert chats.list_chats(project)[0].count == 4
-    assert chats.load(project, b.id).messages[1]["sources"] == [{"id": "research/t.md", "title": "T"}]
+    assert chats.load(project, b.id).messages[1]["sources"] == [{"id": "notebook/t.md", "title": "T"}]
     assert chats.rename(project, b.id, "  A better   name ").title == "A better name"
     assert chats.load(project, b.id).title == "A better name"
     chats.delete(project, b.id)
@@ -72,7 +72,7 @@ def test_save_reply_to_notes_appends_with_date_and_prompt(tmp_path):
     project = make_project(tmp_path / "p")
     when = datetime(2026, 10, 1, 9, 30)
     path = research.append_assistant_note(project, "Why does the spur flood?", "Because of the tide table.", when)
-    assert path == project.root / "research" / "assistant-notes.md"
+    assert path == project.root / "notebook" / "assistant-notes.md"
     research.append_assistant_note(project, "Second?\n  with   spaces", "Second reply.", when)
     text = path.read_text()
     assert text.startswith("# Assistant notes\n")
@@ -90,14 +90,14 @@ def test_attachments_resolve_clean_and_cap(tmp_path):
     arrival = "manuscript/01-arrival.md"
     archive = project.root / "manuscript" / "02-the-archive.md"
     archive.write_text("---\nstatus: draft\n---\n# The Archive\n\nReal prose.<!--ai-->Pending.<!--/ai-->\n")
-    (project.root / "research").mkdir()
-    (project.root / "research" / "tides.md").write_text("# Tides\n\n" + "tide " * 3000)
+    (project.root / "notebook").mkdir()
+    (project.root / "notebook" / "tides.md").write_text("# Tides\n\n" + "tide " * 3000)
     comments.add(project.root, archive, archive.read_text(), 40, 50, "check this")
     text, report = attach.build(project, [
         {"kind": "scene", "id": "manuscript/02-the-archive.md"},
         {"kind": "comments", "id": "manuscript/02-the-archive.md"},
         {"kind": "note", "id": "entities/characters/mara-vale.md"},
-        {"kind": "research", "id": "research/tides.md"},
+        {"kind": "research", "id": "notebook/tides.md"},
         {"kind": "scene", "id": "manuscript/02-the-archive.md"},                  # duplicate: once
         {"kind": "scene", "id": "../../etc/passwd"},                              # unsafe
         {"kind": "comments", "id": arrival},                                       # no comments
@@ -113,9 +113,9 @@ def test_attachments_resolve_clean_and_cap(tmp_path):
     assert len(skipped) == 3 and all(r["reason"] for r in skipped)
     assert len(text) <= attach.TOTAL_CHARS + 500
     # the total cap: later items are reported, not silently dropped
-    big = [{"kind": "research", "id": f"research/n{i}.md"} for i in range(5)]
+    big = [{"kind": "research", "id": f"notebook/n{i}.md"} for i in range(5)]
     for i in range(5):
-        (project.root / "research" / f"n{i}.md").write_text("# N\n\n" + "word " * 3000)
+        (project.root / "notebook" / f"n{i}.md").write_text("# N\n\n" + "word " * 3000)
     _, rep = attach.build(project, big)
     assert sum(r["chars"] for r in rep) <= attach.TOTAL_CHARS
     assert any(r["skipped"] and "already" in r["reason"] for r in rep)
@@ -123,8 +123,8 @@ def test_attachments_resolve_clean_and_cap(tmp_path):
 
 def test_attachable_lists_everything_with_sizes(tmp_path):
     project = make_project(tmp_path / "p")
-    (project.root / "research").mkdir()
-    (project.root / "research" / "tides.md").write_text("# Tides\n\nfour words right here\n")
+    (project.root / "notebook").mkdir()
+    (project.root / "notebook" / "tides.md").write_text("# Tides\n\nfour words right here\n")
     scene = project.list_scenes()[0]
     comments.add(project.root, scene, scene.read_text(), 3, 9, "note")
     items = attach.attachable(project, project.load_entities())
@@ -132,3 +132,14 @@ def test_attachable_lists_everything_with_sizes(tmp_path):
     assert ("scene", "Arrival") in kinds and ("comments", "Arrival") in kinds
     assert ("note", "Mara Vale") in kinds and ("research", "Tides") in kinds
     assert all(i["words"] >= 0 and i["id"] for i in items)
+
+
+def test_ids_saved_before_the_notebook_rename_follow_the_note(tmp_path):
+    project = make_project(tmp_path / "p")
+    (project.root / "notebook").mkdir(exist_ok=True)
+    (project.root / "notebook" / "t.md").write_text("# T\n\nbody\n", encoding="utf-8")
+    c = chats.save(project, None, [U("q"), A("a", sources=[{"id": "research/t.md", "title": "T"}])],
+                   attachments=[{"kind": "research", "id": "research/t.md"}])
+    loaded = chats.load(project, c.id)
+    assert loaded.messages[1]["sources"][0]["id"] == "notebook/t.md"
+    assert loaded.attachments == [{"kind": "research", "id": "notebook/t.md"}]

@@ -371,7 +371,7 @@ def research_context(project, entities: list[Entity], canon_by_name: dict[str, s
     notes (numbered, in citation order) and the project canon. Raises ValueError
     when the project has no research notes at all (no AI call is worth making)."""
     if not research_notes.list_notes(project):
-        raise ValueError("There are no research notes yet. Add some under research/ "
+        raise ValueError("Your notebook is empty. Add some notes under Notebook "
                          "(a new note, or a pasted link) and ask again.")
     hits = research_notes.search(project, question)
     canon = build_project_context([], entities, canon_by_name, None)

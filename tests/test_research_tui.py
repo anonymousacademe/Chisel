@@ -41,7 +41,7 @@ async def test_new_note_link_open_and_delete(tmp_path: Path):
         app.screen.query_one(Input).value = "Tide almanac"
         await pilot.press("enter")
         await pilot.pause()
-        note = p.root / "research" / "tide-almanac.md"
+        note = p.root / "notebook" / "tide-almanac.md"
         assert note.read_text() == "# Tide almanac\n\n" and app.current_path == note
 
         app.new_research_from_link_prompt()
@@ -71,11 +71,11 @@ async def test_new_note_link_open_and_delete(tmp_path: Path):
         assert len(rs.list_notes(p)) == 1
         assert app.current_path == p.manuscript_dir / "01-opening.md"      # moved on to a scene
         (item,) = p.list_trash()                                           # kept in the Trash, not gone
-        assert item.kind == "research" and item.original.startswith("research/")
+        assert item.kind == "research" and item.original.startswith("notebook/")
 
         app.open_trash()                                                   # and the Trash view restores it
         await pilot.pause()
-        assert "research note" in app.screen._row(item)
+        assert "notebook note" in app.screen._row(item)
         await pilot.press("r")
         await pilot.pause()
         assert len(rs.list_notes(p)) == 2 and p.list_trash() == []
@@ -110,7 +110,7 @@ async def test_research_question_cites_notes_and_chat_mode_asks(tmp_path: Path, 
         app.screen.query_one(Input).value = "when does it flood?"
         await pilot.press("enter")
         await pilot.pause()
-        assert "no research notes" in _texts(app.screen) and "research" not in calls
+        assert "Your notebook is empty" in _texts(app.screen) and "research" not in calls
         await pilot.press("escape")
         await pilot.pause()
 
@@ -129,7 +129,7 @@ async def test_research_question_cites_notes_and_chat_mode_asks(tmp_path: Path, 
         assert isinstance(app.screen, ChoiceScreen)
         await pilot.press("enter")
         await pilot.pause()
-        assert app.current_path == p.root / "research" / "tides.md"
+        assert app.current_path == p.root / "notebook" / "tides.md"
 
         # ctrl+r switches the same window to plain chat about the open file
         app.open_assistant("research")
@@ -165,7 +165,7 @@ async def test_conversations_are_saved_listed_reopened_and_replies_saved_to_note
 
         await pilot.press("ctrl+s")                                  # save the last answer to notes
         await pilot.pause()
-        notes = (p.root / "research" / "assistant-notes.md").read_text()
+        notes = (p.root / "notebook" / "assistant-notes.md").read_text()
         assert "**Prompt:** second idea?" in notes and "Re: second idea?" in notes and "first idea" not in notes.split("##")[-1]
 
         await pilot.press("ctrl+n")                                  # a new chat: empty window, old one stays on disk

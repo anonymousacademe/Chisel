@@ -55,7 +55,7 @@ class RenameFormScreen(ModalScreen["RenameForm | None"]):
                     yield Input(alias, id=f"rename-alias-{i}")
             yield Label("\nLook in (scenes and this note are always included):")
             yield Checkbox("Other notes", True, id="rename-entities")
-            yield Checkbox("Research notes", False, id="rename-research")
+            yield Checkbox("Notebook notes", False, id="rename-research")
             yield Checkbox("Comments", False, id="rename-comments")
             yield Label("enter (in the name box): preview changes · esc: cancel", id="rename-hint")
 

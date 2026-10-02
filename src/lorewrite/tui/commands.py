@@ -88,10 +88,10 @@ class ResearchProvider(_Provider):
         app = self.app
         for note in research_notes.list_notes(app.project):
             yield (
-                f"Research · {note.title}",
+                f"Notebook · {note.title}",
                 f"{note.title} {note.rel}",
                 partial(app.open_file, note.path),
-                f"Open research note research/{note.rel}",
+                f"Open notebook note {note.id}",
             )
 
 
@@ -127,18 +127,20 @@ class ActionProvider(_Provider):
          "POV, place, purpose, status and word target (stored in the scene's frontmatter)"),
         ("Collections", "open_collections",
          "Tick the open scene's collections; add, rename, recolour or delete them (sidebar filter: #name)"),
-        ("New research note", "new_research_note_prompt",
-         "Add a plain Markdown note under research/ (reference material; not a scene)"),
-        ("New research note from a link", "new_research_from_link_prompt",
-         "Save a web link as a research note (the page is not downloaded)"),
-        ("Delete research note", "delete_research_note_confirm",
-         "Move the research note open in the editor to the Trash, after a confirmation"),
+        ("New note", "new_research_note_prompt",
+         "Add a plain Markdown note under notebook/ (ideas, world-building, research; not a scene)"),
+        ("New note from a link", "new_research_from_link_prompt",
+         "Save a web link as a notebook note (the page is not downloaded)"),
+        ("Delete notebook note", "delete_research_note_confirm",
+         "Move the notebook note open in the editor to the Trash, after a confirmation"),
         ("Ask the assistant", "open_assistant",
          "Chat about the open scene or the project (ctrl+r inside: research mode)"),
         ("Saved conversations", "open_chat_history",
          "Open, rename or delete past assistant chats, or start a new one"),
-        ("Research question", "open_research_question",
-         "AI: answer from your research notes and the canon, citing the notes used"),
+        ("Ask my notebook", "open_research_question",
+         "AI: answer from your notebook notes and the canon, citing the notes used"),
+        ("Send selection to notebook", "send_selection_to_notebook",
+         "Copy the selected text into notebook/clippings.md (the scene is not changed)"),
         ("Add comment on selection", "add_comment_prompt",
          "Attach a note to the selected passage (kept in .comments/, never in the text)"),
         ("Comments", "open_comments",

@@ -38,7 +38,7 @@ TRASH_DIR = ".trash"
 FRONT_SLUG = "front-matter"
 
 _PREFIX_RE = re.compile(r"(\d+)-(.+)")
-_TRASH_RE = re.compile(r"^(\d{8}-\d{6})(?:-(\d+))?-((?:manuscript|research|inspiration)__.+)$")
+_TRASH_RE = re.compile(r"^(\d{8}-\d{6})(?:-(\d+))?-((?:manuscript|notebook|research|inspiration)__.+)$")
 
 
 def _sort_key(name: str) -> tuple[int, int, str]:
@@ -425,7 +425,7 @@ class Structure:
         return dest
 
     def trash_research(self, path: Path) -> Path:
-        """Move a research note to the Trash (name keeps its ``research/``
+        """Move a notebook note to the Trash (name keeps its ``notebook/``
         relative path). Returns its new path inside ``.trash/``."""
         if not research_notes.is_research_path(self, path) or not path.is_file():
             raise FileNotFoundError("no such research note")
@@ -475,7 +475,9 @@ class Structure:
             except ValueError:
                 continue
             original = m.group(3).replace("__", "/")
-            if original.startswith("research/"):
+            if original.startswith(("notebook/", "research/")):
+                if original.startswith("research/"):   # trashed before the Notebook rename
+                    original = research_notes.NOTEBOOK_DIR + original[len("research"):]
                 items.append(TrashItem(p.name, p, original, when, research_notes.title_of(p), "research"))
             elif original.startswith("inspiration/"):
                 items.append(TrashItem(p.name, p, original, when, inspiration.trashed_label(p), "inspiration"))
@@ -491,7 +493,7 @@ class Structure:
 
     def _restore_research(self, item: TrashItem) -> Path:
         """Back to its original path (a free name if one was made since); if its
-        folder is gone, into ``research/`` itself."""
+        folder is gone, into ``notebook/`` itself."""
         orig = self.root / item.original
         folder = orig.parent if orig.parent.is_dir() else research_notes.research_dir(self)
         folder.mkdir(parents=True, exist_ok=True)

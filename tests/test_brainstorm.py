@@ -160,7 +160,7 @@ async def test_tui_brainstorm_lists_ideas_saves_and_drafts(tmp_path, monkeypatch
         before = (p.manuscript_dir / "01-opening.md").read_text()
         await pilot.press("down", "s")                      # save the second idea
         await pilot.pause()
-        notes = (tmp_path / "novel" / "research" / "assistant-notes.md").read_text()
+        notes = (tmp_path / "novel" / "notebook" / "assistant-notes.md").read_text()
         assert "Idea two." in notes and "Brainstorm idea - Opening" in notes
         assert isinstance(app.screen, BrainstormScreen)       # reopened for the next one
         await pilot.press("d")                                 # draft from the first idea

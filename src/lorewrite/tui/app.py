@@ -137,7 +137,7 @@ HELP_TEXT = """\
   New part / Rename part / Move part up, down / Delete empty part
   Move scene to part / Move scene to Unplaced / Place scene in the book
   Scene · Edit details — POV, place, purpose, status, word target
-  Open Trash — restore deleted scenes and research notes, delete forever, empty the Trash
+  Open Trash — restore deleted scenes and notebook notes, delete forever, empty the Trash
   Scene · Snapshots / Snapshot scene / Snapshot all scenes — compare and restore
   Brainstorm — AI "unstuck" ideas for the open scene; draft from one or save it to notes
   Focus sprint — 15 / 25 / 45 / custom minutes, countdown in the status bar, optional writer mode
@@ -150,8 +150,8 @@ HELP_TEXT = """\
   Scene · Collections — tick the scene's collections (sidebar filter: #name)
   Scene · Add comment on selection / Scene · Comments — notes kept beside the
   scene, never in the text; commented text is underlined faintly
-  Research · <note> / New research note / ... from a link — research/ notes
-  Ask the assistant (ctrl+r research mode: answers from your notes, citing them;
+  Notebook · <note> / New note / ... from a link / Send selection to notebook — notebook/ notes
+  Ask the assistant (ctrl+r Ask my notebook: answers from your notes, citing them;
   ctrl+t saved conversations, ctrl+n new chat, ctrl+s save an answer to notes)
   Call them chapters / Call them scenes (wording only)
   Settings — API key, models, editor preferences, spell check
@@ -2112,7 +2112,7 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
                 if new.parent == inspiration.inspiration_dir(self.project):   # reference images: no sidebar row
                     self.notify("Restored the inspiration image", timeout=3)
                 elif research_notes.is_research_path(self.project, new):   # not indexed, no sidebar row
-                    self.notify(f"Restored the research note to {new.relative_to(self.project.root)}", timeout=3)
+                    self.notify(f"Restored the notebook note to {new.relative_to(self.project.root)}", timeout=3)
                 else:
                     self.idx.rebuild(self.project)
                     self.refresh_sidebar()
@@ -2414,7 +2414,7 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
 
         self.push_screen(DetailsScreen(self.editor.text, characters, places), _save)
 
-    # -- research notes (Wave 3.3): plain Markdown in research/, not scenes, not indexed ---------
+    # -- notebook notes (Wave 3.3; "research" internally): plain Markdown in notebook/, not scenes, not indexed ---------
 
     def new_research_note_prompt(self) -> None:
         def _create(title: str | None) -> None:
@@ -2427,7 +2427,7 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
                 return
             self.open_file(path)
 
-        self.push_screen(NamePrompt("New research note title:"), _create)
+        self.push_screen(NamePrompt("New note title:"), _create)
 
     def new_research_from_link_prompt(self) -> None:
         def _create(url: str | None) -> None:
@@ -2439,14 +2439,28 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
                 self.notify(str(exc), severity="warning")
                 return
             self.open_file(path)
-            self.notify("Saved the link as a research note (the page is not downloaded)", timeout=3)
+            self.notify("Saved the link as a notebook note (the page is not downloaded)", timeout=3)
 
         self.push_screen(NamePrompt("Link (https://...):"), _create)
+
+    def send_selection_to_notebook(self) -> None:
+        """Copy the selected passage into notebook/clippings.md (the scene is not touched)."""
+        if not self.editor.selected_text.strip():
+            self.notify("Select the passage to send first", severity="warning")
+            return
+        path = self._current_scene_path()
+        source = self.project.scene_title(path) if path is not None else ""
+        try:
+            research_notes.append_clipping(self.project, self.editor.selected_text, source)
+        except (ValueError, OSError) as exc:
+            self.notify(str(exc), severity="warning")
+            return
+        self.notify("Sent to notebook/clippings.md", timeout=3)
 
     def delete_research_note_confirm(self) -> None:
         path = self.current_path
         if path is None or not research_notes.is_research_path(self.project, path):
-            self.notify("Open a research note first", severity="warning")
+            self.notify("Open a notebook note first", severity="warning")
             return
 
         def _go(ok: bool) -> None:
@@ -2458,10 +2472,10 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
             scenes = self.project.list_scenes()
             if scenes:
                 self.open_file(scenes[0])
-            self.notify("Research note moved to the Trash (Action · Open Trash restores it)", timeout=3)
+            self.notify("Note moved to the Trash (Action · Open Trash restores it)", timeout=3)
 
         self.push_screen(ConfirmScreen(
-            f"Move the research note '{research_notes.title_of(path)}' to the Trash?\n"
+            f"Move the notebook note '{research_notes.title_of(path)}' to the Trash?\n"
             "You can restore it from Action · Open Trash.", confirm_label="Move to Trash"), _go)
 
     # -- the assistant (chat + research), Wave 3.3 / 3.4 -------------------------------------

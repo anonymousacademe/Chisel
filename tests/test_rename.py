@@ -253,13 +253,13 @@ def test_entity_and_research_scope(tmp_path):
     note = research.new_note(project, "Tides", "Mara studied the tides.\n")
     plan = plan_for(project, "Mara", "Nia", scope=("entities", "research"))
     files = plan.files()
-    assert "entities/characters/elias.md" in files and "research/tides.md" in files
+    assert "entities/characters/elias.md" in files and "notebook/tides.md" in files
     apply_all(project, plan)
     assert "Elias trusts Nia." in other.path.read_text(encoding="utf-8")
     assert note.read_text(encoding="utf-8").endswith("Nia studied the tides.\n")
     # default scope leaves research alone
     plan = plan_for(project, "Nia", "Mara")
-    assert "research/tides.md" not in plan.files()
+    assert "notebook/tides.md" not in plan.files()
 
 
 def test_draft_sidecar_and_part_scene_ids(tmp_path):

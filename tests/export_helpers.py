@@ -68,6 +68,6 @@ def make_structured(root: Path) -> Project:
     project = Project.open(root)
     project.delete_scene(trashed)
     # research notes must never appear
-    (root / "research").mkdir(exist_ok=True)
-    (root / "research" / "tides.md").write_text("# Tides\n\nResearch only.\n", encoding="utf-8")
+    (root / "notebook").mkdir(exist_ok=True)
+    (root / "notebook" / "tides.md").write_text("# Tides\n\nResearch only.\n", encoding="utf-8")
     return Project.open(root)

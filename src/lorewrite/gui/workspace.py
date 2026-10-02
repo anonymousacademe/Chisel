@@ -233,8 +233,8 @@ def research_summaries(project: Project) -> list[dict]:
 
 
 def research_node(research: list[dict]) -> dict:
-    """The binder's Research group: notes, with their subfolders as folders."""
-    root: dict = {"id": "group:research", "title": "Research", "kind": "research",
+    """The binder's Notebook group: notes, with their subfolders as folders."""
+    root: dict = {"id": "group:research", "title": "Notebook", "kind": "research",
                   "meta": str(len(research)) if research else None, "children": []}
     folders: dict[str, dict] = {}
     for r in research:

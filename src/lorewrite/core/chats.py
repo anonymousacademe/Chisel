@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from . import fsutil
+from . import attach, fsutil
 
 CHATS_DIR = ".assistant/chats"
 TITLE_MAX = 60
@@ -118,12 +118,18 @@ def load(project, chat_id: str) -> Chat:
         raise ValueError("that chat file is damaged") from None
     if not isinstance(data, dict):
         raise ValueError("that chat file is damaged")
-    return Chat(
+    chat = Chat(
         id=chat_id, title=str(data.get("title") or ""), created=str(data.get("created") or ""),
         updated=str(data.get("updated") or ""),
         scope=data.get("scope") if data.get("scope") in SCOPES else "scene",
         attachments=[a for a in map(_clean_attachment, data.get("attachments") or []) if a],
         messages=[m for m in map(_clean_message, data.get("messages") or []) if m])
+    for a in chat.attachments:   # ids from before research/ became notebook/
+        a["id"] = attach.modern_id(project, a["id"])
+    for m in chat.messages:
+        for s in m.get("sources") or []:
+            s["id"] = attach.modern_id(project, s["id"])
+    return chat
 
 
 def _write(project, chat: Chat) -> None:

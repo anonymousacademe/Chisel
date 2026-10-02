@@ -8,7 +8,7 @@ Pure Python, no Textual, no ReportLab. Reads files only; nothing is changed.
         chapters: list[Chapter]   one per scene (or one per part when continuous)
           blocks: Paragraph (runs of plain/italic/bold text) | Break
 
-What is left out: Unplaced Scenes, the Trash, research, comments, notes, scene
+What is left out: Unplaced Scenes, the Trash, the notebook, comments, notes, scene
 details (frontmatter). What is changed: ``[[Name|text]]`` -> its display text,
 ``{{expand: ...}}`` markers are removed (and reported), pending AI drafts are
 rejected (or accepted, option) so unaccepted AI text is not in the book.
