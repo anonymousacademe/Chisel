@@ -79,6 +79,7 @@ from .continuityscreen import ContinuityScreen, JumpToContradiction, WaiveToggle
 from .editor import LinkedTextArea
 from .launch import LaunchScreen
 from .linkreview import AliasReviewScreen
+from .renamemixin import RenameMixin
 from .panels import BacklinkSelected, EntityPanel
 from .brainstormscreen import BrainstormScreen
 from .aimixin import AiMixin
@@ -281,7 +282,7 @@ class EntityTypePrompt(ModalScreen[str | None]):
         self.dismiss(None)
 
 
-class LorewriteApp(AiMixin, InspirationMixin, App):
+class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
     TITLE = "lorewrite"
 
     COMMANDS = App.COMMANDS | {SceneProvider, EntityProvider, ResearchProvider,

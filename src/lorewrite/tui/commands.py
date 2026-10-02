@@ -196,6 +196,10 @@ class ActionProvider(_Provider):
         ("Writer mode", "writer_mode", "Hide everything but the editor (f11)"),
         ("New character", "create_entity_prompt_character", "Create a character note"),
         ("New place", "create_entity_prompt_place", "Create a place note"),
+        ("Rename everywhere…", "rename_entity_prompt",
+         "Rename the open note (or the name under the cursor) across scenes and notes, with a preview"),
+        ("Undo last rename", "rename_undo_action",
+         "Put back the scenes and note changed by the last Rename everywhere"),
         ("Find aliases in this scene", "find_aliases",
          "AI: find other ways the prose refers to your entities (ctrl+l)"),
         ("Check scene for continuity issues", "check_continuity",
@@ -232,7 +236,8 @@ class ActionProvider(_Provider):
     #: actions listed under another category than "Action"
     CATEGORY = {"edit_details": "Scene", "open_snapshots": "Scene", "open_collections": "Scene",
                 "add_comment_prompt": "Scene", "open_comments": "Scene",
-                "snapshot_scene_prompt": "Scene"}
+                "snapshot_scene_prompt": "Scene",
+                "rename_entity_prompt": "Entity", "rename_undo_action": "Entity"}
 
     def _entries(self):
         app = self.app

@@ -532,6 +532,18 @@ def _prune_journals(project) -> None:
 # -- undo ------------------------------------------------------------------------
 
 
+def latest_undo(project) -> tuple[str, str, str] | None:
+    """(undo id, old name, new name) of the most recent rename that can still
+    be undone, or None. Survives restarts: the journal is a file."""
+    for path in sorted(_journal_dir(project).glob("*.json"), reverse=True):
+        try:
+            j = json.loads(_read(path))
+            return j["id"], j["entity"], j["new_name"]
+        except (OSError, ValueError, KeyError):
+            continue
+    return None
+
+
 def undo_rename(project, undo_id: str, index=None) -> UndoResult:
     """Put back what ``apply_rename`` changed. A file edited since the rename
     is left alone and reported in ``skipped``."""
