@@ -12,6 +12,7 @@ from pathlib import Path
 
 from . import scenemeta
 from .drafts import count_words, load_originals, strip_pending
+from . import fsutil
 
 STYLE_FILE = "style.md"
 BACKUP_FILE = "style.md.bak"
@@ -51,8 +52,8 @@ def save_style(project, text: str, backup: bool = True) -> Path:
     if backup and path.is_file():
         shutil.copyfile(path, project.root / BACKUP_FILE)
     tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    tmp.replace(path)
+    tmp.write_text(text, encoding="utf-8", newline="\n")
+    fsutil.replace(tmp, path)
     return path
 
 

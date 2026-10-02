@@ -24,6 +24,7 @@ from pathlib import Path
 
 from . import drafts
 from . import settings as user_settings
+from . import fsutil
 
 SNAPSHOT_DIR = ".snapshots"
 LABEL_MAX = 60
@@ -71,8 +72,8 @@ def clean_label(label: str) -> str:
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    tmp.replace(path)
+    tmp.write_text(text, encoding="utf-8", newline="\n")
+    fsutil.replace(tmp, path)
 
 
 def _parse(path: Path) -> tuple[datetime, str] | None:
@@ -248,21 +249,21 @@ def stage(project_root: Path, scene: Path, tag: str) -> Path | None:
     if not old.is_dir():
         return None
     tmp = old.with_name(f".mv{tag}-{old.name}")
-    old.replace(tmp)
+    fsutil.replace(old, tmp)
     return tmp
 
 
 def unstage(project_root: Path, staged: Path, new_scene: Path) -> None:
     new = scene_dir(project_root, new_scene)
     new.parent.mkdir(parents=True, exist_ok=True)
-    staged.replace(new)
+    fsutil.replace(staged, new)
 
 
 def archive(project_root: Path, scene: Path, dest: Path) -> None:
     """Move the folder to *dest* (the Trash keeps a deleted scene's history)."""
     old = scene_dir(project_root, scene)
     if old.is_dir():
-        old.replace(dest)
+        fsutil.replace(old, dest)
 
 
 def unarchive(project_root: Path, src: Path, scene: Path) -> None:
@@ -271,7 +272,7 @@ def unarchive(project_root: Path, src: Path, scene: Path) -> None:
         new.parent.mkdir(parents=True, exist_ok=True)
         if new.exists():
             shutil.rmtree(new, ignore_errors=True)
-        src.replace(new)
+        fsutil.replace(src, new)
 
 
 # -- compare -------------------------------------------------------------------

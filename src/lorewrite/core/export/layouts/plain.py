@@ -77,5 +77,5 @@ def render(book: Book, opts: ExportOptions, path) -> int:
 LAYOUT = Layout(
     name="plain", label="Plain proof",
     description="A4, sans serif, 1.5 spacing: a simple copy for proofreading.",
-    page_sizes=("a4", "letter"), fonts=("liberation-sans",),
+    page_sizes=("a4", "letter"), fonts=("liberation-sans", "noto-serif"),
     toc=False, continuous=True, numbering=True, render=render)

@@ -200,7 +200,7 @@ def init(root: Path) -> None:
     lines = ignore.read_text(encoding="utf-8").splitlines() if ignore.is_file() else []
     if GITIGNORE_LINE not in (ln.strip() for ln in lines):
         lines.append(GITIGNORE_LINE)
-        ignore.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        ignore.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
 
 def commit(root: Path, message: str) -> str:

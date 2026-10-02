@@ -26,7 +26,9 @@ src/lorewrite/
     sync.py             # optional git: status (read-only), commit, push, init — explicit only
     scenemeta.py        # scene details = YAML frontmatter: find/strip/blank/set_details
     index.py            # SQLite backlink index; no-ops after close()
-    recents.py          # recent projects; LOREWRITE_STATE_DIR env override
+    recents.py          # recent projects; state dir = platformdirs (Linux ~/.local/state/lorewrite); LOREWRITE_STATE_DIR env override
+    desktop.py          # open_path: os.startfile / open / xdg-open (only on a click)
+    fsutil.py           # replace/rename with a short retry (Windows PermissionError); use instead of Path.replace
     settings.py         # user settings (tour_seen, ...)
     style.py            # style.md (project root): load/save/backup, manuscript sampling
     drafts.py           # pending AI text markers (<!--ai-->), expand markers
@@ -186,7 +188,7 @@ PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --
   to an image model. The TUI app calls `lorewrite.tui.app.generate_image` /
   `suggest_image_prompt` and the GUI `lorewrite.gui.api.generate_images` / `suggest_image_prompt`
   (mock those names; `gui/mockai.py` returns a generated PNG, and the signature test lists them).
-  `xdg-open` runs only when the author chooses (`inspiration.open_path`; tests stub
+  the desktop opener (`core/desktop.open_path`: startfile / open / xdg-open) runs only when the author chooses (`inspiration.open_path`; tests stub
   `LorewriteApp.open_external`). Method names on `InspirationMixin` must not collide with
   `LorewriteApp`'s (`_generate_worker` already exists - the mixin's are `_inspiration_*`).
 - **Chats and attachments** (`core/chats.py`, `core/attach.py`). The GUI saves the whole conversation
@@ -260,6 +262,11 @@ PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --
   plain text: no Markdown, title block or reflow). `f6` is TextArea's select-line;
   `LinkedTextArea.BINDINGS` overrides it. The GUI editor turns the browser's native
   `spellcheck` off (ours is the only one).
+- **Portability (Windows/macOS/Linux)**. Write text with `write_text(..., newline="\n")` (a test
+  enforces it); rename/replace through `core/fsutil` (retries a locked file); open files through
+  `core/desktop.open_path`; state lives under `recents.default_state_dir()`. Export fonts (Noto
+  Serif, Liberation Mono) are bundled in `core/export/fonts/` with their OFL licences; other fonts
+  are found on the system if present. Omarchy theming is Linux-only and optional.
 - **Terminal key limits**: `ctrl+[` IS Escape; `ctrl+enter` doesn't reach most
   terminals; `ctrl+h` arrives as Backspace (the assistant's saved conversations are `ctrl+t`).
   Scene nav is `alt+←/→`, writer mode is `f11`.

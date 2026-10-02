@@ -157,5 +157,5 @@ def render(book: Book, opts: ExportOptions, path) -> int:
 LAYOUT = Layout(
     name="manuscript", label="Manuscript review",
     description="Double-spaced with line numbers on every page, for printing and red-pen review.",
-    page_sizes=("letter",), fonts=("liberation-serif", "liberation-mono"),
+    page_sizes=("letter",), fonts=("liberation-serif", "liberation-mono", "noto-serif"),
     toc=False, continuous=True, numbering=True, render=render)

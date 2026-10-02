@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import scenemeta
+from . import fsutil
 
 DRAFTS_DIR = ".drafts"
 _ID_ALPHABET = string.ascii_lowercase + string.digits
@@ -105,7 +106,7 @@ def migrate_sidecars(project_root: Path) -> int:
         target = folder / f"manuscript__{name}.json"
         if target.exists():
             continue
-        path.replace(target)
+        fsutil.replace(path, target)
         moved += 1
     return moved
 
@@ -136,8 +137,8 @@ def save_originals(project_root: Path, scene_path: Path,
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(originals, indent=2, ensure_ascii=False),
-                   encoding="utf-8")
-    tmp.replace(path)
+                   encoding="utf-8", newline="\n")
+    fsutil.replace(tmp, path)
 
 
 def add_original(project_root: Path, scene_path: Path, draft_id: str,
@@ -159,7 +160,7 @@ def move_sidecar(project_root: Path, old_scene: Path, new_scene: Path) -> None:
     if old.is_file():
         new = sidecar_path(project_root, new_scene)
         new.parent.mkdir(parents=True, exist_ok=True)
-        old.replace(new)
+        fsutil.replace(old, new)
 
 
 def delete_sidecar(project_root: Path, scene_path: Path) -> None:

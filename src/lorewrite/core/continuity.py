@@ -136,7 +136,7 @@ def _write_waivers(project_root: Path, waived: set[str],
     data = {"waived": sorted(waived)}
     if scenes:
         data["scenes"] = {k: v for k, v in sorted(scenes.items()) if k in waived}
-    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8", newline="\n")
 
 
 def filter_waived(

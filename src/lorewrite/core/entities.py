@@ -13,6 +13,8 @@ from pathlib import Path
 
 import yaml
 
+from . import fsutil
+
 VALID_TYPES = ("character", "place", "object", "faction")
 
 ENTITY_TEMPLATE = """\
@@ -89,8 +91,8 @@ def save_entity(entity: Entity, path: Path) -> None:
     """Write a note atomically (temp file + rename)."""
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(entity.to_markdown(), encoding="utf-8")
-    tmp.replace(path)
+    tmp.write_text(entity.to_markdown(), encoding="utf-8", newline="\n")
+    fsutil.replace(tmp, path)
 
 
 def new_entity_note(name: str, etype: str = "character") -> str:

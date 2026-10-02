@@ -1827,7 +1827,7 @@ class LorewriteApp(InspirationMixin, App):
             part = self.project.default_part_for_new(self.current_path)
             path = self.project.next_scene_path(title, part)
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(f"# {title}\n\n", encoding="utf-8")
+            path.write_text(f"# {title}\n\n", encoding="utf-8", newline="\n")
             self.refresh_sidebar()
             self.open_file(path)
 

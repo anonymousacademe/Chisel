@@ -1,5 +1,4 @@
 import shutil
-import subprocess
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -7,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from tests.export_helpers import make_structured
-from lorewrite.core import export
+from lorewrite.core import desktop, export
 from lorewrite.core.export import markdown, pandoc
 from lorewrite.core.export.manuscript import ExportOptions, assemble
 from lorewrite.core.project import Project
@@ -81,11 +80,14 @@ def test_resolve_export_is_a_narrow_door(tmp_path):
         export.resolve_export(project, "gone.md")
 
 
-def test_open_in_desktop_runs_xdg_open(monkeypatch, tmp_path):
+def test_open_in_desktop_hands_the_path_to_the_desktop(monkeypatch, tmp_path):
     seen = []
-    monkeypatch.setattr(subprocess, "Popen", lambda cmd, **kw: seen.append(cmd))
+    monkeypatch.setattr(desktop, "open_path", lambda path: seen.append(path) or True)
     export.open_in_desktop(tmp_path)
-    assert seen == [["xdg-open", str(tmp_path)]]
+    assert seen == [tmp_path]
+    monkeypatch.setattr(desktop, "open_path", lambda path: False)
+    with pytest.raises(RuntimeError):
+        export.open_in_desktop(tmp_path)
 
 
 @pytest.mark.skipif(shutil.which("pdftotext") is None, reason="pdftotext missing")

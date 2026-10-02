@@ -18,6 +18,8 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+from . import fsutil
+
 RESEARCH_DIR = "research"
 ASSISTANT_NOTES = "assistant-notes.md"   # "Save to notes" appends here (3.4)
 EXCERPT_CHARS = 1500
@@ -117,7 +119,7 @@ def new_note(project, title: str, body: str = "") -> Path:
     folder.mkdir(parents=True, exist_ok=True)
     path = _free_path(folder, _slug(title))
     path.write_text(f"# {title}\n\n{body.strip()}\n" if body.strip() else f"# {title}\n\n",
-                    encoding="utf-8")
+                    encoding="utf-8", newline="\n")
     return path
 
 
@@ -177,8 +179,8 @@ def append_assistant_note(project, prompt: str, reply: str, when: datetime | Non
     entry += f"{reply}\n"
     text = existing.rstrip("\n") + "\n\n" + entry
     tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    tmp.replace(path)
+    tmp.write_text(text, encoding="utf-8", newline="\n")
+    fsutil.replace(tmp, path)
     return path
 
 

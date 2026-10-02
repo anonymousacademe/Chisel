@@ -43,8 +43,14 @@ FONTS = {
                         ("LiberationMono-Regular", "LiberationMono-Bold",
                          "LiberationMono-Italic", "LiberationMono-BoldItalic")),
 }
+# Noto Serif and Liberation Mono ship inside the package (SIL OFL, licences beside
+# the files), so a PDF export works on any machine; everything else, and these
+# too when the files are somehow missing, is looked up in the system's fonts.
+BUNDLED = Path(__file__).resolve().parent / "fonts"
 _FONT_ROOTS = (Path("/usr/share/fonts"), Path("/usr/local/share/fonts"),
-               Path.home() / ".local/share/fonts", Path.home() / ".fonts")
+               Path.home() / ".local/share/fonts", Path.home() / ".fonts",
+               Path.home() / "Library/Fonts", Path("/Library/Fonts"),
+               Path("/System/Library/Fonts"), Path("C:/Windows/Fonts"))
 
 
 def font_label(key: str) -> str:
@@ -52,6 +58,9 @@ def font_label(key: str) -> str:
 
 
 def _find(stem: str) -> Path | None:
+    bundled = BUNDLED / f"{stem}.ttf"
+    if bundled.is_file():
+        return bundled
     for root in _FONT_ROOTS:
         if root.is_dir():
             for hit in root.rglob(f"{stem}.ttf"):

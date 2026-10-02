@@ -38,6 +38,7 @@ from pathlib import Path
 
 from . import settings as user_settings
 from .recents import default_state_dir
+from . import fsutil
 
 DEFAULT_TARGET = 500
 ACTIVE_WINDOW = 120        # seconds: typing this recently counts as active time
@@ -194,8 +195,8 @@ class Tracker:
             self.days = disk
             payload = {"version": 1, "project": str(self.root.expanduser().resolve()), "days": self.days}
             tmp = self.path.with_name(self.path.name + ".tmp")
-            tmp.write_text(json.dumps(payload, indent=1), encoding="utf-8")
-            tmp.replace(self.path)
+            tmp.write_text(json.dumps(payload, indent=1), encoding="utf-8", newline="\n")
+            fsutil.replace(tmp, self.path)
             self._dirty = False
             self._last_flush = self._clock()
 

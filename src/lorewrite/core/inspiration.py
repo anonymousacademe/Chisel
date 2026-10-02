@@ -35,6 +35,9 @@ from pathlib import Path
 
 import yaml
 
+from . import desktop
+from . import fsutil
+
 INSPIRATION_DIR = "inspiration"
 EXTENSIONS = ("jpg", "png", "webp")
 MIME = {"jpg": "image/jpeg", "png": "image/png", "webp": "image/webp"}
@@ -150,8 +153,8 @@ def _dump(meta: dict, notes: str) -> str:
 
 def _write(path: Path, text: str) -> None:
     tmp = path.with_name(f".{path.name}.tmp")
-    tmp.write_text(text, encoding="utf-8")
-    tmp.replace(path)
+    tmp.write_text(text, encoding="utf-8", newline="\n")
+    fsutil.replace(tmp, path)
 
 
 def _image(project, sidecar: Path) -> Image | None:
@@ -203,7 +206,7 @@ def save(project, image_bytes: bytes, ext: str, meta: dict) -> Image:
         stem = f"{stamp}-{_slug(prompt)}-{n}"
     tmp = folder / f".{stem}.{ext}.tmp"
     tmp.write_bytes(image_bytes)
-    tmp.replace(folder / f"{stem}.{ext}")
+    fsutil.replace(tmp, folder / f"{stem}.{ext}")
     cost = meta.get("cost")
     record = {"prompt": prompt, "model": str(meta.get("model") or ""),
               "scene": str(meta.get("scene") or ""), "created": str(created),
@@ -325,17 +328,6 @@ def save_batch(project, pictures: list[tuple[bytes, str]], prompt: str, model: s
 
 
 def open_path(path: Path) -> bool:
-    """Hand *path* (a picture or the folder) to the desktop with ``xdg-open``.
-    Only ever called from an explicit choice; False when it cannot be done."""
-    import shutil
-    import subprocess
-
-    opener = shutil.which("xdg-open")
-    if opener is None:
-        return False
-    try:
-        subprocess.Popen([opener, str(path)], stdout=subprocess.DEVNULL,
-                         stderr=subprocess.DEVNULL, start_new_session=True)
-    except OSError:
-        return False
-    return True
+    """Hand *path* (a picture or the folder) to the desktop. Only ever called from
+    an explicit choice; False when it cannot be done."""
+    return desktop.open_path(path)

@@ -26,6 +26,7 @@ from datetime import datetime
 from pathlib import Path
 
 from . import drafts, scenemeta
+from . import fsutil
 
 COMMENTS_DIR = ".comments"
 CONTEXT = 40          # characters of prefix / suffix kept around the quote
@@ -87,8 +88,8 @@ def save(project_root: Path, scene: Path, comments: list[Comment]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps([c.as_dict() for c in comments], indent=2, ensure_ascii=False)
-                   + "\n", encoding="utf-8")
-    tmp.replace(path)
+                   + "\n", encoding="utf-8", newline="\n")
+    fsutil.replace(tmp, path)
 
 
 # -- anchoring ---------------------------------------------------------------------
@@ -283,21 +284,21 @@ def stage(project_root: Path, scene: Path, tag: str) -> Path | None:
     if not old.is_file():
         return None
     tmp = old.with_name(f".mv{tag}-{old.name}")
-    old.replace(tmp)
+    fsutil.replace(old, tmp)
     return tmp
 
 
 def unstage(project_root: Path, staged: Path, new_scene: Path) -> None:
     new = sidecar_path(project_root, new_scene)
     new.parent.mkdir(parents=True, exist_ok=True)
-    staged.replace(new)
+    fsutil.replace(staged, new)
 
 
 def archive(project_root: Path, scene: Path, dest: Path) -> None:
     """Move the sidecar to *dest* (the Trash keeps a deleted scene's comments)."""
     old = sidecar_path(project_root, scene)
     if old.is_file():
-        old.replace(dest)
+        fsutil.replace(old, dest)
         try:
             old.parent.rmdir()
         except OSError:
@@ -308,4 +309,4 @@ def unarchive(project_root: Path, src: Path, scene: Path) -> None:
     if src.is_file():
         new = sidecar_path(project_root, scene)
         new.parent.mkdir(parents=True, exist_ok=True)
-        src.replace(new)
+        fsutil.replace(src, new)

@@ -1,4 +1,4 @@
-"""User settings store: ~/.local/state/lorewrite/settings.json.
+"""User settings store: <state dir>/settings.json (see recents.default_state_dir).
 
 Small JSON dict for app-level preferences (tour seen, etc.).
 Project-specific settings live in the project's project.toml instead.
@@ -27,7 +27,7 @@ def save_settings(settings: dict, state_dir: Path | None = None) -> None:
     state_dir = state_dir or default_state_dir()
     state_dir.mkdir(parents=True, exist_ok=True)
     (state_dir / SETTINGS_FILE).write_text(json.dumps(settings, indent=2),
-                                           encoding="utf-8")
+                                           encoding="utf-8", newline="\n")
 
 
 def get(key: str, default=None, state_dir: Path | None = None):

@@ -147,7 +147,7 @@ lorewrite/
 
 ### M1 — Editor + wiki-links (the approved MVP)
 
-- **Launch screen** (added in polish): recent projects (stored in `~/.local/state/lorewrite/recent.json`, `LOREWRITE_STATE_DIR` override), open folder, new project (title + location, slug-prefilled). `lorewrite` bare → launch screen; `--project PATH` opens directly; `--new TITLE` creates.
+- **Launch screen** (added in polish): recent projects (stored in `<state dir>/recent.json` — `platformdirs.user_state_dir("lorewrite")`, i.e. `~/.local/state/lorewrite` on Linux — `LOREWRITE_STATE_DIR` override), open folder, new project (title + location, slug-prefilled). `lorewrite` bare → launch screen; `--project PATH` opens directly; `--new TITLE` creates.
 - Create/open project; three-pane layout: scene list | editor | entity panel
 - Markdown `TextArea` with **tree-sitter Markdown highlighting**, soft wrap, autosave (atomic temp-file-rename writes) + explicit `ctrl+s`, saved/modified **status bar** (file, words, cursor, link hint)
 - `[[...]]` parsing; links highlighted in editor (theme-aware colors); unresolved links styled distinctly
@@ -292,7 +292,7 @@ explicit clicks - *Describe this scene*, then *Generate*.
   form: `ctrl+d` describe this scene, `ctrl+g` generate, a pin checkbox) saves the picture and says its
   path; *Action · Inspiration images* lists the open scene's pictures (prompt, date, pinned; `enter`/`o`
   open, `p` pin, `t` Trash, `a` all); *Open last inspiration image* and *Open inspiration folder* use
-  `xdg-open` **only when chosen**. Settings has an *Image model* row (picker limited to image models)
+  the desktop opener (`core/desktop.py`) **only when chosen**. Settings has an *Image model* row (picker limited to image models)
   and an *Image style* field.
 
 ### Manuscript structure ✅ (Wave 1, implemented 2026-10-01; plan: docs/plan-workspace.md)
@@ -595,7 +595,7 @@ open and behave exactly as before.*
   dialog with format, layout, page size, font, headings, switches and a live summary ("4 scenes,
   1,502 words, 2 parts; 1 scene has unaccepted AI drafts"). The open scene is saved first; the
   export runs in a worker thread (`gui/exports.py`: `export_start` / `export_status` polling);
-  then "Saved to exports/..." with **Open file** and **Show folder** (`xdg-open`, only on a click,
+  then "Saved to exports/..." with **Open file** and **Show folder** (`core/desktop.open_path`, only on a click,
   only for files inside `exports/`).
 - **Terminal:** palette *Action · Export manuscript* (a form: format, layout, page size, headings,
   switches, copyright line; ctrl+s exports in a worker and the path is shown in a notification) and

@@ -21,6 +21,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+from . import fsutil
+
 CHATS_DIR = ".assistant/chats"
 TITLE_MAX = 60
 MAX_MESSAGES = 400
@@ -128,8 +130,8 @@ def _write(project, chat: Chat) -> None:
     path = _path(project, chat.id)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(chat.as_dict(), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    tmp.replace(path)
+    tmp.write_text(json.dumps(chat.as_dict(), indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
+    fsutil.replace(tmp, path)
 
 
 def save(project, chat_id: str | None, messages: list, scope: str = "scene",

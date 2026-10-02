@@ -9,15 +9,16 @@ over an earlier export. The last options used are remembered per project in
 from __future__ import annotations
 
 import json
-import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
+from .. import desktop
 from .. import entities as ent
 from . import layouts, markdown, pandoc
 from .manuscript import Book, ExportOptions, assemble
+from .. import fsutil
 
 EXPORTS_DIR = "exports"
 FORMATS = {  # key -> (label, extension)
@@ -171,10 +172,10 @@ def run_export(project, options: ExportOptions, progress: Progress | None = None
         if layout:
             pages = layout.render(book, opts, tmp)
         elif opts.format == "md":
-            tmp.write_text(markdown.to_markdown(book), encoding="utf-8")
+            tmp.write_text(markdown.to_markdown(book), encoding="utf-8", newline="\n")
         else:
             pandoc.convert(book, opts.format, tmp)
-        tmp.replace(path)
+        fsutil.replace(tmp, path)
     finally:
         tmp.unlink(missing_ok=True)
 
@@ -207,9 +208,6 @@ def resolve_export(project, name: str) -> Path:
 
 
 def open_in_desktop(path: Path) -> None:
-    """Hand *path* to the desktop's default application (xdg-open)."""
-    try:
-        subprocess.Popen(["xdg-open", str(path)], stdout=subprocess.DEVNULL,
-                         stderr=subprocess.DEVNULL, start_new_session=True)
-    except FileNotFoundError:
-        raise RuntimeError("xdg-open is not available here; open the file from your file manager") from None
+    """Hand *path* to the desktop's default application."""
+    if not desktop.open_path(path):
+        raise RuntimeError("the desktop could not open this file; open it from your file manager")

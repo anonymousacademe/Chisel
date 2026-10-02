@@ -11,6 +11,7 @@ from . import drafts
 from . import entities as ent
 from . import scenemeta, snapshots
 from .structure import Structure
+from . import fsutil
 
 MANUSCRIPT_DIR = "manuscript"
 ENTITIES_DIR = "entities"
@@ -53,8 +54,8 @@ Everything is plain Markdown on disk — your project folder *is* the novel.
 def write_atomic(path: Path, text: str) -> None:
     """Write *text* to *path* via a temp file + rename (never a torn file)."""
     tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    tmp.replace(path)
+    tmp.write_text(text, encoding="utf-8", newline="\n")
+    fsutil.replace(tmp, path)
 
 
 def default_project_path(title: str, parent: Path | None = None) -> Path | None:
@@ -94,13 +95,13 @@ class Project(Structure):
         for sub in TYPE_SUBDIRS.values():
             (root / ENTITIES_DIR / sub).mkdir(parents=True, exist_ok=True)
         (root / PROJECT_FILE).write_text(PROJECT_TEMPLATE.format(title=title),
-                                         encoding="utf-8")
+                                         encoding="utf-8", newline="\n")
         sample = root / MANUSCRIPT_DIR / "01-opening.md"
         if not sample.exists():
-            sample.write_text(SAMPLE_SCENE, encoding="utf-8")
+            sample.write_text(SAMPLE_SCENE, encoding="utf-8", newline="\n")
         gitignore = root / ".gitignore"
         if not gitignore.exists():
-            gitignore.write_text(f"{CACHE_DIR}/\n", encoding="utf-8")
+            gitignore.write_text(f"{CACHE_DIR}/\n", encoding="utf-8", newline="\n")
         return cls(root=root, title=title)
 
     @classmethod

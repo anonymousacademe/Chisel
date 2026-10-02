@@ -3,12 +3,13 @@
 Reads the current theme slug from ~/.local/state/omarchy/current/theme.name,
 then its colors.toml — the user overlay in ~/.config/omarchy/themes/<slug>/
 wins over the stock theme in /usr/share/omarchy/themes/<slug>/ (the same
-precedence Omarchy itself uses). Returns None off-Omarchy so callers fall
+precedence Omarchy itself uses). Linux only and optional: returns None elsewhere so callers fall
 back to Textual's built-in themes.
 """
 
 from __future__ import annotations
 
+import sys
 import tomllib
 from pathlib import Path
 
@@ -22,6 +23,8 @@ THEME_NAME = "omarchy"
 
 
 def current_theme_slug(state_file: Path = STATE_FILE) -> str | None:
+    if not sys.platform.startswith("linux"):
+        return None  # Omarchy is a Linux distribution
     try:
         slug = state_file.read_text(encoding="utf-8").strip()
     except OSError:

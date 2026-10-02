@@ -1,4 +1,4 @@
-"""Recent-projects store: ~/.local/state/lorewrite/recent.json.
+"""Recent-projects store: <state dir>/recent.json (~/.local/state/lorewrite on Linux).
 
 A small JSON list, most-recent first, deduped by path, capped at 10.
 User state, not project data — the projects themselves stay the truth.
@@ -12,6 +12,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+import platformdirs
+
 RECENTS_FILE = "recent.json"
 MAX_RECENTS = 10
 
@@ -21,7 +23,7 @@ def default_state_dir() -> Path:
     override = os.environ.get("LOREWRITE_STATE_DIR")
     if override:
         return Path(override)
-    return Path.home() / ".local/state/lorewrite"
+    return Path(platformdirs.user_state_dir("lorewrite", appauthor=False))
 
 
 @dataclass(frozen=True)
@@ -60,7 +62,7 @@ def add_recent(path: Path, title: str, state_dir: Path | None = None) -> None:
         for r in recents
     ]
     (state_dir / RECENTS_FILE).write_text(json.dumps(payload, indent=2),
-                                          encoding="utf-8")
+                                          encoding="utf-8", newline="\n")
 
 
 def remove_recent(path: Path, state_dir: Path | None = None) -> None:
@@ -73,4 +75,4 @@ def remove_recent(path: Path, state_dir: Path | None = None) -> None:
         for r in recents
     ]
     (state_dir / RECENTS_FILE).write_text(json.dumps(payload, indent=2),
-                                          encoding="utf-8")
+                                          encoding="utf-8", newline="\n")

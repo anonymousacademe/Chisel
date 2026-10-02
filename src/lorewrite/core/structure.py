@@ -30,6 +30,7 @@ from . import inspiration
 from . import entities as ent
 from . import research as research_notes
 from . import snapshots
+from . import fsutil
 
 UNPLACED_DIR = "_unplaced"
 PART_FILE = "_part.md"
@@ -246,22 +247,22 @@ class Structure:
         staged = []
         for k, (old, new) in enumerate(pairs):
             tmp = old.with_name(f".mv{k}-{old.name}")
-            old.rename(tmp)
+            fsutil.rename(old, tmp)
             side_old = drafts.sidecar_path(self.root, old)
             side_tmp = None
             if side_old.is_file():
                 side_tmp = side_old.with_name(f".mv{k}-{side_old.name}")
-                side_old.replace(side_tmp)
+                fsutil.replace(side_old, side_tmp)
             snap_tmp = snapshots.stage(self.root, old, str(k))
             note_tmp = comments.stage(self.root, old, str(k))
             staged.append((tmp, new, side_tmp, snap_tmp, note_tmp))
         for tmp, new, side_tmp, snap_tmp, note_tmp in staged:
             new.parent.mkdir(parents=True, exist_ok=True)
-            tmp.rename(new)
+            fsutil.rename(tmp, new)
             if side_tmp is not None:
                 side_new = drafts.sidecar_path(self.root, new)
                 side_new.parent.mkdir(parents=True, exist_ok=True)
-                side_tmp.replace(side_new)
+                fsutil.replace(side_tmp, side_new)
             if snap_tmp is not None:
                 snapshots.unstage(self.root, snap_tmp, new)
             if note_tmp is not None:
@@ -333,7 +334,7 @@ class Structure:
         if part.exists():
             raise ValueError(f"a part folder named {part.name} already exists")
         part.mkdir(parents=True)
-        (part / PART_FILE).write_text(f"# {title}\n", encoding="utf-8")
+        (part / PART_FILE).write_text(f"# {title}\n", encoding="utf-8", newline="\n")
         return part
 
     def rename_part(self, part: Path, title: str) -> None:
@@ -375,7 +376,7 @@ class Structure:
             side = drafts.sidecar_path(self.root, old)
             if side.is_file():
                 tmp = side.with_name(f".mv{k}-{side.name}")
-                side.replace(tmp)
+                fsutil.replace(side, tmp)
                 staged.append((tmp, drafts.sidecar_path(self.root, new)))
             snap = snapshots.stage(self.root, old, str(k))
             if snap is not None:
@@ -385,12 +386,12 @@ class Structure:
                 note_staged.append((note, new))
         self.last_renames = {**dict(moves), a: new_a, b: new_b}
         tmp_a = a.with_name(f".swap-{a.name}")
-        a.rename(tmp_a)
-        b.rename(new_b)
-        tmp_a.rename(new_a)
+        fsutil.rename(a, tmp_a)
+        fsutil.rename(b, new_b)
+        fsutil.rename(tmp_a, new_a)
         for tmp, dest in staged:
             dest.parent.mkdir(parents=True, exist_ok=True)
-            tmp.replace(dest)
+            fsutil.replace(tmp, dest)
         for snap, new in snap_staged:
             snapshots.unstage(self.root, snap, new)
         for note, new in note_staged:
@@ -429,7 +430,7 @@ class Structure:
         if not research_notes.is_research_path(self, path) or not path.is_file():
             raise FileNotFoundError("no such research note")
         dest = self._trash_dest(path)
-        path.replace(dest)
+        fsutil.replace(path, dest)
         return dest
 
     def trash_inspiration(self, image_id: str) -> Path:
@@ -438,8 +439,8 @@ class Structure:
         Returns the item's path inside ``.trash/``."""
         image = inspiration.get(self, image_id)
         dest = self._trash_dest(image.meta_path)
-        image.path.replace(dest.with_name(f"{dest.name}.{image.ext}"))
-        image.meta_path.replace(dest)
+        fsutil.replace(image.path, dest.with_name(f"{dest.name}.{image.ext}"))
+        fsutil.replace(image.meta_path, dest)
         return dest
 
     def delete_scene(self, path: Path) -> Path:
@@ -448,14 +449,14 @@ class Structure:
         dest = self._trash_dest(path)
         side = drafts.sidecar_path(self.root, path)
         if side.is_file():
-            side.replace(dest.with_name(dest.name + ".drafts.json"))
+            fsutil.replace(side, dest.with_name(dest.name + ".drafts.json"))
             try:
                 side.parent.rmdir()
             except OSError:
                 pass
         snapshots.archive(self.root, path, dest.with_name(dest.name + ".snapshots"))
         comments.archive(self.root, path, dest.with_name(dest.name + ".comments.json"))
-        path.replace(dest)
+        fsutil.replace(path, dest)
         return dest
 
     def list_trash(self) -> list[TrashItem]:
@@ -496,7 +497,7 @@ class Structure:
         folder.mkdir(parents=True, exist_ok=True)
         final = orig if orig.parent == folder and not orig.exists() \
             else research_notes._free_path(folder, orig.stem)
-        item.path.replace(final)
+        fsutil.replace(item.path, final)
         self._tidy_trash()
         return final
 
@@ -514,8 +515,8 @@ class Structure:
             n += 1
             final = folder / f"{stem}-{n}.md"
         if picture is not None:
-            picture.replace(folder / f"{final.stem}.{ext}")
-        item.path.replace(final)
+            fsutil.replace(picture, folder / f"{final.stem}.{ext}")
+        fsutil.replace(item.path, final)
         self._tidy_trash()
         return final
 
@@ -551,12 +552,12 @@ class Structure:
         dest_dir.mkdir(parents=True, exist_ok=True)
         final = self._next_in(dest_dir, _slug_of(orig.name))
         final.parent.mkdir(parents=True, exist_ok=True)
-        item.path.replace(final)
+        fsutil.replace(item.path, final)
         side = item.path.with_name(item.path.name + ".drafts.json")
         if side.is_file():
             target = drafts.sidecar_path(self.root, final)
             target.parent.mkdir(parents=True, exist_ok=True)
-            side.replace(target)
+            fsutil.replace(side, target)
         snapshots.unarchive(self.root, item.path.with_name(item.path.name + ".snapshots"), final)
         comments.unarchive(self.root, item.path.with_name(item.path.name + ".comments.json"), final)
         self._tidy_trash()
