@@ -74,7 +74,7 @@ type Dialog =
   | { kind: "new-note"; name: string; openAfter: boolean }
   | { kind: "generate"; mode: "draft" | "rewrite"; from: number; to: number; title: string; label: string; initial: string }
   | { kind: "aliases"; items: AliasSuggestion[] }
-  | { kind: "rename"; name: string; aliases: string[] }
+  | { kind: "rename-note"; name: string; aliases: string[] }
   | { kind: "canon"; items: CanonProposal[] }
   | { kind: "style"; markdown: string; replacing: boolean }
   | { kind: "settings"; info: SettingsInfo }
@@ -1035,7 +1035,7 @@ export default function App() {
     return false;
   };
   const renamePreview = async (to: string, keepOld: boolean, aliases: Record<string, string>, scope: RenameScope[]): Promise<RenamePreview | null> => {
-    if (dialog?.kind !== "rename" || !(await renameFlush())) return null;
+    if (dialog?.kind !== "rename-note" || !(await renameFlush())) return null;
     const r = await api.renamePreview(dialog.name, to, keepOld, aliases, scope);
     if (!r.ok) { notify(r.error, "error"); return null; }
     return r;
@@ -1239,7 +1239,7 @@ export default function App() {
           ]} />
         {showAssistant && (
           <Assistant tab={tab} onTab={setTab} mentions={mentions} onPickEntity={showNote}
-            note={note} missingTarget={missingTarget} onOpenNote={(id) => void openDoc(id)} onAddAlias={(n, a) => void addAlias(n, a)} onRename={(n, al) => setDialog({ kind: "rename", name: n, aliases: al })}
+            note={note} missingTarget={missingTarget} onOpenNote={(id) => void openDoc(id)} onAddAlias={(n, a) => void addAlias(n, a)} onRename={(n, al) => setDialog({ kind: "rename-note", name: n, aliases: al })}
             onCreateNote={(t) => setDialog({ kind: "new-note", name: t, openAfter: false })} onOpenBacklink={(id, row) => void openBacklink(id, row)}
             issues={issues} onReviewIssue={reviewIssue} onDismissIssue={(i) => void dismissIssue(i)}
             messages={messages} busy={aiBusy} run={aiRun} onStop={stopAi} aiReady={aiReady} scope={scope} onScope={() => setScope((c) => (c === "scene" ? "project" : "scene"))}
@@ -1295,7 +1295,7 @@ export default function App() {
         <PromptDialog title={dialog.title} label={dialog.label} initial={dialog.initial} confirm="Generate"
           onSubmit={(t) => { const g = dialog; setDialog(null); void runGenerate(g.mode, t, g.from, g.to); }} onClose={() => setDialog(null)} />
       )}
-      {dialog?.kind === "rename" && (
+      {dialog?.kind === "rename-note" && (
         <RenameDialog name={dialog.name} aliases={dialog.aliases} onPreview={renamePreview} onApply={renameApply} onUndo={renameUndo}
           onClose={() => setDialog(null)} />
       )}
