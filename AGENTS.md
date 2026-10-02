@@ -40,6 +40,7 @@ src/lorewrite/
     attach.py           # chat attachments (scene/note/research/comments), capped and reported
     stats.py            # writing stats/streak/sprints: Tracker, state dir stats/<project-id>.json
     inspiration.py      # inspiration/ pictures + .md sidecars: save/list/update/pin, scene-link remap
+    rename.py           # rename an entity everywhere: plan (read-only) / apply (snapshots first) / undo
     export/             # M7: manuscript.py (assemble -> Book), layouts/ (PDF: book, manuscript, plain),
                         #   pdfkit.py (fonts), markdown.py, pandoc.py, __init__.py (run_export, options)
   ai/
@@ -240,6 +241,13 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   escaped (`markdown.py`) and read with raw HTML/TeX off. Output names come from `run_export` and are
   never overwritten; the UI opens files only through `resolve_export` + `open_in_desktop` and only
   on a click. Tests mock `lorewrite.core.export.open_in_desktop`.
+- **Rename everywhere** (`core/rename.py`; SPEC "Rename a character everywhere"). `plan_rename` never writes;
+  `apply_rename` takes only the ticked ids, refuses files changed since the preview, snapshots each scene
+  (`before-rename`) before any write and keeps an undo journal in `.lorewrite/rename-undo/`. Pending AI draft
+  bodies are `in_draft` and unticked by default; never rewrite markers or sidecars. Anything new that
+  renames or moves notes/scenes must keep going through `Structure._apply_renames`; this module only
+  rewrites text and the note's own file. GUI/TUI callers flush the open buffer first and reopen it after
+  (detach `current_path` / the save controller; the note's file name changes).
 - **Git sync is explicit** (`core/sync.py`). `status()` is the only call that may run by itself
   (read-only, 5 s timeout, never on the UI thread: TUI worker, GUI debounced bridge call outside
   `self._lock`; `get_workspace` must not call it). `commit` / `push` / `init` run only from a

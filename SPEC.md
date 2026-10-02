@@ -110,7 +110,7 @@ time, the author selects the name and presses `ctrl+j` to create the note.
 
 Explicitly deferred: `[[Note#Section]]`, `![[embeds]]`, block refs.
 
-Rename handling: renaming an entity updates its note file; link rewrite across the manuscript is an explicit, previewable command (M2).
+Rename handling: **Rename everywhere** (§7 "Rename a character everywhere") renames a note, updates its aliases and rewrites the text, as an explicit, previewable, undoable command.
 
 ## 6. App architecture
 
@@ -164,7 +164,7 @@ lorewrite/
 - OpenRouter client (`openai` SDK, key via `keyring` with `OPENROUTER_API_KEY` env override; "Set OpenRouter API key" palette action stores in keyring)
 - **Find aliases in this scene** (`ctrl+l` / palette; was "Link mentions" until 2026-09 — the author dislikes `[[brackets]]`, and plain names/aliases are recognized without AI, §5): fast model (default `google/gemini-2.5-flash`, override per-project via `[ai] fast_model` in project.toml), JSON-schema structured output with `provider.require_parameters`. The AI finds only *other* ways the prose refers to known entities ("the old smith" → Borin). **Offsets validated app-side** (`text[start:end]` must match surface exactly; drift dropped, never guessed) and suggestions are dropped when they are pronouns, < 2 or > 40 chars, already a name/alias, inside an existing link/mention, or duplicates
 - Review modal: each row `"the old smith" → Borin (line 12: …context…)`, all pre-checked, `space` toggle, `a` all, `enter` apply, `esc` cancel; **nothing applied without enter**. Accepting only **adds aliases** to entity notes (a leading capitalized article is stored lowercase) and rebuilds the index so every scene picks them up; scene text is never modified
-- Deferred: previewable entity-rename link rewrite
+- Previewable entity-rename rewrite: see "Rename a character everywhere" below
 
 ### M3 — Lore/continuity checking + the Contextual Tracker ✅ (implemented)
 
@@ -545,6 +545,31 @@ open and behave exactly as before.*
     `## <date> - <prompt>` with a `**Prompt:**` line, to `research/assistant-notes.md` (created with
     `# Assistant notes`). It is an ordinary research note afterwards, so the Research action can
     find it again. Nothing is sent anywhere.
+
+### Rename a character everywhere ✅ (feedback batch 2; plan: docs/dev/plan-feedback-2026-10.md)
+Deterministic (no AI). Core `core/rename.py`; GUI: Notes tab -> **Rename everywhere...**; terminal palette:
+`Entity · Rename everywhere...` (the open note, or the name under the cursor) and `Entity · Undo last rename`.
+- **Form:** new name, "keep the old name as an alias" (default on), a new spelling per alias (an alias left
+  as it is stays as it is, so it keeps linking), and where to look: scenes always; other notes (default on),
+  research notes, comments (off).
+- **Preview, grouped by file, nothing written:** every occurrence with its line and context, each with a
+  tick. Covered: plain mentions (`find_mentions` rules: whole words, case as written plus a sentence-start
+  capital, longest name wins so renaming "Elara" leaves "Elara Vance" of another note alone, possessives:
+  "Elara's" -> "Ela's"), explicit `[[links]]` (target, and `|display` when it is the old name; other display
+  text is kept) and a scene's `pov` / `place` details (other frontmatter is not prose and is never
+  touched). The replacement follows the occurrence's capitalisation. Text inside a pending AI draft is
+  listed but **unticked**; the markers and `.drafts` originals are never touched. A name that is also an
+  ordinary word ("Will") is handled by unticking.
+- **Apply:** refuses (before any write) if a file changed since the preview; then snapshots every scene about
+  to change (label `before-rename`), writes an undo journal (`.lorewrite/rename-undo/<id>.json`: the
+  other files' texts, the scene snapshot names, digests of what was written), rewrites the ticked
+  occurrences atomically, keeps comments anchored to the same passages, renames the note (name, aliases,
+  file name from the new slug) and rebuilds the index. A failure puts every written file back.
+- **Undo:** scenes come back from their snapshots, the other files and the note from the journal; a file
+  edited since the rename is left alone and reported. GUI: the Undo button of the result step; terminal:
+  `Undo last rename` (the journal survives a restart).
+- Bridge: `rename_preview`, `rename_apply`, `rename_undo`. Tests: `tests/test_rename.py`,
+  `test_gui_rename.py`, `test_rename_tui.py`, `gui/src/data/rename.test.ts`.
 
 ### Export ✅ (M7, implemented 2026-10-01; plan: docs/dev/plan-export.md)
 
