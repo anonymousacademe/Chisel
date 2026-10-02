@@ -40,6 +40,12 @@ def test_release_workflow_is_valid_yaml_with_pinned_actions():
     for uses in re.findall(r"uses:\s*(\S+)", text):
         assert re.search(r"@(v\d+|[0-9a-f]{40})", uses), f"unpinned action: {uses}"
     assert "contents: write" in text  # only the release job needs it
+    release = text.split("  release:", 1)[1]
+    needs = re.search(r"needs: \[(.*?)\]", release).group(1)
+    assert "macos-arm64" in needs and "macos-intel" in needs
+    assert "needs.macos-arm64.result == 'success'" in release
+    assert "needs.macos-intel.result" not in release          # Intel is best effort: never required
+    assert "pattern: release-*" in release                    # and web-ui is not attached
 
 
 def test_icons_exist_for_every_os():

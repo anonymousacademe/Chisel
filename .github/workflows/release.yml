@@ -58,7 +58,7 @@ jobs:
           python -m build
       - uses: actions/upload-artifact@v4
         with:
-          name: python-dist
+          name: release-python
           path: dist/*
           if-no-files-found: error
 
@@ -98,7 +98,7 @@ jobs:
           "$app" --appimage-extract-and-run --terminal --help
       - uses: actions/upload-artifact@v4
         with:
-          name: linux
+          name: release-linux
           path: dist/release/*
           if-no-files-found: error
 
@@ -132,24 +132,16 @@ jobs:
           Start-Process -FilePath "$dir\unins000.exe" -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES" -Wait
       - uses: actions/upload-artifact@v4
         with:
-          name: windows
+          name: release-windows
           path: dist/release/*
           if-no-files-found: error
 
-  macos:
-    name: macOS ${{ matrix.arch }}
+  macos-arm64:
+    name: macOS arm64 (Apple silicon)
     needs: ui
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: arm64
-            runner: macos-14
-          - arch: x86_64
-            runner: macos-15-intel
-    runs-on: ${{ matrix.runner }}
+    runs-on: macos-14
     env:
-      LOREWRITE_TARGET_ARCH: ${{ matrix.arch }}
+      LOREWRITE_TARGET_ARCH: arm64
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -190,14 +182,72 @@ jobs:
           exit $status
       - uses: actions/upload-artifact@v4
         with:
-          name: macos-${{ matrix.arch }}
+          name: release-macos-arm64
           path: dist/release/*
           if-no-files-found: error
 
+
+  macos-intel:
+    name: macOS x86_64 (Intel, best effort)
+    # Best effort: the draft release does not wait for this to succeed, it only attaches the DMG if it did.
+    needs: ui
+    runs-on: macos-15-intel
+    env:
+      LOREWRITE_TARGET_ARCH: x86_64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-ui
+          path: src/lorewrite/gui/web
+      - run: |
+          python -m pip install --upgrade pip
+          pip install ".[all]" -r packaging/requirements-build.txt
+      - name: Bundle, self-test, DMG
+        run: python packaging/build.py all
+      - name: Self-test the app as it comes out of the DMG
+        run: |
+          dmg=$(ls dist/release/*.dmg)
+          mnt=$(mktemp -d)
+          # hdiutil on the macOS runners is occasionally "resource busy": retry, then force
+          attach() {
+            for i in 1 2 3 4 5; do
+              hdiutil attach "$dmg" -mountpoint "$mnt" -nobrowse -quiet && return 0
+              echo "attach failed (try $i), retrying"; sleep 3
+            done
+            return 1
+          }
+          detach() {
+            for i in 1 2 3 4 5; do
+              hdiutil detach "$mnt" -quiet && return 0
+              echo "detach failed (try $i), retrying"; sleep 3
+            done
+            hdiutil detach "$mnt" -force
+          }
+          attach
+          status=0
+          python packaging/build.py selftest --gui "$mnt/LoreWriter.app/Contents/MacOS/LoreWriter" --tui "$mnt/LoreWriter.app/Contents/MacOS/lorewrite" || status=$?
+          detach
+          exit $status
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos-x86_64
+          path: dist/release/*
+          if-no-files-found: error
+
+
   release:
     name: Draft GitHub Release
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [python-dist, linux, windows, macos]
+    # Requires the sdist/wheel, Linux, Windows and macOS arm64 jobs. The Intel DMG is best effort:
+    # this job waits for it to finish (so it can attach it) but does not need it to succeed.
+    if: >-
+      ${{ startsWith(github.ref, 'refs/tags/v') && !cancelled()
+      && needs.python-dist.result == 'success' && needs.linux.result == 'success'
+      && needs.windows.result == 'success' && needs.macos-arm64.result == 'success' }}
+    needs: [python-dist, linux, windows, macos-arm64, macos-intel]
     runs-on: ubuntu-22.04
     permissions:
       contents: write   # creating the draft release
@@ -205,10 +255,13 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+          pattern: release-*          # not web-ui; a failed Intel job uploaded nothing and is simply absent
           merge-multiple: true
-      - name: Checksums
+      - name: Checksums (of whatever is attached)
         run: |
           cd artifacts
+          ls -l
+          test -n "$(ls *-macos-arm64.dmg)"   # the arm64 DMG is required
           sha256sum * > SHA256SUMS.txt
           cat SHA256SUMS.txt
       - name: Create the draft release

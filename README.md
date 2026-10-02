@@ -79,7 +79,7 @@ download contains **both** apps: the desktop app (LoreWriter) and the terminal a
 | Windows 10 / 11 (64-bit) | `LoreWriter-<version>-windows-setup.exe` | Installs for you only (no administrator rights), adds a Start-menu entry and, if you tick it, a desktop shortcut; remove it from Settings > Apps. |
 | Windows, no install | `LoreWriter-<version>-windows-portable.zip` | Unzip anywhere and run `LoreWriter\LoreWriter.exe`. |
 | macOS, Apple silicon (M1 or newer) | `LoreWriter-<version>-macos-arm64.dmg` | Open it, drag LoreWriter to Applications. |
-| macOS, Intel | `LoreWriter-<version>-macos-x86_64.dmg` | The same. |
+| macOS, Intel | `LoreWriter-<version>-macos-x86_64.dmg` | Best effort: built when the Intel build runner works, so a release may not have it. Otherwise install from source. |
 | Linux (x86-64) | `LoreWriter-<version>-x86_64.AppImage` | `chmod +x` it and run it. |
 | Any system with Python | `pipx install lorewriter` (PyPI) | coming; see "From source" for now. |
 
