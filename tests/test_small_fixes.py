@@ -60,7 +60,9 @@ async def test_launch_hint_fits_at_80_and_100_columns(tmp_path: Path):
 def test_pyproject_version_matches_package():
     root = Path(lorewrite.__file__).resolve().parents[2]
     data = tomllib.loads((root / "pyproject.toml").read_text())
-    assert data["project"]["version"] == lorewrite.__version__
+    # the version has one source: __version__ (pyproject reads it as an attribute)
+    assert "version" in data["project"]["dynamic"]
+    assert data["tool"]["setuptools"]["dynamic"]["version"] == {"attr": "lorewrite.__version__"}
 
 
 async def test_help_lines_render_on_separate_rows(tmp_path: Path):

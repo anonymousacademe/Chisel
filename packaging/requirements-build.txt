@@ -1,0 +1,6 @@
+# Build-time dependencies of the packaged apps (see docs/dev/packaging.md).
+#   pip install ".[all]" -r packaging/requirements-build.txt
+pyinstaller>=6.10
+# Linux bundle: pywebview's Qt backend (WebKitGTK cannot be bundled reliably)
+PySide6>=6.6; sys_platform == "linux"
+qtpy>=2.4; sys_platform == "linux"

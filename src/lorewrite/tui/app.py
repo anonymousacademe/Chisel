@@ -2865,7 +2865,14 @@ def main() -> None:
     parser.add_argument("--new", metavar="TITLE",
                         help="Create a new project with this title"
                              " (at --project, or cwd)")
+    parser.add_argument("--report", metavar="FILE", default=None,
+                        help="with --self-test: also write the JSON report to FILE")
+    parser.add_argument("--self-test", action="store_true",
+                        help="check the bundled data and print a JSON report; exit 1 on a failure")
     args = parser.parse_args()
+    if args.self_test:
+        from ..selftest import main as self_test
+        raise SystemExit(self_test(args.report))
 
     project: Project | None = None
     if args.new:

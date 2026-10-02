@@ -44,3 +44,14 @@ use it. The desktop UI never re-implements logic in TypeScript.
 - No emojis in the UI or the docs.
 
 By contributing you agree that your work is released under the [MIT licence](LICENSE).
+
+## Releases
+
+Maintainers only. The version lives in one place, `src/lorewrite/__init__.py`
+(`__version__`); the wheel, the Windows file version, the macOS `Info.plist` and
+the AppImage desktop file all read it. To cut a release: bump it, merge to `main`,
+then `git tag vX.Y.Z && git push --tags`. The `Release` workflow builds the
+installers on all three systems, runs `--self-test` on each, and attaches
+everything to a **draft** GitHub Release for a person to review and publish.
+`Actions > Release > Run workflow` makes a test build without a release. Details
+and local builds: [docs/dev/packaging.md](docs/dev/packaging.md).
