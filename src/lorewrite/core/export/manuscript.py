@@ -126,6 +126,10 @@ class Book:
     title: str
     author: str
     options: ExportOptions
+    subtitle: str = ""
+    copyright: str = ""            # the export's override, else the project's
+    contact: str = ""
+    language: str = "en"
     parts: list[Part] = field(default_factory=list)
     words: int = 0
     scenes: int = 0
@@ -360,8 +364,12 @@ def _scene_text(project, path: Path, opts: ExportOptions, book: Book,
 
 def assemble(project, options: ExportOptions | None = None) -> Book:
     opts = options or ExportOptions()
-    author = str(project.meta.get("author") or "").strip()
-    book = Book(title=project.title, author=author, options=opts)
+    info = project.author_info()
+    # Use pen_name if set, otherwise author
+    author = info["pen_name"] or info["author"]
+    book = Book(title=project.title, author=author, options=opts,
+                subtitle=info["subtitle"], copyright=opts.copyright.strip() or info["copyright"],
+                contact=info["contact"], language=info["language"])
     unit_word = "Chapter" if project.unit == "chapter" else "Scene"
 
     groups: list[tuple[Part, list[Path]]] = []

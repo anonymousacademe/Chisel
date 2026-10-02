@@ -15,7 +15,7 @@ export type ExportLayout = {
   fonts: { key: string; label: string; available: boolean }[];
   toc: boolean; continuous: boolean; numbering: boolean;
 };
-export type ExportInfo = { formats: ExportFormat[]; layouts: ExportLayout[]; options: ExportOptions };
+export type ExportInfo = { formats: ExportFormat[]; layouts: ExportLayout[]; options: ExportOptions; project_copyright?: string };
 
 export type ExportSummary = {
   scenes: number; words: number; parts: number; draft_scenes: number; messages: string[];

@@ -152,6 +152,9 @@ export const api = {
   getSettings: () => call<SettingsInfo>("get_settings"),
   setSettings: (models?: Partial<Record<ModelKind, string>>, editor?: Partial<EditorPrefs>, spellcheck?: boolean, autoSnapshot?: boolean, dailyTarget?: number, imageStyle?: string) =>
     call("set_settings", models ?? null, editor ?? null, spellcheck ?? null, autoSnapshot ?? null, dailyTarget ?? null, imageStyle ?? null),
+  getProjectInfo: () => call<{ author: string; pen_name: string; subtitle: string; copyright: string; contact: string; language: string }>("get_project_info"),
+  setProjectInfo: (author: string, pen_name: string, subtitle: string, copyright_: string, contact: string, language: string) =>
+    call("set_project_info", author, pen_name, subtitle, copyright_, contact, language),
   /** Session stats page data; stats live in the user state dir, not the project. */
   statsSummary: () => call<{ stats: StatsSummary }>("stats_summary"),
   /** Focus sprint: start (1-240 minutes) / end (the words written are recorded in today's stats). */

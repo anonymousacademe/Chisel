@@ -75,6 +75,9 @@ def _rounded_words(n: int) -> str:
 
 
 def _surname(author: str) -> str:
+    """Last word of the name ("Jane Writer" -> "Writer"; "Writer, Jane" -> "Writer")."""
+    if "," in author:
+        author = author.split(",")[0]
     return author.split()[-1] if author.split() else ""
 
 
@@ -105,15 +108,23 @@ def render(book: Book, opts: ExportOptions, path) -> int:
         return cls(pdfkit.markup((Run(text),)), style)
 
     story: list = [Mark()]
-    story.append(RLParagraph(pdfkit.markup((Run(book.author),)), ParagraphStyle(
-        "ms-a", parent=base, firstLineIndent=0, spaceAfter=0)))
-    story.append(Spacer(1, GRID * 8))
+    corner = ParagraphStyle("ms-a", parent=base, firstLineIndent=0, spaceAfter=0)
+    # standard manuscript format: name, then contact, top left
+    story.append(RLParagraph(pdfkit.markup((Run(book.author),)), corner))
+    lines = 1
+    for line in (book.contact.splitlines() if book.contact else []):
+        if line.strip():
+            story.append(RLParagraph(pdfkit.markup((Run(line.strip()),)), corner))
+            lines += 1
+    story.append(Spacer(1, GRID * max(1, 8 - lines + 1)))
     story.append(RLParagraph(pdfkit.markup((Run(book.title.upper()),)), centre))
+    if book.subtitle:
+        story.append(plain(book.subtitle, centre))
     if book.author:
         story += [Spacer(1, GRID), plain("by", centre), plain(book.author, centre)]
     story += [Spacer(1, GRID * 2), plain(_rounded_words(book.words), centre)]
-    if opts.copyright:
-        story += [Spacer(1, GRID * 3), plain(opts.copyright, centre)]
+    if book.copyright:
+        story += [Spacer(1, GRID * 3), plain(book.copyright, centre)]
     story.append(PageBreak())
 
     fresh = True
@@ -145,7 +156,7 @@ def render(book: Book, opts: ExportOptions, path) -> int:
                     story.append(NumberedParagraph(pdfkit.markup(block.runs), first))
 
     doc = Doc(str(path), pagesize=(width, height), title=book.title, author=book.author,
-              creator="lorewrite", initialFontName=face.regular, initialFontSize=SIZE,
+              subject=book.subtitle, creator="lorewrite", initialFontName=face.regular, initialFontSize=SIZE,
               leftMargin=margin, rightMargin=margin, topMargin=margin, bottomMargin=margin)
     frame = Frame(margin, margin, width - 2 * margin, frame_h, id="f", leftPadding=0,
                   rightPadding=0, topPadding=0, bottomPadding=0)

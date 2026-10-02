@@ -35,6 +35,14 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
   const [dailyTarget, setDailyTarget] = useState(String(initial.dailyTarget));
   const [imageStyle, setImageStyle] = useState(initial.imageStyle);
   const [picking, setPicking] = useState<ModelKind | null>(null);
+  const [projectInfo, setProjectInfo] = useState({ author: "", pen_name: "", subtitle: "", copyright: "", contact: "", language: "en" });
+
+  const loadProjectInfo = async () => {
+    const r = await api.getProjectInfo();
+    if (r.ok) setProjectInfo(r);
+  };
+
+  useEffect(() => { void loadProjectInfo(); }, []);
 
   const reload = async () => { const r = await api.getSettings(); if (r.ok) setInfo(r); };
   const saveKey = async () => {
@@ -52,6 +60,8 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
     if (!Number.isInteger(target) || target < 0 || target > 100000) return notify("The daily target must be a whole number from 0 to 100,000.", "error");
     const r = await api.setSettings(models, editor, spellcheck, autoSnapshot, target, imageStyle);
     if (!r.ok) return notify(r.error, "error");
+    const pr = await api.setProjectInfo(projectInfo.author, projectInfo.pen_name, projectInfo.subtitle, projectInfo.copyright, projectInfo.contact, projectInfo.language);
+    if (!pr.ok) return notify(pr.error, "error");
     onSaved(editor, spellcheck); onClose();
   };
 
@@ -97,6 +107,34 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
           <label className="lw-dialog__label">Image style <span className="lw-faint">added to every picture description; empty turns it off</span>
             <input className="lw-launch__input" value={imageStyle} spellCheck={false} maxLength={300}
               placeholder={info.imageStyleDefault} aria-label="Image style" onChange={(e) => setImageStyle(e.target.value)} />
+          </label>
+        </section>
+
+        <section className="lw-settings__section">
+          <h3>Project & author</h3>
+          <label className="lw-dialog__label">Author <span className="lw-faint">your name</span>
+            <input className="lw-launch__input" value={projectInfo.author} maxLength={100}
+              placeholder="Author name" aria-label="Author" onChange={(e) => setProjectInfo({ ...projectInfo, author: e.target.value })} />
+          </label>
+          <label className="lw-dialog__label">Pen name <span className="lw-faint">used instead of author in exports if set</span>
+            <input className="lw-launch__input" value={projectInfo.pen_name} maxLength={100}
+              placeholder="Pen name (optional)" aria-label="Pen name" onChange={(e) => setProjectInfo({ ...projectInfo, pen_name: e.target.value })} />
+          </label>
+          <label className="lw-dialog__label">Subtitle
+            <input className="lw-launch__input" value={projectInfo.subtitle} maxLength={200}
+              placeholder="Book subtitle (optional)" aria-label="Subtitle" onChange={(e) => setProjectInfo({ ...projectInfo, subtitle: e.target.value })} />
+          </label>
+          <label className="lw-dialog__label">Copyright <span className="lw-faint">e.g., © 2026 Jane Writer</span>
+            <input className="lw-launch__input" value={projectInfo.copyright} maxLength={200}
+              placeholder="Copyright notice (optional)" aria-label="Copyright" onChange={(e) => setProjectInfo({ ...projectInfo, copyright: e.target.value })} />
+          </label>
+          <label className="lw-dialog__label">Contact <span className="lw-faint">email or website</span>
+            <input className="lw-launch__input" value={projectInfo.contact} maxLength={100}
+              placeholder="Contact (optional)" aria-label="Contact" onChange={(e) => setProjectInfo({ ...projectInfo, contact: e.target.value })} />
+          </label>
+          <label className="lw-dialog__label">Language <span className="lw-faint">for EPUB metadata and hyphenation</span>
+            <input className="lw-launch__input" value={projectInfo.language} maxLength={10}
+              placeholder="en" aria-label="Language code" onChange={(e) => setProjectInfo({ ...projectInfo, language: e.target.value })} />
           </label>
         </section>
 

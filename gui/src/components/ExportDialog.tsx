@@ -147,12 +147,11 @@ export function ExportDialog({ unit, onClose, notify }: {
         </p>
       ) : null}
       {summary && summary.messages.filter((m) => !m.includes("unaccepted AI drafts")).map((m, i) => <p key={i} className="lw-export__warn">{m}</p>)}
-      {opts.format === "pdf" && (
-        <label className="lw-dialog__label">Copyright or edition line (optional)
-          <input className="lw-launch__input" value={opts.copyright} disabled={busy} placeholder="First edition, 2026"
-            onChange={(e) => set({ copyright: e.target.value })} />
-        </label>
-      )}
+      <label className="lw-dialog__label">Copyright line (optional override)
+        <input className="lw-launch__input" value={opts.copyright} disabled={busy}
+          placeholder={info?.project_copyright || "From Settings: Project & author, or e.g. First edition, 2026"}
+          onChange={(e) => set({ copyright: e.target.value })} />
+      </label>
       <p className="lw-faint lw-export__hint">Files are saved in the project’s <code>exports</code> folder; nothing is overwritten.</p>
       </div>
       {busy && (

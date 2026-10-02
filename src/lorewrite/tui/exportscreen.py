@@ -88,8 +88,9 @@ class ExportScreen(ModalScreen["ExportOptions | None"]):
                 yield Checkbox(f"Run {self._unit}s on with a break ornament", o.continuous, id="export-continuous")
                 yield Checkbox("Include pending AI drafts", o.include_drafts, id="export-drafts")
                 with Horizontal(classes="export-row"):
-                    yield Label("Copyright line (PDF)", classes="export-label")
-                    yield Input(o.copyright, placeholder="First edition, 2026", id="export-copyright")
+                    yield Label("Copyright override", classes="export-label")
+                    yield Input(o.copyright, placeholder=self._info.get("project_copyright")
+                                or "First edition, 2026", id="export-copyright")
             if self._notes:
                 yield Label("\n".join(self._notes), id="export-warn")
             yield Label("tab next · ctrl+s export · esc cancel · saved in exports/", id="export-hint")

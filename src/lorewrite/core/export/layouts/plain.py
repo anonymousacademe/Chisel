@@ -42,6 +42,8 @@ def render(book: Book, opts: ExportOptions, path) -> int:
 
     story: list = [Spacer(1, 4 * cm), para(book.title, ParagraphStyle(
         "pp-t", parent=h0, fontSize=30, leading=36, spaceBefore=0))]
+    if book.subtitle:
+        story.append(para(book.subtitle, ParagraphStyle("pp-s", parent=body, fontSize=14, leading=18)))
     if book.author:
         story.append(para(book.author, body))
     story += [para(f"{book.words:,} words in {book.scenes} scenes", label), PageBreak()]
@@ -66,7 +68,7 @@ def render(book: Book, opts: ExportOptions, path) -> int:
                 story.append(RLParagraph("* * *", brk) if isinstance(block, Break)
                              else RLParagraph(pdfkit.markup(block.runs), body))
     doc = BaseDocTemplate(str(path), pagesize=(width, height), title=book.title,
-                          author=book.author, creator="lorewrite",
+                          author=book.author, subject=book.subtitle, creator="lorewrite",
                           initialFontName=face.regular, initialFontSize=SIZE)
     frame = Frame(margin, 2 * cm, width - 2 * margin, height - 2 * cm - margin, id="f")
     doc.addPageTemplates([PageTemplate(id="p", frames=[frame], onPageEnd=foot)])

@@ -36,6 +36,12 @@ def _runs(runs: tuple[Run, ...], strict: bool) -> str:
     return re.sub(r"^(\d+)([.)])(?=\s)", r"\1\\\2", re.sub(r"^([-+])(?=\s)", r"\\\1", para))
 
 
+def _lang_tag(language: str) -> str:
+    """A BCP 47-looking tag for pandoc's ``lang`` ("en_GB" -> "en-GB"); "en" if odd."""
+    tag = language.strip().replace("_", "-")
+    return tag if re.fullmatch(r"[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*", tag) else "en"
+
+
 def to_markdown(book: Book, *, pandoc: bool = False) -> str:
     """Markdown text for *book*. With ``pandoc`` the text carries a YAML
     metadata block (title, author) and is escaped for pandoc's reader; without
@@ -43,16 +49,25 @@ def to_markdown(book: Book, *, pandoc: bool = False) -> str:
     strict = pandoc
     lines: list[str] = []
     if pandoc:
-        lines += ["---", f"title: {json.dumps(book.title, ensure_ascii=False)}"]
-        if book.author:
-            lines.append(f"author: {json.dumps(book.author, ensure_ascii=False)}")
-        lines += ["lang: en", "---", ""]
+        def meta(key: str, value: str) -> None:
+            if value:
+                lines.append(f"{key}: {json.dumps(value, ensure_ascii=False)}")
+        lines.append("---")
+        meta("title", book.title)
+        meta("subtitle", book.subtitle)
+        meta("author", book.author)
+        meta("subject", book.subtitle)      # DOCX document properties
+        meta("rights", book.copyright)      # EPUB dc:rights
+        meta("lang", _lang_tag(book.language))
+        lines += ["---", ""]
     else:
         lines += [f"# {_escape(book.title, False)}", ""]
+        if book.subtitle:
+            lines += [f"## {_escape(book.subtitle, False)}", ""]
         if book.author:
             lines += [f"*{_escape(book.author, False)}*", ""]
-    if book.options.copyright:
-        lines += [_escape(book.options.copyright, strict), ""]
+    if book.copyright:
+        lines += [_escape(book.copyright, strict), ""]
     deep = book.real_parts > 0
     for part in book.parts:
         if part.title is not None and not part.front:

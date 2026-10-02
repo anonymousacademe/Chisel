@@ -67,6 +67,19 @@ class SettingsScreen(ModalScreen[None]):
                 yield Label("Image style (added to every picture description; empty = off):")
                 yield Input(id="image-style", placeholder=DEFAULT_STYLE)
                 if self._project is not None:
+                    yield Label("Project & author", classes="settings-heading")
+                    yield Label("Author:")
+                    yield Input(id="author")
+                    yield Label("Pen name (if set, used instead of author in exports):")
+                    yield Input(id="pen-name")
+                    yield Label("Subtitle:")
+                    yield Input(id="subtitle")
+                    yield Label("Copyright (e.g., © 2026 Jane Writer):")
+                    yield Input(id="copyright")
+                    yield Label("Contact (email/website):")
+                    yield Input(id="contact")
+                    yield Label("Language (for EPUB metadata; default: en):")
+                    yield Input(id="language")
                     yield Label("Editor (this project)", classes="settings-heading")
                     yield Label("Side padding (0–8):")
                     yield Input(id="padding")
@@ -102,6 +115,13 @@ class SettingsScreen(ModalScreen[None]):
             user_settings.get("auto_snapshot", True))
         self.query_one("#daily-target", Input).value = str(writing_stats.get_target())
         if self._project is not None:
+            info = self._project.author_info()
+            self.query_one("#author", Input).value = info["author"]
+            self.query_one("#pen-name", Input).value = info["pen_name"]
+            self.query_one("#subtitle", Input).value = info["subtitle"]
+            self.query_one("#copyright", Input).value = info["copyright"]
+            self.query_one("#contact", Input).value = info["contact"]
+            self.query_one("#language", Input).value = info["language"]
             prefs = self._project.editor_settings()
             self.query_one("#padding", Input).value = str(prefs["padding"])
             self.query_one("#line-numbers", Checkbox).value = prefs[
@@ -178,6 +198,14 @@ class SettingsScreen(ModalScreen[None]):
         except ValueError:
             self.app.notify("The daily target must be a number from 0 to 100,000", severity="warning")
         if self._project is not None:
+            self._project.update_author_info(
+                author=self.query_one("#author", Input).value.strip(),
+                pen_name=self.query_one("#pen-name", Input).value.strip(),
+                subtitle=self.query_one("#subtitle", Input).value.strip(),
+                copyright_=self.query_one("#copyright", Input).value.strip(),
+                contact=self.query_one("#contact", Input).value.strip(),
+                language=self.query_one("#language", Input).value.strip(),
+            )
             raw = self.query_one("#padding", Input).value.strip()
             try:
                 padding = int(raw)

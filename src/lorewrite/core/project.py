@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import tomllib
 from dataclasses import dataclass, field
@@ -113,6 +114,52 @@ class Project(Structure):
             meta = tomllib.load(f)
         drafts.migrate_sidecars(root)  # pre-parts sidecars -> path-keyed names
         return cls(root=root, title=str(meta.get("title", "Untitled")), meta=meta)
+
+    def author_info(self) -> dict:
+        """Project and author details from project.toml [project].
+
+        Returns a dict with author, pen_name, subtitle, copyright, contact, language.
+        Reads author from [project] section if present, otherwise from top-level
+        (backwards compatible with old format).
+        """
+        proj = self.meta.get("project") or {}
+        # Backwards compatibility: if author is not in [project], read from top-level
+        author = str(proj.get("author") or self.meta.get("author") or "").strip()
+        return {
+            "author": author,
+            "pen_name": str(proj.get("pen_name", "")).strip(),
+            "subtitle": str(proj.get("subtitle", "")).strip(),
+            "copyright": str(proj.get("copyright", "")).strip(),
+            "contact": str(proj.get("contact", "")).strip(),
+            "language": str(proj.get("language", "en")).strip() or "en",
+        }
+
+    def update_author_info(
+        self, author: str | None = None, pen_name: str | None = None,
+        subtitle: str | None = None, copyright_: str | None = None,
+        contact: str | None = None, language: str | None = None
+    ) -> None:
+        """Write [project] details into project.toml."""
+        current = self.author_info()
+        if author is not None:
+            current["author"] = author.strip()
+        if pen_name is not None:
+            current["pen_name"] = pen_name.strip()
+        if subtitle is not None:
+            current["subtitle"] = subtitle.strip()
+        if copyright_ is not None:
+            current["copyright"] = copyright_.strip()
+        if contact is not None:
+            current["contact"] = contact.strip()
+        if language is not None:
+            current["language"] = (language.strip() or "en")
+
+        body = ""
+        for key in ["author", "pen_name", "subtitle", "copyright", "contact", "language"]:
+            val = current[key]
+            if val:
+                body += f"{key} = {json.dumps(val, ensure_ascii=False)}\n"
+        self._write_section("project", body)
 
     def editor_settings(self) -> dict:
         """Per-project editor preferences from project.toml [editor].
