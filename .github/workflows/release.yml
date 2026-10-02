@@ -13,9 +13,6 @@ permissions:
 
 env:
   PYTHON_VERSION: "3.12"
-  # the self-test loads the built UI in QtWebEngine on Qt's offscreen platform (Linux)
-  LOREWRITE_SELFTEST_RENDER: "1"
-  QT_QPA_PLATFORM: offscreen
 
 jobs:
   ui:
@@ -69,6 +66,10 @@ jobs:
     name: Linux AppImage
     needs: ui
     runs-on: ubuntu-22.04   # older glibc, so the AppImage runs on more systems
+    env:
+      # the self-test loads the built UI in QtWebEngine on Qt's offscreen platform (Linux only)
+      LOREWRITE_SELFTEST_RENDER: "1"
+      QT_QPA_PLATFORM: offscreen
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

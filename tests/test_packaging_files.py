@@ -85,3 +85,11 @@ def test_workflow_downloads_nothing_unpinned():
     text = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
     assert "continuous" not in text and not re.search(r"\b(curl|wget)\b", text)
     assert "choco install innosetup --version=" in text
+
+
+def test_render_env_is_set_only_on_the_linux_job():
+    text = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+    head, linux_on = text.split("  linux:", 1)
+    assert "LOREWRITE_SELFTEST_RENDER" not in head                    # not workflow-wide
+    assert "LOREWRITE_SELFTEST_RENDER" in linux_on.split("  windows:", 1)[0]
+    assert "LOREWRITE_SELFTEST_RENDER" not in linux_on.split("  windows:", 1)[1]

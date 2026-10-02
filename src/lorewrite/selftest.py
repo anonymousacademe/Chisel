@@ -133,12 +133,14 @@ def _gui_backend() -> str:
 
 
 def _render() -> str:
-    """Opt-in (LOREWRITE_SELFTEST_RENDER=1, Linux bundle): load the built UI in
+    """Opt-in (LOREWRITE_SELFTEST_RENDER=1, Linux bundle only): load the built UI in
     QtWebEngine on Qt's offscreen platform (no window, no display) and read the
     page title back. Proves the bundled Chromium starts."""
     import os
     if os.environ.get("LOREWRITE_SELFTEST_RENDER") != "1":
         return "skipped (set LOREWRITE_SELFTEST_RENDER=1)"
+    if not sys.platform.startswith("linux"):
+        return "skipped (only the Linux bundle uses Qt; Windows and macOS use the system webview)"
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu")
     QTimer = importlib.import_module("qtpy.QtCore").QTimer
