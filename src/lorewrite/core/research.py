@@ -198,7 +198,8 @@ def new_note(project, title: str, body: str = "", template: str = "") -> Path:
     folder = research_dir(project)
     folder.mkdir(parents=True, exist_ok=True)
     path = _free_path(folder, _slug(title))
-    path.write_text(f"# {title}\n\n{body.strip("\n")}\n" if body.strip() else f"# {title}\n\n",
+    text = body.strip("\n")
+    path.write_text(f"# {title}\n\n{text}\n" if body.strip() else f"# {title}\n\n",
                     encoding="utf-8", newline="\n")
     return path
 
