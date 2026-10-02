@@ -29,6 +29,15 @@ def underlined(app: LorewriteApp, row: int) -> str:
                    and seg.style.color and seg.style.color.name == "red").strip()
 
 
+async def wait_until(pilot, check, tries: int = 50) -> bool:
+    """The re-check runs in a worker; slow CI runners need more than one pause."""
+    for _ in range(tries):
+        if check():
+            return True
+        await pilot.pause(0.1)
+    return check()
+
+
 async def test_misspelling_is_underlined_and_toggle_removes_it(project):
     app = LorewriteApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
@@ -97,7 +106,7 @@ async def test_f6_add_project_personal_and_ignore(project):
         await pilot.pause()
         assert spelling.load_dictionary(spelling.project_dictionary_path(project)) \
             == ["recieve"]
-        assert "recieve" not in underlined(app, 2)
+        assert await wait_until(pilot, lambda: "recieve" not in underlined(app, 2))
         await pilot.press("f6")  # cursor after "recieve" -> Zorblax
         await pilot.pause()
         assert isinstance(app.screen, SpellScreen)
@@ -109,7 +118,7 @@ async def test_f6_add_project_personal_and_ignore(project):
         await pilot.pause()
         await pilot.press("i")
         await pilot.pause()
-        assert underlined(app, 4) == ""
+        assert await wait_until(pilot, lambda: underlined(app, 4) == "")
         assert "pragraph" not in spelling.load_dictionary(
             spelling.project_dictionary_path(project))
         await pilot.press("f6")
