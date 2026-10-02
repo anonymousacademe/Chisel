@@ -14,6 +14,7 @@ or uploads anything. See docs/dev/packaging.md.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import platform
@@ -33,8 +34,13 @@ WORK = ROOT / "build" / "pyinstaller"
 RELEASE = DIST / "release"
 BUNDLE = DIST / "LoreWriter"
 ICON_PNG = ROOT / "gui" / "src-tauri" / "icons" / "icon.png"
-APPIMAGETOOL_URL = ("https://github.com/AppImage/appimagetool/releases/download/continuous/"
-                    "appimagetool-x86_64.AppImage")
+# Pinned release of appimagetool (never the moving "continuous" channel) and the SHA-256
+# of its x86_64 AppImage. To update: pick a new tagged release, download the asset, check
+# the hash yourself (sha256sum), change both lines.
+APPIMAGETOOL_VERSION = "1.9.1"
+APPIMAGETOOL_SHA256 = "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0"
+APPIMAGETOOL_URL = ("https://github.com/AppImage/appimagetool/releases/download/"
+                    f"{APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage")
 
 
 def version() -> str:
@@ -156,13 +162,33 @@ def package_macos() -> None:
          "-format", "UDZO", out])
 
 
+def sha256_of(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def appimagetool() -> Path:
-    tool = ROOT / "build" / "appimagetool-x86_64.AppImage"
+    """The pinned appimagetool, downloaded once and checked against its SHA-256
+    before it is made executable. A cached copy is kept only if it verifies."""
+    tool = ROOT / "build" / f"appimagetool-{APPIMAGETOOL_VERSION}-x86_64.AppImage"
+    if tool.is_file() and sha256_of(tool) != APPIMAGETOOL_SHA256:
+        say(f"cached {tool.name} does not match the pinned hash; discarding it")
+        tool.unlink()
     if not tool.is_file():
-        say(f"downloading appimagetool: {APPIMAGETOOL_URL}")
+        say(f"downloading appimagetool {APPIMAGETOOL_VERSION}: {APPIMAGETOOL_URL}")
         tool.parent.mkdir(parents=True, exist_ok=True)
-        urllib.request.urlretrieve(APPIMAGETOOL_URL, tool)
-        tool.chmod(tool.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        part = tool.with_name(tool.name + ".part")
+        urllib.request.urlretrieve(APPIMAGETOOL_URL, part)
+        got = sha256_of(part)
+        if got != APPIMAGETOOL_SHA256:
+            part.unlink()
+            sys.exit(f"appimagetool {APPIMAGETOOL_VERSION} failed its SHA-256 check:\n"
+                     f"  expected {APPIMAGETOOL_SHA256}\n  got      {got}\nRefusing to run it.")
+        part.replace(tool)
+    tool.chmod(tool.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     return tool
 
 

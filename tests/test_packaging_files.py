@@ -46,3 +46,42 @@ def test_icons_exist_for_every_os():
     icons = ROOT / "gui/src-tauri/icons"
     for name in ("icon.ico", "icon.icns", "icon.png"):
         assert (icons / name).is_file()
+
+
+def _build_module():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("lw_build", ROOT / "packaging/build.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_appimagetool_is_pinned_and_verified(tmp_path, monkeypatch):
+    mod = _build_module()
+    assert "continuous" not in mod.APPIMAGETOOL_URL and mod.APPIMAGETOOL_VERSION in mod.APPIMAGETOOL_URL
+    assert re.fullmatch(r"[0-9a-f]{64}", mod.APPIMAGETOOL_SHA256)
+    monkeypatch.setattr(mod, "ROOT", tmp_path)
+
+    def fake(url, dest):  # a download with the wrong content
+        Path(dest).write_bytes(b"tampered")
+    monkeypatch.setattr(mod.urllib.request, "urlretrieve", fake)
+    with pytest.raises(SystemExit, match="SHA-256"):
+        mod.appimagetool()
+    assert not list((tmp_path / "build").glob("appimagetool*"))   # nothing kept, nothing executable
+    # a cached file that does not verify is discarded, not trusted
+    cached = tmp_path / "build" / f"appimagetool-{mod.APPIMAGETOOL_VERSION}-x86_64.AppImage"
+    cached.write_bytes(b"old")
+    with pytest.raises(SystemExit):
+        mod.appimagetool()
+    assert not cached.exists()
+    # the right bytes pass
+    data = b"genuine"
+    monkeypatch.setattr(mod, "APPIMAGETOOL_SHA256", __import__("hashlib").sha256(data).hexdigest())
+    monkeypatch.setattr(mod.urllib.request, "urlretrieve", lambda u, d: Path(d).write_bytes(data))
+    assert mod.appimagetool().read_bytes() == data
+
+
+def test_workflow_downloads_nothing_unpinned():
+    text = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+    assert "continuous" not in text and not re.search(r"\b(curl|wget)\b", text)
+    assert "choco install innosetup --version=" in text
