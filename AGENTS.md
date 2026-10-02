@@ -68,6 +68,8 @@ src/lorewrite/
     stylereview.py promptscreen.py tour.py theme.py
     exportscreen.py (Export manuscript form)
 gui/                    # React/TS front end (see gui/README.md); src-tauri/ is unused
+packaging/              # PyInstaller spec, build.py, Inno Setup script (see docs/dev/packaging.md)
+.github/workflows/      # ci.yml (tests), release.yml (installers, draft release on a v* tag)
 tests/                  # pytest; asyncio_mode=auto; Pilot for TUI tests
 docs/dev/               # internal design history: plan-*.md (one per feature wave),
                         # specification-guide.md, ux-review-glm.md (source of the M1.5 polish)
@@ -313,6 +315,12 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
 - Key map differences from the TUI: `ctrl+j` in the GUI editor opens/makes a note
   (elsewhere it focuses the composer, as designed); `ctrl+k` quick switcher; `f11`
   focus mode.
+
+- **Packaging** (`packaging/`, docs/dev/packaging.md). The bundles are built by PyInstaller; anything that
+  loads a data file by path or a module by name (export layouts, fonts, dictionaries, UI) must keep working
+  frozen: put new data in `lorewrite/` package folders, add it to `packaging/lorewriter.spec` and, if it
+  can break silently, to `src/lorewrite/selftest.py` (no window, no network). Do not add imports of
+  `webview` / Textual at module level of `selftest.py`.
 
 ## Testing conventions
 

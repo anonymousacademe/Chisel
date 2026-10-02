@@ -69,13 +69,45 @@ or both.
 
 ## Install
 
-| Way | Status |
-|---|---|
-| Download a release (Windows / macOS / Linux) | coming |
-| `pipx install lorewriter` (PyPI) | coming |
-| From source | below |
+Download the installer for your system from the
+[Releases page](https://github.com/anonymousacademe/lorewriter/releases). Every
+download contains **both** apps: the desktop app (LoreWriter) and the terminal app
+(`lorewrite`). Replace `<version>` with the number of the release.
 
-### From source
+| System | Download | Notes |
+|---|---|---|
+| Windows 10 / 11 (64-bit) | `LoreWriter-<version>-windows-setup.exe` | Installs for you only (no administrator rights), adds a Start-menu entry and, if you tick it, a desktop shortcut; remove it from Settings > Apps. |
+| Windows, no install | `LoreWriter-<version>-windows-portable.zip` | Unzip anywhere and run `LoreWriter\LoreWriter.exe`. |
+| macOS, Apple silicon (M1 or newer) | `LoreWriter-<version>-macos-arm64.dmg` | Open it, drag LoreWriter to Applications. |
+| macOS, Intel | `LoreWriter-<version>-macos-x86_64.dmg` | The same. |
+| Linux (x86-64) | `LoreWriter-<version>-x86_64.AppImage` | `chmod +x` it and run it. |
+| Any system with Python | `pipx install lorewriter` (PyPI) | coming; see "From source" for now. |
+
+`SHA256SUMS.txt` on the release page lets you check a download.
+
+The apps are **not signed** yet, so the first launch needs one extra step:
+
+- **Windows**: SmartScreen says "Windows protected your PC". Click **More info**, then **Run anyway**.
+- **macOS**: Gatekeeper refuses an unsigned app. **Right-click** (or control-click) LoreWriter in Applications,
+  choose **Open**, then **Open** again. If macOS still refuses, run
+  `xattr -dr com.apple.quarantine /Applications/LoreWriter.app` in Terminal once.
+- **Linux**: `chmod +x LoreWriter-*.AppImage && ./LoreWriter-*.AppImage`. To start the terminal app from the
+  same file: `./LoreWriter-*.AppImage --terminal` (or link the file as `lorewrite`). The AppImage carries its
+  own web engine (Qt WebEngine), so it needs no extra packages; it does need FUSE 2 to mount itself, or run it
+  with `--appimage-extract-and-run`.
+- **Terminal app on Windows / macOS**: it is `lorewrite.exe` next to `LoreWriter.exe` in the install folder
+  (Start menu: "LoreWriter (terminal)"), and `LoreWriter.app/Contents/MacOS/lorewrite` on macOS.
+
+Your settings, recent projects and writing stats live in a per-user folder (never in your project):
+`%LOCALAPPDATA%\lorewrite` on Windows, `~/Library/Application Support/lorewrite` on macOS,
+`~/.local/state/lorewrite` on Linux. Your projects are ordinary folders you choose (default `~/novels`).
+Your OpenRouter key is kept in the system's keyring (Credential Manager, Keychain, Secret Service).
+
+**pandoc** is optional and is not included: only DOCX, EPUB and LaTeX export need it (they stay greyed out
+until it is on your PATH: `winget install pandoc`, `brew install pandoc`, `apt install pandoc`). PDF and
+Markdown export work without it.
+
+### From source (any system with Python)
 
 You need **Python 3.11+**. To build the desktop UI you also need **Node 20+**.
 The terminal app needs neither Node nor a graphical environment.

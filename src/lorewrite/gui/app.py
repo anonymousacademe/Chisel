@@ -19,10 +19,18 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--new", metavar="TITLE", default=None,
                         help="create a new project called TITLE and open it "
                              "(in ~/novels/<title>, or in --project PATH)")
+    parser.add_argument("--report", metavar="FILE", default=None,
+                        help="with --self-test: also write the JSON report to FILE")
+    parser.add_argument("--self-test", action="store_true",
+                        help="check the bundled data and print a JSON report "
+                             "(no window, no network); exit 1 on a failure")
     parser.add_argument("--dev", metavar="URL", default=None,
                         help="load the UI from a dev server (npm run dev) "
                              "instead of the built UI")
     args = parser.parse_args(argv)
+    if args.self_test:
+        from ..selftest import main as self_test
+        sys.exit(self_test(args.report))
 
     index = None if args.dev else require_dist("lorewrite-gui") / "index.html"
     try:

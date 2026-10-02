@@ -736,3 +736,13 @@ gives launch-or-focus behavior.
 right section of `~/.config/omarchy/shell.json`. Click runs
 `omarchy launch or focus tui --app-id=lorewrite <repo>/.venv/bin/lorewrite` —
 launch-or-focus, so a running window gets focused instead of duplicated.
+
+## 13. Installable apps (Phase B)
+
+Releases ship ready-to-run apps for Windows (Inno Setup installer + portable zip), macOS (DMG, arm64 and
+x86_64) and Linux (AppImage), built by `.github/workflows/release.yml` with PyInstaller (`packaging/`).
+Each bundle holds both apps: `LoreWriter` (desktop, windowed) and `lorewrite` (terminal). The Linux
+bundle uses pywebview's Qt backend (QtWebEngine); everything else uses the system webview. Unsigned for
+now. `lorewrite-gui --self-test` / `lorewrite --self-test` check the bundled data with no window and no
+network and are run on every built bundle. The version has a single source (`lorewrite.__version__`).
+Details: docs/dev/packaging.md.
