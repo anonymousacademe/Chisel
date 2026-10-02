@@ -1,0 +1,17 @@
+# Everything needed to run both apps (terminal + desktop) and every feature
+# from a source checkout. Same lower bounds as pyproject.toml.
+#   pip install -r requirements.txt && pip install -e .
+# or simply:  pip install -e ".[all]"
+#
+# Linux desktop app: PyGObject and WebKitGTK come from the system packages
+# (see README), and the venv needs --system-site-packages. pywebview itself
+# pulls pythonnet on Windows and pyobjc on macOS.
+textual[syntax]>=3.0
+pyyaml>=6.0
+openai>=1.0
+keyring>=25.0
+pyspellchecker>=0.8
+platformdirs>=3.6
+pywebview>=6
+reportlab>=4
+pyphen>=0.14
