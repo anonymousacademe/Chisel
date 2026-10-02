@@ -73,8 +73,8 @@ class BookDoc(BaseDocTemplate):
             self.notify("TOCEntry", (level, text, self.page, key))
 
 
-def _styles(face: pdfkit.Face, opts: ExportOptions) -> dict[str, ParagraphStyle]:
-    lang = pdfkit.hyphenation_lang()
+def _styles(face: pdfkit.Face, opts: ExportOptions, language: str = "en") -> dict[str, ParagraphStyle]:
+    lang = pdfkit.hyphenation_lang(language)
     body = ParagraphStyle(
         "body", fontName=face.regular, fontSize=BODY, leading=LEADING,
         alignment=TA_JUSTIFY, firstLineIndent=1.4 * BODY, allowWidows=0, allowOrphans=0,
@@ -95,6 +95,8 @@ def _styles(face: pdfkit.Face, opts: ExportOptions) -> dict[str, ParagraphStyle]
         "part_title": ParagraphStyle("part_title", parent=body, fontSize=26, leading=32, **centre),
         "book_title": ParagraphStyle("book_title", parent=body, fontSize=30, leading=36,
                                      spaceAfter=18, **centre),
+        "subtitle": ParagraphStyle("subtitle", parent=body, fontName=face.italic, fontSize=16,
+                                   leading=21, spaceAfter=26, **centre),
         "author": ParagraphStyle("author", parent=body, fontSize=15, leading=20, **centre),
         "small": ParagraphStyle("small", parent=body, fontSize=8.5, leading=11, **centre),
         "contents": ParagraphStyle("contents", parent=body, fontSize=18, leading=24,
@@ -119,6 +121,8 @@ def _story(book: Book, opts: ExportOptions, st: dict, frame_h: float, face: pdfk
 
     story += [Mark("nochrome"), Spacer(1, frame_h * 0.28),
               RLParagraph(pdfkit.markup(_runs(book.title), smart), st["book_title"])]
+    if book.subtitle:
+        story.append(RLParagraph(pdfkit.markup(_runs(book.subtitle), smart), st["subtitle"]))
     if book.author:
         story.append(RLParagraph(pdfkit.markup(_runs(book.author), smart), st["author"]))
     story.append(NextPageTemplate(["verso", "recto"]))
@@ -196,7 +200,7 @@ def render(book: Book, opts: ExportOptions, path) -> int:
     big = opts.page_size == "letter"
     top, bottom = (0.9 if big else 0.8) * inch, (1.0 if big else 0.9) * inch
     inner, outer = (1.0 if big else 0.9) * inch, (0.8 if big else 0.7) * inch
-    st = _styles(face, opts)
+    st = _styles(face, opts, book.language)
     title = pdfkit.smarten(book.title)
 
     def frame(left: float, right: float, name: str) -> Frame:
@@ -206,10 +210,10 @@ def render(book: Book, opts: ExportOptions, path) -> int:
     def chrome(canv, doc, side: str) -> None:
         flags = doc.flags.get(doc.page, set())
         if "nochrome" in flags:
-            if opts.copyright:
+            if book.copyright:
                 canv.saveState()
                 canv.setFont(face.regular, 8.5)
-                canv.drawCentredString(width / 2, bottom, pdfkit.smarten(opts.copyright))
+                canv.drawCentredString(width / 2, bottom, pdfkit.smarten(book.copyright))
                 canv.restoreState()
             return
         canv.saveState()
@@ -229,7 +233,8 @@ def render(book: Book, opts: ExportOptions, path) -> int:
         canv.restoreState()
 
     doc = BookDoc(str(path), book, opts, face, pagesize=(width, height),
-                  title=book.title, author=book.author, creator="lorewrite",
+                  title=book.title, author=book.author,
+                  subject=book.subtitle, creator="lorewrite",
                   initialFontName=face.regular, initialFontSize=BODY)
     # verso (left-hand, even) pages have the wide margin on the right
     full = Frame(outer, bottom, width - 2 * outer, height - top - bottom, id="full",

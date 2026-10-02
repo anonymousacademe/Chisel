@@ -121,3 +121,12 @@ def test_export_uses_pen_name_when_set(tmp_path: Path):
     proj = Project.open(tmp_path)
     book = assemble(proj)
     assert book.author == "Anonymous"
+
+
+def test_author_info_round_trips_quotes_backslashes_and_newlines(tmp_path: Path):
+    proj = Project.create(tmp_path, "Test Project")
+    nasty = {"author": 'Jane "JW" O\'Hara', "contact": "a@b.c\nhttps://x.y", "copyright_": "\\ © 2026"}
+    proj.update_author_info(**nasty)
+    info = Project.open(tmp_path).author_info()
+    assert (info["author"], info["contact"], info["copyright"]) == (
+        nasty["author"], nasty["contact"], nasty["copyright_"])

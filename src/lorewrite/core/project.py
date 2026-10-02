@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import tomllib
 from dataclasses import dataclass, field
@@ -157,7 +158,7 @@ class Project(Structure):
         for key in ["author", "pen_name", "subtitle", "copyright", "contact", "language"]:
             val = current[key]
             if val:
-                body += f'{key} = {repr(val)}\n'
+                body += f"{key} = {json.dumps(val, ensure_ascii=False)}\n"
         self._write_section("project", body)
 
     def editor_settings(self) -> dict:

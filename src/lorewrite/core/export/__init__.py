@@ -89,7 +89,8 @@ def describe(project) -> dict:
                         "reason": reason})
     return {"formats": formats,
             "layouts": [l.describe() for l in layouts.all_layouts()] if has_pdf else [],
-            "options": load_options(project).to_dict()}
+            "options": load_options(project).to_dict(),
+            "project_copyright": project.author_info()["copyright"]}
 
 
 def summarize(project, opts: ExportOptions) -> dict:

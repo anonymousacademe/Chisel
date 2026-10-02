@@ -110,12 +110,22 @@ def register_font(key: str) -> Face:
     return Face(family, *names)
 
 
-def hyphenation_lang() -> str | None:
-    """'en_US' when pyphen is installed (ReportLab hyphenates with it), else None."""
+def hyphenation_lang(language: str = "en") -> str | None:
+    """The pyphen dictionary for a language tag ("en", "fr-CA", "de_DE"), or
+    'en_US' when pyphen lacks it; None when pyphen is not installed."""
     try:
-        import pyphen  # noqa: F401
+        import pyphen
     except ImportError:
         return None
+    tag = (language or "en").strip().replace("-", "_")
+    known = {k.lower(): k for k in pyphen.LANGUAGES}
+    for cand in (tag, tag.split("_")[0]):
+        if cand.lower() in known:
+            return known[cand.lower()]
+    base = tag.split("_")[0].lower()
+    for low, key in sorted(known.items()):
+        if low.split("_")[0] == base:
+            return key
     return "en_US"
 
 
