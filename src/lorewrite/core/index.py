@@ -133,9 +133,9 @@ class Index:
         for path in project.list_entity_files():
             entity = ent.load_entity(path)
             names.extend(entity.names)
-            self.upsert_entity(entity, str(path.relative_to(project.root)))
+            self.upsert_entity(entity, path.relative_to(project.root).as_posix())
         scenes = set(project.all_scene_files())
         for path in project.all_markdown_files():
-            rel = str(path.relative_to(project.root))
+            rel = path.relative_to(project.root).as_posix()
             self.update_file(rel, path.read_text(encoding="utf-8"),
                              names if path in scenes else None)

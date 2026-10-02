@@ -1,5 +1,6 @@
 """Git sync in the terminal app (Wave 2.3). Temp repos / a local bare remote only."""
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -15,8 +16,8 @@ from lorewrite.tui.syncscreens import MessagePrompt
 
 @pytest.fixture(autouse=True)
 def isolated_git(monkeypatch):
-    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")
-    monkeypatch.setenv("GIT_CONFIG_SYSTEM", "/dev/null")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    monkeypatch.setenv("GIT_CONFIG_SYSTEM", os.devnull)
     for who in ("AUTHOR", "COMMITTER"):
         monkeypatch.setenv(f"GIT_{who}_NAME", "Test Author")
         monkeypatch.setenv(f"GIT_{who}_EMAIL", "author@example.invalid")

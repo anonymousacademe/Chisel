@@ -154,3 +154,10 @@ async def test_editor_draft_style_uses_distinct_hue_and_tint(tmp_path, monkeypat
             seg.text for seg in app.editor.render_line(2)
             if seg.style and seg.style.italic and seg.style.bgcolor)
         assert "ghost prose" in rendered
+
+
+def test_omarchy_theme_is_absent_off_linux(monkeypatch):
+    import sys
+
+    monkeypatch.setattr(sys, "platform", "win32")
+    assert omarchy_textual_theme() is None

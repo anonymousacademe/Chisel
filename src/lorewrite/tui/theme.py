@@ -23,8 +23,6 @@ THEME_NAME = "omarchy"
 
 
 def current_theme_slug(state_file: Path = STATE_FILE) -> str | None:
-    if not sys.platform.startswith("linux"):
-        return None  # Omarchy is a Linux distribution
     try:
         slug = state_file.read_text(encoding="utf-8").strip()
     except OSError:
@@ -57,6 +55,8 @@ def load_omarchy_colors(
 def omarchy_textual_theme(colors: dict | None = None) -> Theme | None:
     """Build a Textual theme from Omarchy colors. None if not on Omarchy."""
     if colors is None:
+        if not sys.platform.startswith("linux"):
+            return None  # Omarchy is a Linux distribution
         colors = load_omarchy_colors()
     if not colors:
         return None

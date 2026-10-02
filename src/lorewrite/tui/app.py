@@ -900,7 +900,7 @@ class LorewriteApp(InspirationMixin, App):
                                  spelling.project_dictionary_path(self.project)) \
                 or research_notes.is_research_path(self.project, self.current_path):
             return  # the style guide, dictionary and research notes aren't in the link index
-        rel = str(self.current_path.relative_to(self.project.root))
+        rel = self.current_path.relative_to(self.project.root).as_posix()
         names = self._all_names() if self._is_scene(self.current_path) else None
         self.idx.update_file(rel, text, names)
 
@@ -1660,7 +1660,7 @@ class LorewriteApp(InspirationMixin, App):
             self.editor.text, self._originals(self.editor.text))
         entities = list(self.entities)
         canon = self._canon_map()
-        scene_rel = str(self.current_path.relative_to(self.project.root))
+        scene_rel = self.current_path.relative_to(self.project.root).as_posix()
         calls = LEDGER.count()
         try:
             results = await asyncio.to_thread(
@@ -1703,7 +1703,7 @@ class LorewriteApp(InspirationMixin, App):
         if self.project is None or not self._is_scene(self.current_path):
             self.notify("Open a scene first", severity="warning")
             return
-        rel = str(self.current_path.relative_to(self.project.root))
+        rel = self.current_path.relative_to(self.project.root).as_posix()
         n = clear_scene_waivers(self.project.root, rel)
         if n:
             self.notify(f"Restored {n} waived continuity issue(s) — they will"
@@ -1873,7 +1873,7 @@ class LorewriteApp(InspirationMixin, App):
         def _delete(ok: bool) -> None:
             if not ok:
                 return
-            rel = str(path.relative_to(self.project.root))
+            rel = path.relative_to(self.project.root).as_posix()
             self.project.delete_scene(path)  # to the Trash, with its draft sidecar
             self.idx.remove_file(rel)
             # detach BEFORE open_file, whose save step would otherwise
@@ -2536,7 +2536,7 @@ class LorewriteApp(InspirationMixin, App):
         try:
             if mode == "research":
                 context, hits = research_context(self.project, entities, canon, prompt)
-                sources = [(str(h.note.path.relative_to(self.project.root)), h.note.title) for h in hits]
+                sources = [(h.note.path.relative_to(self.project.root).as_posix(), h.note.title) for h in hits]
             else:
                 sources = []
                 scene = self._current_scene_path()

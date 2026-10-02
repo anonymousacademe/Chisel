@@ -243,6 +243,7 @@ def test_add_alias(tmp_path):
 
 def test_new_project_without_folder_goes_to_default_location(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))  # Path.home() on Windows
     api = Api()
     assert api.suggest_project_path("The Salt Road")["path"] == str(
         tmp_path / "novels" / "the-salt-road")

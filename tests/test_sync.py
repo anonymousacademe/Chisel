@@ -3,6 +3,7 @@
 Every test runs git with the user's and the system's git config switched off
 (no signing, no hooks from ~/.gitconfig) and with an identity set locally."""
 
+import os
 import subprocess
 from datetime import date
 from pathlib import Path
@@ -15,8 +16,8 @@ from lorewrite.core.project import Project
 
 @pytest.fixture(autouse=True)
 def isolated_git(monkeypatch):
-    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")
-    monkeypatch.setenv("GIT_CONFIG_SYSTEM", "/dev/null")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    monkeypatch.setenv("GIT_CONFIG_SYSTEM", os.devnull)
     monkeypatch.setenv("GIT_AUTHOR_NAME", "Test Author")
     monkeypatch.setenv("GIT_AUTHOR_EMAIL", "author@example.invalid")
     monkeypatch.setenv("GIT_COMMITTER_NAME", "Test Author")

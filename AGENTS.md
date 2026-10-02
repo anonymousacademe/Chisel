@@ -93,6 +93,10 @@ python3 -m venv --system-site-packages .venv-gui && .venv-gui/bin/pip install -e
 PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --mock-ai   # headless
 ```
 
+CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.11 and 3.13, plus a Node job
+(`npm ci`, lint, test, build). Keep tests platform-safe: use `os.devnull`, project-relative ids with `/`
+(`as_posix()`), no symlinks without a Windows skip, and set both `HOME` and `USERPROFILE` when faking the home.
+
 ## Non-negotiable principles (from SPEC §2)
 
 1. Plain text, always — a project is a folder of Markdown; no database blobs.

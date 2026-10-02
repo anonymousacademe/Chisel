@@ -105,7 +105,7 @@ def sample_manuscript(project, max_words: int = 6000) -> list[tuple[str, str]]:
         paras = _paragraphs(scenemeta.strip(strip_pending(  # AI text isn't the author's
             text, load_originals(project.root, path))))
         if paras:
-            per_scene.append((str(path.relative_to(project.root)), paras))
+            per_scene.append((path.relative_to(project.root).as_posix(), paras))
     if not per_scene:
         return []
     quota = max(max_words // len(per_scene), 1)
@@ -259,13 +259,13 @@ def select_voice_samples(project, scene_path: Path | None, scene_text: str,
             text = path.read_text(encoding="utf-8")
         except OSError:
             continue
-        rel = str(path.relative_to(project.root))
+        rel = path.relative_to(project.root).as_posix()
         for para in _paragraphs(scenemeta.strip(
                 strip_pending(text, load_originals(project.root, path)))):
             pool.append((len(pool), rel, para))
     if not pool and focus:
         # a one-scene project: the rest of this scene is all the author has
-        pool = [(i, str(scene_path.relative_to(project.root)) if scene_path else "",
+        pool = [(i, scene_path.relative_to(project.root).as_posix() if scene_path else "",
                  p) for i, p in enumerate(_paragraphs(focus))]
 
     def score(item: tuple[int, str, str]) -> float:

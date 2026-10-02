@@ -1,5 +1,7 @@
 """core/inspiration: storage, pins, scene links, Trash."""
 
+import sys
+
 import pytest
 
 from lorewrite.core import inspiration as insp
@@ -94,6 +96,7 @@ def test_ids_cannot_leave_the_folder(project, tmp_path):
             project.trash_inspiration(bad)
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="creating symlinks needs a privilege on Windows")
 def test_read_file_refuses_a_symlink_out_of_the_folder(project, tmp_path):
     img = insp.save(project, JPEG, "jpg", {"prompt": "p"})
     outside = tmp_path / "outside.jpg"
