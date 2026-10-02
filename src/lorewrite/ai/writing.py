@@ -14,6 +14,7 @@ from ..core import drafts, research as research_notes, scenemeta
 from ..core.entities import Entity, resolve
 from ..core.links import find_all_links
 from .client import usage_extra_body
+from .stream import stream_text
 from .usage import record_response
 
 CURSOR = "<<CURSOR>>"
@@ -195,11 +196,15 @@ def generate(
     model: str,
     client=None,
     selection: str | None = None,
+    on_delta=None,
+    cancel=None,
 ) -> str:
     """Network call: produce prose for *mode* (draft | expand | rewrite).
 
     Synchronous — run it in a worker thread from the TUI. Raises ValueError
-    for an unknown mode or an empty reply.
+    for an unknown mode or an empty reply. With *on_delta* / *cancel* (a
+    ``stream.CancelToken``) the call streams: each text delta goes to
+    *on_delta*, and cancelling raises ``stream.Cancelled`` with nothing returned.
     """
     if mode not in MODES:
         raise ValueError(f"unknown mode: {mode}")
@@ -207,17 +212,18 @@ def generate(
         from .client import make_client
 
         client = make_client()
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user",
-             "content": _user_prompt(mode, instruction, context, selection)},
-        ],
-        extra_body=usage_extra_body(),
-    )
-    record_response(response, model, mode)
-    raw = response.choices[0].message.content or ""
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user",
+         "content": _user_prompt(mode, instruction, context, selection)},
+    ]
+    if on_delta is not None or cancel is not None:
+        raw = stream_text(client, model, messages, mode, on_delta, cancel)
+    else:
+        response = client.chat.completions.create(
+            model=model, messages=messages, extra_body=usage_extra_body())
+        record_response(response, model, mode)
+        raw = response.choices[0].message.content or ""
     return clean_output(raw, selection)
 
 
@@ -271,14 +277,30 @@ def build_project_context(
     return "\n\n".join(sections) or "(the project is empty)"
 
 
+def _chat_reply(client, model: str, feature: str, messages: list[dict],
+                on_delta, cancel) -> str:
+    """One chat call (streaming when asked to), the reply with ``<!--`` defused."""
+    if on_delta is not None or cancel is not None:
+        raw = stream_text(client, model, messages, feature, on_delta, cancel)
+    else:
+        response = client.chat.completions.create(
+            model=model, messages=messages, extra_body=usage_extra_body())
+        record_response(response, model, feature)
+        raw = response.choices[0].message.content or ""
+    return raw.replace("<!--", "<!-").strip()
+
+
 def ask(
     prompt: str,
     context: str,
     model: str,
     history: list[dict] | None = None,
     client=None,
+    on_delta=None,
+    cancel=None,
 ) -> str:
     """Network call: answer *prompt* in chat. Never touches the manuscript.
+    Streams when *on_delta* / *cancel* is given (see ``generate``).
 
     *history*: earlier turns as ``{"role": "user"|"assistant", "text": ...}``
     (the last few are sent). Synchronous — run it off the UI thread. Raises
@@ -296,17 +318,11 @@ def ask(
         text = str(turn.get("text") or "")[:HISTORY_CHARS]
         if role in ("user", "assistant") and text:
             turns.append({"role": role, "content": text})
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": ASK_SYSTEM_PROMPT},
-            *turns,
-            {"role": "user", "content": f"{context}\n\nQUESTION:\n{prompt.strip()}"},
-        ],
-        extra_body=usage_extra_body(),
-    )
-    record_response(response, model, "ask")
-    reply = (response.choices[0].message.content or "").replace("<!--", "<!-").strip()
+    reply = _chat_reply(client, model, "ask", [
+        {"role": "system", "content": ASK_SYSTEM_PROMPT},
+        *turns,
+        {"role": "user", "content": f"{context}\n\nQUESTION:\n{prompt.strip()}"},
+    ], on_delta, cancel)
     if not reply:
         raise ValueError("the model returned no text")
     return reply
@@ -368,9 +384,12 @@ def research_answer(
     model: str,
     history: list[dict] | None = None,
     client=None,
+    on_delta=None,
+    cancel=None,
 ) -> str:
     """Network call: answer a research question from *context* (see
     ``build_research_context``). Chat text only; never touches the manuscript.
+    Streams when *on_delta* / *cancel* is given (see ``generate``).
     Raises ValueError for an empty prompt or reply."""
     if not prompt.strip():
         raise ValueError("ask a research question first")
@@ -384,17 +403,11 @@ def research_answer(
         text = str(turn.get("text") or "")[:HISTORY_CHARS]
         if role in ("user", "assistant") and text:
             turns.append({"role": role, "content": text})
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": RESEARCH_SYSTEM_PROMPT},
-            *turns,
-            {"role": "user", "content": f"{context}\n\nQUESTION:\n{prompt.strip()}"},
-        ],
-        extra_body=usage_extra_body(),
-    )
-    record_response(response, model, "research")
-    reply = (response.choices[0].message.content or "").replace("<!--", "<!-").strip()
+    reply = _chat_reply(client, model, "research", [
+        {"role": "system", "content": RESEARCH_SYSTEM_PROMPT},
+        *turns,
+        {"role": "user", "content": f"{context}\n\nQUESTION:\n{prompt.strip()}"},
+    ], on_delta, cancel)
     if not reply:
         raise ValueError("the model returned no text")
     return reply
@@ -449,25 +462,28 @@ def parse_ideas(raw: str) -> list[str]:
     return cleaned[:BRAINSTORM_MAX]
 
 
-def brainstorm(context: str, model: str, client=None) -> list[str]:
+def brainstorm(context: str, model: str, client=None, on_delta=None, cancel=None) -> list[str]:
     """Network call: 3-5 "unstuck" ideas for the scene in *context* (see
     ``build_context`` / ``build_project_context``). Chat text only; never
     touches the manuscript. Synchronous - run it off the UI thread. Raises
-    ValueError when the model returns nothing usable."""
+    ValueError when the model returns nothing usable. Streams when *on_delta* /
+    *cancel* is given (see ``generate``; the deltas are the raw numbered list)."""
     if client is None:
         from .client import make_client
 
         client = make_client()
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": BRAINSTORM_SYSTEM_PROMPT},
-            {"role": "user", "content": f"{context}\n\nGive me ideas to get unstuck."},
-        ],
-        extra_body=usage_extra_body(),
-    )
-    record_response(response, model, "brainstorm")
-    ideas = parse_ideas(response.choices[0].message.content or "")
+    messages = [
+        {"role": "system", "content": BRAINSTORM_SYSTEM_PROMPT},
+        {"role": "user", "content": f"{context}\n\nGive me ideas to get unstuck."},
+    ]
+    if on_delta is not None or cancel is not None:
+        raw = stream_text(client, model, messages, "brainstorm", on_delta, cancel)
+    else:
+        response = client.chat.completions.create(
+            model=model, messages=messages, extra_body=usage_extra_body())
+        record_response(response, model, "brainstorm")
+        raw = response.choices[0].message.content or ""
+    ideas = parse_ideas(raw)
     if not ideas:
         raise ValueError("the model returned no ideas")
     return ideas

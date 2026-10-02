@@ -9,6 +9,7 @@ the bridge. No pywebview import here, so this is unit-testable.
 from __future__ import annotations
 
 import functools
+import inspect
 import os
 import re
 import threading
@@ -30,6 +31,7 @@ from ..ai import images as image_ai
 from ..ai.images import generate as generate_images, suggest_prompt as suggest_image_prompt
 from ..ai.links import alias_form, suggest_links
 from ..ai.style import learn_style
+from ..ai.stream import call_ai
 from ..ai.usage import LEDGER
 from ..ai.writing import (
     ask as ask_writer,
@@ -71,6 +73,8 @@ from ..core.recents import add_recent, load_recents
 from ..core.style import style_path
 from . import inspiration as insp_api
 from . import workspace as ws
+from . import aijobs
+from .aijobs import AiJobs
 from .exports import ExportJobs
 
 
@@ -111,6 +115,7 @@ class Api:
         self.stats: writing_stats.Tracker | None = None
         self._spell_ignores = spelling.SessionIgnores()  # in memory only
         self._exports = ExportJobs()
+        self._ai_jobs = AiJobs()
 
     @bridge
     def ping(self) -> dict:
@@ -882,7 +887,7 @@ class Api:
                         "score": h.score} for h in hits]
             model = resolve_model("writing", project.meta)
             calls = LEDGER.count()
-        reply = research_writer(prompt, context, model, history=history)
+        reply = self._stream(research_writer, prompt, context, model, history=history)
         return {"reply": reply, "sources": sources, "attached": attached, "cost": self._spent(calls)}
 
     # -- comments ---------------------------------------------------------------------
@@ -1045,6 +1050,7 @@ class Api:
         if not prompt:
             raise ValueError("describe the picture first")
         pictures = generate_images(prompt, model, style=style)
+        aijobs.checkpoint()   # stopped while it generated: nothing is saved
         cost = self._spent(calls)
         with self._lock:
             return insp_api.save_pictures(self._require(), pictures, prompt, model, scene,
@@ -1060,6 +1066,7 @@ class Api:
             style = image_ai.style_suffix()
             calls = LEDGER.count()
         pictures = generate_images(old.prompt, model, style=style)
+        aijobs.checkpoint()
         cost = self._spent(calls)
         with self._lock:
             return insp_api.save_pictures(self._require(), pictures, old.prompt, model, old.scene,
@@ -1235,6 +1242,55 @@ class Api:
         if LEDGER.count() > calls_before and last is not None:
             return last.cost
         return None
+
+    @staticmethod
+    def _stream(fn, *args, **kwargs):
+        """Call a streaming AI function. Inside an AI job its text deltas go to the
+        job (and Stop closes the stream); otherwise it is the plain blocking call."""
+        job = aijobs.current()
+        if job is None:
+            return fn(*args, **kwargs)
+        return call_ai(fn, *args, on_delta=job.push, cancel=job.cancel, **kwargs)
+
+    # Job kinds -> the synchronous bridge method each one runs (same arguments, same
+    # result dict). The first four stream text; the rest are abandoned on Stop.
+    AI_JOBS = {
+        "ask": "ask", "research": "research", "brainstorm": "brainstorm", "generate": "generate",
+        "continuity": "check_continuity", "canon": "propose_canon", "aliases": "find_aliases",
+        "style": "learn_style", "image": "generate_inspiration", "describe_scene": "describe_scene",
+    }
+
+    @bridge
+    def ai_start(self, kind: str, args: dict | None = None) -> dict:
+        """Start an AI action on a worker thread and return its job id. *args* are exactly the
+        keyword arguments of the synchronous method for *kind* (see AI_JOBS). Poll with
+        ai_poll, stop with ai_cancel. The project lock is not held during the network call."""
+        name = self.AI_JOBS.get(kind)
+        if name is None:
+            raise ValueError(f"unknown AI action: {kind}")
+        args = dict(args or {})
+        method = getattr(self, name)
+        try:
+            inspect.signature(method).bind(**args)
+        except TypeError as exc:
+            raise ValueError(f"bad arguments for {kind}: {exc}") from None
+
+        def work(job: aijobs.Job) -> dict:
+            return method(**args)
+
+        return {"job": self._ai_jobs.start(work)}
+
+    @bridge
+    def ai_poll(self, job: str, since: int = 0) -> dict:
+        """State of an AI job: running | done | cancelled | error, the streamed text from
+        character offset *since* (and the total `length`), `elapsed` seconds, and, when done,
+        `result` (what the synchronous method returns) or, on error, `error`."""
+        return self._ai_jobs.poll(job, since)
+
+    @bridge
+    def ai_cancel(self, job: str) -> dict:
+        """Stop an AI job (idempotent). A stopped job inserts, saves and registers nothing."""
+        return self._ai_jobs.cancel(job)
 
     @bridge
     def ai_status(self) -> dict:
@@ -1457,7 +1513,8 @@ class Api:
                     project, inp.get("path"), text, inp["entities"]))
             model = resolve_model("writing", project.meta)
             calls = LEDGER.count()
-        body = generate_text(mode, instruction.strip(), context, model, selection=selection)
+        body = self._stream(generate_text, mode, instruction.strip(), context, model,
+                            selection=selection)
         with self._lock:
             draft_id = None if mode == "draft" else drafts.fresh_id(project.root, text)
             insert, a, b = drafts.prepare_draft(text, mode, body, lo, hi, draft_id)
@@ -1556,7 +1613,7 @@ class Api:
                     style_md, originals=inp["originals"])
             context, attached = self._with_attachments(project, context, attachments)
             calls = LEDGER.count()
-        reply = ask_writer(prompt, context, model, history=history)
+        reply = self._stream(ask_writer, prompt, context, model, history=history)
         return {"reply": reply, "attached": attached, "cost": self._spent(calls)}
 
     @bridge
@@ -1583,7 +1640,7 @@ class Api:
                     style_md, originals=inp["originals"])
             context, attached = self._with_attachments(project, context, attachments)
             calls = LEDGER.count()
-        ideas = brainstorm_writer(context, model)
+        ideas = self._stream(brainstorm_writer, context, model)
         reply = "\n".join(f"{i}. {idea}" for i, idea in enumerate(ideas, 1))
         return {"reply": reply, "ideas": ideas, "attached": attached, "cost": self._spent(calls)}
 
