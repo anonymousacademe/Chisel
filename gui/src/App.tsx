@@ -450,7 +450,8 @@ export default function App() {
     if (aiJobRef.current) { notify("Wait for the current AI request to finish."); return null; }
     const mode = kind === "generate" ? "draft" : STREAMING_KINDS.includes(kind) ? "chat" : "strip";
     stoppedRef.current = false;
-    const job = runAiJob<X & { ok: true }>(kind, args, { label, onText: (_d, total) => setAiRun((r) => (r ? { ...r, text: total } : r)) });
+    const job = runAiJob<X & { ok: true }>(kind, args, { label, onText: (_d, total) => setAiRun((r) => (r ? { ...r, text: total } : r)),
+      onElapsed: (elapsed) => setAiRun((r) => (r ? { ...r, elapsed } : r)) });
     aiJobRef.current = job as AiJob<unknown>;
     setAiRun({ label, verb, mode, text: "", startedAt: Date.now(), anchor: mode === "draft" ? editorRef.current?.cursorPoint() ?? null : null });
     try {
@@ -1212,7 +1213,7 @@ export default function App() {
             inspiration={
               <InspirationPanel key={ws.project.path} sceneId={doc?.kind === "scene" ? doc.id : null} sceneTitle={doc?.kind === "scene" ? doc.title : ""}
                 rev={inspRev} getEditor={() => { const ed = editorRef.current; return ed ? { text: ed.getText(), cursor: ed.head() } : null; }}
-                requireAi={requireAi} notify={notify} onSpent={() => void refresh()} />
+                requireAi={requireAi} job={aiCall} notify={notify} onSpent={() => void refresh()} />
             }
             style={ws ? styleStatus : null} onLearnStyle={() => void learnStyle()} onOpenStyle={() => void openStyle()} />
         )}

@@ -117,6 +117,8 @@ function mockResult(kind: string, args: Record<string, unknown>): Record<string,
     case "canon": return { updates: [], cost: 0.002 };
     case "aliases": return { suggestions: [], cost: 0.002 };
     case "style": return { markdown: "# Style guide\n\nShort, concrete sentences.", replacing: false, samples: 3, cost: 0.004 };
+    case "describe_scene": return { prompt: "A rain-lit kitchen at 3 a.m., a terminal glowing behind smoked glass.", model: "mock", cost: 0.001 };
+    case "image": case "image_regenerate": return { images: [], cost: 0.03 };
     default: return { cost: null };
   }
 }
@@ -150,9 +152,13 @@ function aiCancel(id: string): object {
   return { ok: true, state: "cancelled" };
 }
 
+/** URLs passed to open_external in the mock (read by tests). */
+export const openedUrls: string[] = [];
+
 export function mockCall(method: string, args: unknown[]): object {
   switch (method) {
     case "ping": return { ok: true };
+    case "open_external": openedUrls.push(String(args[0])); return { ok: true };
     case "ai_start": return aiStart(String(args[0]), (args[1] ?? {}) as Record<string, unknown>);
     case "ai_poll": return aiPoll(String(args[0]), Number(args[1] ?? 0));
     case "ai_cancel": return aiCancel(String(args[0]));

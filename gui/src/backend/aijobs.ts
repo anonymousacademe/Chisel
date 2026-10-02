@@ -19,6 +19,8 @@ export interface AiJob<R> {
 export interface AiJobOptions {
   /** Text deltas as they arrive (streaming kinds only), with the total so far. */
   onText?: (delta: string, total: string) => void;
+  /** Seconds the backend says the job has been running, on every poll. */
+  onElapsed?: (seconds: number) => void;
   /** What the author sees while it runs; informational for the caller. */
   label?: string;
 }
@@ -52,6 +54,7 @@ export function runAiJob<R = Record<string, unknown>>(kind: AiKind, args: Record
     for (;;) {
       const p = await api.aiPoll(jobId, since);
       if (!p.ok) throw new Error(p.error);
+      if (typeof p.elapsed === "number") opts.onElapsed?.(p.elapsed);
       if (p.text) { total += p.text; opts.onText?.(p.text, total); }
       since = p.length;
       if (stopped || p.state === "cancelled") throw new AiCancelled();

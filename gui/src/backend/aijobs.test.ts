@@ -39,3 +39,20 @@ describe("runAiJob (mock backend)", () => {
     expect(await caught).toBeInstanceOf(AiCancelled);
   });
 });
+
+describe("backend extras", () => {
+  it("openExternal reaches the mock and is recorded", async () => {
+    vi.useRealTimers();
+    const { api } = await import("./api");
+    const { openedUrls } = await import("./mock");
+    expect(await api.openExternal("https://example.com")).toMatchObject({ ok: true });
+    expect(openedUrls).toContain("https://example.com");
+  });
+  it("reports the backend's elapsed seconds", async () => {
+    const seen: number[] = [];
+    const job = runAiJob("describe_scene", {}, { onElapsed: (s) => seen.push(s) });
+    await vi.advanceTimersByTimeAsync(3000);
+    await job.promise;
+    expect(seen.length).toBeGreaterThan(1);
+  });
+});

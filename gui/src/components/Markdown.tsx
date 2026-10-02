@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { api } from "../backend/api";
 import { renderMarkdown, linkFromEvent } from "../data/markdown";
 
 /** A reply rendered as Markdown. Links open only on a click, in the system browser. */
@@ -9,7 +10,7 @@ export function Markdown({ text, className = "" }: { text: string; className?: s
       onClick={(e) => {
         const href = linkFromEvent(e.target);
         if (e.target instanceof Element && e.target.closest("a")) e.preventDefault(); // never navigate the app window
-        if (href) window.open(href, "_blank", "noopener,noreferrer");
+        if (href) void api.openExternal(href);
       }} />
   );
 }

@@ -13,7 +13,7 @@ export function StopButton({ onStop, small = false }: { onStop: () => void; smal
 
 /** Under the cursor: the draft as it is written. Nothing reaches the scene until the job is done. */
 export function DraftPanel({ run, onStop }: { run: AiRunView; onStop: () => void }) {
-  const elapsed = useElapsed(run.startedAt);
+  const elapsed = useElapsed(run.startedAt, run.elapsed);
   const body = useRef<HTMLDivElement>(null);
   useEffect(() => { body.current?.scrollTo({ top: body.current.scrollHeight }); }, [run.text]);
   const a = run.anchor;
@@ -38,7 +38,7 @@ export function DraftPanel({ run, onStop }: { run: AiRunView; onStop: () => void
 
 /** For actions that answer all at once: a moving bar, the elapsed seconds and Stop. */
 export function ProgressStrip({ run, onStop }: { run: AiRunView; onStop: () => void }) {
-  const elapsed = useElapsed(run.startedAt);
+  const elapsed = useElapsed(run.startedAt, run.elapsed);
   return (
     <div className="lw-progress" tabIndex={0} role="status" onKeyDown={stopOnEsc(onStop)}>
       <span className="lw-progress__bar" aria-hidden />
@@ -51,7 +51,7 @@ export function ProgressStrip({ run, onStop }: { run: AiRunView; onStop: () => v
 
 /** Status-bar item: "AI: drafting… 12 s · Stop". */
 export function AiStatus({ run, onStop }: { run: AiRunView; onStop: () => void }) {
-  const elapsed = useElapsed(run.startedAt);
+  const elapsed = useElapsed(run.startedAt, run.elapsed);
   return (
     <>
       <span className="lw-status__item is-accent" aria-live="off">AI: {run.verb}… {secs(elapsed)}</span>

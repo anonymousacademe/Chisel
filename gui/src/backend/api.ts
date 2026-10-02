@@ -8,7 +8,7 @@ import type { ExportInfo, ExportOptions, ExportStatus, ExportSummary } from "../
 import { call } from "./transport";
 
 /** AI job kinds (the AI job contract): the first four stream text, the rest answer once. */
-export type AiKind = "ask" | "research" | "brainstorm" | "generate" | "continuity" | "canon" | "aliases" | "style" | "image" | "describe_scene";
+export type AiKind = "ask" | "research" | "brainstorm" | "generate" | "continuity" | "canon" | "aliases" | "style" | "image" | "image_regenerate" | "describe_scene";
 export const STREAMING_KINDS: readonly AiKind[] = ["ask", "research", "brainstorm", "generate"];
 export type AiState = "running" | "done" | "cancelled" | "error";
 export interface AiPoll {
@@ -186,6 +186,8 @@ export const api = {
   setApiKey: (key: string) => call("set_api_key", key),
   clearApiKey: () => call<{ stillSet: boolean; note: string }>("clear_api_key"),
   listModels: (structuredOnly: boolean, modality?: "image") => call<{ models: ModelOption[] }>("list_models", structuredOnly, modality ?? null),
+  /** Opens a link in the system browser (http/https/mailto only; call it only from a click). */
+  openExternal: (url: string) => call("open_external", url),
   minimize: () => call("minimize"),
   toggleMaximize: () => call("toggle_maximize"),
   close: () => call("close"),

@@ -250,7 +250,7 @@ export function Assistant(props: {
 
 /** The reply as it is written: Markdown typing in, with the elapsed time and Stop. */
 function LiveReply({ run, onStop }: { run: AiRunView; onStop: () => void }) {
-  const elapsed = useElapsed(run.startedAt);
+  const elapsed = useElapsed(run.startedAt, run.elapsed);
   return (
     <div className="lw-msg-ai" tabIndex={0} aria-label="AI is replying" onKeyDown={stopOnEsc(onStop)}>
       <span className="lw-mark"><Icon icon={Sparkles} size={12} stroke={1.7} /></span>
