@@ -14,7 +14,9 @@ import os
 import re
 import threading
 import time
+import webbrowser
 from pathlib import Path
+from urllib.parse import urlsplit
 from types import SimpleNamespace
 from typing import Any, Callable
 
@@ -1094,6 +1096,25 @@ class Api:
         opened = self._window is not None and insp_api.reveal(path)
         return {"path": str(path), "opened": bool(opened)}
 
+    EXTERNAL_SCHEMES = ("http", "https", "mailto")
+
+    @bridge
+    def open_external(self, url: str) -> dict:
+        """Open a link from the UI in the system browser / mail app. Only http://, https:// and
+        mailto: URLs are accepted; the URL goes to ``webbrowser.open`` as one argument (never a
+        shell command line)."""
+        url = (url or "").strip()
+        if not url or any(c.isspace() or ord(c) < 32 for c in url):
+            raise ValueError("not a valid link")
+        parts = urlsplit(url)
+        if parts.scheme.lower() not in self.EXTERNAL_SCHEMES:
+            raise ValueError("Only http://, https:// and mailto: links can be opened")
+        if parts.scheme.lower() != "mailto" and not parts.netloc:
+            raise ValueError("not a valid link")
+        if parts.scheme.lower() == "mailto" and not parts.path:
+            raise ValueError("not a valid link")
+        return {"opened": bool(webbrowser.open(url))}
+
     # -- settings ---------------------------------------------------------------
 
     EDITOR_DEFAULTS = {"zoom": 100, "reflow": True}
@@ -1258,6 +1279,7 @@ class Api:
         "ask": "ask", "research": "research", "brainstorm": "brainstorm", "generate": "generate",
         "continuity": "check_continuity", "canon": "propose_canon", "aliases": "find_aliases",
         "style": "learn_style", "image": "generate_inspiration", "describe_scene": "describe_scene",
+        "image_regenerate": "regenerate_inspiration",
     }
 
     @bridge

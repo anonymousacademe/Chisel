@@ -213,7 +213,8 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   insert, save or register anything - in the GUI the sync bridge methods run unchanged inside a job
   (`Api._stream` routes deltas; `aijobs.checkpoint()` before any write that follows a slow call), in the TUI
   every AI call goes through `LorewriteApp._ai_call` and the worker catches `Cancelled` and returns.
-  New AI function in `ai/`: add the kwargs (or `call_ai` filters them), mock it with them in `gui/mockai.py`.
+  A stopped non-streaming request is only abandoned: it may still finish server-side and its cost is still
+  recorded (the connection is not closed). New AI function in `ai/`: add the kwargs (or `call_ai` filters them), mock it with them in `gui/mockai.py`.
   `ctrl+x` is a priority App binding gated by `check_action` (it is cut when no job runs).
 - **Writing stats** (`core/stats.py`) are personal: `<state dir>/stats/<project-id>.json`, never in the
   project folder, and they MUST honour `LOREWRITE_STATE_DIR` (tests/screenshots point it at a temp dir).

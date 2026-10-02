@@ -187,3 +187,38 @@ def test_mock_non_streaming_job_runs_and_can_be_stopped(tmp_path, mock_ai):
     assert api.ai_poll(job)["state"] == "running"
     api.ai_cancel(job)
     assert api.ai_poll(job)["state"] == "cancelled"
+
+
+def test_image_regenerate_job_saves_unless_stopped(tmp_path, monkeypatch):
+    api, root = open_api(tmp_path)
+    saved = []
+    old = type("Old", (), {"prompt": "a pier", "scene": ""})()
+    monkeypatch.setattr(api_module.insp_api, "get", lambda project, image_id: old)
+    monkeypatch.setattr(api_module, "generate_images",
+                        lambda prompt, model, client=None, style=None: (time.sleep(0.3), [(b"p", "png")])[1])
+    monkeypatch.setattr(api_module.insp_api, "save_pictures", lambda *a, **k: saved.append(a) or {})
+    job = api.ai_start("image_regenerate", {"image_id": "x"})["job"]
+    api.ai_cancel(job)
+    time.sleep(0.6)
+    assert api.ai_poll(job)["state"] == "cancelled" and saved == []
+    assert wait(api, api.ai_start("image_regenerate", {"image_id": "x"})["job"])["state"] == "done"
+    assert len(saved) == 1
+
+
+@pytest.mark.parametrize("url", ["https://example.com/a?b=1", "http://example.com", "mailto:a@b.co"])
+def test_open_external_opens_allowed_links(tmp_path, monkeypatch, url):
+    api, _ = open_api(tmp_path)
+    opened = []
+    monkeypatch.setattr(api_module.webbrowser, "open", lambda u: opened.append(u) or True)
+    assert api.open_external(url) == {"opened": True, "ok": True} and opened == [url]
+
+
+@pytest.mark.parametrize("url", ["file:///etc/passwd", "javascript:alert(1)", "ftp://x.org", "/etc/passwd",
+                                 "https://", "mailto:", "", "https://a.com/ b", "https://a.com/\nx",
+                                 "data:text/html,hi", "vscode://x"])
+def test_open_external_rejects_everything_else(tmp_path, monkeypatch, url):
+    api, _ = open_api(tmp_path)
+    opened = []
+    monkeypatch.setattr(api_module.webbrowser, "open", lambda u: opened.append(u) or True)
+    r = api.open_external(url)
+    assert r["ok"] is False and r["error"] and opened == []
