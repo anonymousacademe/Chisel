@@ -168,9 +168,26 @@ jobs:
         run: |
           dmg=$(ls dist/release/*.dmg)
           mnt=$(mktemp -d)
-          hdiutil attach "$dmg" -mountpoint "$mnt" -nobrowse -quiet
-          python packaging/build.py selftest --gui "$mnt/LoreWriter.app/Contents/MacOS/LoreWriter" --tui "$mnt/LoreWriter.app/Contents/MacOS/lorewrite"
-          hdiutil detach "$mnt" -quiet
+          # hdiutil on the macOS runners is occasionally "resource busy": retry, then force
+          attach() {
+            for i in 1 2 3 4 5; do
+              hdiutil attach "$dmg" -mountpoint "$mnt" -nobrowse -quiet && return 0
+              echo "attach failed (try $i), retrying"; sleep 3
+            done
+            return 1
+          }
+          detach() {
+            for i in 1 2 3 4 5; do
+              hdiutil detach "$mnt" -quiet && return 0
+              echo "detach failed (try $i), retrying"; sleep 3
+            done
+            hdiutil detach "$mnt" -force
+          }
+          attach
+          status=0
+          python packaging/build.py selftest --gui "$mnt/LoreWriter.app/Contents/MacOS/LoreWriter" --tui "$mnt/LoreWriter.app/Contents/MacOS/lorewrite" || status=$?
+          detach
+          exit $status
       - uses: actions/upload-artifact@v4
         with:
           name: macos-${{ matrix.arch }}
