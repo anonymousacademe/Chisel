@@ -94,9 +94,74 @@ function readDocument(id: string): DocumentPayload | null {
   return null;
 }
 
+// -- AI jobs (ai_start / ai_poll / ai_cancel): a fake word-by-word stream so the live states work in `npm run dev`.
+const WORD_MS = 60;           // one streamed word per tick
+const QUIET_MS = 1500;        // non-streaming kinds "think" this long
+const REPLY = "Here is a **first thought**: let the *city* answer Mara before she asks.\n\n- Keep the voice in the walls ambiguous.\n- Let Elias's breath catch on the second syllable.\n\n> Memory is architecture.\n\nSee `notes/archive` and [the archive](https://example.com) for more.";
+const DRAFT = "The radiator knocked twice, then three times, the way Elias used to when he wanted her awake. Mara did not move. If she answered, the city would know it had found the door.";
+interface MockJob { kind: string; args: Record<string, unknown>; started: number; cancelled: boolean; text: string; words: string[]; sent: number }
+const jobs = new Map<string, MockJob>();
+let jobSeq = 0;
+const STREAM_KINDS = ["ask", "research", "brainstorm", "generate"];
+
+function mockResult(kind: string, args: Record<string, unknown>): Record<string, unknown> {
+  switch (kind) {
+    case "ask": return { reply: REPLY, attached: [], cost: 0.0012 };
+    case "research": return { reply: REPLY, sources: [], attached: [], cost: 0.0012 };
+    case "brainstorm": return { reply: REPLY, ideas: ["The wall speaks first.", "Mara records the voice.", "Elias answers from the archive."], attached: [], cost: 0.0012 };
+    case "generate": {
+      const at = Number(args.start ?? 0), end = Number(args.end ?? at);
+      return { mode: args.mode ?? "draft", insert: `<!--ai-->${DRAFT}<!--/ai-->`, draftId: null, original: null, from: at, to: end, noStyle: false, cost: 0.003 };
+    }
+    case "continuity": return { issues: [], waived: 0, cost: 0.002 };
+    case "canon": return { updates: [], cost: 0.002 };
+    case "aliases": return { suggestions: [], cost: 0.002 };
+    case "style": return { markdown: "# Style guide\n\nShort, concrete sentences.", replacing: false, samples: 3, cost: 0.004 };
+    case "describe_scene": return { prompt: "A rain-lit kitchen at 3 a.m., a terminal glowing behind smoked glass.", model: "mock", cost: 0.001 };
+    case "image": case "image_regenerate": return { images: [], cost: 0.03 };
+    default: return { cost: null };
+  }
+}
+
+function aiStart(kind: string, args: Record<string, unknown>): object {
+  const id = `mockjob-${++jobSeq}`;
+  const body = kind === "generate" ? DRAFT : REPLY;
+  jobs.set(id, { kind, args, started: Date.now(), cancelled: false, text: "", words: STREAM_KINDS.includes(kind) ? body.split(/(?<=\s)/) : [], sent: 0 });
+  return { ok: true, job: id };
+}
+
+function aiPoll(id: string, since: number): object {
+  const j = jobs.get(id);
+  if (!j) return { ok: false, error: "no such job" };
+  const elapsed = (Date.now() - j.started) / 1000;
+  if (j.cancelled) return { ok: true, state: "cancelled", text: "", length: j.text.length, elapsed, cost: null };
+  let text = "", done: boolean;
+  if (j.words.length) {
+    const n = Math.min(j.words.length, Math.floor((Date.now() - j.started) / WORD_MS));
+    j.text = j.words.slice(0, n).join("");
+    text = j.text.slice(since);
+    done = n >= j.words.length;
+  } else done = Date.now() - j.started >= QUIET_MS;
+  const out = { ok: true, state: done ? "done" : "running", text, length: j.text.length, elapsed, cost: done ? 0.002 : null };
+  return done ? { ...out, result: mockResult(j.kind, j.args) } : out;
+}
+
+function aiCancel(id: string): object {
+  const j = jobs.get(id);
+  if (j) j.cancelled = true;
+  return { ok: true, state: "cancelled" };
+}
+
+/** URLs passed to open_external in the mock (read by tests). */
+export const openedUrls: string[] = [];
+
 export function mockCall(method: string, args: unknown[]): object {
   switch (method) {
     case "ping": return { ok: true };
+    case "open_external": openedUrls.push(String(args[0])); return { ok: true };
+    case "ai_start": return aiStart(String(args[0]), (args[1] ?? {}) as Record<string, unknown>);
+    case "ai_poll": return aiPoll(String(args[0]), Number(args[1] ?? 0));
+    case "ai_cancel": return aiCancel(String(args[0]));
     case "get_workspace": return { ok: true, workspace: structuredClone(workspace) };
     case "read_document": {
       const doc = readDocument(String(args[0]));
@@ -120,12 +185,13 @@ export function mockCall(method: string, args: unknown[]): object {
     }
     case "list_entities": return { ok: true, entities: ENTITIES.map(({ body: _b, ...e }) => e) };
     case "get_entity": return { ok: true, ...getEntity(String(args[0])) };
-    case "get_settings": return { ok: true, hasKey: false, keySource: "none", editor: { zoom: 100, reflow: true }, spellcheck: true, autoSnapshot: true, dailyTarget: 500,
+    case "get_settings": return { ok: true, hasKey: true, keySource: "environment", editor: { zoom: 100, reflow: true }, spellcheck: true, autoSnapshot: true, dailyTarget: 500,
       imageStyle: "cinematic, atmospheric, no text, no watermark", imageStyleDefault: "cinematic, atmospheric, no text, no watermark",
       models: Object.fromEntries(["fast", "strong", "writing", "image"].map((k) => [k, { value: "", default: "default/model", effective: "default/model", projectOverride: "" }])) };
     case "set_settings": return { ok: true };
-    case "ai_status": return { ok: true, hasKey: false, models: { fast: "", strong: "", writing: "", image: "" } };
+    case "ai_status": return { ok: true, hasKey: true, models: { fast: "", strong: "", writing: "", image: "" } };
     case "recent_projects": return { ok: true, recents: [] };
+    case "list_inspiration": return { ok: true, images: [], model: "", style: "" };
     case "style_status": return { ok: true, exists: false, learned: null, sampledWords: null,
       manuscriptWordsThen: null, manuscriptWords: 0, scenes: 0, stale: false };
     case "suggest_project_path": {

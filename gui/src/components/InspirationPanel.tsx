@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Copy, Ellipsis, FolderOpen, ImagePlus, Pin, PinOff, RefreshCw, Sparkles, Trash2, X } from "lucide-react";
-import { api } from "../backend/api";
+import { api, type AiKind } from "../backend/api";
 import { IMAGE_COST_NOTE, costText, pinAction, replaceImage, splitImages, whenText } from "../data/inspiration";
 import type { InspirationImage } from "../data/types";
 import { ConfirmDialog, Menu, Modal, type MenuItem } from "./Dialogs";
@@ -44,6 +44,8 @@ export function InspirationPanel(props: {
   /** Bumped by the app when something outside changed the pictures (Trash restore). */
   rev: number;
   getEditor: () => { text: string; cursor: number } | null;
+  /** Runs an AI job through the app (one at a time): progress strip, Stop, status-bar item. null = failed or stopped. */
+  job: <X,>(label: string, verb: string, kind: AiKind, args: Record<string, unknown>) => Promise<(X & { ok: true }) | null>;
   requireAi: () => boolean; notify: (text: string, tone?: "info" | "error") => void;
   /** Refresh the status bar's AI spend. */
   onSpent: () => void;
@@ -82,33 +84,24 @@ export function InspirationPanel(props: {
     const ed = props.getEditor();
     if (!sceneId || !ed) return notify("Open a scene to describe it.");
     if (!props.requireAi()) return;
-    const r = await run("describe", async () => {
-      const x = await api.describeScene(sceneId, ed.text, ed.cursor);
-      if (!x.ok) { notify(x.error, "error"); return null; }
-      return x;
-    });
+    const r = await run("describe", () => props.job<{ prompt: string; model: string; cost: number | null }>(
+      "Describing the scene…", "describing the scene", "describe_scene", { doc_id: sceneId, text: ed.text, cursor: ed.cursor }));
     if (r) { setPrompt(r.prompt); notify("Edit the description if you like, then press Generate."); }
   };
   const generate = async () => {
     const text = prompt.trim();
     if (!text) return notify("Describe the picture first.");
     if (!props.requireAi()) return;
-    const r = await run("generate", async () => {
-      const x = await api.generateInspiration(text, sceneId, pin && !!sceneId);
-      if (!x.ok) { notify(x.error, "error"); return null; }
-      return x;
-    });
+    const r = await run("generate", () => props.job<{ images: InspirationImage[]; cost: number | null }>(
+      "Making the picture…", "making a picture", "image", { prompt: text, doc_id: sceneId, pin: pin && !!sceneId }));
     if (!r) return;
     await load();
     notify(`${r.images.length === 1 ? "Picture" : `${r.images.length} pictures`} saved to inspiration/${r.cost != null ? ` (AI ${costText(r.cost)})` : ""}.`);
   };
   const regenerate = async (img: InspirationImage) => {
     if (!props.requireAi()) return;
-    const r = await run("generate", async () => {
-      const x = await api.regenerateInspiration(img.id);
-      if (!x.ok) { notify(x.error, "error"); return null; }
-      return x;
-    });
+    const r = await run("generate", () => props.job<{ images: InspirationImage[]; cost: number | null }>(
+      "Making another picture…", "making a picture", "image_regenerate", { image_id: img.id }));
     if (!r) return;
     await load();
     notify(`Another picture saved${r.cost != null ? ` (AI ${costText(r.cost)})` : ""}. The first is still there.`);

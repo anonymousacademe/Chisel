@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "./backend/api";
+import { api, STREAMING_KINDS, type AiKind } from "./backend/api";
+import { runAiJob, AiCancelled, type AiJob } from "./backend/aijobs";
+import { DraftPanel, ProgressStrip } from "./components/AiProgress";
+import type { AiRunView } from "./components/aiRun";
 import type {
-  AliasSuggestion, AttachItem, AttachReport, BinderNode, CanonProposal, ChatMessage, ChatSummary, CollectionColor, CommentRow, DetailsPatch, DocumentPayload, EntityInfo, EntityType, Issue, Remap, SceneMention, SettingsInfo, StyleStatus, SyncInfo, Workspace,
+  AliasSuggestion, AttachItem, AttachReport, BinderNode, CanonProposal, ChatMessage, ChatSummary, CollectionColor, CommentRow, DetailsPatch, DocumentPayload, EntityInfo, EntityType, GenerateResult, Issue, Remap, SceneMention, SettingsInfo, StyleStatus, SyncInfo, Workspace,
 } from "./data/types";
 import type { BridgeResult } from "./backend/transport";
 import { anchorDraft } from "./editor/drafts";
@@ -124,7 +127,10 @@ export default function App() {
   const [missingTarget, setMissingTarget] = useState<string | null>(null);
   const [noteType, setNoteType] = useState<EntityType>("character");
   const [aiReady, setAiReady] = useState(false);
-  const [aiBusy, setAiBusy] = useState<string | null>(null);
+  const [aiRun, setAiRun] = useState<AiRunView | null>(null);
+  const aiJobRef = useRef<AiJob<unknown> | null>(null);
+  const stoppedRef = useRef(false); // the last AI job ended because the author pressed Stop
+  const aiBusy = aiRun?.label ?? null;
   const [issues, setIssues] = useState<Issue[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [scope, setScope] = useState<"scene" | "project">("scene");
@@ -438,23 +444,35 @@ export default function App() {
     }
     return true;
   };
-  async function aiCall<X>(label: string, fn: () => Promise<BridgeResult<X>>): Promise<(X & { ok: true }) | null> {
+  /** One AI job at a time: start, poll, show the working state, resolve with the result (null: failed or stopped). */
+  async function aiCall<X>(label: string, verb: string, kind: AiKind, args: Record<string, unknown>): Promise<(X & { ok: true }) | null> {
     if (!requireAi()) return null;
-    if (aiBusy) { notify("Wait for the current AI request to finish."); return null; }
-    setAiBusy(label);
+    if (aiJobRef.current) { notify("Wait for the current AI request to finish."); return null; }
+    const mode = kind === "generate" ? "draft" : STREAMING_KINDS.includes(kind) ? "chat" : "strip";
+    stoppedRef.current = false;
+    const job = runAiJob<X & { ok: true }>(kind, args, { label, onText: (_d, total) => setAiRun((r) => (r ? { ...r, text: total } : r)),
+      onElapsed: (elapsed) => setAiRun((r) => (r ? { ...r, elapsed } : r)) });
+    aiJobRef.current = job as AiJob<unknown>;
+    setAiRun({ label, verb, mode, text: "", startedAt: Date.now(), anchor: mode === "draft" ? editorRef.current?.cursorPoint() ?? null : null });
     try {
-      const r = await fn();
-      if (!r.ok) { notify(r.error, "error"); return null; }
-      return r as X & { ok: true };
-    } finally { setAiBusy(null); void refresh(); } // refresh: the status bar's AI spend
+      return await job.promise;
+    } catch (e) {
+      if (e instanceof AiCancelled) { stoppedRef.current = true; notify("Stopped. Nothing was changed."); }
+      else notify(e instanceof Error ? e.message : String(e), "error");
+      return null;
+    } finally { aiJobRef.current = null; setAiRun(null); void refresh(); } // refresh: the status bar's AI spend
   }
+  const stopAi = () => { void aiJobRef.current?.cancel(); };
+  const failedReply = (): ChatMessage => stoppedRef.current
+    ? { id: uid(), role: "assistant", text: "(stopped)", error: true, stopped: true }
+    : { id: uid(), role: "assistant", text: "That request failed. Nothing was changed.", error: true };
   const cost = (c: number | null | undefined) => (c != null ? ` (AI $${c.toFixed(4)})` : "");
   const liveText = () => editorRef.current?.getText() ?? "";
 
   const quickContinuity = async () => {
     const d = docRef.current;
     if (!d || d.kind !== "scene") return notify("Open a scene first.");
-    const r = await aiCall("Checking continuity…", () => api.checkContinuity(d.id, liveText()));
+    const r = await aiCall<{ issues: Issue[]; waived: number; cost: number | null }>("Checking continuity…", "checking continuity", "continuity", { doc_id: d.id, text: liveText() });
     if (!r || docRef.current?.id !== d.id) return;
     setIssues(r.issues); setTab("assistant"); setAssistantOpen(true);
     const waived = r.waived ? ` (${r.waived} waived)` : "";
@@ -483,7 +501,7 @@ export default function App() {
   const findAliases = async () => {
     const d = docRef.current;
     if (!d || d.kind !== "scene") return notify("Open a scene first.");
-    const r = await aiCall("Looking for aliases…", () => api.findAliases(d.id, liveText()));
+    const r = await aiCall<{ suggestions: AliasSuggestion[]; cost: number | null }>("Looking for aliases…", "looking for aliases", "aliases", { doc_id: d.id, text: liveText() });
     if (!r) return;
     if (!r.suggestions.length) return notify("No new aliases found" + cost(r.cost));
     setDialog({ kind: "aliases", items: r.suggestions });
@@ -501,7 +519,7 @@ export default function App() {
   const updateBible = async () => {
     const d = docRef.current;
     if (!d || d.kind !== "scene") return notify("Open a scene first.");
-    const r = await aiCall("Reading the scene for new canon…", () => api.proposeCanon(d.id, liveText()));
+    const r = await aiCall<{ updates: CanonProposal[]; cost: number | null }>("Reading the scene for new canon…", "reading for canon", "canon", { doc_id: d.id, text: liveText() });
     if (!r) return;
     if (!r.updates.length) return notify("No new canon found in this scene" + cost(r.cost));
     setDialog({ kind: "canon", items: r.updates });
@@ -524,7 +542,7 @@ export default function App() {
   };
   const learnStyle = async () => {
     if (!(await saver.flush())) return notify("Could not save the current document first.", "error");
-    const r = await aiCall("Learning your style…", () => api.learnStyle());
+    const r = await aiCall<{ markdown: string; replacing: boolean; samples: number; cost: number | null }>("Learning your style…", "learning your style", "style", {});
     if (r) setDialog({ kind: "style", markdown: r.markdown, replacing: r.replacing });
   };
   const saveStyle = async (text: string) => {
@@ -541,7 +559,7 @@ export default function App() {
     const d = docRef.current, ed = editorRef.current;
     if (!d || !ed) return;
     const snapshot = ed.getText();
-    const r = await aiCall("Drafting…", () => api.generate(mode, instruction, d.id, snapshot, from, to));
+    const r = await aiCall<GenerateResult & { cost: number | null; noStyle?: boolean }>("Drafting…", "drafting", "generate", { mode, instruction, doc_id: d.id, text: snapshot, start: from, end: to });
     if (!r) return;
     if (docRef.current?.id !== d.id || !editorRef.current) return notify("Scene changed while drafting; draft discarded.", "error");
     const at = anchorDraft(editorRef.current.getText(), snapshot, r, editorRef.current.head());
@@ -617,18 +635,18 @@ export default function App() {
     else setMessages((m) => m.filter((x) => x.id !== replaceId));
     const attached = attachments.map(({ kind, id }) => ({ kind, id }));
     if (researchMode) {
-      const r = await aiCall("Searching your notes…", () => api.research(text, history, attached));
+      const r = await aiCall<{ reply: string; sources: { id: string; title: string; score: number }[]; attached: AttachReport[]; cost: number | null }>("Searching your notes…", "searching notes", "research", { prompt: text, history, attachments: attached });
       if (r) reportAttached(r.attached);
       persistChat.current = !!r;
       setMessages((m) => [...m, r
         ? { id: uid(), role: "assistant", text: r.reply, sources: r.sources.map((s) => ({ id: s.id, title: s.title })) }
-        : { id: uid(), role: "assistant", text: "That request failed. Nothing was changed.", error: true }]);
+        : failedReply()]);
       return;
     }
-    const r = await aiCall("Thinking…", () => api.ask(text, scope, d?.kind === "scene" ? d.id : null, ed ? ed.getText() : null, ed?.head() ?? 0, history, attached));
+    const r = await aiCall<{ reply: string; attached: AttachReport[]; cost: number | null }>("Thinking…", "thinking", "ask", { prompt: text, scope, doc_id: d?.kind === "scene" ? d.id : null, text: ed ? ed.getText() : null, cursor: ed?.head() ?? 0, history, attachments: attached });
     if (r) reportAttached(r.attached);
     persistChat.current = !!r;
-    setMessages((m) => [...m, r ? { id: uid(), role: "assistant", text: r.reply } : { id: uid(), role: "assistant", text: "That request failed. Nothing was changed.", error: true }]);
+    setMessages((m) => [...m, r ? { id: uid(), role: "assistant", text: r.reply } : failedReply()]);
   };
   /** Brainstorm quick action: ideas to get unstuck, from the scene around the cursor + canon + style. */
   const runBrainstorm = async (replaceId?: string) => {
@@ -637,11 +655,11 @@ export default function App() {
     const attached = attachments.map(({ kind, id }) => ({ kind, id }));
     if (replaceId) setMessages((m) => m.filter((x) => x.id !== replaceId));
     else setMessages((m) => [...m, { id: uid(), role: "user", text: "Brainstorm: ideas to get unstuck." }]);
-    const r = await aiCall("Brainstorming…", () => api.brainstorm(d?.kind === "scene" ? d.id : null, ed ? ed.getText() : null, ed?.head() ?? 0, attached));
+    const r = await aiCall<{ reply: string; ideas: string[]; attached: AttachReport[]; cost: number | null }>("Brainstorming…", "brainstorming", "brainstorm", { doc_id: d?.kind === "scene" ? d.id : null, text: ed ? ed.getText() : null, cursor: ed?.head() ?? 0, attachments: attached });
     if (r) reportAttached(r.attached);
     persistChat.current = !!r;
     setMessages((m) => [...m, r ? { id: uid(), role: "assistant", text: r.reply, ideas: r.ideas }
-      : { id: uid(), role: "assistant", text: "That request failed. Nothing was changed.", error: true }]);
+      : failedReply()]);
   };
   /** "Draft from this": the ctrl+g prompt, prefilled with the idea, at the cursor. */
   const draftFromIdea = (idea: string) => {
@@ -1181,7 +1199,7 @@ export default function App() {
             note={note} missingTarget={missingTarget} onOpenNote={(id) => void openDoc(id)} onAddAlias={(n, a) => void addAlias(n, a)}
             onCreateNote={(t) => setDialog({ kind: "new-note", name: t, openAfter: false })} onOpenBacklink={(id, row) => void openBacklink(id, row)}
             issues={issues} onReviewIssue={reviewIssue} onDismissIssue={(i) => void dismissIssue(i)}
-            messages={messages} busy={aiBusy} aiReady={aiReady} scope={scope} onScope={() => setScope((c) => (c === "scene" ? "project" : "scene"))}
+            messages={messages} busy={aiBusy} run={aiRun} onStop={stopAi} aiReady={aiReady} scope={scope} onScope={() => setScope((c) => (c === "scene" ? "project" : "scene"))}
             onSend={(t) => void sendChat(t)} onRegenerate={regenerate} onInsertDraft={(id) => void insertReplyAsDraft(id)}
             researchMode={researchMode} onOpenSource={(id) => void openDoc(id)}
             onHistory={() => void openChatHistory()} onAttach={() => void openAttach()} attachments={attachments}
@@ -1195,12 +1213,14 @@ export default function App() {
             inspiration={
               <InspirationPanel key={ws.project.path} sceneId={doc?.kind === "scene" ? doc.id : null} sceneTitle={doc?.kind === "scene" ? doc.title : ""}
                 rev={inspRev} getEditor={() => { const ed = editorRef.current; return ed ? { text: ed.getText(), cursor: ed.head() } : null; }}
-                requireAi={requireAi} notify={notify} onSpent={() => void refresh()} />
+                requireAi={requireAi} job={aiCall} notify={notify} onSpent={() => void refresh()} />
             }
             style={ws ? styleStatus : null} onLearnStyle={() => void learnStyle()} onOpenStyle={() => void openStyle()} />
         )}
       </div>
-      <StatusBar stats={ws.status.stats} onStats={() => setDialog({ kind: "stats" })}
+      {aiRun?.mode === "strip" && <ProgressStrip run={aiRun} onStop={stopAi} />}
+      {aiRun?.mode === "draft" && <DraftPanel run={aiRun} onStop={stopAi} />}
+      <StatusBar ai={aiRun} onStopAi={stopAi} stats={ws.status.stats} onStats={() => setDialog({ kind: "stats" })}
         sprintLeft={sprint ? remaining(sprint, nowMs) : null} onSprint={() => setDialog(sprint ? { kind: "stop-sprint" } : { kind: "sprint" })} projectWords={ws.status.projectWords} aiCost={ws.status.aiCost}
         line={cursor.line} col={cursor.col} zoom={zoom} onZoom={cycleZoom}
         spelling={isScene ? spellCount : null} onSpelling={jumpToMisspelling}

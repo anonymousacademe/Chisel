@@ -202,7 +202,7 @@ export interface DraftEdit { from: number; to: number; insert: string }
 
 export type ChatMessage =
   | { id: string; role: "user"; text: string }
-  | { id: string; role: "assistant"; text: string; error?: boolean; sources?: ChatSource[]; ideas?: string[] };
+  | { id: string; role: "assistant"; text: string; error?: boolean; stopped?: boolean; sources?: ChatSource[]; ideas?: string[] };
 /** A saved conversation (.assistant/chats/), newest activity first in lists. */
 export interface ChatSummary { id: string; title: string; created: string; updated: string; count: number }
 export interface SavedChat {
