@@ -7,8 +7,8 @@ import sys
 from pathlib import Path
 
 from .api import Api
+from .webroot import require_dist
 
-DIST = Path(__file__).resolve().parents[3] / "gui" / "dist"
 BACKGROUND = "#121318"
 
 
@@ -21,13 +21,10 @@ def main(argv: list[str] | None = None) -> None:
                              "(in ~/novels/<title>, or in --project PATH)")
     parser.add_argument("--dev", metavar="URL", default=None,
                         help="load the UI from a dev server (npm run dev) "
-                             "instead of gui/dist")
+                             "instead of the built UI")
     args = parser.parse_args(argv)
 
-    index = DIST / "index.html"
-    if args.dev is None and not index.is_file():
-        sys.exit("lorewrite-gui: the UI is not built (missing gui/dist/index.html)."
-                 "\nRun `npm install && npm run build` in gui/ first.")
+    index = None if args.dev else require_dist("lorewrite-gui") / "index.html"
     try:
         import webview
     except ImportError:

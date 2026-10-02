@@ -132,7 +132,7 @@ are shown dimmed with the tooltip "Not in LoreWriter yet".
 # a venv that can see the system PyGObject / WebKitGTK 4.1 bindings
 python3 -m venv --system-site-packages .venv-gui
 .venv-gui/bin/pip install -e ".[dev,gui]"
-(cd gui && npm install && npm run build)       # builds gui/dist (Node 20+)
+(cd gui && npm install && npm run build)       # builds the UI into the package (Node 20+)
 .venv-gui/bin/lorewrite-gui                     # launch screen
 .venv-gui/bin/lorewrite-gui --project ~/novels/my-book
 ```

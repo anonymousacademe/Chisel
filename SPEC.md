@@ -610,7 +610,7 @@ window (pywebview, WebKitGTK) showing a React/TypeScript UI built from the
 both edit the same plain-Markdown projects.
 
 - **Shell.** `lorewrite-gui` (`src/lorewrite/gui/app.py`) opens a frameless
-  1600×1000 window on `gui/dist` and hands it a bridge object. The UI calls the
+  1600×1000 window on the built UI (`src/lorewrite/gui/web/`, found by `gui/webroot.py`; falls back to `gui/dist`) and hands it a bridge object. The UI calls the
   Python core **in-process** through pywebview's `js_api`; there is no server in
   the real app. Tauri is not used (`gui/src-tauri/` is kept untouched for a
   possible later packaging path).
@@ -619,7 +619,7 @@ both edit the same plain-Markdown projects.
   One `RLock` guards project writes and is **not** held during AI network calls
   (saves stay responsive). `workspace.py` builds the binder/status JSON the UI
   renders (`gui/src/data/types.ts` mirrors it; one JSON fixture is checked by
-  pytest and vitest). `devserver.py` serves `gui/dist` plus `POST /api/<method>`
+  pytest and vitest). `devserver.py` serves the built UI plus `POST /api/<method>`
   on localhost for headless-browser screenshots; `--mock-ai` answers AI calls
   with canned results (no network).
 - **Nothing is re-implemented in TypeScript.** Matching of names, `[[links]]`,

@@ -1,0 +1,3 @@
+include LICENSE README.md requirements.txt
+recursive-include src/lorewrite/gui/web *
+recursive-include src/lorewrite/core/export/fonts *

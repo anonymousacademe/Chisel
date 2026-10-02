@@ -50,10 +50,11 @@ src/lorewrite/
   gui/                  # desktop GUI backend (pywebview); no Textual
     api.py              # Api: JSON bridge (every method -> {ok,...}); facade() = js_api
     workspace.py        # Project -> Workspace JSON for the React UI
-    devserver.py        # headless: gui/dist + POST /api/<method> (+ --mock-ai)
+    devserver.py        # headless: built UI (gui/web/, see webroot.py) + POST /api/<method> (+ --mock-ai)
     mockai.py           # canned AI for screenshots/demos (never the real app)
     inspiration.py      # bridge helpers for the inspiration images (rows, data URLs, save batch)
     app.py              # lorewrite-gui: pywebview window
+    webroot.py          # finds the built UI: package web/ first, then repo gui/dist
     exports.py          # export worker-thread jobs (export_start / export_status)
   tui/                  # everything Textual
     app.py              # LorewriteApp: layout, save, status, actions, AI wiring

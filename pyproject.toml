@@ -65,6 +65,11 @@ lorewrite-gui = "lorewrite.gui.app:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+# the built UI (npm run build in gui/) and the vendored export fonts
+"lorewrite.gui" = ["web/*", "web/**/*"]
+"lorewrite.core.export" = ["fonts/*"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

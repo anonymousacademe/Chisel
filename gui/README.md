@@ -10,11 +10,12 @@ in-process through pywebview's `js_api`; all project logic lives in `core/` and 
 ```bash
 python3 -m venv --system-site-packages .venv-gui     # needs system PyGObject + WebKit2 4.1
 .venv-gui/bin/pip install -e ".[dev,gui]"
-cd gui && npm install && npm run build               # writes gui/dist (git-ignored)
+cd gui && npm install && npm run build               # writes src/lorewrite/gui/web (git-ignored, shipped in the package)
 .venv-gui/bin/lorewrite-gui [--project PATH]         # --dev URL loads `npm run dev` instead
 ```
 
-`lorewrite-gui` exits with a clear message when `gui/dist/index.html` is missing.
+`lorewrite-gui` exits with a clear message when no build exists (`gui/webroot.py` looks in
+`src/lorewrite/gui/web/` first, then the old `gui/dist/`).
 
 ## Develop
 

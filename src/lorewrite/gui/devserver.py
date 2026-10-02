@@ -1,4 +1,4 @@
-"""Headless dev server: gui/dist + a JSON bridge onto the same Api.
+"""Headless dev server: the built UI (see webroot.py) + a JSON bridge onto the same Api.
 
     python -m lorewrite.gui.devserver --project PATH [--mock-ai]
 
@@ -17,8 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from .api import Api
-
-DIST = Path(__file__).resolve().parents[3] / "gui" / "dist"
+from .webroot import require_dist
 
 
 def make_handler(api: Api, dist: Path):
@@ -75,7 +74,8 @@ def make_handler(api: Api, dist: Path):
     return Handler
 
 
-def serve(api: Api, dist: Path = DIST, port: int = 0) -> ThreadingHTTPServer:
+def serve(api: Api, dist: Path | None = None, port: int = 0) -> ThreadingHTTPServer:
+    dist = dist if dist is not None else require_dist("lorewrite-devserver")
     return ThreadingHTTPServer(("127.0.0.1", port), make_handler(api, dist))
 
 
