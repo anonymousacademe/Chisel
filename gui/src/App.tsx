@@ -21,6 +21,8 @@ import type { EditorHandle } from "./components/EditorPane";
 import { Assistant, type AssistantTab, type QuickAction } from "./components/Assistant";
 import { InspirationPanel } from "./components/InspirationPanel";
 import { SettingsDialog } from "./components/SettingsDialog";
+import { AtmospherePanel } from "./components/AtmospherePanel";
+import { atmosphere } from "./audio/store";
 import { AliasReviewDialog, CanonReviewDialog, StyleReviewDialog } from "./components/ReviewDialogs";
 import { SpellMenu } from "./components/SpellMenu";
 import { StatusBar } from "./components/StatusBar";
@@ -57,6 +59,7 @@ type Dialog =
   | { kind: "snapshots" }
   | { kind: "export" }
   | { kind: "stats" }
+  | { kind: "sound" }
   | { kind: "sprint" }
   | { kind: "stop-sprint" }
   | { kind: "collections" }
@@ -225,6 +228,7 @@ export default function App() {
 
   const boot = useCallback(async () => {
     void api.aiStatus().then((r) => setAiReady(r.ok && r.hasKey));
+    void atmosphere.load();
     void api.getSettings().then((r) => { if (r.ok) { setZoom(r.editor.zoom); setReflow(r.editor.reflow); } });
     const w = await refresh();
     if (!w) return;
@@ -1263,7 +1267,7 @@ export default function App() {
       </div>
       {aiRun?.mode === "strip" && <ProgressStrip run={aiRun} onStop={stopAi} />}
       {aiRun?.mode === "draft" && <DraftPanel run={aiRun} onStop={stopAi} />}
-      <StatusBar ai={aiRun} onStopAi={stopAi} stats={ws.status.stats} onStats={() => setDialog({ kind: "stats" })}
+      <StatusBar onSound={() => setDialog({ kind: "sound" })} ai={aiRun} onStopAi={stopAi} stats={ws.status.stats} onStats={() => setDialog({ kind: "stats" })}
         sprintLeft={sprint ? remaining(sprint, nowMs) : null} onSprint={() => setDialog(sprint ? { kind: "stop-sprint" } : { kind: "sprint" })} projectWords={ws.status.projectWords} aiCost={ws.status.aiCost}
         line={cursor.line} col={cursor.col} zoom={zoom} onZoom={cycleZoom}
         spelling={isScene ? spellCount : null} onSpelling={jumpToMisspelling}
@@ -1337,6 +1341,7 @@ export default function App() {
         <ConfirmDialog title={`Move ${unit}`} confirm="Move" tone="primary" message={dialog.plan.sentence}
           onConfirm={() => void performMove(dialog.plan)} onClose={() => setDialog(null)} />
       )}
+      {dialog?.kind === "sound" && <AtmospherePanel onClose={() => setDialog(null)} notify={notify} />}
       {dialog?.kind === "stats" && <StatsDialog onClose={() => setDialog(null)} notify={notify} />}
       {dialog?.kind === "sprint" && <SprintDialog initialFocus={sprintFocus} onClose={() => setDialog(null)} onStart={(m, f) => void startSprint(m, f)} />}
       {dialog?.kind === "stop-sprint" && (

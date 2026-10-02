@@ -4,6 +4,7 @@ import type {
   AliasSuggestion, AttachItem, RenameDone, RenamePreview, RenameScope, RenameUndone, AttachKind, AttachReport, CanonProposal, ChatSummary, CollectionColor, CommentRow, SavedChat, CollectionSummary, DiffSegment, SnapshotRow, SyncInfo, DetailsPatch, DocumentPayload, Remap, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
   InspirationImage, Issue, ModelKind, ModelOption, RecentProject, SceneMention, SettingsInfo, EditorPrefs, SprintRecord, SprintState, StatsSummary, StyleStatus, Workspace,
 } from "../data/types";
+import type { AtmosphereInfo, KeyClass, PackRow, Prefs, Station } from "../data/atmosphere";
 import type { ExportInfo, ExportOptions, ExportStatus, ExportSummary } from "../data/export";
 import { call } from "./transport";
 
@@ -175,6 +176,17 @@ export const api = {
   /** Moves the picture to the Trash. */
   deleteInspiration: (id: string) => call("delete_inspiration", id),
   revealInspiration: (id: string) => call<{ path: string; opened: boolean }>("reveal_inspiration", id),
+  // atmosphere: typing sounds and ambience (user data dir + user settings, never the project)
+  getAtmosphere: () => call<AtmosphereInfo>("get_atmosphere"),
+  setAtmosphere: (prefs: Prefs) => call<{ prefs: Prefs }>("set_atmosphere", prefs),
+  setStations: (stations: { name: string; url: string }[] | null) => call<{ stations: Station[] }>("set_stations", stations),
+  /** A custom pack's sounds as data URLs by key class (files inside sounds/<pack>/ only). */
+  soundPack: (pack: string) => call<{ id: string; name: string; volume: number; sounds: Partial<Record<KeyClass, string[]>> }>("sound_pack", pack),
+  ambienceLoop: (name: string) => call<{ dataUrl: string }>("ambience_loop", name),
+  /** Native file dialog; `imported` is null when the author cancels. */
+  importSoundPack: () => call<{ imported: { id: string; files: number } | null; packs: PackRow[] }>("import_sound_pack"),
+  exportSoundPack: (pack: string) => call<{ path: string | null }>("export_sound_pack", pack),
+  openSoundsFolder: (which: "sounds" | "ambience") => call<{ path: string; opened: boolean }>("open_sounds_folder", which),
   getSettings: () => call<SettingsInfo>("get_settings"),
   setSettings: (models?: Partial<Record<ModelKind, string>>, editor?: Partial<EditorPrefs>, spellcheck?: boolean, autoSnapshot?: boolean, dailyTarget?: number, imageStyle?: string) =>
     call("set_settings", models ?? null, editor ?? null, spellcheck ?? null, autoSnapshot ?? null, dailyTarget ?? null, imageStyle ?? null),

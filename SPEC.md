@@ -698,6 +698,17 @@ both edit the same plain-Markdown projects.
   synchronous final save. Window resizing on a frameless GTK window depends on the
   compositor. Tauri packaging is untested.
 
+### Atmosphere: typing sounds and ambience ✅ (desktop GUI; plan: docs/dev/plan-feedback-2026-10.md, Batch 4)
+- **Typing sounds** play on editor keydown only (never in dialogs, never blocking a key), off by default,
+  toggled from the status bar or Settings. Three synthesised packs (Web Audio) plus custom packs from
+  `<data dir>/sounds/<pack>/`; import/export as a validated `.zip` (docs/sound-packs.md).
+- **Ambience** layers are generated offline (rain, ocean, wind, forest birds, fireplace, a café murmur that
+  is only an approximation, brown/pink/white noise, a drone); loops from `<data dir>/ambience/` are listed
+  beside them; mixes can be saved as presets. **Internet radio** is an editable station list in user
+  settings (defaults: four SomaFM channels, shown "via SomaFM - listener-supported, consider supporting
+  them"); http(s) only, and nothing plays until the author picks a station. Everything starts silent and
+  pauses while the window is hidden. Preferences live in user settings, never in a project.
+
 ## 8. Cost & key management
 
 - BYOK via OpenRouter; `keyring` storage (Secret Service on Linux), config-file fallback `chmod 600`, env var for dev

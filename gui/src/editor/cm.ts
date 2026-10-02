@@ -1,7 +1,8 @@
 // CodeMirror 6 setup for a LoreWriter document: plain Markdown on disk, drawn
 // with the design's prose styling. Live preview: [[link]] brackets and the
 // <!--ai--> markers are hidden, mentions are coloured, pending drafts tinted.
-import { Compartment, EditorState, Facet, StateEffect, StateField, type Extension, type Range } from "@codemirror/state";
+import { Compartment, EditorState, Prec, Facet, StateEffect, StateField, type Extension, type Range } from "@codemirror/state";
+import { typingKeydown } from "../audio/typing";
 import { Decoration, type DecorationSet, EditorView, WidgetType, drawSelection, hoverTooltip, keymap, tooltips } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { ensureSyntaxTree } from "@codemirror/language";
@@ -364,6 +365,9 @@ export function editorExtensions(kind: string, meta: string, reflow: boolean, ho
         },
       };
     }, { hoverTime: 350 }),
+    // typing sounds: editor keydown only, ahead of the keymaps (Enter and Backspace are handled
+    // there); it never handles the event, so it can never swallow a key
+    Prec.highest(EditorView.domEventHandlers({ keydown: (e) => { typingKeydown(e); return false; } })),
     EditorView.domEventHandlers({
       blur: () => { hooks.onBlur(); return false; },
       contextmenu: (e, view) => {

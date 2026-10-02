@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Timer, GitBranch, Clock3, CloudCheck, CloudUpload, CloudOff, Target, ChevronsUpDown, Coins, SpellCheck } from "lucide-react";
+import { Timer, GitBranch, Clock3, CloudCheck, CloudUpload, CloudOff, Target, ChevronsUpDown, Coins, SpellCheck, Keyboard, Headphones } from "lucide-react";
 import { Icon } from "./primitives";
 import type { StatsBrief, SyncInfo } from "../data/types";
 import { syncTip } from "../data/syncText";
@@ -8,6 +8,8 @@ import { agoText } from "../data/snapshots";
 import { clock, signedWords } from "../data/stats";
 import { AiStatus } from "./AiProgress";
 import type { AiRunView } from "./aiRun";
+import { atmosphere, useAtmosphere } from "../audio/store";
+import { activeCount, ambienceLabel } from "../data/atmosphere";
 
 export function StatusBar(props: {
   projectWords: number; aiCost: number;
@@ -25,7 +27,10 @@ export function StatusBar(props: {
   sprintLeft: number | null; onSprint: () => void;
   /** The AI job that is running, if any (item "AI: drafting… 12 s · Stop"). */
   ai: AiRunView | null; onStopAi: () => void;
+  /** Opens the Sound panel (typing sounds, ambience, radio). */
+  onSound: () => void;
 }) {
+  const sound = useAtmosphere();
   const [, tick] = useState(0);
   useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 30_000); return () => clearInterval(t); }, []);
   const stats = props.stats;
@@ -57,6 +62,20 @@ export function StatusBar(props: {
       </div>
       <div className="lw-row">
         {props.ai && <AiStatus run={props.ai} onStop={props.onStopAi} />}
+        <button className={`lw-status__item${sound.info.prefs.typing.on ? " is-accent" : ""}`} aria-pressed={sound.info.prefs.typing.on}
+          title={sound.info.prefs.typing.on ? "Typing sounds are on: click to turn them off" : "Typing sounds are off: click to turn them on (more under Sound)"}
+          onClick={() => atmosphere.setTyping({ on: !sound.info.prefs.typing.on })}>
+          <Icon icon={Keyboard} size={12} stroke={1.5} color="currentColor" />{sound.info.prefs.typing.on ? "Typing sound on" : "Typing sound"}
+        </button>
+        <span className="lw-status__div" />
+        <button className={`lw-status__item${sound.playing || sound.station === "playing" ? " is-accent" : ""}`}
+          title="Ambience and radio: open the mixer" onClick={props.onSound}>
+          <Icon icon={Headphones} size={12} stroke={1.5} color="currentColor" />
+          {ambienceLabel(sound.playing || sound.station !== "idle",
+            sound.station !== "idle" ? (sound.info.stations.find((s) => s.url === sound.info.prefs.ambience.station)?.name.split(" (")[0] ?? "Radio") : null,
+            sound.playing ? activeCount(sound.info.prefs.ambience) : 0)}
+        </button>
+        <span className="lw-status__div" />
         {stats && (
           <>
             <button className={`lw-status__item${props.sprintLeft !== null ? " is-accent" : ""}`} onClick={props.onSprint}

@@ -189,6 +189,12 @@ export function mockCall(method: string, args: unknown[]): object {
       imageStyle: "cinematic, atmospheric, no text, no watermark", imageStyleDefault: "cinematic, atmospheric, no text, no watermark",
       models: Object.fromEntries(["fast", "strong", "writing", "image"].map((k) => [k, { value: "", default: "default/model", effective: "default/model", projectOverride: "" }])) };
     case "set_settings": return { ok: true };
+    case "get_atmosphere": return { ok: true, prefs: { typing: { on: false, pack: "typewriter", volume: 0.5 },
+      ambience: { volume: 0.6, layers: {}, loops: {}, station: null, stationVolume: 0.6, presets: {} } },
+      stations: [{ name: "Fluid (SomaFM): lo-fi, instrumental hip-hop", url: "https://ice1.somafm.com/fluid-128-mp3",
+        attribution: { via: "SomaFM", text: "via SomaFM - listener-supported, consider supporting them", link: "https://somafm.com/support/" } }],
+      packs: [], loops: [], soundsDir: "", ambienceDir: "" };
+    case "set_atmosphere": return { ok: true, prefs: args[0] };
     case "ai_status": return { ok: true, hasKey: true, models: { fast: "", strong: "", writing: "", image: "" } };
     case "recent_projects": return { ok: true, recents: [] };
     case "list_inspiration": return { ok: true, images: [], model: "", style: "" };

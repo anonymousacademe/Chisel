@@ -667,3 +667,16 @@ button.lw-picklist__row:hover { border-color: var(--lw-accent); background: var(
 .lw-rename__old { background: var(--lw-accent-soft); color: var(--lw-text-muted); text-decoration: line-through; }
 .lw-rename__new { margin-left: 3px; background: var(--lw-accent-soft); color: var(--lw-text-strong); text-decoration: none; font-weight: 600; }
 .lw-rename__aliases { display: flex; flex-direction: column; gap: 6px; }
+
+/* sound panel (typing sounds, ambience, radio) */
+.lw-atmo__block { display: flex; flex-direction: column; gap: 8px; }
+.lw-atmo__grow { flex: 1; min-width: 0; }
+.lw-atmo__wrap { flex-wrap: wrap; }
+.lw-atmo__note { font-size: 11px; line-height: 1.4; margin: 0; }
+.lw-atmo__layer { align-items: center; }
+.lw-atmo__label { width: 190px; flex: none; font-size: 12px; }
+.lw-atmo__station { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; }
+.lw-atmo__station.is-on { color: var(--lw-accent-text); }
+.lw-atmo__via { font-size: 10.5px; padding-left: 38px; }
+.lw-atmo__via a { color: var(--lw-accent-text); }
+.lw-slider { flex: 1; min-width: 80px; accent-color: var(--lw-accent); }

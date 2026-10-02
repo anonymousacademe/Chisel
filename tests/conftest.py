@@ -9,6 +9,7 @@ def isolated_state_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("LOREWRITE_STATE_DIR", str(state_dir))
     state_dir.mkdir(parents=True, exist_ok=True)
     (state_dir / "settings.json").write_text('{"tour_seen": true}')
+    monkeypatch.setenv("LOREWRITE_DATA_DIR", str(tmp_path / "data"))  # sounds/, ambience/
 
 
 @pytest.fixture(autouse=True)
