@@ -114,6 +114,21 @@ def test_save_detects_external_change_and_keep_mine_overwrites(tmp_path):
     assert forced["saved"] is True and "Mine." in path.read_text()
 
 
+def test_crlf_file_from_another_editor_is_read_as_lf_saved_as_lf_and_never_a_conflict(tmp_path):
+    api, root = open_api(tmp_path)
+    path = root / "manuscript/01-arrival.md"
+    doc = api.read_document("manuscript/01-arrival.md")
+    path.write_bytes(b"# Arrival\r\n\r\nWritten elsewhere.\r\n")   # another editor, CRLF
+    # the same words with LF are not a change, even though the mtime moved
+    r = api.save_document(doc["id"], "# Arrival\n\nWritten elsewhere.\n", doc["mtime"])
+    assert r["saved"] is True and "conflict" not in r
+    assert api.read_document("manuscript/01-arrival.md")["text"] == "# Arrival\n\nWritten elsewhere.\n"
+    # our own save keeps LF on every platform
+    fresh = api.read_document("manuscript/01-arrival.md")
+    assert api.save_document(fresh["id"], fresh["text"] + "More.\n", fresh["mtime"])["saved"]
+    assert b"\r" not in path.read_bytes()
+
+
 def test_save_never_recreates_a_deleted_scene(tmp_path):
     api, root = open_api(tmp_path)
     doc = api.read_document("manuscript/02-the-archive.md")

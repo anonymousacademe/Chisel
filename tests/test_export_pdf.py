@@ -1,4 +1,5 @@
 import re
+from dataclasses import replace
 import shutil
 import subprocess
 
@@ -17,6 +18,8 @@ def build(tmp_path, layout, **kw):
     project = make_structured(tmp_path / "p")
     lay = layouts.get(layout)
     opts = lay.resolve(ExportOptions(**kw))
+    if opts.font not in pdfkit.fonts_present():  # e.g. Liberation Serif is not on Windows
+        opts = replace(opts, font=pdfkit.fallback_font(opts.font, lay.fonts))
     book = assemble(project, opts)
     out = tmp_path / f"{layout}.pdf"
     pages = lay.render(book, opts, out)
@@ -104,3 +107,13 @@ def test_manuscript_review_has_line_numbers_and_header(tmp_path):
 def test_continuous_book_has_no_chapter_headings(tmp_path):
     out, pages, _ = build(tmp_path, "book", continuous=True, toc=False)
     assert "Rain on the Spur" not in text_of(out) and "* * *" in text_of(out)
+
+
+def test_fallback_font_prefers_the_same_kind_and_only_installed_ones(monkeypatch):
+    monkeypatch.setattr(pdfkit, "fonts_present", lambda: frozenset({"noto-serif", "liberation-mono"}))
+    fonts = ("liberation-serif", "liberation-mono", "noto-serif")
+    assert pdfkit.fallback_font("liberation-serif", fonts) == "noto-serif"
+    assert pdfkit.fallback_font("liberation-mono", fonts) == "liberation-mono"
+    assert pdfkit.fallback_font("liberation-sans", ("liberation-sans",)) is None
+    monkeypatch.setattr(pdfkit, "fonts_present", lambda: frozenset({"liberation-mono"}))
+    assert pdfkit.fallback_font("liberation-serif", fonts) == "liberation-mono"  # any beats none

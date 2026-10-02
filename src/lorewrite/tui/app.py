@@ -526,11 +526,12 @@ class LorewriteApp(InspirationMixin, App):
     # -- startup / shutdown -----------------------------------------------------
 
     def on_mount(self) -> None:
-        omarchy_theme = omarchy_textual_theme()
+        # read the Omarchy colours once (None elsewhere; tests patch this name)
+        colors = load_omarchy_colors() or {}
+        omarchy_theme = omarchy_textual_theme(colors) if colors else None
         if omarchy_theme is not None:
             self.register_theme(omarchy_theme)
             self.theme = omarchy_theme.name
-            colors = load_omarchy_colors() or {}
             from rich.style import Style
 
             resolved = link_color(colors)

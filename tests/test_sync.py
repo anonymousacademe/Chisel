@@ -26,7 +26,7 @@ def isolated_git(monkeypatch):
 
 def git(cwd: Path, *args: str) -> str:
     return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True,
-                          text=True).stdout
+                          text=True, encoding="utf-8").stdout
 
 
 def novel(tmp_path: Path, name: str = "novel") -> Project:
@@ -222,7 +222,7 @@ def test_a_project_inside_a_bigger_repo_commits_only_its_own_folder(tmp_path):
     (outer / "other.txt").write_text("not mine")
     p = Project.create(outer / "books" / "novel", "Novel")
     st = sync.status(p.root)
-    assert st is not None and st.toplevel == str(outer.resolve())
+    assert st is not None and Path(st.toplevel).resolve() == outer.resolve()
     assert st.scenes == 1                       # the prefix is stripped: manuscript/01-opening.md
     sync.commit(p.root, "novel only")
     names = git(outer, "show", "--name-only", "--format=").split()

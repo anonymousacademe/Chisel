@@ -143,14 +143,12 @@ def run_export(project, options: ExportOptions, progress: Progress | None = None
         opts = layout.resolve(opts)
         from . import pdfkit
         if opts.font not in pdfkit.fonts_present():
-            for key in layout.fonts:
-                if key in pdfkit.fonts_present():
-                    warnings.append(f"{pdfkit.font_label(opts.font)} is not installed; "
-                                    f"used {pdfkit.font_label(key)}.")
-                    opts = ExportOptions.from_dict({**opts.to_dict(), "font": key})
-                    break
-            else:
+            key = pdfkit.fallback_font(opts.font, layout.fonts)
+            if key is None:
                 raise RuntimeError(f"{pdfkit.font_label(opts.font)} is not installed")
+            warnings.append(f"{pdfkit.font_label(opts.font)} is not installed; "
+                            f"used {pdfkit.font_label(key)}.")
+            opts = ExportOptions.from_dict({**opts.to_dict(), "font": key})
     elif opts.format in ("docx", "epub", "tex") and pandoc.find() is None:
         raise RuntimeError("pandoc is not installed; install it to export DOCX, EPUB or LaTeX")
 

@@ -75,6 +75,14 @@ def fonts_present() -> frozenset[str]:
                      if all(_find(s) for s in stems))
 
 
+def fallback_font(wanted: str, candidates: tuple[str, ...]) -> str | None:
+    """The installed font of *candidates* to use when *wanted* is missing: one of
+    the same kind (monospaced or proportional) first, then any. None if none is."""
+    present = [k for k in candidates if k in fonts_present()]
+    same = [k for k in present if ("mono" in k) == ("mono" in wanted)]
+    return (same or present or [None])[0]
+
+
 @dataclass(frozen=True)
 class Face:
     family: str

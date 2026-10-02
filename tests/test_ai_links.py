@@ -187,7 +187,7 @@ def _tavern(tmp_path: Path):
     proj = Project.create(tmp_path / "novel", title="AI")
     proj.create_entity("Borin")
     scene = proj.manuscript_dir / "02-tavern.md"
-    scene.write_text("# Tavern\n\nThe old smith drank.\n")
+    scene.write_text("# Tavern\n\nThe old smith drank.\n", encoding="utf-8", newline="\n")
     return proj, scene
 
 

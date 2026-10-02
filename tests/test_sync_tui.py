@@ -24,7 +24,8 @@ def isolated_git(monkeypatch):
 
 
 def git(cwd, *args):
-    return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True).stdout
+    return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True,
+                          encoding="utf-8").stdout
 
 
 def _project(tmp_path: Path) -> Project:
@@ -39,8 +40,11 @@ def _entries(app) -> set[str]:
 
 
 async def _settle(app, pilot):
-    await pilot.pause()
-    await app.workers.wait_for_complete()
+    # an action's worker starts a status refresh as it ends; slower git (Windows) needs
+    # the second wait to cover that one too
+    for _ in range(3):
+        await pilot.pause()
+        await app.workers.wait_for_complete()
     await pilot.pause()
 
 

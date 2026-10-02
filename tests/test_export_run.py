@@ -95,9 +95,14 @@ def test_pdf_run_reports_pages_and_font_fallback(tmp_path, monkeypatch):
     project, res = run(tmp_path, format="pdf", layout="book")
     assert res.pages >= 6 and res.path.suffix == ".pdf" and res.path.name.startswith("test-novel-book-")
     from lorewrite.core.export import pdfkit
-    monkeypatch.setattr(pdfkit, "fonts_present", lambda: frozenset({"liberation-serif"}))
-    res2 = export.run_export(project, ExportOptions(format="pdf", layout="book"), now=NOW)
-    assert any("Noto Serif is not installed" in w for w in res2.warnings)
+    # the manuscript layout wants Liberation Serif; without it, the bundled Noto Serif (not the mono)
+    monkeypatch.setattr(pdfkit, "fonts_present", lambda: frozenset({"noto-serif", "liberation-mono"}))
+    res2 = export.run_export(project, ExportOptions(format="pdf", layout="manuscript"), now=NOW)
+    assert any("Liberation Serif is not installed; used Noto Serif" in w for w in res2.warnings)
+    assert res2.path.is_file()
+    monkeypatch.setattr(pdfkit, "fonts_present", lambda: frozenset())
+    with pytest.raises(RuntimeError, match="not installed"):
+        export.run_export(project, ExportOptions(format="pdf", layout="book"), now=NOW)
 
 
 @has_pandoc

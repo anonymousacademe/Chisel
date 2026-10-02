@@ -61,11 +61,12 @@ def _env() -> dict[str, str]:
     return env
 
 
-def _run(root: Path, *args: str, timeout: float, check: bool = True) -> subprocess.CompletedProcess:
+def _run(root: Path, *args: str, timeout: float, check: bool = True,
+         input_text: str | None = None) -> subprocess.CompletedProcess:
     try:
         proc = subprocess.run(["git", *args], cwd=root, env=_env(), timeout=timeout,
                               capture_output=True, text=True, encoding="utf-8",
-                              errors="replace")
+                              errors="replace", input=input_text)
     except FileNotFoundError as exc:
         raise GitError("git is not installed") from exc
     except subprocess.TimeoutExpired as exc:
@@ -130,6 +131,8 @@ def status(root: Path) -> SyncStatus | None:
                   check=False).stdout.strip()
     toplevel = _run(root, "rev-parse", "--show-toplevel", timeout=STATUS_TIMEOUT,
                     check=False).stdout.strip()
+    if toplevel:
+        toplevel = str(Path(toplevel))  # git prints C:/x on Windows; the OS spelling is C:\x
     branch, ahead, behind, has_upstream, has_head = "", 0, 0, False, True
     changes = scenes = 0
     parts = proc.stdout.split("\0")
@@ -215,7 +218,10 @@ def commit(root: Path, message: str) -> str:
     if st.changes == 0:
         raise ValueError("nothing to commit: every change is already committed")
     _run(root, "add", "-A", "--", ".", timeout=COMMIT_TIMEOUT)
-    proc = _run(root, "commit", "-m", message, "--", ".", timeout=COMMIT_TIMEOUT, check=False)
+    # The message goes in on stdin as UTF-8 (not argv: Windows code pages mangle the
+    # em dash of the default message) and is stored as UTF-8.
+    proc = _run(root, "-c", "i18n.commitEncoding=utf-8", "commit", "-F", "-", "--", ".",
+                timeout=COMMIT_TIMEOUT, check=False, input_text=message + "\n")
     if proc.returncode != 0:
         text = (proc.stdout + proc.stderr).strip()
         if "nothing to commit" in text or "no changes added" in text:
