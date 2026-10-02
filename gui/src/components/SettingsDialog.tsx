@@ -5,6 +5,7 @@ import type { EditorPrefs, ModelKind, ModelOption, SettingsInfo } from "../data/
 import { IMAGE_COST_NOTE } from "../data/inspiration";
 import { Modal } from "./Dialogs";
 import { Icon } from "./primitives";
+import { TypingControls } from "./AtmospherePanel";
 
 const KINDS: { kind: ModelKind; label: string; hint: string; structured: boolean; modality?: "image" }[] = [
   { kind: "fast", label: "Fast model", hint: "Alias finder. Needs structured outputs.", structured: true },
@@ -155,6 +156,11 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
             <input type="checkbox" checked={spellcheck} onChange={(e) => setSpellcheck(e.target.checked)} />
             Underline misspellings <span className="lw-faint">(scenes only; names in your notes and your dictionaries are never flagged)</span>
           </label>
+        </section>
+        <section className="lw-settings__section">
+          <h3>Typing sounds</h3>
+          <TypingControls notify={notify} />
+          <p className="lw-faint lw-atmo__note">These apply at once. Ambience and radio are in the Sound panel (status bar).</p>
         </section>
         <section className="lw-settings__section">
           <h3>Writing goals</h3>

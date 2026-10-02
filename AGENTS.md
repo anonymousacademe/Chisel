@@ -27,6 +27,8 @@ src/lorewrite/
     scenemeta.py        # scene details = YAML frontmatter: find/strip/blank/set_details
     index.py            # SQLite backlink index; no-ops after close()
     recents.py          # recent projects; state dir = platformdirs (Linux ~/.local/state/lorewrite); LOREWRITE_STATE_DIR env override
+    soundpacks.py       # typing-sound packs + ambience loops in the user DATA dir (LOREWRITE_DATA_DIR in tests); zip import/export validation
+    atmosphere.py       # sound prefs + radio stations in user settings (http(s) only)
     desktop.py          # open_path: os.startfile / open / xdg-open (only on a click)
     fsutil.py           # replace/rename with a short retry (Windows PermissionError); use instead of Path.replace
     settings.py         # user settings (tour_seen, ...)
@@ -314,6 +316,12 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   widgets and line-break-spanning replaces cannot come from a `ViewPlugin`.
   Hard-wrapped lines are joined by replacing the `\n` with a space widget (display
   only); never edit the file to "fix" wrapping.
+- **Atmosphere audio** (`gui/src/audio/`, `core/soundpacks.py`, `core/atmosphere.py`). Typing sounds are hooked
+  in `editor/cm.ts` at `Prec.highest` (Enter/Backspace are handled by the keymaps, which would end the handler
+  chain); the hook returns false and swallows every error. Audio starts only from a gesture and the app starts
+  silent: never autoplay, never contact a station before the author picks it. Pack/loop names cross the
+  bridge: go through `soundpacks._plain` / `_inside`; zip import is all-or-nothing. Tests set
+  `LOREWRITE_DATA_DIR` (conftest does).
 - **Placeholders** use `components/placeholder.ts` only. Do not invent a second
   treatment, and do not show fake data in them.
 - **Dev-only fakes**: `mockai.py` and `backend/mock.ts` must never be reachable in
