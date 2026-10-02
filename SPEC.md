@@ -609,6 +609,16 @@ window (pywebview, WebKitGTK) showing a React/TypeScript UI built from the
 "LoreWriter" Figma design (`gui/`). The TUI stays fully supported and unchanged;
 both edit the same plain-Markdown projects.
 
+- **Formatted text (October 2026).** The editor is a live preview of the Markdown on disk:
+  `**bold**`, `*italic*`, `` `code` `` and `#` headings are drawn formatted and their marks hidden,
+  except in the span (or on the heading line) the cursor is in or touching. The marks come from the
+  Lezer Markdown tree (`gui/src/editor/format.ts`), never a regex; nothing in the file changes and
+  offsets are untouched, so spell check, mentions and comments are unaffected. The style guide
+  (`style.md`) also renders bullets as dots and blockquotes without `>`.
+- **Logo.** The app mark (an open book and a quill, violet) is `gui/src/assets/logo.svg`; it replaces the
+  "LW" avatar in the rail while no author is set, heads the launch screen, and
+  `gui/scripts/make-icons.sh` regenerates the favicon, the packaging icons (`gui/src-tauri/icons/*`) and
+  the window icon (`src/lorewrite/gui/icon.png`) from it.
 - **Shell.** `lorewrite-gui` (`src/lorewrite/gui/app.py`) opens a frameless
   1600×1000 window on the built UI (`src/lorewrite/gui/web/`, found by `gui/webroot.py`; falls back to `gui/dist`) and hands it a bridge object. The UI calls the
   Python core **in-process** through pywebview's `js_api`; there is no server in
