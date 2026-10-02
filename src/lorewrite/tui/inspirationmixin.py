@@ -9,12 +9,12 @@ started (``xdg-open``) only when the author chooses to open one.
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 
 from textual import work
 
 from ..ai import images as image_ai
+from ..ai.stream import Cancelled
 from ..ai.usage import LEDGER
 from ..core import inspiration as store
 from .inspirationscreens import InspirationListScreen, InspirationPromptScreen
@@ -78,7 +78,11 @@ class InspirationMixin:
     async def _inspiration_describe_worker(self, context: str, model: str, keep: str) -> None:
         calls = LEDGER.count()
         try:
-            text = await asyncio.to_thread(_app_fn("suggest_image_prompt"), context, model)
+            text = await self._ai_call("describing the scene", _app_fn("suggest_image_prompt"),
+                                       context, model)
+        except Cancelled:
+            self.inspiration_prompt(keep)       # nothing is lost: the box comes back as it was
+            return
         except Exception as exc:
             self.notify(f"Could not describe the scene: {exc}", severity="error", timeout=6)
             self.inspiration_prompt(keep)
@@ -91,7 +95,11 @@ class InspirationMixin:
     async def _inspiration_generate_worker(self, prompt: str, model: str, scene: str, pin: bool) -> None:
         calls = LEDGER.count()
         try:
-            pictures = await asyncio.to_thread(_app_fn("generate_image"), prompt, model)
+            pictures = await self._ai_call("making a picture", _app_fn("generate_image"), prompt, model)
+        except Cancelled:
+            self._cost_note(calls)
+            self.inspiration_prompt(prompt)     # stopped: nothing is saved; the description comes back
+            return
         except Exception as exc:
             self._cost_note(calls)
             self.notify(f"No picture: {exc}", severity="error", timeout=8)

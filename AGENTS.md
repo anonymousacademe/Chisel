@@ -208,6 +208,13 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   `research_answer` (mock those names). Brainstorm is `lorewrite.tui.app.brainstorm_ideas` (terminal) and
   `lorewrite.gui.api.brainstorm_writer` (GUI; `gui/mockai.py` fakes it, and the signature test in
   `tests/test_gui_shell.py` lists it); a brainstorm reply is a chat message carrying `ideas`.
+- **AI jobs and Stop** (`ai/stream.py`, `gui/aijobs.py`, `tui/aimixin.py`). Streaming text calls take
+  `on_delta=` / `cancel=` (a `CancelToken`) and raise `Cancelled` when stopped; a stopped call must never
+  insert, save or register anything - in the GUI the sync bridge methods run unchanged inside a job
+  (`Api._stream` routes deltas; `aijobs.checkpoint()` before any write that follows a slow call), in the TUI
+  every AI call goes through `LorewriteApp._ai_call` and the worker catches `Cancelled` and returns.
+  New AI function in `ai/`: add the kwargs (or `call_ai` filters them), mock it with them in `gui/mockai.py`.
+  `ctrl+x` is a priority App binding gated by `check_action` (it is cut when no job runs).
 - **Writing stats** (`core/stats.py`) are personal: `<state dir>/stats/<project-id>.json`, never in the
   project folder, and they MUST honour `LOREWRITE_STATE_DIR` (tests/screenshots point it at a temp dir).
   Both front ends call `Tracker.seen(key, words)` when a scene is opened or replaced wholesale (snapshot

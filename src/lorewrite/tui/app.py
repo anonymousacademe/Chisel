@@ -22,6 +22,7 @@ from ..ai.client import MODEL_DEFAULTS, resolve_model, set_api_key
 from ..ai.images import generate as generate_image, suggest_prompt as suggest_image_prompt
 from ..ai.links import Suggestion, alias_form, suggest_links
 from ..ai.style import learn_style
+from ..ai.stream import Cancelled
 from ..ai.usage import LEDGER, format_cost
 from ..ai.writing import (
     ask as ask_writer,
@@ -80,6 +81,7 @@ from .launch import LaunchScreen
 from .linkreview import AliasReviewScreen
 from .panels import BacklinkSelected, EntityPanel
 from .brainstormscreen import BrainstormScreen
+from .aimixin import AiMixin
 from .inspirationmixin import InspirationMixin
 from .promptscreen import PromptScreen
 from .settingscreen import KeyPrompt
@@ -114,6 +116,9 @@ HELP_TEXT = """\
   ctrl+g          AI write: draft at the cursor (prompt window) - or, on a
                   {{expand: note}} marker, expand it - or, with text
                   selected, rewrite the selection in your style
+  ctrl+x          stop a running AI request (or escape): nothing is inserted or
+                  saved; the status bar shows 'AI: drafting... 12 s (ctrl+x to stop)'
+                  (with no request running, ctrl+x is cut)
   f7 / f8         accept / reject the AI draft under the cursor
                   (drafts are marked in color until you accept them)
   f5              select all (f7 is accept)
@@ -276,7 +281,7 @@ class EntityTypePrompt(ModalScreen[str | None]):
         self.dismiss(None)
 
 
-class LorewriteApp(InspirationMixin, App):
+class LorewriteApp(AiMixin, InspirationMixin, App):
     TITLE = "lorewrite"
 
     COMMANDS = App.COMMANDS | {SceneProvider, EntityProvider, ResearchProvider,
@@ -287,6 +292,10 @@ class LorewriteApp(InspirationMixin, App):
         Binding("ctrl+n", "new_scene", "New scene"),
         Binding("ctrl+l", "find_aliases", "Find aliases"),
         Binding("ctrl+g", "generate", "AI write"),
+        # stop a running AI request: priority so it beats the editor's cut / an input's cut;
+        # check_action() turns it off unless a request is running. escape is the plain fallback.
+        Binding("ctrl+x", "stop_ai", "Stop AI", priority=True, show=False),
+        Binding("escape", "stop_ai", "Stop AI", show=False),
         Binding("f7", "accept_draft", "Accept AI draft", show=False),
         Binding("f8", "reject_draft", "Reject AI draft", show=False),
         Binding("alt+left", "previous_scene", "Prev scene"),
@@ -312,6 +321,10 @@ class LorewriteApp(InspirationMixin, App):
     LinkedTextArea { width: 1fr; }
     #entity-body { height: 1fr; padding: 0 1; }
     #backlinks { height: 40%; }
+    #ai-preview {
+        display: none; height: auto; max-height: 6; padding: 0 1;
+        background: $panel; color: $text-muted; border-top: solid $primary;
+    }
     #status {
         height: 1; padding: 0 1;
         background: $boost; color: $text;
@@ -498,6 +511,8 @@ class LorewriteApp(InspirationMixin, App):
             yield self._sidebar
             yield self._editor
             yield self._panel
+        self._ai_preview = Static("", id="ai-preview")
+        yield self._ai_preview
         self._status = Static("", id="status")
         yield self._status
         yield Footer()
@@ -954,8 +969,11 @@ class LorewriteApp(InspirationMixin, App):
     def update_status(self) -> None:
         if self._status is None:
             return
+        working = self._ai_status_text()
         if self.current_path is None:
             self._status_text = "no file open — ctrl+p to open a scene"
+            if working:
+                self._status_text = f"{working}  |  {self._status_text}"
             self._status.update(self._status_text)
             return
         rel = self.current_path.relative_to(self.project.root)
@@ -992,6 +1010,8 @@ class LorewriteApp(InspirationMixin, App):
                 sp = b["sprint"]
                 parts.insert(1, f"SPRINT {writing_stats.clock(sp['remaining'])} ({writing_stats.signed(sp['words'])})")
         parts.insert(1, f"Draft {self.project.draft}")
+        if working:
+            parts.insert(0, working)
         if self._sync is not None:
             parts.insert(2, self._sync.label)
         if self._snapshot_at is not None and self._is_scene(self.current_path):
@@ -1319,9 +1339,10 @@ class LorewriteApp(InspirationMixin, App):
         entities = list(self.entities)
         calls = LEDGER.count()
         try:
-            suggestions = await asyncio.to_thread(
-                suggest_links, scene_text, entities, self._ai_fast_model()
-            )
+            suggestions = await self._ai_call(
+                "finding aliases", suggest_links, scene_text, entities, self._ai_fast_model())
+        except Cancelled:
+            return
         except Exception as exc:
             self.notify(f"Alias search failed: {exc}", severity="error",
                         timeout=6)
@@ -1490,6 +1511,8 @@ class LorewriteApp(InspirationMixin, App):
                         start: int, end: int) -> None:
         if not instruction:
             return
+        if self._ai_busy():
+            return
         text = self.editor.text
         selection = text[start:end] if end > start else None
         span = (start, end) if end > start else None
@@ -1513,9 +1536,11 @@ class LorewriteApp(InspirationMixin, App):
                                selection, start, end, path, snapshot) -> None:
         calls = LEDGER.count()
         try:
-            body = await asyncio.to_thread(
-                generate, mode, instruction, context, model,
-                selection=selection)
+            body = await self._ai_call(
+                "drafting", generate, mode, instruction, context, model,
+                selection=selection, stream=True, preview=True)
+        except Cancelled:
+            return                  # stopped: nothing is inserted, saved or registered
         except Exception as exc:
             self.notify(f"AI writing failed: {exc}", severity="error",
                         timeout=6)
@@ -1586,9 +1611,11 @@ class LorewriteApp(InspirationMixin, App):
     async def _learn_style_worker(self, samples) -> None:
         calls = LEDGER.count()
         try:
-            proposal = await asyncio.to_thread(
-                learn_style, samples, self._ai_model("writing"),
+            proposal = await self._ai_call(
+                "learning your style", learn_style, samples, self._ai_model("writing"),
                 manuscript=manuscript_stats(self.project))
+        except Cancelled:
+            return
         except Exception as exc:
             self.notify(f"Style guide failed: {exc}", severity="error",
                         timeout=6)
@@ -1664,10 +1691,11 @@ class LorewriteApp(InspirationMixin, App):
         scene_rel = self.current_path.relative_to(self.project.root).as_posix()
         calls = LEDGER.count()
         try:
-            results = await asyncio.to_thread(
-                check_scene, scene_text, entities, canon,
-                self._ai_strong_model(),
-            )
+            results = await self._ai_call(
+                "checking continuity", check_scene, scene_text, entities, canon,
+                self._ai_strong_model())
+        except Cancelled:
+            return
         except Exception as exc:
             self.notify(f"Continuity check failed: {exc}", severity="error",
                         timeout=6)
@@ -1749,10 +1777,11 @@ class LorewriteApp(InspirationMixin, App):
         entities = list(self.entities)
         calls = LEDGER.count()
         try:
-            updates = await asyncio.to_thread(
-                propose_canon_updates, scene_text, entities,
-                self._ai_strong_model(),
-            )
+            updates = await self._ai_call(
+                "reading the scene for canon", propose_canon_updates, scene_text, entities,
+                self._ai_strong_model())
+        except Cancelled:
+            return
         except Exception as exc:
             self.notify(f"Story-bible update failed: {exc}", severity="error",
                         timeout=6)
@@ -2552,6 +2581,8 @@ class LorewriteApp(InspirationMixin, App):
         except ValueError as exc:
             screen.add_message(ChatMsg("assistant", str(exc), error=True))
             return
+        if self._ai_busy():
+            return
         screen.set_busy(True)
         self._assistant_worker(screen, prompt, mode, context, sources, history,
                                self._ai_model("writing"))
@@ -2561,8 +2592,15 @@ class LorewriteApp(InspirationMixin, App):
         calls = LEDGER.count()
         fn = research_answer if mode == "research" else ask_writer
         try:
-            reply = await asyncio.to_thread(fn, prompt, context, model, history=history)
+            reply = await self._ai_call("researching" if mode == "research" else "answering",
+                                        fn, prompt, context, model, history=history,
+                                        stream=True, screen=screen)
             msg = ChatMsg("assistant", reply, sources=sources)
+        except Cancelled:            # stopped: shown as a note, never kept as an answer
+            if screen.is_attached:
+                screen.set_busy(False)
+                screen.show_note("(stopped)")
+            return
         except Exception as exc:
             msg = ChatMsg("assistant", f"That request failed ({exc}). Nothing was changed.", error=True)
         cost = self._cost_note(calls)
@@ -2593,6 +2631,8 @@ class LorewriteApp(InspirationMixin, App):
             offset = 0
             titles = [self.project.scene_title(p) for p in self.project.list_scenes()]
             context = build_project_context(titles, entities, canon, load_style(self.project))
+        if self._ai_busy():
+            return
         self.notify("Brainstorming…", timeout=3)
         self._brainstorm_worker(context, self._ai_model("writing"), scene, offset)
 
@@ -2600,7 +2640,10 @@ class LorewriteApp(InspirationMixin, App):
     async def _brainstorm_worker(self, context, model, scene, offset) -> None:
         calls = LEDGER.count()
         try:
-            ideas = await asyncio.to_thread(brainstorm_ideas, context, model)
+            ideas = await self._ai_call("brainstorming", brainstorm_ideas, context, model,
+                                        stream=True, preview=True)
+        except Cancelled:
+            return
         except Exception as exc:
             self.notify(f"Brainstorm failed: {exc}", severity="error", timeout=6)
             return

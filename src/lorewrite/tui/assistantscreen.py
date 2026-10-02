@@ -68,7 +68,8 @@ class AssistantScreen(ModalScreen["str | None"]):
     """
 
     BINDINGS = [
-        Binding("escape", "close", "Close"),
+        Binding("escape", "close", "Close (or stop a running answer)"),
+        Binding("ctrl+x", "stop", "Stop the answer", priority=True, show=False),
         Binding("ctrl+r", "toggle_mode", "Research mode"),
         Binding("ctrl+o", "open_source", "Open a note the answer cites"),
         Binding("ctrl+s", "save_reply", "Save the last answer to your notes"),
@@ -82,6 +83,12 @@ class AssistantScreen(ModalScreen["str | None"]):
         self.mode = mode if mode in MODES else "chat"
         self._ops = ops
         self.busy = False
+        self._live: Static | None = None     # the answer as it streams in (not yet a message)
+
+    def check_action(self, action: str, parameters) -> bool | None:
+        if action == "stop":
+            return self.busy             # otherwise ctrl+x is the input's cut
+        return super().check_action(action, parameters)
 
     # -- layout ----------------------------------------------------------------------
 
@@ -90,7 +97,7 @@ class AssistantScreen(ModalScreen["str | None"]):
             yield Label("", id="as-header")
             yield VerticalScroll(id="as-log")
             yield Input(id="as-input")
-            yield Label("enter send · ctrl+r research · ctrl+o open cited note · ctrl+s save answer "
+            yield Label("enter send · ctrl+x stop · ctrl+r research · ctrl+o open cited note · ctrl+s save answer "
                         "to notes · ctrl+t history · ctrl+n new chat · esc close", id="as-hint")
 
     def on_mount(self) -> None:
@@ -120,6 +127,30 @@ class AssistantScreen(ModalScreen["str | None"]):
     def set_busy(self, busy: bool) -> None:
         self.busy = busy
         self._refresh_header()
+
+    def show_stream(self, text: str) -> None:
+        """The answer so far, typed in live under the conversation (not a message yet)."""
+        log = self.query_one("#as-log", VerticalScroll)
+        shown = Text()
+        shown.append("ai   ", style="bold green")
+        shown.append(text or "...", style="" if text else "dim")
+        if self._live is None or not self._live.is_attached:
+            self._live = Static(shown, classes="as-live")
+            log.mount(self._live)
+        else:
+            self._live.update(shown)
+        log.scroll_end(animate=False)
+
+    def end_stream(self) -> None:
+        if self._live is not None:
+            self._live.remove()
+            self._live = None
+
+    def show_note(self, text: str) -> None:
+        """A line in the log that is not part of the conversation (nothing is saved)."""
+        log = self.query_one("#as-log", VerticalScroll)
+        log.mount(Static(Text(text, style="dim italic")))
+        log.scroll_end(animate=False)
 
     # -- input ---------------------------------------------------------------------------
 
@@ -166,7 +197,13 @@ class AssistantScreen(ModalScreen["str | None"]):
     def action_new_chat(self) -> None:
         self.dismiss("new")
 
+    def action_stop(self) -> None:
+        self.app.action_stop_ai()
+
     def action_close(self) -> None:
+        if self.busy:                    # escape stops a running answer first; close when idle
+            self.action_stop()
+            return
         self.dismiss(None)
 
 
