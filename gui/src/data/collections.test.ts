@@ -40,6 +40,6 @@ describe("research (shape shared with Python)", () => {
     expect(node.kind).toBe("research");
     expect(node.meta).toBe("2");
     expect(node.children!.map((c) => [c.kind, c.title])).toEqual([["folder", "tides"], ["document", "Trams"]]);
-    expect(node.children![0].children![0].id).toBe("research/tides/almanac.md");
+    expect(node.children![0].children![0].id).toBe("notebook/tides/almanac.md");
   });
 });

@@ -42,7 +42,7 @@ export function Editor(props: {
   onReload: () => void; onKeepMine: () => void; onMakeNote: () => void;
   getCard: (span: Span) => Promise<Card | null>; onOpenEntity: (span: Span) => void;
   onResolveDraft: (index: number, accept: boolean) => void;
-  spellVersion: number; onSpellCount: (count: number | null) => void; onSpell: (t: SpellTarget) => void;
+  spellVersion: number; onSpellCount: (count: number | null) => void; onSpell: (t: SpellTarget) => void; onSelectionMenu: (x: number, y: number) => void;
   onAddPhrase: () => void;
   /** Comment on the selected passage; the host opens the dialog. */
   onAddComment: () => void;
@@ -141,7 +141,7 @@ export function Editor(props: {
                 </header>
                 <EditorPane key={`${doc.id}:${props.docRev}`} ref={editorRef} docId={doc.id} kind={doc.kind}
                   initialText={doc.text} meta={meta} reflow={props.reflow} spansVersion={props.spansVersion}
-                  spellVersion={props.spellVersion} onSpellCount={props.onSpellCount} onSpell={props.onSpell}
+                  spellVersion={props.spellVersion} onSpellCount={props.onSpellCount} onSpell={props.onSpell} onSelectionMenu={props.onSelectionMenu}
                   onComments={props.onComments}
                   onChange={props.onChange} onCursor={props.onCursor} onBlur={props.onBlur} onSaveNow={props.onSaveNow}
                   getCard={props.getCard} onOpenEntity={props.onOpenEntity} onResolveDraft={props.onResolveDraft} extraKeys={props.extraKeys} />

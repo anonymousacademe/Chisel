@@ -37,10 +37,10 @@ my-novel/
 │   ├── 00-front-matter/      # optional parts (folders): see "Manuscript structure"
 │   ├── 01-the-recall/        #   _part.md = title + notes; scenes 01-…md inside
 │   └── _unplaced/            # written, but not in the book
-├── .trash/                   # deleted scenes, research notes, pictures (restorable); .drafts/ = AI draft originals
+├── .trash/                   # deleted scenes, notebook notes, pictures (restorable); .drafts/ = AI draft originals
 ├── .snapshots/               # verbatim copies of scenes, one folder per scene (History)
 ├── .comments/                # author notes anchored to passages, one JSON file per scene
-├── research/                 # plain Markdown research notes (any subfolders; not entities)
+├── notebook/                 # plain Markdown notes about anything but the manuscript (any subfolders; not entities); was research/
 ├── inspiration/              # AI pictures of settings + a .md sidecar each (prompt, scene, notes)
 ├── exports/                  # files written by Export (author's folder; add to .gitignore if unwanted)
 ├── .assistant/chats/         # saved assistant conversations, one JSON file per chat
@@ -211,7 +211,7 @@ rejection — the author explicitly wants a lightweight version.*
   - *Daily target* (user setting `daily_target`, default 500, 0 = off; Settings in both front ends). *Streak* = consecutive days with words >= target (>= 1 when off), counted back from today; today only breaks it once the day is over.
   - *Status bar* (both): `Streak N` and `+N / target words today` (today's words across sessions, not the net change since opening; with the target off, `+N words today`). Desktop: click either for the **Session stats** dialog (today, this session, streak, best day, average per session, project words, 30-day bar chart with days that met the target highlighted). Terminal: palette *Action · Session stats* (text plus a 30-day sparkline).
 - **Streaming, working state and Stop** ✅ (plan 1.5, `ai/stream.py`, `gui/aijobs.py`, `tui/aimixin.py`). The text calls (chat `ask`, Research, Brainstorm, `generate`) stream (`stream=True`): each delta goes to an `on_delta` sink, cost comes from the last chunk into the ledger. A `CancelToken` (a `threading.Event` whose `set()` closes the HTTP stream) makes a call raise `Cancelled` with nothing returned, so a stopped draft inserts, saves and registers nothing and a stopped chat reply is shown as "(stopped)" and never kept as an answer. Non-streaming calls (aliases, continuity, canon, style, describe, image, image regenerate) are abandoned on Stop: the request finishes unseen and its result is dropped before anything is written. The request may still complete server-side, so its cost is still recorded in the spend ledger. Desktop bridge: `ai_start(kind, args)` -> `{job}`, `ai_poll(job, since)` -> `{state, text, length, elapsed, result|error, cost}`, `ai_cancel(job)`; kinds are `ask research brainstorm generate continuity canon aliases style image describe_scene`, `args` are the keyword arguments of the synchronous method (which stays); jobs run on worker threads (project lock released during the network call) and finished jobs stay pollable for 5 minutes. Terminal: the status bar shows `AI: drafting... 12 s (ctrl+x to stop)`, the chat window types the answer in live, drafting shows the text so far in a strip above the status bar, and `ctrl+x` (or `escape`) stops the request.
-- **Idea generator (Brainstorm)** ✅ (Wave 4.3, `ai.writing.brainstorm`). The *writing* model gets the scene around the cursor (`build_context`: pending AI drafts excluded, `<<CURSOR>>` marked), the canon of the characters and places it mentions and the style guide - or, with no scene open, the project context (titles + canon) - and returns 3-5 ideas from different angles (what-if questions, complications, sensory angles, character pressure points, unused canon), each one or two sentences. `parse_ideas` reads the numbered list (at most five; `<!--` stripped). Ideas are suggestions in a list, never prose in the scene. Each has **Draft from this** (opens the `ctrl+g` prompt prefilled with the idea, at the cursor; the result is the usual pending draft) and **Save to notes** (appends it under `## date - Brainstorm idea - <scene>` to `research/assistant-notes.md`). Desktop: the Brainstorm quick action posts a chat turn whose reply is the idea list (per-idea buttons; *Regenerate* asks again; the reply is saved with the conversation, `ideas` in `.assistant/chats/<id>.json`; attachments are honoured). Terminal: palette *Action · Brainstorm* opens a list (`enter`/`d` draft from this, `s` save to notes, `esc`). No attach in the terminal; the usual cost note shows.
+- **Idea generator (Brainstorm)** ✅ (Wave 4.3, `ai.writing.brainstorm`). The *writing* model gets the scene around the cursor (`build_context`: pending AI drafts excluded, `<<CURSOR>>` marked), the canon of the characters and places it mentions and the style guide - or, with no scene open, the project context (titles + canon) - and returns 3-5 ideas from different angles (what-if questions, complications, sensory angles, character pressure points, unused canon), each one or two sentences. `parse_ideas` reads the numbered list (at most five; `<!--` stripped). Ideas are suggestions in a list, never prose in the scene. Each has **Draft from this** (opens the `ctrl+g` prompt prefilled with the idea, at the cursor; the result is the usual pending draft) and **Save to notes** (appends it under `## date - Brainstorm idea - <scene>` to `notebook/assistant-notes.md`). Desktop: the Brainstorm quick action posts a chat turn whose reply is the idea list (per-idea buttons; *Regenerate* asks again; the reply is saved with the conversation, `ideas` in `.assistant/chats/<id>.json`; attachments are honoured). Terminal: palette *Action · Brainstorm* opens a list (`enter`/`d` draft from this, `s` save to notes, `esc`). No attach in the terminal; the usual cost note shows.
 
 ### M7 — Manuscript organization + export
 
@@ -336,11 +336,12 @@ open and behave exactly as before.*
   permanent delete from either UI); the Trash view (GUI binder row, terminal *Open Trash*)
   restores it to the end of its original part (Unplaced if the part is gone), deletes one
   forever, or empties the Trash, each after a confirmation. The "detach the open scene before
-  opening the next" rule still applies. **Research notes go to the same Trash** (Wave 4.4): a
-  deleted note becomes `.trash/<stamp>[-n]-research__<path inside research/, "/" as "__">.md` (no
-  sidecars), is listed with the kind "research note", and *Restore* puts it back at its original
-  path - a free name (`-2`) if one was made since, `research/` itself if its folder is gone.
-  Delete forever and Empty Trash treat scenes and research notes alike.
+  opening the next" rule still applies. **Notebook notes go to the same Trash** (Wave 4.4): a
+  deleted note becomes `.trash/<stamp>[-n]-notebook__<path inside notebook/, "/" as "__">.md` (no
+  sidecars), is listed as a "notebook note", and *Restore* puts it back at its original
+  path - a free name (`-2`) if one was made since, `notebook/` itself if its folder is gone.
+  Items trashed before the rename (`research__...`) still list and restore, into `notebook/`.
+  Delete forever and Empty Trash treat scenes and notebook notes alike.
 - **Scene details** are the scene's own YAML frontmatter (Obsidian-compatible), written only
   when the author sets a field (no field, no block; unknown keys such as `tags:` survive):
   `pov`, `place`, `purpose`, `status` (free text; suggested idea / draft / revising / done),
@@ -494,11 +495,12 @@ open and behave exactly as before.*
     selection* (a one-line prompt) and *Scene · Comments* (`enter` jump to and select the passage, `r`
     resolve / reopen, `e` edit, `d` delete); commented text is underlined faintly (open comments only).
 
-- **Research** (3.3, `core/research.py`). `<project>/research/` holds plain Markdown notes, any
+- **Notebook** (3.3, renamed from *Research* in feedback batch 3; `core/research.py`, still called "research" in code, the bridge and `kind`). Notes about anything that is not the manuscript: ideas, world-building, outlines, research, links. **Migration:** `Project.open` moves `research/` to `notebook/` (`research.migrate_folder`: idempotent, never overwrites; a file whose name is taken stays behind and a leftover `research/` is still read, so nothing is hidden). Note ids are project-relative (`notebook/x.md`); chat sources and attachments saved as `research/x.md` follow the note on load. New in the UI: a **+ New note** button on the binder's Notebook group and in the Notebook view (palette: *Open the Notebook*), **templates** (blank / idea / location / timeline), **Send selection to notebook** (editor right-click on a selection, the binder's `...` menu, terminal palette *Send selection to notebook*; appends the quoted passage under a dated heading to `notebook/clippings.md`, the scene is not changed), pasting a link offers a note (unchanged), and the *Research question* is now **Ask my notebook** ("Answers from your notes, with citations"). Terminal palette: *Notebook · <title>*, *New note*, *New note from a link*, *Delete notebook note*, *Ask my notebook*.
+  `<project>/notebook/` holds plain Markdown notes, any
   subfolders (dot-files ignored). They are not scenes (not in the book, not counted, not read by
   continuity) and not entities (no frontmatter; **not in the link index**, so `[[links]]` inside
   them are highlighted but add no backlinks). A note's title is its first `# heading`, else the
-  file name de-slugged. Creating: *New research note* (`research/<slug>.md`, `-2` for a clash) and
+  file name de-slugged. Creating: *New note* (`notebook/<slug>.md`, `-2` for a clash) and
   *from a link* - a note holding the URL and a title made from it (`host - last path segment`);
   **nothing is fetched**. A link pasted outside a text field, or dropped on the binder, offers to
   save itself this way (GUI). *Delete research note* asks first ("Move to Trash") and moves the
@@ -542,7 +544,7 @@ open and behave exactly as before.*
     approximate words against the cap (about 4,000 words). Both *Ask* and *Research* take attachments
     as `ATTACHED …` sections after the normal context.
   - *Save to notes.* The reply's bookmark button (was the placeholder thumb) appends the reply, under
-    `## <date> - <prompt>` with a `**Prompt:**` line, to `research/assistant-notes.md` (created with
+    `## <date> - <prompt>` with a `**Prompt:**` line, to `notebook/assistant-notes.md` (created with
     `# Assistant notes`). It is an ordinary research note afterwards, so the Research action can
     find it again. Nothing is sent anywhere.
 

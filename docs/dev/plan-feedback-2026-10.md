@@ -128,7 +128,7 @@ The feedback, in the author's words (condensed):
   names ("Elara" vs "Elara Vance"), links with display text, frontmatter, a name
   that is also an ordinary word with unticked occurrences, undo.
 
-## Batch 3 — research notes → Notebook (feedback 7) — DECIDED: Notebook
+## Batch 3 — research notes → Notebook (feedback 7) — DECIDED: Notebook — DONE (branch feedback-4; internals keep the name "research")
 The author chose the Notebook:
 rename **Research** to **Notebook** — notes about anything that is not the
 manuscript (ideas, world-building, outlines, research, links). Make it obvious:

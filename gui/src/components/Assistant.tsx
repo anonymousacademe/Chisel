@@ -14,6 +14,7 @@ import { StopButton } from "./AiProgress";
 import { stopOnEsc, useElapsed, secs, type AiRunView } from "./aiRun";
 
 export type AssistantTab = "assistant" | "context" | "notes" | "inspiration";
+import { ASK_NOTEBOOK_HINT } from "../data/notebook";
 export type QuickAction = "brainstorm" | "rewrite" | "continuity" | "research";
 type Tab = AssistantTab;
 const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
@@ -22,7 +23,7 @@ const tools: { icon: LucideIcon; title: string; detail: string; action?: QuickAc
   { icon: Lightbulb, title: "Brainstorm", detail: "Plot, character, image", action: "brainstorm" },
   { icon: WandSparkles, title: "Rewrite", detail: "Tone, clarity, rhythm", action: "rewrite" },
   { icon: ScanSearch, title: "Continuity", detail: "Facts, timeline, logic", action: "continuity" },
-  { icon: BookSearch, title: "Research", detail: "Your notes + canon", action: "research" },
+  { icon: BookSearch, title: "Ask my notebook", detail: ASK_NOTEBOOK_HINT, action: "research" },
 ];
 
 const TYPE_LABEL: Record<string, string> = {
@@ -42,7 +43,7 @@ export function Assistant(props: {
   run: AiRunView | null; onStop: () => void;
   scope: "scene" | "project"; onScope: () => void;
   onSend: (text: string) => void; onRegenerate: (id: string) => void; onInsertDraft: (id: string) => void;
-  /** Research mode: the next question is answered from the research notes (and canon), citing them. */
+  /** Ask-my-notebook mode: the next question is answered from the notebook notes (and canon), citing them. */
   researchMode: boolean; onOpenSource: (id: string) => void;
   /** Conversation history, attach and Save to notes (Wave 3.4). */
   onHistory: () => void; onAttach: () => void; attachments: Attachment[]; onRemoveAttachment: (a: Attachment) => void;
@@ -169,7 +170,7 @@ export function Assistant(props: {
                               <Icon icon={Feather} size={13} stroke={1.8} /> Draft from this
                             </button>
                             <button className="lw-btn" onClick={() => props.onSaveIdea(idea)}
-                              title="Add this idea to research/assistant-notes.md">
+                              title="Add this idea to notebook/assistant-notes.md">
                               <Icon icon={BookmarkPlus} size={13} stroke={1.8} /> Save to notes
                             </button>
                           </div>
@@ -181,7 +182,7 @@ export function Assistant(props: {
                       : <Markdown text={m.text} />
                   )}
                   {m.sources && m.sources.length > 0 && (
-                    <div className="lw-sources-line" aria-label="Research notes used">
+                    <div className="lw-sources-line" aria-label="Notebook notes used">
                       <span className="lw-faint">Notes:</span>
                       {m.sources.map((s, i) => (
                         <button key={s.id} className="lw-chip lw-chip--source" title={`Open ${s.title}`} onClick={() => props.onOpenSource(s.id)}>[{i + 1}] {s.title}</button>
@@ -193,7 +194,7 @@ export function Assistant(props: {
                       <IconButton icon={Copy} label="Copy" onClick={() => navigator.clipboard?.writeText(m.text)} />
                       <IconButton icon={RefreshCw} label="Regenerate" disabled={busy} onClick={() => props.onRegenerate(m.id)} />
                       {!m.ideas && <IconButton icon={TextCursorInput} label="Insert as a draft at the cursor" disabled={!props.canInsert || busy} onClick={() => props.onInsertDraft(m.id)} />}
-                      <IconButton icon={BookmarkPlus} label={m.ideas ? "Save all the ideas to notes (research/assistant-notes.md)" : "Save to notes (research/assistant-notes.md)"} onClick={() => props.onSaveReply(m.id)} />
+                      <IconButton icon={BookmarkPlus} label={m.ideas ? "Save all the ideas to notes (notebook/assistant-notes.md)" : "Save to notes (notebook/assistant-notes.md)"} onClick={() => props.onSaveReply(m.id)} />
                     </div>
                   )}
                 </div>
@@ -225,17 +226,17 @@ export function Assistant(props: {
           </div>
         )}
         <div className="lw-composer">
-          <textarea ref={inputRef} rows={1} value={draft} disabled={!props.aiReady} placeholder={props.researchMode ? "Ask a question your research notes can answer…" : "Ask about this scene or your project…"}
+          <textarea ref={inputRef} rows={1} value={draft} disabled={!props.aiReady} placeholder={props.researchMode ? "Ask a question your notebook can answer…" : "Ask about this scene or your project…"}
             onChange={(e) => { setDraft(e.target.value); const t = e.currentTarget; t.style.height = "15px"; t.style.height = `${t.scrollHeight}px`; }}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
           <div className="lw-composer__controls">
             <div className="lw-row lw-gap-4">
-              <IconButton icon={Paperclip} label="Attach scenes, notes, research or comments" small onClick={props.onAttach} />
+              <IconButton icon={Paperclip} label="Attach scenes, notes, notebook notes or comments" small onClick={props.onAttach} />
               <button className="lw-tag lw-tag--accent lw-tag--button" onClick={props.onScope}
                 title="What the assistant reads: this scene, or scene titles and notes for the whole project">
                 {props.scope === "scene" ? "Current scene" : "Project"}
               </button>
-              {props.researchMode && <span className="lw-tag lw-tag--success">Research</span>}
+              {props.researchMode && <span className="lw-tag lw-tag--success">Notebook</span>}
             </div>
             <button className="lw-send" aria-label="Send" onClick={send} disabled={!draft.trim() || busy || !props.aiReady}>
               <Icon icon={ArrowUp} size={14} stroke={2} />

@@ -1,6 +1,6 @@
 import type { Workspace } from "./types";
 
-export interface SwitcherItem { id: string; title: string; detail: string; category: "Scene" | "Note" | "Research" | "Style" | "Dictionary" }
+export interface SwitcherItem { id: string; title: string; detail: string; category: "Scene" | "Note" | "Notebook" | "Style" | "Dictionary" }
 
 /** Everything the quick switcher (Ctrl K) can open: scenes, notes, the style guide. */
 export function switcherItems(ws: Workspace): SwitcherItem[] {
@@ -10,7 +10,7 @@ export function switcherItems(ws: Workspace): SwitcherItem[] {
   for (const e of ws.entities) {
     items.push({ id: e.id, title: e.name, detail: [e.type, ...e.aliases].join(" · "), category: "Note" });
   }
-  for (const r of ws.research) items.push({ id: r.id, title: r.title, detail: r.folder ? `Research · ${r.folder}` : "Research", category: "Research" });
+  for (const r of ws.research) items.push({ id: r.id, title: r.title, detail: r.folder ? `Notebook · ${r.folder}` : "Notebook", category: "Notebook" });
   if (ws.status.hasStyle) items.push({ id: "style.md", title: "Style guide", detail: "style.md", category: "Style" });
   items.push({ id: "dictionary.txt", title: "Dictionary", detail: "dictionary.txt", category: "Dictionary" });
   return items;

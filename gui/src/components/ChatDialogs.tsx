@@ -5,12 +5,12 @@ import { attachKey, type Attachment } from "../data/chat";
 import { Icon, IconButton } from "./primitives";
 import { ConfirmDialog, Modal } from "./Dialogs";
 
-const KIND_LABEL: Record<AttachKind, string> = { scene: "Scenes", comments: "Comments", note: "Notes", research: "Research" };
+const KIND_LABEL: Record<AttachKind, string> = { scene: "Scenes", comments: "Comments", note: "Notes", research: "Notebook" };
 const KIND_ORDER: AttachKind[] = ["scene", "comments", "note", "research"];
 const KIND_ICON = { scene: FileText, comments: MessageSquareText, note: UserRound, research: BookMarked } as const;
 const fmtWords = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 
-/** Pick scenes, notes, research notes and comments to add to the chat's context (capped, removable). */
+/** Pick scenes, notes, notebook notes and comments to add to the chat's context (capped, removable). */
 export function AttachDialog({ items, current, maxWords, maxItems, onSave, onClose }: {
   items: AttachItem[]; current: Attachment[]; maxWords: number; maxItems: number;
   onSave: (picked: Attachment[]) => void; onClose: () => void;
@@ -83,7 +83,7 @@ export function ChatHistoryDialog({ chats, currentId, onOpen, onNew, onRename, o
   if (ask) {
     return (
       <ConfirmDialog title="Delete conversation" confirm="Delete conversation"
-        message={<>Delete “{ask.title}” ({ask.count} messages)? Replies you saved to notes stay in your research notes.</>}
+        message={<>Delete “{ask.title}” ({ask.count} messages)? Replies you saved to notes stay in your notebook.</>}
         onConfirm={() => { const c = ask; setAsk(null); void onDelete(c.id); }} onClose={() => setAsk(null)} />
     );
   }

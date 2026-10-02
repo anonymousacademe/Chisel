@@ -289,6 +289,8 @@ function spellTargetAt(view: EditorView, pos: number | null): SpellTarget | null
 export interface Hooks {
   /** Open the spelling popover (click on a misspelled word, right-click, Ctrl+.). */
   onSpell?(target: SpellTarget): void;
+  /** Right-click with text selected: the selection menu (Send selection to notebook, ...), at the pointer. */
+  onSelectionMenu?(x: number, y: number): void;
   /** Hover card for a span (null = none). */
   getCard(span: Span): Promise<Card | null>;
   /** ctrl/cmd+click on a mention or link. */
@@ -373,6 +375,13 @@ export function editorExtensions(kind: string, meta: string, reflow: boolean, ho
       contextmenu: (e, view) => {
         const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
         const t = pos === null ? null : spellTargetAt(view, pos);
+        const sel = view.state.selection.main;
+        const inSelection = !sel.empty && pos !== null && pos >= sel.from && pos <= sel.to;
+        if (inSelection && hooks.onSelectionMenu) {
+          e.preventDefault();
+          hooks.onSelectionMenu(e.clientX, e.clientY);
+          return true;
+        }
         if (!t || !hooks.onSpell) return false;
         e.preventDefault();
         hooks.onSpell(t);

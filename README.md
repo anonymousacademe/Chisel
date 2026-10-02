@@ -46,7 +46,7 @@ or both.
   of the book, and a Trash: deleting always moves to `.trash/`.
 - Collections ("Needs continuity pass", "Mara's arc"), scene details (POV, place,
   status, word target) as YAML frontmatter, comments on passages (kept beside the
-  scene, never in the prose), research notes, and snapshots with a word-by-word
+  scene, never in the prose), notebook notes, and snapshots with a word-by-word
   comparison and restore.
 - Optional git sync that runs only when you click: commit, push (never forced,
   asks first) and init. Without git installed, nothing shows.
@@ -58,8 +58,8 @@ or both.
 - *Style guide*: learns your voice from your own prose into an editable
   `style.md`; then draft at the cursor, expand a `{{expand: note}}` marker or
   rewrite a selection. Results are pending drafts you accept or reject.
-- *Assistant chat* with attachments (scenes, notes, research, your comments),
-  *Research* questions answered from your own notes, *Brainstorm*, and
+- *Assistant chat* with attachments (scenes, notes, notebook notes, your comments),
+  *Ask my notebook* questions answered from your own notes, *Brainstorm*, and
   *Inspiration images* for reference while you write.
 
 **Export**
@@ -214,7 +214,7 @@ my-novel/
 ├── entities/
 │   ├── characters/elara-vance.md   # free-text note + YAML frontmatter
 │   └── places/thornwick.md         #   (name, type, aliases)
-├── research/             # reference notes (plain Markdown, any subfolders)
+├── notebook/             # your Notebook: notes about anything (plain Markdown, any subfolders; was research/)
 ├── inspiration/          # pictures, each with a .md sidecar (prompt, notes)
 ├── exports/              # files you exported
 ├── style.md              # your learned style guide (editable)

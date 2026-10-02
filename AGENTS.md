@@ -37,9 +37,9 @@ src/lorewrite/
     spelling.py         # spell check: check/suggestions, accepted terms, dictionary files
     collections.py      # collections: definitions in project.toml, membership in scene frontmatter
     comments.py         # comments: .comments/<scene>.json, anchored by quote + context
-    research.py         # research/ notes: list/new/from-url/delete, keyword search, assistant-notes
+    research.py         # Notebook notes (notebook/; research/ migrated on open): list/new/templates/from-url/delete/clippings, keyword search, assistant-notes
     chats.py            # saved assistant chats: .assistant/chats/<id>.json
-    attach.py           # chat attachments (scene/note/research/comments), capped and reported
+    attach.py           # chat attachments (scene/note/research(=notebook)/comments), capped and reported
     stats.py            # writing stats/streak/sprints: Tracker, state dir stats/<project-id>.json
     inspiration.py      # inspiration/ pictures + .md sidecars: save/list/update/pin, scene-link remap
     rename.py           # rename an entity everywhere: plan (read-only) / apply (snapshots first) / undo
@@ -171,16 +171,16 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   one DOM line for several doc lines, so the margin marker's line decoration goes on the first of
   them (`softBreakSet` in `editor/cm.ts`); the marker is outside the editor's box, so its click is
   caught on `.lw-editor__scroll` (`marginClick`), not in CodeMirror.
-- **Research notes go to the Trash** (`Project.trash_research`, `research.delete_note`): `.trash/` holds
-  scenes (`manuscript__…`), research notes (`research__…`) and inspiration pictures (`inspiration__…`) told
+- **Notebook notes go to the Trash** (`Project.trash_research`, `research.delete_note`): `.trash/` holds
+  scenes (`manuscript__…`), notebook notes (`notebook__…`; old `research__…` items still list and restore into notebook/) and inspiration pictures (`inspiration__…`) told
   apart by `TrashItem.kind`; code that lists, restores or empties the Trash must handle all three
   (`restore_scene` returns the restored path of any).
-- **Research notes** (`core/research.py`) are documents of kind `research` in the GUI bridge
+- **Notebook notes** (`core/research.py`; the UI says Notebook, the code keeps `research` for the module, bridge methods, `kind`, rename scope and the binder group id `group:research`) live in `notebook/`. `Project.open` runs `research.migrate_folder` (move, never overwrite; a leftover `research/` is still read by `list_notes`/`is_research_path`, so use those, never a hard-coded folder). Note ids come from `Note.id`. Chat sources/attachments saved as `research/...` are mapped by `attach.modern_id`. They are documents of kind `research` in the GUI bridge
   (`Api._doc_kind`) but are **never indexed** (`_index_file`, TUI `_write_to_disk` skip them), never
-  spell-checked, and not scenes (`is_scene_path` is false). The Research question is
+  spell-checked, and not scenes (`is_scene_path` is false). The Ask-my-notebook question is
   `ai.writing.research_context` + `research_answer` (shared by `gui/api.py` and `tui/app.py`; mock it
   in `gui/mockai.py` and `lorewrite.tui.app.research_answer`). It must refuse with no AI call when
-  there are no notes. The palette has a `Research ·` category (like `Scene ·`).
+  there are no notes. The palette has a `Notebook ·` category (like `Scene ·`).
 - **Inspiration images** (`core/inspiration.py`, `ai/images.py`; SPEC "Inspiration images") are
   reference only: never in the prose, never indexed, counted, spell-checked or sent to an AI. They
   cost money (~$0.03), so generation is only ever started by a click / palette pick, never
@@ -371,7 +371,7 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   files outside the repo) are expected for this project: report the scores, don't reword
   to dodge. Nothing in the app requires Jev.
 - No emojis in the UI or docs unless the user asks. Category prefixes use
-  `Scene · / Entity · / Research · / Link · / Action ·` text.
+  `Scene · / Entity · / Notebook · / Link · / Action ·` text.
 - Commits only when the user asks. Match existing style; minimal diffs.
 
 ## Current state

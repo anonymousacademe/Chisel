@@ -57,6 +57,7 @@ interface Props {
   /** Misspelling count of the document, or null when spell check does not apply. */
   onSpellCount(count: number | null): void;
   onSpell(target: SpellTarget): void;
+  onSelectionMenu?(x: number, y: number): void;
   /** Comments with positions, refetched after edits (scenes only; null otherwise). */
   onComments(rows: CommentRow[] | null): void;
   extraKeys?: { key: string; run: () => boolean }[];
@@ -205,6 +206,7 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
         extensions: editorExtensions(hooks.current.kind, hooks.current.meta, hooks.current.reflow, {
           onChange: (t) => { hooks.current.onChange(t); schedule(); scheduleSpelling(); scheduleComments(); },
           onSpell: (t) => hooks.current.onSpell(t),
+          onSelectionMenu: (x, y) => hooks.current.onSelectionMenu?.(x, y),
           onCursor: (c) => hooks.current.onCursor(c),
           onBlur: () => hooks.current.onBlur(),
           onSaveNow: () => hooks.current.onSaveNow(),

@@ -85,11 +85,13 @@ export const api = {
   exportStart: (options: ExportOptions) => call<{ job: string }>("export_start", options),
   exportStatus: (job: string) => call<ExportStatus>("export_status", job),
   exportOpen: (name: string, folder = false) => call("export_open", name, folder),
-  // research notes (research/): plain Markdown, never indexed
-  newResearchNote: (title: string) => call<{ id: string }>("new_research_note", title),
+  // Notebook notes (notebook/; "research" internally): plain Markdown, never indexed
+  newResearchNote: (title: string, template = "") => call<{ id: string }>("new_research_note", title, template),
+  /** Copies the selected passage into notebook/clippings.md (the scene is not changed). */
+  sendToNotebook: (text: string, id = "") => call<{ id: string }>("send_to_notebook", text, id),
   newResearchFromUrl: (url: string, title = "") => call<{ id: string; title: string }>("new_research_from_url", url, title),
   deleteResearchNote: (id: string) => call("delete_research_note", id),
-  /** Answer from the research notes + canon; `sources` are the notes it was given, in citation order. */
+  /** Ask my notebook: answer from the notebook notes + canon; `sources` are the notes it was given, in citation order. */
   research: (prompt: string, history: { role: string; text: string }[], attachments: { kind: AttachKind; id: string }[] = []) =>
     call<{ reply: string; sources: { id: string; title: string; score: number }[]; attached: AttachReport[]; cost: number | null }>("research", prompt, history, attachments),
   // comments: notes beside the scene (.comments/), positioned against the editor's text
@@ -157,7 +159,7 @@ export const api = {
     call<{ id: string; title: string }>("save_chat", id, messages, scope, attachments),
   renameChat: (id: string, title: string) => call<{ chats: ChatSummary[] }>("rename_chat", id, title),
   deleteChat: (id: string) => call<{ chats: ChatSummary[] }>("delete_chat", id),
-  /** Appends the reply, with the date and the prompt, to research/assistant-notes.md. */
+  /** Appends the reply, with the date and the prompt, to notebook/assistant-notes.md. */
   saveReplyToNotes: (prompt: string, reply: string) => call<{ id: string }>("save_reply_to_notes", prompt, reply),
   /** Brainstorm: 3-5 "unstuck" ideas for the open scene (null: the whole project); chat text only. */
   brainstorm: (docId: string | null, text: string | null, cursor: number, attachments: { kind: AttachKind; id: string }[] = []) =>

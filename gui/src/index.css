@@ -144,11 +144,15 @@ button:disabled { cursor: default; opacity: 0.4; }
 .lw-binder__disclosure { width: 11px; height: 11px; flex: none; display: flex; color: var(--lw-text-faint); }
 .lw-binder__icon { flex: none; color: var(--lw-text-muted); }
 .lw-binder__title { flex: 1; min-width: 0; font-size: 12px; line-height: 15px; white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+.lw-binder__add { flex: none; font-size: 11px; line-height: 16px; padding: 0 6px; border: 1px solid var(--lw-border); border-radius: 4px; background: transparent; color: var(--lw-accent-text); cursor: pointer; }
+.lw-binder__add:hover { border-color: var(--lw-accent); background: var(--lw-accent-soft); }
 .lw-binder__meta { font-family: var(--lw-font-mono); font-size: 10px; line-height: 13px; color: var(--lw-text-faint); flex: none; }
 .lw-binder__item.is-muted, .lw-binder__item.is-muted .lw-binder__icon { color: var(--lw-text-faint); }
 .lw-binder__item.is-active { background: var(--lw-accent-soft); }
 .lw-binder__item.is-active .lw-binder__title { color: var(--lw-text-strong); font-weight: 600; }
-.lw-binder__item.is-active .lw-binder__icon, .lw-binder__item.is-active .lw-binder__meta { color: var(--lw-accent-text); }
+.lw-binder__item.is-active .lw-binder__icon, .lw-binder__item.is-active .lw-binder__add { flex: none; font-size: 11px; line-height: 16px; padding: 0 6px; border: 1px solid var(--lw-border); border-radius: 4px; background: transparent; color: var(--lw-accent-text); cursor: pointer; }
+.lw-binder__add:hover { border-color: var(--lw-accent); background: var(--lw-accent-soft); }
+.lw-binder__meta { color: var(--lw-accent-text); }
 
 .lw-collections { flex: none; padding: 12px; display: flex; flex-direction: column; gap: 6px; }
 .lw-collections__heading { display: flex; align-items: center; justify-content: space-between; }
@@ -434,6 +438,7 @@ button.lw-status__item:hover { color: var(--lw-text); }
 
 /* ---------- review dialogs ---------- */
 .lw-dialog--wide { width: 640px; max-height: 80vh; }
+.lw-dialog__buttons--start { justify-content: flex-start; }
 .lw-dialog__buttons--split { justify-content: space-between; align-items: center; }
 .lw-review { overflow-y: auto; display: flex; flex-direction: column; gap: 8px; min-height: 0; max-height: 46vh; }
 .lw-review__row { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: var(--lw-radius-sm); background: var(--lw-bg-raised); border: 1px solid var(--lw-border); cursor: pointer; }

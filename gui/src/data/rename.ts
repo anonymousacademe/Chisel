@@ -18,4 +18,4 @@ export const countTicked = (files: RenameFile[], ticked: Set<string>): { occurre
 export const aliasRenames = (edits: Record<string, string>): Record<string, string> =>
   Object.fromEntries(Object.entries(edits).map(([a, b]) => [a, b.trim()]).filter(([a, b]) => b && b !== a));
 
-export const KIND_LABEL: Record<string, string> = { scene: "Scene", entity: "Note", research: "Research", comment: "Comments" };
+export const KIND_LABEL: Record<string, string> = { scene: "Scene", entity: "Note", research: "Notebook", comment: "Comments" };

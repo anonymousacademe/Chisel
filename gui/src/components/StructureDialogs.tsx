@@ -32,9 +32,9 @@ export function PartPickerDialog({ title, message, parts, allowTop, onPick, onCl
 }
 
 /**
- * The Trash: deleted scenes and research notes wait here. Restore puts a scene back
- * at the end of its original part (Unplaced if the part is gone) and a research
- * note at its original path (research/ if its folder is gone); nothing is removed
+ * The Trash: deleted scenes and notebook notes wait here. Restore puts a scene back
+ * at the end of its original part (Unplaced if the part is gone) and a notebook
+ * note at its original path (notebook/ if its folder is gone); nothing is removed
  * for good without the confirmation shown here.
  */
 export function TrashDialog({ onClose, onRestored, onChanged, notify }: {
@@ -97,7 +97,7 @@ export function TrashDialog({ onClose, onRestored, onChanged, notify }: {
   }
   return (
     <Modal title="Trash" wide onClose={onClose}>
-      <p className="lw-dialog__message">Deleted scenes, research notes and inspiration pictures are kept here until you delete them forever.</p>
+      <p className="lw-dialog__message">Deleted scenes, notebook notes and inspiration pictures are kept here until you delete them forever.</p>
       <div className="lw-picklist lw-picklist--tall">
         {items === null && <p className="lw-empty">Loading…</p>}
         {items?.length === 0 && <p className="lw-empty">The Trash is empty.</p>}
@@ -105,7 +105,7 @@ export function TrashDialog({ onClose, onRestored, onChanged, notify }: {
           <div key={it.name} className="lw-picklist__row lw-picklist__row--static">
             <span className="lw-picklist__main">
               <strong>{it.title}</strong>
-              <span className="lw-faint">{it.kind === "inspiration" ? "inspiration picture" : <>{it.kind === "research" ? "research note · " : ""}from {it.original}</>} · deleted {it.deleted}</span>
+              <span className="lw-faint">{it.kind === "inspiration" ? "inspiration picture" : <>{it.kind === "research" ? "notebook note · " : ""}from {it.original}</>} · deleted {it.deleted}</span>
             </span>
             <span className="lw-row lw-gap-6">
               <button className="lw-btn" onClick={() => void restore(it)}>Restore</button>

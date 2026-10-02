@@ -52,7 +52,7 @@ export interface PartSummary {
 
 export type Unit = "scene" | "chapter";
 
-/** A note in the project's research/ folder (`folder` = its subfolder, "" at the top). */
+/** A note in the project's notebook/ folder (`folder` = its subfolder, "" at the top). */
 export interface ResearchSummary { id: string; title: string; words: number; folder: string }
 
 /** The design's swatch tokens (core/collections.py COLORS). */

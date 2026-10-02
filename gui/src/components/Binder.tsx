@@ -25,7 +25,8 @@ function nodeIcon(node: BinderNode, open: boolean, active: boolean): LucideIcon 
   }
 }
 
-function Row({ node, depth, activeId, focusId, expanded, onToggle, onSelect }: {
+function Row({ node, depth, activeId, focusId, expanded, onToggle, onSelect, onNewNote }: {
+  onNewNote: () => void;
   node: BinderNode; depth: number; activeId: string | null; focusId: string | null;
   expanded: Set<string>; onToggle: (id: string) => void; onSelect: (n: BinderNode) => void;
 }) {
@@ -58,9 +59,13 @@ function Row({ node, depth, activeId, focusId, expanded, onToggle, onSelect }: {
         <Icon icon={nodeIcon(node, open, active)} size={14} stroke={1.5} className="lw-binder__icon" />
         <span className="lw-binder__title" title={ph ? undefined : node.title}>{node.title}</span>
         {node.meta && <span className="lw-binder__meta">{node.meta}</span>}
+        {node.kind === "research" && !ph && (
+          <button className="lw-binder__add" aria-label="New note" title="New note in the Notebook"
+            onClick={(e) => { e.stopPropagation(); onNewNote(); }}>+ New note</button>
+        )}
       </div>
       {hasChildren && open && node.children!.map((c) => (
-        <Row key={c.id} node={c} depth={depth + 1} activeId={activeId} focusId={focusId} expanded={expanded} onToggle={onToggle} onSelect={onSelect} />
+        <Row key={c.id} node={c} depth={depth + 1} activeId={activeId} focusId={focusId} expanded={expanded} onToggle={onToggle} onSelect={onSelect} onNewNote={onNewNote} />
       ))}
     </>
   );
@@ -68,12 +73,14 @@ function Row({ node, depth, activeId, focusId, expanded, onToggle, onSelect }: {
 
 const LIBRARY_KINDS = new Set(["characters", "world", "style", "dictionary"]);
 
-export function Binder({ nodes, count, activeId, focusId, unit, expanded, onToggle, onSelect, onNew, onMenu, searching, library, canNew, canMenu, collections, activeCollection, onCollection, onEditCollections, onDropUrl }: {
+export function Binder({ nodes, count, activeId, focusId, unit, expanded, onToggle, onSelect, onNew, onMenu, searching, library, canNew, canMenu, collections, activeCollection, onCollection, onEditCollections, onDropUrl, onNewNote }: {
+  /** The + New note button on the Notebook group. */
+  onNewNote: () => void;
   searching: boolean; library: boolean; canNew: boolean; canMenu: boolean;
   collections: CollectionSummary[]; activeCollection: string | null;
   /** Click a collection to show only its scenes; click it again (or Show all) to clear. */
   onCollection: (name: string | null) => void; onEditCollections: () => void;
-  /** A link was dropped on the binder: offer to save it as a research note. */
+  /** A link was dropped on the binder: offer to save it as a notebook note. */
   onDropUrl: (url: string) => void;
   nodes: BinderNode[]; count: number; activeId: string | null;
   /** The part folder last clicked: part actions in the menu apply to it. */
@@ -123,7 +130,7 @@ export function Binder({ nodes, count, activeId, focusId, unit, expanded, onTogg
       )}
       <div className="lw-binder__tree" role="tree">
         {shown.map((n) => (
-          <Row key={n.id} node={n} depth={0} activeId={activeId} focusId={focusId} expanded={open} onToggle={onToggle} onSelect={onSelect} />
+          <Row key={n.id} node={n} depth={0} activeId={activeId} focusId={focusId} expanded={open} onToggle={onToggle} onSelect={onSelect} onNewNote={onNewNote} />
         ))}
         {q && shown.length === 0 && <p className="lw-empty">Nothing matches “{query}”.</p>}
       </div>

@@ -39,6 +39,8 @@ import { CollectionsManager, SceneCollectionsDialog } from "./components/Collect
 import { memberIds } from "./data/collections";
 import { AddCommentDialog, CommentPopover, CommentsPanel } from "./components/CommentComponents";
 import { AttachDialog, ChatHistoryDialog } from "./components/ChatDialogs";
+import { NewNoteDialog, NotebookDialog } from "./components/NotebookDialogs";
+import type { NoteTemplate } from "./data/notebook";
 import type { Attachment } from "./data/chat";
 import { Toasts, type Notice } from "./components/Toast";
 
@@ -64,6 +66,7 @@ type Dialog =
   | { kind: "stop-sprint" }
   | { kind: "collections" }
   | { kind: "new-research" }
+  | { kind: "notebook" }
   | { kind: "chats" }
   | { kind: "attach"; items: AttachItem[]; maxWords: number; maxItems: number }
   | { kind: "research-url"; url: string }
@@ -270,7 +273,7 @@ export default function App() {
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n" && !e.shiftKey) { e.preventDefault(); setDialog({ kind: "new-scene" }); }
     };
     const onHide = () => { void saver.flush(); };
-    // a link pasted anywhere outside a text field offers to become a research note
+    // a link pasted anywhere outside a text field offers to become a notebook note
     const onPaste = (e: ClipboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.closest("input, textarea, [contenteditable=true], .cm-editor"))) return;
@@ -704,7 +707,7 @@ export default function App() {
     else if (a === "rewrite") rewriteSelection();
     else if (a === "research") {
       setResearchMode((on) => !on);
-      if (!researchMode && !ws?.research.length) notify("Research answers come from your research notes. Add some under Research in the binder first (a new note, or paste a link).");
+      if (!researchMode && !ws?.research.length) notify("Ask my notebook answers from your notebook notes. Add some under Notebook in the binder first (+ New note, or paste a link).");
     } else void quickContinuity();
   };
   const openAiMenu = (anchor: HTMLElement) => setMenu({ anchor, items: [
@@ -960,11 +963,11 @@ export default function App() {
     notify("Saved to research/assistant-notes.md", "info", { label: "Open", run: () => { void openDoc(r.id); } });
   };
 
-  // -- research notes ----------------------------------------------------------------------
-  const createResearch = async (title: string) => {
+  // -- notebook notes ("research" internally) ----------------------------------------------------------------------
+  const createResearch = async (title: string, template: NoteTemplate = "blank") => {
     setDialog(null);
     if (!(await saver.flush())) return notify("Could not save the current document first.", "error");
-    const r = await api.newResearchNote(title);
+    const r = await api.newResearchNote(title, template);
     if (!r.ok) return notify(r.error, "error");
     await refresh();
     setExpanded((s) => new Set(s).add("group:research"));
@@ -980,7 +983,7 @@ export default function App() {
     await refresh();
     setExpanded((s) => new Set(s).add("group:research"));
     await openDoc(r.id, { force: true });
-    notify(`Saved the link as a research note: ${r.title}`);
+    notify(`Saved the link as a notebook note: ${r.title}`);
   };
   const deleteResearch = async () => {
     setDialog(null);
@@ -993,8 +996,26 @@ export default function App() {
     const w = await refresh();
     const next = w?.scenes.find((s) => !s.frontMatter && !s.unplaced) ?? w?.scenes[0];
     if (next) await openDoc(next.id, { force: true });
-    notify(`Moved the research note “${d.title}” to the Trash.`, "info", { label: "Open Trash", run: () => setDialog({ kind: "trash" }) });
+    notify(`Moved the notebook note “${d.title}” to the Trash.`, "info", { label: "Open Trash", run: () => setDialog({ kind: "trash" }) });
   };
+
+  /** Copy the selected passage into notebook/clippings.md; the scene is not changed. */
+  const sendSelectionToNotebook = async () => {
+    const sel = editorRef.current?.selection();
+    if (!sel || !sel.text.trim()) return notify("Select the passage to send first.");
+    const r = await api.sendToNotebook(sel.text, docRef.current?.id ?? "");
+    if (!r.ok) return notify(r.error, "error");
+    await refresh();
+    setExpanded((s) => new Set(s).add("group:research"));
+    notify("Sent to the notebook (clippings).", "info", { label: "Open", run: () => { void openDoc(r.id); } });
+  };
+  const openSelectionMenu = (x: number, y: number) => setMenu({
+    anchor: { getBoundingClientRect: () => new DOMRect(x, y - 4, 0, 0) } as unknown as HTMLElement,
+    items: [
+      { label: "Send selection to notebook", onSelect: () => void sendSelectionToNotebook() },
+      { label: "Add selection to dictionary", onSelect: addSelectionToDictionary },
+    ],
+  });
 
   // -- comments --------------------------------------------------------------------------
   /** Notes beside the scene (.comments/): the prose is never touched. */
@@ -1191,10 +1212,12 @@ export default function App() {
       { label: "Move part up", disabled: !part, onSelect: () => part && void movePart(part.id, -1) },
       { label: "Move part down", disabled: !part, onSelect: () => part && void movePart(part.id, 1) },
       { label: "Delete empty part…", disabled: !part || part.sceneIds.length > 0, danger: true, onSelect: () => part && setDialog({ kind: "delete-part", id: part.id, title: part.title }) },
-      { label: "research", separator: true, onSelect: () => {} },
-      { label: "New research note…", onSelect: () => setDialog({ kind: "new-research" }) },
-      { label: "New research note from a link…", onSelect: () => setDialog({ kind: "research-url", url: "" }) },
-      { label: "Move this research note to the Trash…", disabled: doc?.kind !== "research", onSelect: () => setDialog({ kind: "delete-research" }) },
+      { label: "notebook", separator: true, onSelect: () => {} },
+      { label: "Open the Notebook…", onSelect: () => setDialog({ kind: "notebook" }) },
+      { label: "New note…", onSelect: () => setDialog({ kind: "new-research" }) },
+      { label: "New note from a link…", onSelect: () => setDialog({ kind: "research-url", url: "" }) },
+      { label: "Send selection to notebook", disabled: !isScene, onSelect: () => void sendSelectionToNotebook() },
+      { label: "Move this notebook note to the Trash…", disabled: doc?.kind !== "research", onSelect: () => setDialog({ kind: "delete-research" }) },
       { label: "trash", separator: true, onSelect: () => {} },
       { label: "Open Trash…", onSelect: () => setDialog({ kind: "trash" }) },
       { label: "export", separator: true, onSelect: () => {} },
@@ -1220,6 +1243,7 @@ export default function App() {
             library={rail === "library"} canNew canMenu={rail !== "library"}
             collections={ws.collections} activeCollection={activeCollection} onCollection={setCollection} onEditCollections={() => setDialog({ kind: "collections" })}
             onDropUrl={(url) => setDialog({ kind: "research-url", url })}
+            onNewNote={() => setDialog({ kind: "new-research" })}
             onNew={() => setDialog(rail === "library" ? { kind: "new-note", name: "", openAfter: true } : { kind: "new-scene" })} onMenu={openSceneMenu} />
         )}
         <Editor doc={doc} scenes={ws.scenes} filter={boardFilter}
@@ -1232,7 +1256,7 @@ export default function App() {
           onSaveNow={() => void saveNow()} onReload={() => void reloadFromDisk()} onKeepMine={() => void keepMine()}
           onMakeNote={() => makeNote(false)} getCard={getCard} onOpenEntity={openEntitySpan}
           onResolveDraft={(i, a) => void resolveDraft(i, a)}
-          spellVersion={spellVersion} onSpellCount={setSpellCount} onSpell={setSpellTarget} onAddPhrase={addSelectionToDictionary}
+          spellVersion={spellVersion} onSpellCount={setSpellCount} onSpell={setSpellTarget} onSelectionMenu={openSelectionMenu} onAddPhrase={addSelectionToDictionary}
           onAddComment={startAddComment} onComments={setComments}
           onComment={(id, x, y) => setCommentPop({ id, x, y })}
           extraKeys={[
@@ -1402,16 +1426,23 @@ export default function App() {
           onSave={(picked) => { if (chatIdRef.current) persistChat.current = true; setAttachments(picked); setDialog(null); }} onClose={() => setDialog(null)} />
       )}
       {dialog?.kind === "new-research" && (
-        <PromptDialog title="New research note" label="Title" confirm="Create" onSubmit={(t) => void createResearch(t)} onClose={() => setDialog(null)} />
+        <NewNoteDialog onSubmit={(t, tpl) => void createResearch(t, tpl)} onClose={() => setDialog(null)} />
+      )}
+      {dialog?.kind === "notebook" && (
+        <NotebookDialog notes={ws.research} onClose={() => setDialog(null)}
+          onOpen={(id) => { setDialog(null); void openDoc(id); }}
+          onNew={() => setDialog({ kind: "new-research" })}
+          onFromLink={() => setDialog({ kind: "research-url", url: "" })}
+          onAsk={() => { setDialog(null); setAssistantOpen(true); if (!researchMode) onQuick("research"); }} />
       )}
       {dialog?.kind === "research-url" && (
-        <PromptDialog title="New research note from a link" label="Link (https://…)" initial={dialog.url} confirm="Save link"
+        <PromptDialog title="New note from a link" label="Link (https://…)" initial={dialog.url} confirm="Save link"
           onSubmit={(u) => void researchFromUrl(u)} onClose={() => setDialog(null)}>
           <p className="lw-dialog__message lw-faint">Saves a note with the link and a title made from it. The page is not downloaded.</p>
         </PromptDialog>
       )}
       {dialog?.kind === "delete-research" && doc?.kind === "research" && (
-        <ConfirmDialog title="Move research note to the Trash" confirm="Move to Trash"
+        <ConfirmDialog title="Move notebook note to the Trash" confirm="Move to Trash"
           message={<>Move “{doc.title}” to the Trash? You can restore it from the Trash in the binder. <code>{doc.id}</code></>}
           onConfirm={() => void deleteResearch()} onClose={() => setDialog(null)} />
       )}

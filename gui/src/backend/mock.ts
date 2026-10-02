@@ -55,7 +55,7 @@ function buildWorkspace(): Workspace {
       { id: "group:characters", title: "Characters", kind: "characters", children: ENTITIES.filter((e) => e.type === "character").map(ent) },
       { id: "group:world", title: "World Bible", kind: "world",
         children: ENTITIES.filter((e) => e.type !== "character").map((e) => ({ ...ent(e), meta: e.type })) },
-      ph("research", "Research", "research"),
+      ph("research", "Notebook", "research"),
       { id: "group:unplaced", title: "Unplaced Scenes", kind: "inbox", children: [] },
       { id: "group:trash", title: "Trash", kind: "trash", muted: true },
     ],

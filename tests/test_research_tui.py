@@ -26,7 +26,7 @@ def _texts(screen) -> str:
 def test_palette_lists_the_research_actions_and_provider():
     methods = {m for _, m, _ in ActionProvider.ACTIONS}
     assert {"new_research_note_prompt", "new_research_from_link_prompt", "delete_research_note_confirm",
-            "open_assistant", "open_research_question"} <= methods
+            "open_assistant", "open_research_question", "send_selection_to_notebook"} <= methods
     assert ResearchProvider.__name__ in {c.__name__ for c in LorewriteApp.COMMANDS}
 
 
@@ -206,3 +206,20 @@ def test_saved_conversations_key_is_not_a_terminal_control_code():
     from lorewrite.tui.assistantscreen import AssistantScreen
     keys = {b.key for b in AssistantScreen.BINDINGS}
     assert "ctrl+t" in keys and not keys & {"ctrl+h", "ctrl+i", "ctrl+m", "ctrl+["}
+
+
+async def test_send_selection_to_notebook(tmp_path: Path):
+    p = _project(tmp_path)
+    app = LorewriteApp(p)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.send_selection_to_notebook()                           # nothing selected: refused
+        await pilot.pause()
+        assert not (p.root / "notebook" / "clippings.md").exists()
+        app.editor.text = "Alpha beta gamma."
+        app.editor.select_all()
+        before = app.editor.text
+        app.send_selection_to_notebook()
+        await pilot.pause()
+        assert "> Alpha beta gamma." in (p.root / "notebook" / "clippings.md").read_text()
+        assert app.editor.text == before

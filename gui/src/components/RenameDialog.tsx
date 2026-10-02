@@ -6,7 +6,7 @@ import { Modal } from "./Dialogs";
 const SCOPES: { id: RenameScope; label: string; on: boolean }[] = [
   { id: "scenes", label: "Scenes (text, [[links]], POV and place)", on: true },
   { id: "entities", label: "Other notes", on: true },
-  { id: "research", label: "Research notes", on: false },
+  { id: "research", label: "Notebook notes", on: false },
   { id: "comments", label: "Comments", on: false },
 ];
 
