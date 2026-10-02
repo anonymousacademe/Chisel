@@ -4,7 +4,7 @@ import { runAiJob, AiCancelled, type AiJob } from "./backend/aijobs";
 import { DraftPanel, ProgressStrip } from "./components/AiProgress";
 import type { AiRunView } from "./components/aiRun";
 import type {
-  AliasSuggestion, AttachItem, AttachReport, BinderNode, CanonProposal, ChatMessage, ChatSummary, CollectionColor, CommentRow, DetailsPatch, DocumentPayload, EntityInfo, EntityType, GenerateResult, Issue, Remap, SceneMention, SettingsInfo, StyleStatus, SyncInfo, Workspace,
+  AliasSuggestion, AttachItem, AttachReport, BinderNode, CanonProposal, ChatMessage, ChatSummary, CollectionColor, CommentRow, DetailsPatch, DocumentPayload, EntityInfo, EntityType, GenerateResult, Issue, Remap, RenameDone, RenamePreview, RenameScope, RenameUndone, SceneMention, SettingsInfo, StyleStatus, SyncInfo, Workspace,
 } from "./data/types";
 import type { BridgeResult } from "./backend/transport";
 import { anchorDraft } from "./editor/drafts";
@@ -32,6 +32,7 @@ import { ConfirmDialog, Menu, PromptDialog, type MenuItem } from "./components/D
 import { DetailsDialog, PartPickerDialog, TrashDialog } from "./components/StructureDialogs";
 import { SnapshotsDialog } from "./components/SnapshotsDialog";
 import { ExportDialog } from "./components/ExportDialog";
+import { RenameDialog } from "./components/RenameDialog";
 import { CollectionsManager, SceneCollectionsDialog } from "./components/CollectionDialogs";
 import { memberIds } from "./data/collections";
 import { AddCommentDialog, CommentPopover, CommentsPanel } from "./components/CommentComponents";
@@ -73,6 +74,7 @@ type Dialog =
   | { kind: "new-note"; name: string; openAfter: boolean }
   | { kind: "generate"; mode: "draft" | "rewrite"; from: number; to: number; title: string; label: string; initial: string }
   | { kind: "aliases"; items: AliasSuggestion[] }
+  | { kind: "rename"; name: string; aliases: string[] }
   | { kind: "canon"; items: CanonProposal[] }
   | { kind: "style"; markdown: string; replacing: boolean }
   | { kind: "settings"; info: SettingsInfo }
@@ -87,6 +89,7 @@ export default function App() {
   // undefined = still loading, null = no project open (launch screen)
   const [ws, setWs] = useState<Workspace | null | undefined>(undefined);
   const [styleStatus, setStyleStatus] = useState<StyleStatus | null>(null);
+  const renameMoved = useRef<Record<string, string>>({});   // rename: new note id -> old, to follow it on Undo
   const lastPing = useRef(0);   // writing stats: last typing ping (ms)
   const sprintFocusStarted = useRef(false);   // the sprint turned focus mode on, so it turns it off
   const [sprintFocus, setSprintFocus] = useState(() => {
@@ -1024,6 +1027,46 @@ export default function App() {
   };
   const popComment = comments?.find((c) => c.id === commentPop?.id) ?? null;
 
+  // -- rename a note everywhere ---------------------------------------------------------
+  /** Scenes and notes are rewritten on disk: flush the open document first, reopen it (or follow the note's new file name) after. */
+  const renameFlush = async (): Promise<boolean> => {
+    if (await saver.flush()) return true;
+    notify("Could not save the current document first.", "error");
+    return false;
+  };
+  const renamePreview = async (to: string, keepOld: boolean, aliases: Record<string, string>, scope: RenameScope[]): Promise<RenamePreview | null> => {
+    if (dialog?.kind !== "rename" || !(await renameFlush())) return null;
+    const r = await api.renamePreview(dialog.name, to, keepOld, aliases, scope);
+    if (!r.ok) { notify(r.error, "error"); return null; }
+    return r;
+  };
+  const afterRename = async (changed: string[], remap: Record<string, string>, name: string | null) => {
+    await refresh();
+    setSpansVersion((v) => v + 1);
+    setNoteName(name); setNoteVersion((v) => v + 1);
+    const d = docRef.current;
+    if (d && (remap[d.id] || changed.includes(d.id))) {
+      saver.detach(); // the file was rewritten: a stale buffer must not be saved over it
+      await openDoc(remap[d.id] ?? d.id, { force: true, keepMode: true });
+    }
+  };
+  const renameApply = async (plan: string, accepted: string[]): Promise<RenameDone | null> => {
+    if (!(await renameFlush())) return null;
+    const r = await api.renameApply(plan, accepted);
+    if (!r.ok) { notify(r.error, "error"); return null; }
+    renameMoved.current = Object.fromEntries(Object.entries(r.remap).map(([from, to]) => [to, from]));
+    await afterRename(r.changed, r.remap, r.name);
+    return r;
+  };
+  const renameUndo = async (undoId: string): Promise<RenameUndone | null> => {
+    const r = await api.renameUndo(undoId);
+    if (!r.ok) { notify(r.error, "error"); return null; }
+    const entity = await api.listEntities();
+    const restored = entity.ok ? entity.entities.find((e) => e.id === r.id) : undefined;
+    await afterRename(r.restored, renameMoved.current, restored?.name ?? null);
+    return r;
+  };
+
   // -- collections ---------------------------------------------------------------------
   /** Rename and delete rewrite the member scenes on disk: flush the open one first, reopen it after. */
   const collectionsCall = async (run: () => Promise<{ ok: true; changed?: string[] } | { ok: false; error: string }>): Promise<boolean> => {
@@ -1196,7 +1239,7 @@ export default function App() {
           ]} />
         {showAssistant && (
           <Assistant tab={tab} onTab={setTab} mentions={mentions} onPickEntity={showNote}
-            note={note} missingTarget={missingTarget} onOpenNote={(id) => void openDoc(id)} onAddAlias={(n, a) => void addAlias(n, a)}
+            note={note} missingTarget={missingTarget} onOpenNote={(id) => void openDoc(id)} onAddAlias={(n, a) => void addAlias(n, a)} onRename={(n, al) => setDialog({ kind: "rename", name: n, aliases: al })}
             onCreateNote={(t) => setDialog({ kind: "new-note", name: t, openAfter: false })} onOpenBacklink={(id, row) => void openBacklink(id, row)}
             issues={issues} onReviewIssue={reviewIssue} onDismissIssue={(i) => void dismissIssue(i)}
             messages={messages} busy={aiBusy} run={aiRun} onStop={stopAi} aiReady={aiReady} scope={scope} onScope={() => setScope((c) => (c === "scene" ? "project" : "scene"))}
@@ -1251,6 +1294,10 @@ export default function App() {
       {dialog?.kind === "generate" && (
         <PromptDialog title={dialog.title} label={dialog.label} initial={dialog.initial} confirm="Generate"
           onSubmit={(t) => { const g = dialog; setDialog(null); void runGenerate(g.mode, t, g.from, g.to); }} onClose={() => setDialog(null)} />
+      )}
+      {dialog?.kind === "rename" && (
+        <RenameDialog name={dialog.name} aliases={dialog.aliases} onPreview={renamePreview} onApply={renameApply} onUndo={renameUndo}
+          onClose={() => setDialog(null)} />
       )}
       {dialog?.kind === "aliases" && <AliasReviewDialog suggestions={dialog.items} onApply={(p) => void applyAliases(p)} onClose={() => setDialog(null)} />}
       {dialog?.kind === "canon" && <CanonReviewDialog proposals={dialog.items} onApply={(p) => void applyCanon(p)} onClose={() => setDialog(null)} />}

@@ -113,6 +113,14 @@ export type EntityInfo =
     body: string; canon: string; summary: string; backlinks: Backlink[];
   };
 
+export type RenameScope = "scenes" | "entities" | "research" | "comments";
+export interface RenameOccurrence { id: string; kind: string; line: number; pre: string; before: string; after: string; post: string; inDraft: boolean; defaultOn: boolean }
+export interface RenameFile { file: string; kind: string; title: string; occurrences: RenameOccurrence[] }
+/** rename_preview: nothing is written until rename_apply. */
+export interface RenamePreview { plan: string; name: string; newName: string; aliases: string[]; files: RenameFile[]; newId: string }
+export interface RenameDone { undoId: string; replacements: number; scenes: number; changed: string[]; remap: Record<string, string>; id: string; name: string }
+export interface RenameUndone { restored: string[]; skipped: string[]; id: string }
+
 export interface Workspace {
   project: { title: string; author: string; initials: string; path: string; documentCount: number; unit: Unit; draft: number };
   binder: BinderNode[];

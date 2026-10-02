@@ -1,7 +1,7 @@
 import type { RestoreResult } from "../data/restoreText";
 import type { Misspelling, Span } from "../editor/spans";
 import type {
-  AliasSuggestion, AttachItem, AttachKind, AttachReport, CanonProposal, ChatSummary, CollectionColor, CommentRow, SavedChat, CollectionSummary, DiffSegment, SnapshotRow, SyncInfo, DetailsPatch, DocumentPayload, Remap, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
+  AliasSuggestion, AttachItem, RenameDone, RenamePreview, RenameScope, RenameUndone, AttachKind, AttachReport, CanonProposal, ChatSummary, CollectionColor, CommentRow, SavedChat, CollectionSummary, DiffSegment, SnapshotRow, SyncInfo, DetailsPatch, DocumentPayload, Remap, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
   InspirationImage, Issue, ModelKind, ModelOption, RecentProject, SceneMention, SettingsInfo, EditorPrefs, SprintRecord, SprintState, StatsSummary, StyleStatus, Workspace,
 } from "../data/types";
 import type { ExportInfo, ExportOptions, ExportStatus, ExportSummary } from "../data/export";
@@ -114,6 +114,11 @@ export const api = {
   getEntity: (name: string) => call<EntityInfo>("get_entity", name),
   createEntity: (name: string, type: EntityType) => call<{ id: string; name: string; existed: boolean }>("create_entity", name, type),
   addAlias: (name: string, alias: string) => call("add_alias", name, alias),
+  // rename a note everywhere: preview writes nothing; apply snapshots every scene first; undo restores
+  renamePreview: (name: string, newName: string, keepOld: boolean, renameAliases: Record<string, string>, scope: RenameScope[]) =>
+    call<RenamePreview>("rename_preview", name, newName, keepOld, renameAliases, scope),
+  renameApply: (plan: string, accepted: string[]) => call<RenameDone>("rename_apply", plan, accepted),
+  renameUndo: (undoId: string) => call<RenameUndone>("rename_undo", undoId),
   // AI jobs: `args` are the keyword arguments of the synchronous method for that kind (snake_case)
   aiStart: (kind: AiKind, args: Record<string, unknown>) => call<{ job: string }>("ai_start", kind, args),
   aiPoll: (job: string, since = 0) => call<AiPoll>("ai_poll", job, since),

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FilePenLine, Plus, User } from "lucide-react";
+import { FilePenLine, Pencil, Plus, User } from "lucide-react";
 import type { EntityInfo } from "../data/types";
 import { Icon, SectionLabel, Tag } from "./primitives";
 import { noteBlocks } from "../data/noteBlocks";
@@ -11,6 +11,7 @@ export function NotesPanel(props: {
   missingTarget: string | null;
   onOpenNote: (id: string) => void;
   onAddAlias: (name: string, alias: string) => void;
+  onRename: (name: string, aliases: string[]) => void;
   onCreateNote: (target: string) => void;
   onOpenBacklink: (sourceId: string, row: number) => void;
 }) {
@@ -65,6 +66,9 @@ export function NotesPanel(props: {
         : <p className="lw-empty">This note has no text yet.</p>}
       <button className="lw-btn" onClick={() => props.onOpenNote(note.id)}>
         <Icon icon={FilePenLine} size={14} stroke={1.8} /> Open in editor
+      </button>
+      <button className="lw-btn" onClick={() => props.onRename(note.name, note.aliases)}>
+        <Icon icon={Pencil} size={14} stroke={1.8} /> Rename everywhere…
       </button>
       <SectionLabel>Backlinks · {note.backlinks.length}</SectionLabel>
       <div className="lw-note__backlinks">

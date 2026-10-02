@@ -655,3 +655,15 @@ button.lw-picklist__row:hover { border-color: var(--lw-accent); background: var(
 .lw-md hr { border: 0; border-top: 1px solid var(--lw-border); margin: 10px 0; }
 .lw-md table { border-collapse: collapse; } .lw-md th, .lw-md td { padding: 3px 8px; border: 1px solid var(--lw-border); }
 .lw-msg-ai__text.is-stopped { color: var(--lw-text-faint); font-style: italic; }
+
+/* Rename everywhere */
+.lw-rename__list { max-height: 52vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin: 8px 0; }
+.lw-rename__file { border: 1px solid var(--lw-border); border-radius: 6px; padding: 6px 8px; }
+.lw-rename__head { font-weight: 600; gap: 8px; }
+.lw-rename__title { color: var(--lw-text-strong); }
+.lw-rename__row { align-items: baseline; padding: 2px 0 2px 20px; }
+.lw-rename__line { min-width: 28px; text-align: right; }
+.lw-rename__ctx { white-space: pre-wrap; overflow-wrap: anywhere; }
+.lw-rename__old { background: var(--lw-accent-soft); color: var(--lw-text-muted); text-decoration: line-through; }
+.lw-rename__new { background: var(--lw-accent-soft); color: var(--lw-text-strong); text-decoration: none; font-weight: 600; }
+.lw-rename__aliases { display: flex; flex-direction: column; gap: 6px; }
