@@ -14,7 +14,7 @@ rsvg-convert, pdftoppm and qpdf are available; there is no LaTeX.
   and `SPEC.md`. Every key binding, palette label, file name and message you
   print must match the code exactly. When the docs and the code disagree, the
   code wins.
-- Do NOT document features that are only planned (`docs/plan-m4-ai-writing.md`
+- Do NOT document features that are only planned (`docs/dev/plan-m4-ai-writing.md`
   is in progress on another branch). Note in particular: on `main`, `ctrl+l`
   "Link mentions" still inserts `[[brackets]]` when suggestions are accepted —
   describe it as it behaves today.

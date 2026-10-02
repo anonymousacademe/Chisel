@@ -170,9 +170,9 @@ lorewrite/
 
 *Expanded from vault notes ("The AI Integration.md"): the Contextual Tracker is
 the distinguishing mechanic — entity notes become a living story bible.
-Implemented via parallel agents per docs/specification-guide.md.*
+Implemented via parallel agents per docs/dev/specification-guide.md.*
 
-- "Check scene for continuity issues" (palette): strong model (default `anthropic/claude-sonnet-4.5`, override `[ai] strong_model`), **Jev pre-screen gate** (`core/jev_interface.py`, fail-open) so only canon-bearing entities flagged as plausible get the expensive call
+- "Check scene for continuity issues" (palette): strong model (default `anthropic/claude-sonnet-4.5`, override `[ai] strong_model`), optional **Jev pre-screen gate** (`core/jev_interface.py`; used only if the Jev CLI is installed, fail-open) so only canon-bearing entities flagged as plausible get the expensive call
 - Structured report (type/severity/entity/evidence/fix) validated app-side; evidence located to a line; **ContinuityScreen**: `space` waives (persisted in `.lorewrite/waivers.json` by stable content key, with the scene it was waived in; never re-reported unless restored via the palette action "Restore waived continuity issues (this scene)"), `enter` jumps to the offending line and closes the report
 - **Note accumulation (additions only)**: "Update story bible from scene" (palette) → the AI is sent each entity's existing canon (capped 1500 chars) and proposes only NEW facts (`{entity, new_facts[], evidence}`); unknown entities, empty facts and facts already in the canon (case-insensitive) are dropped app-side → review modal shows every fact in full, grouped by entity with existing canon dimmed, each fact toggleable with `space` → accepted facts are appended as `- fact` bullets to the managed `## Canon (auto)` section (created if missing). Existing lines are never removed or rewritten; author text outside the section is never touched
 - Error classes: physical attributes, timeline, character knowledge, object custody, present/absent, spelling drift
@@ -217,7 +217,7 @@ rejection — the author explicitly wants a lightweight version.*
 *From vault "The Manuscript Organizer and Printer.md".*
 
 - **Manuscript ordering in the main screen**: promote drag-reorder of the scene list (with confirm) from deferred. ✅ in the desktop GUI (corkboard cards and outline rows; see *Manuscript structure*); the terminal keeps *Move up / down*.
-- **Export** ✅ (implemented on branch `export`, 2026-10-01; plan: docs/plan-export.md; see *Export* below).
+- **Export** ✅ (implemented 2026-10-01; plan: docs/dev/plan-export.md; see *Export* below).
   The original wording said LaTeX. **Decision:** no TeX is installed on the author's machine, so PDF
   is typeset with ReportLab and DOCX / EPUB go through pandoc; a LaTeX *source* file is still
   available (pandoc `.tex`) for authors who have TeX elsewhere. The template system is a package of
@@ -231,7 +231,7 @@ fiction workflow is solid.*
 - **Technical documents/textbooks**: figures, tables, captions, and LaTeX equations become the "entities" (first-class linkable, checked for consistency); AI format-consistency checking; figure generation from a figure/table design guide
 - **Screenplay mode**: screenplay formatting rules in the editor, same AI toolset, LaTeX screenplay export
 
-### Inspiration images ✅ (implemented 2026-10-01; plan: docs/plan-inspiration.md)
+### Inspiration images ✅ (implemented 2026-10-01; plan: docs/dev/plan-inspiration.md)
 
 *Requested by the author 2026-10-01.* Describe a setting while writing ("a dark subway platform,
 flickering lights") and get a picture to keep on screen as visual inspiration. **Reference only -
@@ -295,7 +295,7 @@ explicit clicks - *Describe this scene*, then *Generate*.
   the desktop opener (`core/desktop.py`) **only when chosen**. Settings has an *Image model* row (picker limited to image models)
   and an *Image style* field.
 
-### Manuscript structure ✅ (Wave 1, implemented 2026-10-01; plan: docs/plan-workspace.md)
+### Manuscript structure ✅ (Wave 1, implemented 2026-10-01; plan: docs/dev/plan-workspace.md)
 
 *Parts, unplaced scenes, trash, scene details and drag-to-reorder. All plain files
 (§2); the index and `.lorewrite/` stay a rebuildable cache. Existing flat projects
@@ -364,7 +364,7 @@ open and behave exactly as before.*
 - **Not done / limits.** (Collections, comments and Research arrived in Wave 3, below.) (still
   placeholders). The terminal has no drag. Part folders are not renamed with their title.
 
-### History and drafts ✅ (Wave 2, implemented 2026-10-01; plan: docs/plan-workspace.md)
+### History and drafts ✅ (Wave 2, implemented 2026-10-01; plan: docs/dev/plan-workspace.md)
 
 *Snapshots, the draft counter and git sync. Plain files again; `.lorewrite/` stays a cache.*
 
@@ -437,7 +437,7 @@ open and behave exactly as before.*
   - Not done: pull / fetch / merge (the status shows `behind` internally but nothing acts on it),
     branches, credentials management, a commit history view.
 
-### Notes around the manuscript ✅ (Wave 3, implemented 2026-10-01; plan: docs/plan-workspace.md)
+### Notes around the manuscript ✅ (Wave 3, implemented 2026-10-01; plan: docs/dev/plan-workspace.md)
 
 *Collections, comments, research and the assistant's conversation history. All plain files
 (§2); nothing here lives only in `.lorewrite/`, and none of it is git-ignored.*
@@ -545,7 +545,7 @@ open and behave exactly as before.*
     `# Assistant notes`). It is an ordinary research note afterwards, so the Research action can
     find it again. Nothing is sent anywhere.
 
-### Export ✅ (M7, implemented 2026-10-01; plan: docs/plan-export.md)
+### Export ✅ (M7, implemented 2026-10-01; plan: docs/dev/plan-export.md)
 
 *The manuscript as a file to print, send or read elsewhere. Read-only: export never changes a scene.*
 
@@ -693,9 +693,9 @@ both edit the same plain-Markdown projects.
 1. Keybindings: `ctrl+j` jump, `ctrl+p` palette, `f9` rebuild, `ctrl+s` explicit save, `ctrl+b` sidebar toggle, `?` help screen.
 2. Scene ordering by filename prefix (`01-`, `02-`); parts are folders ordered the same way; drag-reorder in the GUI (Wave 1).
 3. One project per app instance; `--project` flag to open.
-4. Platform target: Omarchy (Arch/Hyprland) — follow the system theme, launchable from the top bar (see M5).
+4. Platform target: Windows, macOS and Linux (see README). On Omarchy (Arch/Hyprland) the terminal app additionally follows the system theme and can be launched from the top bar (optional, Linux only; see M5).
 
-### M1.5 — UX polish (from independent GLM review, docs/ux-review-glm.md)
+### M1.5 — UX polish (from independent GLM review, docs/dev/ux-review-glm.md)
 
 - **First-run tour**: 4-page modal (project layout, writing, links, finding things), shown once; `tour_seen` in `~/.local/state/lorewrite/settings.json`
 - **Palette categorization**: every hit prefixed `Scene · / Entity · / Link · / Action ·`
@@ -714,7 +714,9 @@ both edit the same plain-Markdown projects.
   drop-down command menu modal, a menu bar, or more direct keybindings moving
   actions out of the palette. Not blocking; revisit after M2.
 
-## 12. M5 — Omarchy integration
+## 12. M5 — Omarchy integration (optional, Linux only)
+
+Nothing else in the app depends on this section; on other systems the integration is simply absent.
 
 **Theme following (implemented ahead of schedule):** `tui/theme.py` reads the
 current theme slug from `~/.local/state/omarchy/current/theme.name`, loads its

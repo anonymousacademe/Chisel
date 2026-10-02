@@ -1,8 +1,8 @@
 # Brief: User's Guide, Fifth Edition (export + inspiration images)
 
 Update the guide to document `main` now (b478f67). Two features landed since
-the Fourth Edition (9fd9374): **M7 export** (`docs/plan-export.md`, SPEC "Export")
-and **AI inspiration images** (`docs/plan-inspiration.md`, SPEC "Inspiration
+the Fourth Edition (9fd9374): **M7 export** (`docs/dev/plan-export.md`, SPEC "Export")
+and **AI inspiration images** (`docs/dev/plan-inspiration.md`, SPEC "Inspiration
 images"). Same house style and rules as the earlier briefs (BRIEF.md, BRIEF-M4.md,
 BRIEF-v3.md, BRIEF-v4.md); the code is the source of truth.
 

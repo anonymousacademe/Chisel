@@ -1,6 +1,6 @@
 # Plan: M4 follow-up fixes (branch `m4-ai-writing`)
 
-Same rules as `docs/plan-m4-ai-writing.md` (non-negotiables, test command,
+Same rules as `docs/dev/plan-m4-ai-writing.md` (non-negotiables, test command,
 Pilot verification, no network, commits on this branch only, never `main`,
 never push). One commit per numbered item (small items 6 may share one).
 Keep the suite green after each. Add a regression test for every fix.

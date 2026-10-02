@@ -1,7 +1,7 @@
 # Plan: polish pass after Waves 1-4 (branch `polish`)
 
 Small fixes found while writing the User's Guide, Fourth Edition. Same rules
-as `docs/plan-workspace.md` ("Rules for every wave"). One commit per item,
+as `docs/dev/plan-workspace.md` ("Rules for every wave"). One commit per item,
 each with a regression test. Keep both front ends consistent.
 
 1. **Trash restore toast (GUI):** the toast says the scene's part is gone for

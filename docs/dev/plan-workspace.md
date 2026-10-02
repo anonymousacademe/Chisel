@@ -7,7 +7,7 @@ fresh agent, reviewed and merged to `main` by the managing session.
 
 ## Rules for every wave
 
-- Read `AGENTS.md`, `SPEC.md`, `docs/plan-gui.md` ("As built"), and this file.
+- Read `AGENTS.md`, `SPEC.md`, `docs/dev/plan-gui.md` ("As built"), and this file.
 - Plain text first (SPEC §2): every new piece of author data is a readable
   file in the project folder, never only in `.lorewrite/` (that folder is a
   disposable cache: index, waivers). Name new author-data files/folders as

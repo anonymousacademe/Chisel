@@ -1,7 +1,7 @@
 # Plan: M7 — export the manuscript (branch `export`)
 
 Status: approved by the author 2026-10-01 ("let's do the M7 export"). Same rules
-as `docs/plan-workspace.md` ("Rules for every wave") — read them. Another agent
+as `docs/dev/plan-workspace.md` ("Rules for every wave") — read them. Another agent
 is building AI inspiration images in parallel on branch `inspiration`; keep your
 edits to shared files (`gui/src/App.tsx`, `gui/api.py`, `tui/app.py`,
 `tui/commands.py`, settings screens) small and self-contained so the two merge

@@ -1,6 +1,6 @@
 """Continuity checking: contradiction data, waivers, canon accumulation.
 
-This module is the M3 contract anchor (docs/specification-guide.md §2.1).
+This module is the M3 contract anchor (docs/dev/specification-guide.md §2.1).
 Pure Python, no AI calls — ai/continuity.py builds on these types.
 
 - Contradiction: one flagged continuity issue

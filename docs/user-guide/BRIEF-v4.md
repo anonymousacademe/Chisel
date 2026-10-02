@@ -4,7 +4,7 @@ Update the guide in `docs/user-guide/` to document Lorewrite as it is now on
 **`main`** in `~/lorewrite`. The Third Edition (73725ab) documents main at
 5aa99e0; since then four waves of features landed. Same house style and rules
 as `BRIEF.md`, `BRIEF-M4.md` and `BRIEF-v3.md` (read them); the code is the
-source of truth. Read `docs/plan-workspace.md` (the plan), the "As built" /
+source of truth. Read `docs/dev/plan-workspace.md` (the plan), the "As built" /
 storage sections of `SPEC.md`, `README.md`, `AGENTS.md`, and `git log
 5aa99e0..main`.
 

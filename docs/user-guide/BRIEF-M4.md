@@ -6,7 +6,7 @@ branch **`m4-ai-writing`**, checked out at **`~/lorewrite-m4`** (read-only for
 you). That branch will be merged into `main` together with this guide.
 
 - Source of truth: the code in `~/lorewrite-m4` (plus its README, SPEC.md,
-  `docs/plan-m4-ai-writing.md`, `docs/plan-m4-fixes.md`, and `git log
+  `docs/dev/plan-m4-ai-writing.md`, `docs/dev/plan-m4-fixes.md`, and `git log
   main..m4-ai-writing` in that worktree). Code wins over docs.
 - Capture screens from the branch code: run your capture script with
   `PYTHONPATH=$HOME/lorewrite-m4/src ~/lorewrite/.venv/bin/python …` and

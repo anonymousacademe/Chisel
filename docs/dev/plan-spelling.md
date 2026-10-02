@@ -1,7 +1,7 @@
 # Plan: spell check with a personal dictionary (TUI + GUI)
 
 Status: approved 2026-10-01. Branch `gui` in `~/lorewrite-gui`. Same rules as
-`docs/plan-gui.md` (core is the single source of truth, no network, commit per
+`docs/dev/plan-gui.md` (core is the single source of truth, no network, commit per
 phase on `gui` only, never `main`, never push, suite green after each phase).
 **Spelling only — no grammar checking** (author's decision).
 

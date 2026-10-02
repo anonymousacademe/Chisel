@@ -69,10 +69,11 @@ src/lorewrite/
     exportscreen.py (Export manuscript form)
 gui/                    # React/TS front end (see gui/README.md); src-tauri/ is unused
 tests/                  # pytest; asyncio_mode=auto; Pilot for TUI tests
-docs/ux-review-glm.md   # independent UX review (source of the M1.5 polish)
-docs/plan-workspace.md  # the four-wave feature plan (Wave 1 = parts/trash/details/reorder)
-docs/specification-guide.md  # M3–M8 implementation guide for parallel agent
-                             # execution (contracts, workstreams, ownership)
+docs/dev/               # internal design history: plan-*.md (one per feature wave),
+                        # specification-guide.md, ux-review-glm.md (source of the M1.5 polish)
+docs/user-guide/        # sources + build scripts of the User's Guide (the PDF is a Release asset)
+docs/screenshots/       # README images
+requirements*.txt       # run / dev dependencies for a source checkout (pyproject mirrors them)
 ```
 
 ## Commands
@@ -83,7 +84,7 @@ docs/specification-guide.md  # M3–M8 implementation guide for parallel agent
 .venv/bin/lorewrite                 # run the app
 ```
 
-GUI (branch `gui`; plan: docs/plan-gui.md, spec: SPEC "Desktop GUI"):
+Desktop GUI (plan: docs/dev/plan-gui.md, spec: SPEC "Desktop GUI"):
 
 ```bash
 python3 -m venv --system-site-packages .venv-gui && .venv-gui/bin/pip install -e ".[dev,gui]"
@@ -328,35 +329,26 @@ PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --
 
 - **Keep SPEC.md current** when design/scope/decisions change (it's the master
   document; README mirrors it for users).
-- **jev review before reporting code tasks done** (user's global instruction):
-  diff only the files you changed into `~/.config/jev/jev.py review --task
-  "..." --files ...`. HOLDs on `network` (OpenRouter client) and
-  `out_of_scope` (state files in ~/.local/state, ~/.config/omarchy) are
-  standing, expected, and acknowledged by the user — report scores, don't
-  reword to dodge.
+- **Optional: Jev review.** If you have the Jev CLI (`~/.config/jev/jev.py`), diff only
+  the files you changed into `jev.py review --task "..." --files ...` before reporting a
+  code task done. HOLDs on `network` (the OpenRouter client) and `out_of_scope` (state
+  files outside the repo) are expected for this project: report the scores, don't reword
+  to dodge. Nothing in the app requires Jev.
 - No emojis in the UI or docs unless the user asks. Category prefixes use
   `Scene · / Entity · / Research · / Link · / Action ·` text.
 - Commits only when the user asks. Match existing style; minimal diffs.
 
-## Current state & what's next (2026-10-01)
+## Current state
 
-Done: M1 (editor+links), M1.5 (UX polish from the GLM review), M2 (alias
-finder), M3 (continuity + Contextual Tracker), settings screen, bracket-free
-implicit mentions (SPEC §5), AI spend tracking, **M4** (style guide, `ctrl+g`
-draft/expand/rewrite, pending AI drafts with `f7`/`f8`; see
-docs/plan-m4-ai-writing.md). **Desktop GUI** (branch `gui`, docs/plan-gui.md):
-pywebview shell, real binder/editor/notes/AI over the same core, placeholders for
-the parts of the design LoreWriter does not do yet.
-Spell check (offline, spelling only, personal + project dictionaries) is in both
-front ends (docs/plan-spelling.md, SPEC M6).
-**Waves 1-3 of docs/plan-workspace.md** (branch `features`): parts, Unplaced Scenes,
-Trash, scene details (frontmatter), GUI drag-to-reorder; snapshots, drafts, git sync;
-collections, comments, research notes, assistant chat history / attach / save to notes.
-**Inspiration images** (branch `inspiration`, docs/plan-inspiration.md): `core/inspiration.py`,
-`ai/images.py`, an Inspiration tab in the GUI assistant panel, palette actions in the terminal.
-**Wave 4** (branch `features`): session stats/streak/daily target and focus sprints (`core/stats.py`), Brainstorm
-(`ai.writing.brainstorm`), research notes go to the Trash (4.4).
-**M7 export** (branch `export`, docs/plan-export.md): PDF book / manuscript review / plain proof (ReportLab),
-DOCX / EPUB / LaTeX (pandoc), Markdown; GUI dialog and terminal form.
-Known concern: user is unconvinced by the command palette as primary UI
-(SPEC §11b) — the GUI is the answer being tried.
+Everything below is on `main`: M1 (editor + links), M1.5 (UX polish), M2 (alias finder),
+M3 (continuity + Contextual Tracker), settings, bracket-free implicit mentions (SPEC §5),
+AI spend tracking, **M4** (style guide, `ctrl+g` draft/expand/rewrite, pending AI drafts;
+docs/dev/plan-m4-ai-writing.md), the **desktop GUI** (pywebview + React over the same core;
+docs/dev/plan-gui.md), spell check (both front ends), the **workspace waves** (parts, Unplaced
+Scenes, Trash, scene details, snapshots, drafts, git sync, collections, comments, research
+notes, assistant chats, session stats and focus sprints, Brainstorm; docs/dev/plan-workspace.md),
+**inspiration images** (docs/dev/plan-inspiration.md) and **M7 export** (PDF / DOCX / EPUB /
+LaTeX / Markdown; docs/dev/plan-export.md). The public release work is in
+docs/dev/plan-release.md (Phase A: licence, packaging, portability, docs, CI).
+Known concern: the author is unconvinced by the command palette as the primary UI
+(SPEC §11b) — the desktop GUI is the answer being tried.

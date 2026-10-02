@@ -10,7 +10,7 @@ figures of real screens, glossary, index with verified page references). Read
 apply. The code is the source of truth over the docs.
 
 ## What changed since the Second Edition (read `git log`, SPEC.md, README.md,
-`docs/plan-gui.md`, `docs/plan-spelling.md`)
+`docs/dev/plan-gui.md`, `docs/dev/plan-spelling.md`)
 
 - **The desktop GUI** (`lorewrite-gui`, pywebview + React): launch screen
   (title-first New project → `~/novels/<title>`, `--new TITLE`), the window

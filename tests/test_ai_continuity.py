@@ -1,6 +1,6 @@
 """AI continuity checking: prompt, parse, check_scene, canon updates, jev gate.
 
-Tests the contract pinned in docs/specification-guide.md §2.2.
+Tests the contract pinned in docs/dev/specification-guide.md §2.2.
 Skips cleanly if lorewrite.ai.continuity has not landed yet.
 """
 

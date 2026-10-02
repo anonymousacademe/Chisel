@@ -1,203 +1,162 @@
-# lorewrite
+# LoreWriter
 
-A terminal-native fiction-writing app. Write scenes in a clean Markdown editor,
-mark characters and places once — no brackets needed after that — and let AI keep the link
-graph and the story's internal consistency up to date — without ever touching
-your prose uninvited.
+A fiction-writing app for your desktop and your terminal. Your novel is a folder
+of plain Markdown files; characters and places are notes that link both ways; and
+AI helps you keep the story consistent, but it only ever **suggests** — it never
+changes your prose unless you accept the change.
 
-**Status:** early but usable. Milestones M1 (editor + wiki-links), M1.5 (UX
-polish), M2 (alias finder), M3 (continuity + story bible) and M4 (style-aware
-AI drafting) are implemented and tested. See [SPEC.md](SPEC.md) for the full
-design and roadmap.
+![LoreWriter: binder, live-preview editor and assistant panel](docs/screenshots/lorewriter.png)
+
+LoreWriter runs on Windows, macOS and Linux. The desktop app (`lorewrite-gui`)
+and the terminal app (`lorewrite`) open the same projects, so you can use either,
+or both.
 
 ## Why
 
-- **Your novel is just files.** A project is a folder of plain Markdown —
-  greppable, git-friendly, opens in Obsidian. No database, no lock-in.
-- **A living story bible.** Characters and places get free-text notes with
-  aliases; everything links both ways.
-- **AI that suggests, never edits.** Every AI change is proposed in a review
-  list. Nothing is applied without your explicit accept.
+- **Your novel is just files.** A project is a folder of Markdown. It is
+  greppable, works with git, and opens in Obsidian or any editor. There is no
+  database to lose and no lock-in.
+- **A living story bible.** Characters and places have free-text notes with
+  aliases. Select a name once and make a note; from then on every mention is
+  coloured, jumpable and counted in backlinks. No brackets needed (`[[Name]]`
+  links still work).
+- **AI that suggests, never edits.** Every AI result is a proposal you accept or
+  reject. Nothing is applied behind your back, and unaccepted AI text is never
+  treated as canon.
+- **Optional AI, bring your own key.** Without a key everything but the AI
+  features works, offline.
 
 ## Features
 
-- Markdown editor with real syntax highlighting, autosave, and a status bar
-  (file, saved/modified, word counts, cursor, link hints)
-- No brackets needed: select a name and press `ctrl+j` to make a note for it;
-  from then on every mention of that name or its aliases is colored, jumpable
-  (`ctrl+j`), and counted in backlinks. `[[Name]]` / `[[Name|alias]]` links
-  still work, with their brackets faded; orange means no note yet
-- Entity panel with note preview and backlinks to every mentioning scene
-- Launch screen with recent projects; command palette with categorized menu
-  (`ctrl+p`); scene organization (new / rename / reorder / move)
-- **Parts, Unplaced scenes and Trash**: a folder under `manuscript/` is a part
-  (the sidebar groups scenes under it); `00-front-matter` is a part that is not
-  counted as the book; `manuscript/_unplaced/` holds scenes you wrote but kept out
-  of the book (not counted in the word totals, not in the reading order, still indexed for
-  backlinks and openable; the continuity check looks only at the scene you have open).
-  Deleting a scene (or a research note) moves it to `.trash/` — *Open Trash* restores it,
-  deletes it forever or empties the Trash, always after a confirmation.
-- **Snapshots**: keep a verbatim copy of a scene (`.snapshots/`), compare it with the
-  text as it is now (word by word) and restore it — the text you replace is snapshotted
-  first. One is also taken before *Accept/Reject all drafts* and, once a day, before the
-  first edit of a scene (Settings → History). *Scene · Snapshots* in the palette; the History
-  button in the desktop app.
-- **Sync with git (optional, never automatic)**: if the project folder is in a git
-  repository the status bar shows `Synced`, `N changes` or `Ahead N`. *Commit changes*
-  (message prefilled, editable), *Push* (asks first, names the remote, never forced) and
-  *Initialize git for this project* run only when you pick them — palette in the terminal,
-  the status-bar item in the desktop app. Needs `git` installed; without it nothing shows.
-- **Drafts**: *Start new draft* snapshots the whole book as "end of draft N" and counts
-  up (`[manuscript] draft = N` in `project.toml`); the desktop title bar and both status bars
-  show "Draft N".
-- **Collections** ("Needs continuity pass", "Mara's arc"): group scenes however you like;
-  definitions and colours live in `project.toml` `[collections]`, membership in each scene's
-  frontmatter. Click one in the desktop binder to see only its scenes (binder, corkboard,
-  outline); in the terminal use *Scene · Collections* and the `#name` sidebar filter.
-- **Comments**: select a passage and attach a note to it. The note lives in `.comments/` beside
-  the scene — never in your prose — and follows the passage when you edit around it (a comment
-  whose passage you deleted is kept, listed as "detached"). Desktop: the comment button, a margin
-  marker and the Notes tab; terminal: *Scene · Add comment on selection* and *Scene · Comments*.
-- **Research**: put reference material in `research/` as plain Markdown notes (any subfolders);
-  paste or drop a web link to save it as a note (it is not downloaded). The assistant's
-  **Research** action answers a question from those notes and your canon, and tells you which
-  notes it used. Terminal: the palette (*Research · …*, *Research question*).
-- **Assistant conversations**: chats are kept with the project (`.assistant/chats/`) —
-  reopen, rename or delete them from the History button (desktop) or *Saved conversations*
-  (terminal, `ctrl+t` in the chat window). Attach scenes, notes, research notes or your comments to a chat with the
-  paperclip (desktop; sizes are capped and trimming is always reported), and keep a good
-  answer with **Save to notes**, which appends it to `research/assistant-notes.md`.
-- **Scene details** (POV, place, purpose, status, word target) are the scene's own
-  YAML frontmatter — Obsidian-compatible, written only when you set a field, and
-  never counted as prose, spell-checked, or sent to the AI as text (the AI does get
-  a one-line header of them). *Scene · Edit details* in the palette; the desktop app
-  edits them in the inspector. Set `[manuscript] unit = "chapter"` to say
-  "Chapter 03" instead of "Scene 03" (wording only).
-- **Spell check** (offline, spelling only): misspellings are underlined in
-  scenes; `f6` fixes the next one. Names of your characters and places are never
-  flagged, and you can teach it words with two plain-text dictionaries — the
-  project's `dictionary.txt` and a personal one in `~/.local/state/lorewrite/`
-  (one word or phrase per line, `#` comments allowed; edit them by hand or use
-  *Action · Open project dictionary*). Toggle in Settings or the palette. The
-  desktop app underlines too: click a word for suggestions, *Add to dictionary*
-  and *Ignore* (`ctrl+.` also opens it).
-- **Session stats and a streak** (your own numbers, kept in `~/.local/state/lorewrite/stats/`,
-  never in the project): words you wrote today (accepted AI drafts are counted separately, pending
-  ones not at all), active minutes, sessions, a 30-day chart and a streak of days that met your daily
-  word target (Settings; default 500, 0 = off). The status bar shows the streak and
-  `+N / target words today`; click it (desktop) or pick *Action · Session stats* (terminal).
-- **Brainstorm** (AI): when you are stuck, ask for 3-5 ideas drawn from the scene around the cursor,
-  your canon and your style — what-ifs, complications, a sense you have not used, a pressure on a
-  character. They are suggestions only: *Draft from this* opens the draft prompt with the idea filled
-  in (the result is still a pending draft you accept or reject), *Save to notes* keeps it in
-  `research/assistant-notes.md`. Desktop: the Brainstorm quick action; terminal: *Action · Brainstorm*.
-- **Inspiration images** (AI, about $0.03 each): describe a setting ("a dark subway platform,
-  flickering lights") - or press *Describe this scene* to have it written from the passage around your
-  cursor, then edit it - and get a picture to keep beside you while you write. Reference only: it is
-  never put into your prose. The picture and its prompt are plain files in `inspiration/`; pin a
-  picture to a scene and it is shown large whenever that scene is open. Deleting one moves it to the
-  Trash. Desktop: the **Inspiration** tab of the assistant panel; terminal (no inline images):
-  *Action · Inspiration image…*, *Inspiration images*, *Open last inspiration image*. The image model
-  and a style suffix are in Settings.
-- **Focus sprints**: 15 / 25 / 45 / custom minutes with a countdown in the status bar, optional
-  writer / focus mode, a quiet notice (no sound) with the words you wrote, recorded in your stats.
-  Desktop: the timer button in the status bar; terminal: *Action · Focus sprint*.
-- Writer mode (`f11`), first-run tour, sidebar filter, focus-friendly
-  keybindings (`alt+←/→` to flip scenes)
-- **AI alias finder** (`ctrl+l`): finds other ways your prose refers to known
-  characters and places ("the old smith" for Borin) and offers them as aliases
-  after an accept/reject review — your scene text is never touched, no
-  brackets (OpenRouter, BYOK)
-- **AI writing, always review-gated**: learn a **style guide** from your own
-  prose (`style.md`, plain Markdown you can edit), then `ctrl+g` to draft at the
-  cursor (prompt window), expand a `{{expand: note}}` marker, or rewrite the
-  selection in your style. Generated text shows in color and stays a draft
-  until you accept it (`f7`) or reject it (`f8`, original restored exactly).
-  Drafts live in the scene file as short `<!--ai-->…<!--/ai-->` comments;
-  the text a rewrite replaced is kept in `.drafts/` (one small file per scene).
-- AI spend for the session in the status bar
-- Follows the Omarchy system theme automatically (falls back gracefully
-  elsewhere)
+**Writing**
+- Markdown editor with autosave, word counts, writer/focus mode and an offline
+  spell check (spelling only; your characters' names are never flagged; personal
+  and project dictionaries are plain text files).
+- Desktop: live-preview editor (link brackets and AI markers hidden), binder,
+  corkboard and outline views with drag-to-reorder, and an inspector for scene
+  details. Terminal: sidebar, command palette (`ctrl+p`) and keyboard-first
+  editing.
+- On Omarchy (Linux) the terminal app follows the system theme; elsewhere it uses
+  Textual's built-in themes.
+- Session stats, a daily word target with a streak, and focus sprints. These
+  numbers stay on your machine, never in the project.
 
-## Desktop GUI
+**Organising the book**
+- Parts (folders), scenes, an *Unplaced* shelf for scenes you wrote but kept out
+  of the book, and a Trash: deleting always moves to `.trash/`.
+- Collections ("Needs continuity pass", "Mara's arc"), scene details (POV, place,
+  status, word target) as YAML frontmatter, comments on passages (kept beside the
+  scene, never in the prose), research notes, and snapshots with a word-by-word
+  comparison and restore.
+- Optional git sync that runs only when you click: commit, push (never forced,
+  asks first) and init. Without git installed, nothing shows.
 
-The same projects open in a desktop app ("LoreWriter"): a live-preview Markdown
-editor (link brackets and AI markers hidden, mentions coloured), binder, scene
-corkboard and outline (drag a card or row to reorder it or move it to another
-part, with a confirmation and an Undo), notes with backlinks, and the AI assistant
-panel. Every AI result is still suggest-and-confirm. Parts of the design that do not exist yet
-are shown dimmed with the tooltip "Not in LoreWriter yet".
+**AI, always review-gated** (OpenRouter)
+- *Alias finder*: finds other ways your prose refers to known characters ("the
+  old smith") and offers them as aliases.
+- *Continuity check* and *story-bible updates*: flags contradictions with canon.
+- *Style guide*: learns your voice from your own prose into an editable
+  `style.md`; then draft at the cursor, expand a `{{expand: note}}` marker or
+  rewrite a selection. Results are pending drafts you accept or reject.
+- *Assistant chat* with attachments (scenes, notes, research, your comments),
+  *Research* questions answered from your own notes, *Brainstorm*, and
+  *Inspiration images* for reference while you write.
 
-```bash
-# a venv that can see the system PyGObject / WebKitGTK 4.1 bindings
-python3 -m venv --system-site-packages .venv-gui
-.venv-gui/bin/pip install -e ".[dev,gui]"
-(cd gui && npm install && npm run build)       # builds the UI into the package (Node 20+)
-.venv-gui/bin/lorewrite-gui                     # launch screen
-.venv-gui/bin/lorewrite-gui --project ~/novels/my-book
-```
-
-Details (architecture, dev server, tests): [gui/README.md](gui/README.md) and the
-"Desktop GUI" section of [SPEC.md](SPEC.md). The terminal app below is unchanged
-and can run on the same project.
+**Export**
+- A typeset PDF book, a double-spaced manuscript-review PDF with line numbers, a
+  plain proof PDF, Markdown, and DOCX / EPUB / LaTeX through pandoc. Files go to
+  `exports/` and are never overwritten.
 
 ## Install
 
-Requires Python 3.11+.
+| Way | Status |
+|---|---|
+| Download a release (Windows / macOS / Linux) | coming |
+| `pipx install lorewriter` (PyPI) | coming |
+| From source | below |
+
+### From source
+
+You need **Python 3.11+**. To build the desktop UI you also need **Node 20+**.
+The terminal app needs neither Node nor a graphical environment.
+
+**Linux** — the desktop app uses the system WebKitGTK, so install the system
+packages and create the virtual environment with `--system-site-packages`:
 
 ```bash
-git clone <repo-url> lorewrite
-cd lorewrite
-python3 -m venv .venv
-.venv/bin/pip install -e ".[dev]"
+# Debian / Ubuntu
+sudo apt install python3-gi gir1.2-webkit2-4.1
+# Fedora
+sudo dnf install python3-gobject webkit2gtk4.1
+# Arch
+sudo pacman -S python-gobject webkit2gtk-4.1
 ```
 
-## Run
+**Windows** — the desktop app uses the WebView2 runtime, which is preinstalled on
+Windows 10 and 11. **macOS** needs nothing extra.
 
 ```bash
-.venv/bin/lorewrite            # launch screen (recents / open / new)
-.venv/bin/lorewrite --project ~/novels/my-book   # open directly
+git clone https://github.com/anonymousacademe/lorewriter
+cd lorewriter
+
+python3 -m venv .venv                      # Linux: add --system-site-packages
+source .venv/bin/activate                  # Windows: .venv\Scripts\activate
+pip install -e ".[all]"                    # or: pip install -r requirements.txt && pip install -e .
+
+(cd gui && npm ci && npm run build)        # builds the desktop UI into the package
+
+lorewrite-gui                              # the desktop app
+lorewrite                                  # the terminal app
 ```
 
-To try everything on a sample story, open a copy of the bundled example
-project (see [examples/README.md](examples/README.md)):
+`pip install -e .` alone gives the terminal app. Extras: `gui` (pywebview), `export`
+(PDF export), `all` (both). **pandoc** is optional and only needed for DOCX, EPUB and
+LaTeX export (the options are greyed out without it): `apt install pandoc`,
+`dnf install pandoc`, `pacman -S pandoc`, `brew install pandoc`, or `winget install pandoc`.
+
+## Quick start
+
+Open a copy of the bundled example, a short cyberpunk story with a story bible
+(see [examples/README.md](examples/README.md)):
 
 ```bash
-cp -r examples/residual /tmp/residual && .venv/bin/lorewrite --project /tmp/residual
+cp -r examples/residual ~/residual         # Windows: xcopy /E /I examples\residual %USERPROFILE%\residual
+lorewrite-gui --project ~/residual         # or: lorewrite --project ~/residual
 ```
 
-First launch shows a 4-page tour. Core keys:
+Or start your own: both apps open on a launch screen with your recent projects,
+*Open folder* and *New project* (default location `~/novels/<title>`).
+
+Terminal keys (the desktop app shows its own in the UI; `f1` lists them all):
 
 | Key | Action |
 |---|---|
-| `ctrl+n` | new scene |
 | `ctrl+p` | command palette — everything lives here |
-| `ctrl+j` | open the note for the name under the cursor; with a name selected (or on an unresolved link), create it |
-| `ctrl+l` | AI: find aliases ("the old smith") for your characters/places in this scene |
-| `ctrl+g` | AI write: draft at cursor / expand `{{expand: …}}` / rewrite selection |
-| `f7` / `f8` | accept / reject the AI draft under the cursor (`f5` = select all) |
-| `f6` | spell check: fix the next misspelled word (add it to a dictionary, or ignore it) |
+| `ctrl+n` | new scene |
+| `ctrl+j` | open the note under the cursor; with a name selected, create it |
+| `ctrl+l` | AI: find aliases in this scene |
+| `ctrl+g` | AI write: draft at cursor / expand a marker / rewrite the selection |
+| `f7` / `f8` | accept / reject the AI draft under the cursor |
+| `f6` | spell check: fix the next misspelled word |
 | `alt+←/→` | previous / next scene |
 | `f11` | writer mode |
-| `ctrl+s` | save (autosave is always on) |
-| `f1` | all keybindings (`?` also works outside the editor) |
 
-## AI setup (optional, for `ctrl+l` and the other AI features)
+## AI setup (optional)
 
-Uses [OpenRouter](https://openrouter.ai) (bring your own key). Either:
+AI features use [OpenRouter](https://openrouter.ai) with your own key. Either set
+the `OPENROUTER_API_KEY` environment variable, or enter the key in the app
+(Settings, or *Action · Set OpenRouter API key* in the terminal palette); it is
+stored in your operating system's keyring, never in a project file.
 
-- In the app: `ctrl+p` → *Action · Set OpenRouter API key* (stored in your OS
-  keyring), or
-- Set the `OPENROUTER_API_KEY` environment variable.
-
-Three model roles, each chosen in *Settings* (type a slug or **Choose…** from
-the live catalog) or per project in `project.toml` (project wins):
+Models are chosen per role in Settings (type a slug, or pick from the live catalogue),
+or per project in `project.toml`, where the project wins:
 
 | Role | Used for | Default |
 |---|---|---|
 | fast | alias finding | `google/gemini-2.5-flash` |
 | strong | continuity checks, story-bible updates | `anthropic/claude-sonnet-4.5` |
 | writing | drafting, rewrites, style guide | `anthropic/claude-sonnet-4.5` |
+| image | inspiration images | `google/gemini-3.1-flash-lite-image` |
 
 ```toml
 [ai]
@@ -206,67 +165,77 @@ strong_model = "anthropic/claude-sonnet-4.5"
 writing_model = "anthropic/claude-sonnet-4.5"
 ```
 
-AI spend for the session is shown in the status bar (`AI $0.0123`).
+**Costs.** You pay OpenRouter's per-model prices directly; LoreWriter adds nothing.
+The status bar shows the running total for the session (for example `AI $0.0123`)
+and each AI call reports its own cost. An inspiration image costs about $0.03 with
+the default image model, and images are only ever generated when you click.
 
-### AI writing
-
-1. `ctrl+p` → *Action · AI: learn style guide from manuscript* — reviews a
-   proposed `style.md` (voice, rhythm, diction, dialogue, avoid, verbatim
-   exemplars) before saving; *Open style guide* lets you edit it by hand.
-2. `ctrl+g` in a scene: with text selected it rewrites it; on a
-   `{{expand: describe the rain}}` marker it expands it; otherwise it opens a
-   prompt window (submit with `ctrl+g`, cancel with `esc`) and inserts the
-   result at the cursor.
-3. The result is a **pending draft** (colored italics, faded
-   `<!--ai-->` marker comments). `f7` accepts, `f8` rejects; the palette has
-   *Accept/Reject all AI drafts in this scene*. Word counts, continuity checks
-   and the alias finder ignore pending text.
-
-## Your project on disk
+## Your files
 
 ```
 my-novel/
-├── project.toml          # title + [editor] and [ai] settings
+├── project.toml          # title, [editor] and [ai] settings
 ├── manuscript/
-│   ├── 01-opening.md     # scenes, numbered; reorder via the palette
-│   ├── 02-tavern.md
-│   ├── 03-the-recall/    # optional: a folder is a part (title in _part.md)
-│   │   ├── _part.md      #   "# The Recall" + your notes on the part
-│   │   └── 01-rain.md    #   scene numbering continues across parts
-│   └── _unplaced/        # optional: written, but not in the book
-├── .trash/               # deleted scenes wait here (restore from the app)
-├── .drafts/              # text pending AI drafts replaced, one file per scene
-├── .snapshots/           # History: a folder of snapshots per scene (plain copies)
-├── .comments/            # your comments on passages, one small JSON file per scene
+│   ├── 01-opening.md     # scenes, numbered; reorder in the app
+│   ├── 03-the-recall/    # a folder is a part (title in _part.md)
+│   └── _unplaced/        # written, but not in the book
+├── entities/
+│   ├── characters/elara-vance.md   # free-text note + YAML frontmatter
+│   └── places/thornwick.md         #   (name, type, aliases)
 ├── research/             # reference notes (plain Markdown, any subfolders)
-├── inspiration/          # AI pictures of settings, each with a .md sidecar (prompt, notes)
-├── .assistant/chats/     # saved assistant conversations, one JSON file per chat
-└── entities/
-    ├── characters/elara-vance.md   # free-text note + YAML frontmatter
-    └── places/thornwick.md         #   (name, type, aliases)
+├── inspiration/          # pictures, each with a .md sidecar (prompt, notes)
+├── exports/              # files you exported
+├── style.md              # your learned style guide (editable)
+├── dictionary.txt        # words to accept in spell check
+└── .trash/ .drafts/ .snapshots/ .comments/ .assistant/   # app data, plain files
 ```
 
-## Export
+A SQLite index under `.lorewrite/` powers backlinks. It is a rebuildable cache
+(`f9` in the terminal): your files are always the truth.
 
-Write the book out from the desktop app (Export... in the project menu) or the terminal app
-(palette: Export manuscript): a typeset **PDF book**, a double-spaced **manuscript review** PDF with
-line numbers, a **plain proof**, **DOCX**, **EPUB**, one **Markdown** file or **LaTeX** source. Files
-go to `exports/` in the project folder and are never overwritten. Unaccepted AI drafts are left out
-by default. PDF needs `pip install 'lorewrite[export]'`; DOCX, EPUB and LaTeX need `pandoc`.
+## Privacy
 
-## Roadmap
+- Your project never leaves your machine unless you use an AI feature, push with
+  git, or copy it yourself. LoreWriter has no accounts and no telemetry.
+- AI calls go to OpenRouter (and from there to the model you chose) **only when
+  you trigger them**. What is sent depends on the feature: the alias finder and the
+  continuity check send the scene you have open and the relevant character and place
+  notes; drafting also sends your style guide and the text around the cursor; the
+  assistant sends your question, the context it retrieved, and anything you attached;
+  *Describe this scene* sends the passage around the cursor, and image generation
+  sends only the prompt you approved.
+- Never sent: scenes you did not open or attach, your comments (unless you attach
+  them), unaccepted AI text as if it were your prose, scene details frontmatter as
+  text, and your spelling dictionaries. Spell check, stats and search are fully local.
+- The only other network request is the public OpenRouter model catalogue, fetched
+  when you open a model picker.
 
-M3 lore/continuity checking ("the Contextual Tracker") → M4 style-aware AI
-drafting (review-gated) → M6 writing aids (spellcheck, focus timer, session
-stats) → M7 export (built) → M8 beyond-novels modes. Details in
-[SPEC.md](SPEC.md).
+## Documentation
+
+- **User's Guide** (PDF with screenshots): attached to each
+  [GitHub Release](https://github.com/anonymousacademe/lorewriter/releases).
+  Its sources are in [docs/user-guide/](docs/user-guide/).
+- [SPEC.md](SPEC.md): the design document and roadmap.
+- [examples/README.md](examples/README.md): things to try in the sample project.
+- [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md): working on the code.
 
 ## Development
 
 ```bash
-.venv/bin/python -m pytest    # pure core units + headless TUI (Pilot)
+pip install -r requirements-dev.txt && pip install -e .
+python -m pytest                          # pure core units, headless TUI, GUI backend
+(cd gui && npm ci && npm run lint && npm test && npm run build)
+python -m lorewrite.gui.devserver --project COPY --mock-ai   # the UI in any browser, canned AI
 ```
 
-Design document: [SPEC.md](SPEC.md). Agent/contributor guide:
-[AGENTS.md](AGENTS.md). Independent UX review:
-[docs/ux-review-glm.md](docs/ux-review-glm.md).
+The desktop UI is built with Vite into `src/lorewrite/gui/web/` (git-ignored, shipped
+as package data). Architecture notes: [gui/README.md](gui/README.md).
+
+This project was built with the help of AI coding assistants, which wrote much of
+the code under the author's direction.
+
+## License
+
+[MIT](LICENSE) © 2026 Mishkin. Bundled export fonts: Noto Serif (SIL OFL 1.1) and
+Liberation Mono (SIL OFL 1.1); their licences are in
+`src/lorewrite/core/export/fonts/`.

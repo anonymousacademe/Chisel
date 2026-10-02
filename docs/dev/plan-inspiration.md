@@ -4,7 +4,7 @@ Status: approved by the author 2026-10-01. SPEC.md "Future — AI inspiration
 images" describes the idea: describe a setting ("a dark subway platform,
 flickering lights") and get a picture to keep on screen while writing.
 **Reference only — never inserted into the prose.** Same rules as
-`docs/plan-workspace.md` ("Rules for every wave") — read them. Another agent
+`docs/dev/plan-workspace.md` ("Rules for every wave") — read them. Another agent
 builds M7 export in parallel on branch `export`; keep edits to shared files
 (`gui/src/App.tsx`, `gui/api.py`, `tui/app.py`, `tui/commands.py`, settings
 screens) small and self-contained. Put new code in new files.
