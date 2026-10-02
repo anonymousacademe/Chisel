@@ -252,22 +252,28 @@ jobs:
     permissions:
       contents: write   # creating the draft release
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
-          pattern: release-*          # not web-ui; a failed Intel job uploaded nothing and is simply absent
-          merge-multiple: true
-      - name: Checksums (of whatever is attached)
+          pattern: release-*          # never web-ui; a failed Intel job uploaded nothing and is simply absent
+      - name: Collect the release files and checksum them
         run: |
-          cd artifacts
+          mkdir release
+          # only release files, flattened into one folder (artifact folders and anything else are ignored)
+          find artifacts -maxdepth 3 -type f \( -name '*.exe' -o -name '*.zip' -o -name '*.dmg' \
+            -o -name '*.AppImage' -o -name '*.whl' -o -name '*.tar.gz' \) -exec cp {} release/ \;
+          # the user guide PDF, if this checkout has one (it is normally built separately)
+          find docs/user-guide -maxdepth 1 -type f -name '*.pdf' -exec cp {} release/ \; 2>/dev/null || true
+          cd release
           ls -l
-          test -n "$(ls *-macos-arm64.dmg)"   # the arm64 DMG is required
-          sha256sum * > SHA256SUMS.txt
+          test -n "$(ls ./*-macos-arm64.dmg)"   # the arm64 DMG is required
+          sha256sum -- * > SHA256SUMS.txt
           cat SHA256SUMS.txt
       - name: Create the draft release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" artifacts/* --repo "${GITHUB_REPOSITORY}" \
+          gh release create "${GITHUB_REF_NAME}" release/* --repo "${GITHUB_REPOSITORY}" \
             --draft --title "LoreWriter ${GITHUB_REF_NAME#v}" \
-            --notes "Installers for Windows, macOS (Apple silicon and Intel) and Linux. Unsigned: see the README's Install section for the first-launch steps."
+            --notes "Installers for Windows, macOS (Apple silicon, and Intel when it built) and Linux. Unsigned: see the README's Install section for the first-launch steps."

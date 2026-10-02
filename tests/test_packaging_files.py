@@ -46,6 +46,7 @@ def test_release_workflow_is_valid_yaml_with_pinned_actions():
     assert "needs.macos-arm64.result == 'success'" in release
     assert "needs.macos-intel.result" not in release          # Intel is best effort: never required
     assert "pattern: release-*" in release                    # and web-ui is not attached
+    assert "sha256sum *" not in release and "release/*" in release  # only the flattened release files
 
 
 def test_icons_exist_for_every_os():
