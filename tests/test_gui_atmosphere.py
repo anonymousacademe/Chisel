@@ -27,7 +27,11 @@ def make_zip(tmp_path, entries, name="p.zip"):
     path = tmp_path / name
     with zipfile.ZipFile(path, "w") as zf:
         for n, data in entries.items():
-            zf.writestr(n, data)
+            # Set the name after construction: ZipInfo(name) turns "\\" into "/"
+            # on Windows, which would make the backslash test a no-op there.
+            info = zipfile.ZipInfo("x")
+            info.filename = n
+            zf.writestr(info, data)
     return path
 
 
@@ -99,7 +103,9 @@ def test_import_ok_flat_and_folder(tmp_path):
 @pytest.mark.parametrize("entries,why", [
     ({"../evil.wav": WAV}, "unsafe"),
     ({"/abs/key-1.wav": WAV}, "unsafe"),
-    ({"a\\key-1.wav": WAV}, "unsafe"),
+    pytest.param({"a\\key-1.wav": WAV}, "unsafe", marks=pytest.mark.skipif(
+        os.name == "nt", reason="zipfile reads a backslash as '/' on Windows, so this "
+        "is the allowed one-folder layout there; '..' is still caught by the '../' case")),
     ({"a/b/key-1.wav": WAV}, "one folder"),
     ({"a/key-1.wav": WAV, "b/key-1.wav": WAV}, "one pack"),
     ({"a/key-1.wav": WAV, "key-2.wav": WAV}, "one folder"),
