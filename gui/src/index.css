@@ -665,5 +665,5 @@ button.lw-picklist__row:hover { border-color: var(--lw-accent); background: var(
 .lw-rename__line { min-width: 28px; text-align: right; }
 .lw-rename__ctx { white-space: pre-wrap; overflow-wrap: anywhere; }
 .lw-rename__old { background: var(--lw-accent-soft); color: var(--lw-text-muted); text-decoration: line-through; }
-.lw-rename__new { background: var(--lw-accent-soft); color: var(--lw-text-strong); text-decoration: none; font-weight: 600; }
+.lw-rename__new { margin-left: 3px; background: var(--lw-accent-soft); color: var(--lw-text-strong); text-decoration: none; font-weight: 600; }
 .lw-rename__aliases { display: flex; flex-direction: column; gap: 6px; }
