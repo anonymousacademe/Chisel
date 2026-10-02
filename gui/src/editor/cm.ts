@@ -6,6 +6,7 @@ import { Decoration, type DecorationSet, EditorView, WidgetType, drawSelection, 
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { ensureSyntaxTree } from "@codemirror/language";
 import { markdown } from "@codemirror/lang-markdown";
+import { formatSpecs } from "./format";
 import { frontmatterRange, misspellingAt, sceneFrontmatter, misspellSpecs, softBreaks, specsFor, titleLine, type Misspelling, type Span } from "./spans";
 
 export const setSpans = StateEffect.define<Span[]>();
@@ -220,11 +221,16 @@ function build(state: EditorState): Built {
           for (let n = doc.lineAt(node.from).number; n <= doc.lineAt(node.to).number; n++) {
             ranges.push(Decoration.line({ class: "lw-quote" }).range(doc.line(n).from));
           }
-        } else if (node.name === "EmphasisMark" || node.name === "HeaderMark" || node.name === "QuoteMark" || node.name === "CodeMark") {
-          if (!(title && node.from === title.from)) ranges.push(Decoration.mark({ class: "lw-syn" }).range(node.from, node.to));
         }
       },
     });
+    // syntax marks: hidden unless the cursor is in or touching their span (plain notes keep them dim)
+    const blocks = kind === "style";
+    for (const f of formatSpecs(tree, text, head, { titleFrom: title?.from ?? null, blocks })) {
+      if (f.type === "hide") { ranges.push(hide.range(f.from, f.to)); atomic.push(hide.range(f.from, f.to)); }
+      else if (f.type === "line") ranges.push(Decoration.line({ class: f.cls ?? "" }).range(f.from));
+      else ranges.push(Decoration.mark({ class: f.cls ?? "" }).range(f.from, f.to));
+    }
   }
 
   return { all: Decoration.set(ranges, true), atomic: Decoration.set(atomic, true) };

@@ -21,12 +21,15 @@
 
 /* markdown structure */
 .lw-cm .lw-h { color: var(--lw-text-strong); font-weight: 600; }
+.lw-cm .lw-h1 { font-size: 1.5em; line-height: 1.25; margin-top: 10px; }
 .lw-cm .lw-h2 { font-size: 1.22em; line-height: 1.4; margin-top: 6px; }
 .lw-cm .lw-h3, .lw-cm .lw-h4 { font-size: 1.08em; }
 .lw-cm .lw-strong { font-weight: 700; color: var(--lw-text-strong); }
 .lw-cm .lw-em { font-style: italic; }
 .lw-cm .lw-code { font-family: var(--lw-font-mono); font-size: 0.85em; background: var(--lw-bg-raised); border-radius: 3px; padding: 0 3px; }
 .lw-cm .lw-quote { border-left: 2px solid var(--lw-accent); padding-left: 12px; color: var(--lw-text-strong); }
+.lw-cm .lw-li { padding-left: 22px; position: relative; }
+.lw-cm .lw-li::before { content: "\2022"; position: absolute; left: 6px; color: var(--lw-accent-text); }
 .lw-cm .lw-syn, .lw-cm .lw-bracket { color: var(--lw-text-faint); }
 .lw-cm .lw-frontmatter { font-family: var(--lw-font-mono); font-size: 12px; line-height: 1.7; color: var(--lw-text-muted); }
 

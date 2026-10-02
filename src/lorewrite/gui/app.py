@@ -57,7 +57,8 @@ def main(argv: list[str] | None = None) -> None:
     api._window = window
     if hasattr(api, "on_window_closing"):
         window.events.closing += api.on_window_closing
-    webview.start(http_server=args.dev is None)
+    icon = Path(__file__).with_name("icon.png")
+    webview.start(http_server=args.dev is None, icon=str(icon) if icon.exists() else None)
 
 
 if __name__ == "__main__":

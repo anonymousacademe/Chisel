@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { BookOpen, FolderOpen, Plus } from "lucide-react";
+import { FolderOpen, Plus } from "lucide-react";
 import type { RecentProject } from "../data/types";
 import { api } from "../backend/api";
 import { Icon } from "./primitives";
+import { Logo } from "./Logo";
 
 /** Shown when no project is open: pick a recent one, open a folder, or start a new project. */
 export function Launch({ onOpened }: { onOpened: () => void }) {
@@ -39,7 +40,7 @@ export function Launch({ onOpened }: { onOpened: () => void }) {
     <div className="lw-launch">
       <div className="lw-launch__card">
         <div className="lw-row lw-gap-8">
-          <span className="lw-mark lw-mark--lg"><Icon icon={BookOpen} size={14} stroke={1.8} /></span>
+          <Logo size={32} />
           <h1 className="lw-launch__title">LoreWriter</h1>
         </div>
         {recents.length > 0 && (
