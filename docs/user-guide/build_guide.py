@@ -87,7 +87,7 @@ from guidelib import (  # noqa: E402
 OUT = HERE / "chisel-users-guide.pdf"
 SHOTS = HERE / "build" / "shots"
 FIGS = HERE / "build" / "fig"
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 
 # ---------------------------------------------------------------------------
 # inline markup:  `mono`   **bold**   //italic//
@@ -464,18 +464,17 @@ def build_story(st) -> list:
     s.p("**Sixth Edition (October 2026)**", style="notice")
     s.p("This edition replaces and makes obsolete the Fifth Edition, "
         "LW00-0001-4.", style="notice")
-    s.p("This edition applies to Version 0.4.0 of Chisel, including the "
+    s.p("This edition applies to Version 0.5.0 of Chisel, including the "
         "terminal application (`chisel`) and the desktop application "
         "(`chisel-gui`, whose window is titled Chisel). The program "
         "was called LoreWriter in earlier editions of this book. "
-        "Version 0.4.0 still starts with the commands `lorewrite` and "
-        "`lorewrite-gui`; from the next release the commands, the "
-        "settings folder (`chisel`), the project cache folder "
-        "(`.chisel`) and the `CHISEL_*` environment variables carry the "
-        "new name, and this book uses the new names throughout. The "
-        "next release copies your settings and your API key on its first "
-        "start, and renames each project's cache folder when you open "
-        "it; nothing is deleted. It applies to all "
+        "The commands are `chisel` and `chisel-gui`; the settings "
+        "folder (`chisel`), the project cache folder (`.chisel`) and the "
+        "`CHISEL_*` environment variables carry the same name. Version "
+        "0.3.x and older used the commands `lorewrite` and "
+        "`lorewrite-gui`. The first start of this version copies your "
+        "settings and your API key, and renames each project's cache "
+        "folder when you open it; nothing is deleted. It applies to all "
         "subsequent releases and modifications until otherwise "
         "indicated in new editions. Make sure you are using the correct "
         "edition for the level of the product. The version number is "
@@ -506,7 +505,7 @@ def build_story(st) -> list:
     s.p("The example story used in the figures, //Residual//, is fiction; "
         "any resemblance of its characters, companies or places to real ones "
         "is coincidental. All screens in this book were captured from "
-        "Version 0.4.0 running against a sample project, the Residual "
+        "Version 0.5.0 running against a sample project, the Residual "
         "example that is supplied with Chisel. Screens of the terminal "
         "application come from a terminal; screens of the desktop "
         "application come from its interface in a headless browser, "
@@ -660,9 +659,10 @@ def build_story(st) -> list:
         "depend on your theme; figures of the desktop application are "
         "printed in shades of gray.")
     s.h2("Names and Terms")
-    s.p("The program is called Chisel. From the next release its "
+    s.p("The program is called Chisel. Its "
         "commands are `chisel` (terminal) and `chisel-gui` (desktop); "
-        "they were `lorewrite` and `lorewrite-gui` up to Version 0.4.0. The "
+        "they were `lorewrite` and `lorewrite-gui` in Version 0.3.x and "
+        "older. The "
         "desktop window and its assistant call themselves //Chisel//; it "
         "is the same program. A //project// is one book: a folder of "
         "plain files. In the desktop application, scenes taken out of "
@@ -673,7 +673,7 @@ def build_story(st) -> list:
 
     # ------------------------------------------------------------ changes
     s.front("Summary of Changes")
-    s.p("This Sixth Edition (LW00-0001-5) covers Version 0.4.0 of "
+    s.p("This Sixth Edition (LW00-0001-5) covers Version 0.5.0 of "
         "Chisel. The Fifth Edition covered Version 0.2.0, when the "
         "program was called LoreWriter. The changes are listed below, "
         "with the chapter that describes each. Chapters 15, 16 and 17 "
@@ -682,7 +682,7 @@ def build_story(st) -> list:
         "19. Appendix D is new.")
     s.table(None, None, ["Change", "Where described"], [
         ["**The new name.** The program is called Chisel, with a new "
-         "logo. From the next release the commands are `chisel` and "
+         "logo. The commands are `chisel` and "
          "`chisel-gui`, your settings folder is named `chisel`, a "
          "project's cache folder is `.chisel`, and the variables are "
          "`CHISEL_*`; your data is copied on the first start. Release files are named `Chisel-<version>-...`.",

@@ -466,8 +466,9 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
 
 ## Current state
 
-Released: 0.4.0 (2026-10-03; CHANGELOG.md has the user-facing list): hardening of file handling and names,
-the rename of the app to Chisel in user-facing text, menu-aware AI (the "About:" chip), pictures linked to any
+Released: 0.5.0 (2026-10-03; CHANGELOG.md has the user-facing list). It includes everything formerly listed for
+0.4.0 (tagged, never published) plus the rename to Chisel (commands, package, folders): hardening of file
+handling and names, the rename of the app to Chisel in user-facing text, menu-aware AI (the "About:" chip), pictures linked to any
 item and picture upload, *Parked scenes* (desktop name of the Unplaced folder), the context budget with the
 "What was sent" report, entity frontmatter round trip, optional story time, the Chisel logo and icons, and the
 Windows window-icon fix. The previous release was 0.3.1.

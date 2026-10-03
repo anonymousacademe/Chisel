@@ -1,11 +1,12 @@
 # Chisel — Design Spec
 
-**Status:** Living design document. Released: 0.4.0 (2026-10-03), which includes the hardening, menu-aware
-AI, context-budget, story-time and logo work listed in CHANGELOG.md. See section 14 for what is done and
+**Status:** Living design document. Released: 0.5.0 (2026-10-03), which includes the hardening, menu-aware
+AI, context-budget, story-time and logo work formerly listed for 0.4.0 (tagged, never published) plus the
+rename to Chisel; see CHANGELOG.md. See section 14 for what is done and
 what is planned next.
 **Name:** the app, the Python package (`chisel`; the PyPI distribution is `chisel-writer`), the commands
 (`chisel`, `chisel-gui`), the state folders, the `CHISEL_*` environment variables and the repository
-(`anonymousacademe/Chisel`) are all called Chisel. It was called LoreWriter (`lorewrite`) until after 0.4.0;
+(`anonymousacademe/Chisel`) are all called Chisel. It was called LoreWriter (`lorewrite`) until 0.4.0;
 see "Migration from the LoreWriter names" in section 13.
 **Started:** 2026-09-27
 

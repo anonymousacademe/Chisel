@@ -6,7 +6,7 @@ def build(s, R):
               "Features that are planned for Chisel and are not in this "
               "version.")
     s.attention("Everything in this appendix is //planned//. None of it "
-                "exists in Version 0.4.0: there is no button, key, setting "
+                "exists in Version 0.5.0: there is no button, key, setting "
                 "or file for it. The list is here so that you know what "
                 "is intended, not as a promise of a date. Plans can "
                 "change.")

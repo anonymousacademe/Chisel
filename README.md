@@ -262,9 +262,11 @@ A SQLite index under `.chisel/` powers backlinks. It is a rebuildable cache
 
 ## Upgrading from LoreWriter / lorewrite
 
-Chisel was called LoreWriter (command `lorewrite`) before. From the first release after 0.4.0 the commands
+Chisel was called LoreWriter (command `lorewrite`) before. From 0.5.0 the commands
 are **`chisel`** (terminal app) and **`chisel-gui`** (desktop app); the old command names are gone, with no
-aliases. Your files are not lost: the first start copies what it can.
+aliases. Version 0.4.0 was not released publicly, so nobody who installed from a release ever had `lorewrite`
+under the Chisel name; if you ran LoreWriter from source or from an earlier build (0.3.x), follow the steps
+below. Your files are not lost: the first start copies what it can.
 
 - **Copied (once, the old folders stay where they are):** your settings, recent projects, writing stats and
   typing-sound packs, from `%LOCALAPPDATA%\lorewrite` (Windows), `~/Library/Application Support/lorewrite`

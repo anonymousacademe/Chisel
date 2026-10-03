@@ -5,6 +5,11 @@ All notable changes to Chisel are listed here, newest first. The format follows
 
 ## Unreleased
 
+## 0.5.0 - 2026-10-03
+
+Version 0.4.0 was tagged but never published, so 0.5.0 is the first release with these changes: it includes
+everything listed under 0.4.0 below, and it is the first release to carry the new command names.
+
 ### Changed
 - **Renamed internals and commands to match the app's name.** The commands are now `chisel` (terminal) and
   `chisel-gui` (desktop); the Python package is `chisel` (installed as `chisel-writer`); the repository is
@@ -26,7 +31,7 @@ All notable changes to Chisel are listed here, newest first. The format follows
   `.gitignore` that listed `.lorewrite/`. See "Upgrading from LoreWriter" in the README.
 - After upgrading from source: `pip install -e .` again and `pip uninstall lorewriter`.
 
-## 0.4.0 - 2026-10-03
+## 0.4.0 - 2026-10-03 (not published; included in 0.5.0)
 
 ### Added
 - **A new logo and icons.** Chisel has its own mark, an open book that is half stone with a chisel working
