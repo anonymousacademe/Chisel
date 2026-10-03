@@ -4,12 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from lorewrite.core import drafts, scenemeta
-from lorewrite.core import entities as ent
-from lorewrite.core.index import Index
-from lorewrite.core.project import Project, retitle_text
-from lorewrite.core.spans import compute_spans
-from lorewrite.core.style import sample_manuscript
+from chisel.core import drafts, scenemeta
+from chisel.core import entities as ent
+from chisel.core.index import Index
+from chisel.core.project import Project, retitle_text
+from chisel.core.spans import compute_spans
+from chisel.core.style import sample_manuscript
 
 SCENE = """\
 ---
@@ -143,8 +143,8 @@ def test_style_sampling_skips_frontmatter(tmp_path: Path):
 
 # -- AI prompts: the details become a short header, never raw YAML -----------------
 
-from lorewrite.ai import continuity as ai_cont  # noqa: E402
-from lorewrite.ai.writing import CURSOR, build_context  # noqa: E402
+from chisel.ai import continuity as ai_cont  # noqa: E402
+from chisel.ai.writing import CURSOR, build_context  # noqa: E402
 
 MARA = ent.Entity(name="Mara Vale", type="character", body="Mara is an archivist.")
 SPUR = ent.Entity(name="Lower Meridian", type="place", body="A drowned district.")
@@ -184,5 +184,5 @@ def test_continuity_prompt_sends_details_and_prose_not_frontmatter():
 
 
 def test_evidence_rows_still_refer_to_the_file_with_its_frontmatter():
-    from lorewrite.core.continuity import locate_evidence
+    from chisel.core.continuity import locate_evidence
     assert locate_evidence(YAML_SCENE, "Then she stopped.") == 10

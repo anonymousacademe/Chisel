@@ -1,6 +1,6 @@
 """The context budget on whole projects: a long book stays under the model's window and reports
 everything it leaves out; a small project sends exactly what it sent before the budget existed.
-AI is mocked at the function boundary (lorewrite.gui.api.<fn>); nothing touches the network."""
+AI is mocked at the function boundary (chisel.gui.api.<fn>); nothing touches the network."""
 
 import json
 import re
@@ -10,21 +10,21 @@ from types import SimpleNamespace
 
 import pytest
 
-from lorewrite.ai import writing
-from lorewrite.ai.budget import Budget, BudgetError, estimate_tokens, fit
-from lorewrite.ai.continuity import (
+from chisel.ai import writing
+from chisel.ai.budget import Budget, BudgetError, estimate_tokens, fit
+from chisel.ai.continuity import (
     ACCUMULATION_SCHEMA, ACCUMULATION_SYSTEM_PROMPT, CONTRADICTION_SCHEMA, SYSTEM_PROMPT, build_check_prompt,
     _details_block, plan_canon, plan_check, propose_canon_updates,
 )
-from lorewrite.ai.links import SCHEMA as ALIAS_SCHEMA, SYSTEM_PROMPT as ALIAS_PROMPT, build_prompt, plan_aliases
-from lorewrite.ai.usage import LEDGER
-from lorewrite.core import drafts, scenemeta
-from lorewrite.core import entities as ent
-from lorewrite.core.continuity import add_canon_facts, canon_map, get_canon
-from lorewrite.core.links import find_all_links
-from lorewrite.core.project import Project
-from lorewrite.gui import api as api_module
-from lorewrite.gui.api import Api
+from chisel.ai.links import SCHEMA as ALIAS_SCHEMA, SYSTEM_PROMPT as ALIAS_PROMPT, build_prompt, plan_aliases
+from chisel.ai.usage import LEDGER
+from chisel.core import drafts, scenemeta
+from chisel.core import entities as ent
+from chisel.core.continuity import add_canon_facts, canon_map, get_canon
+from chisel.core.links import find_all_links
+from chisel.core.project import Project
+from chisel.gui import api as api_module
+from chisel.gui.api import Api
 
 EXAMPLE = Path(__file__).resolve().parent.parent / "examples" / "residual"
 N_ENTITIES, N_SCENES = 400, 200
@@ -35,8 +35,8 @@ def no_network(monkeypatch):
     def boom(*a, **k):
         raise RuntimeError("the network is blocked in tests")
 
-    monkeypatch.setattr("lorewrite.ai.client.make_client", boom)
-    monkeypatch.setattr("lorewrite.ai.client.list_models", boom)
+    monkeypatch.setattr("chisel.ai.client.make_client", boom)
+    monkeypatch.setattr("chisel.ai.client.list_models", boom)
 
 
 def zed(i: int) -> str:
@@ -279,7 +279,7 @@ def test_a_huge_attachment_is_named_in_the_error(big, monkeypatch):
 
 
 def test_the_window_comes_from_the_models_remembered_context_length(big, monkeypatch):
-    from lorewrite.ai.client import remember_context_lengths, ModelInfo
+    from chisel.ai.client import remember_context_lengths, ModelInfo
 
     api, root = big
     chat_mocks(api, monkeypatch)
@@ -319,7 +319,7 @@ def small(tmp_path):
 def legacy_build_context(scene_text, cursor_offset, entities, canon_by_name, style_md, span=None,
                          originals=None, voice_samples=None):
     """build_context as it was before the budget (ai/writing.py): the reference for equivalence."""
-    from lorewrite.core.entities import resolve
+    from chisel.core.entities import resolve
 
     marked = writing._marked_scene(scene_text, cursor_offset, span, originals)
     before, _, after = marked.partition(writing.CURSOR)
@@ -531,9 +531,9 @@ def test_small_project_bridge_returns_the_report_beside_the_existing_fields(smal
 
 
 async def test_tui_notification_carries_the_sent_summary_and_a_too_small_window_refuses(tmp_path, monkeypatch):
-    import lorewrite.tui.app as app_mod
-    from lorewrite.core import settings as user_settings
-    from lorewrite.tui.app import LorewriteApp
+    import chisel.tui.app as app_mod
+    from chisel.core import settings as user_settings
+    from chisel.tui.app import ChiselApp
 
     proj = Project.create(tmp_path / "novel", title="Budget")
     proj.create_entity("Borin")
@@ -546,8 +546,8 @@ async def test_tui_notification_carries_the_sent_summary_and_a_too_small_window_
 
     monkeypatch.setattr(app_mod, "suggest_links", fake_suggest)
     notified: list[str] = []
-    monkeypatch.setattr(LorewriteApp, "notify", lambda self, message, **kw: notified.append(str(message)))
-    app = LorewriteApp(proj)
+    monkeypatch.setattr(ChiselApp, "notify", lambda self, message, **kw: notified.append(str(message)))
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.action_find_aliases()

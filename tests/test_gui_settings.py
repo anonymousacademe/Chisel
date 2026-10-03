@@ -2,8 +2,8 @@
 
 import pytest
 
-from lorewrite.ai.client import DEFAULT_FAST_MODEL, ModelInfo
-from lorewrite.gui import api as api_module
+from chisel.ai.client import DEFAULT_FAST_MODEL, ModelInfo
+from chisel.gui import api as api_module
 from tests.test_gui_api import open_api
 
 
@@ -18,7 +18,7 @@ def fakes(monkeypatch):
     def no_net(*a, **k):
         raise AssertionError("network")
 
-    monkeypatch.setattr("lorewrite.ai.client.make_client", no_net)
+    monkeypatch.setattr("chisel.ai.client.make_client", no_net)
     return store
 
 

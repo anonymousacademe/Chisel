@@ -4,14 +4,14 @@ import json
 import tomllib
 from pathlib import Path
 
-import lorewrite
-from lorewrite import selftest
+import chisel
+from chisel import selftest
 
 
 def test_report_lists_every_check_and_exit_status_follows_it(monkeypatch, capsys):
     monkeypatch.setattr(selftest, "CHECKS", [("fine", lambda: "ok"), ("broken", lambda: 1 / 0)])
     report = selftest.run()
-    assert report["ok"] is False and report["version"] == lorewrite.__version__
+    assert report["ok"] is False and report["version"] == chisel.__version__
     assert [(c["name"], c["ok"]) for c in report["checks"]] == [("fine", True), ("broken", False)]
     assert "ZeroDivisionError" in report["checks"][1]["detail"]
     assert selftest.main() == 1
@@ -29,11 +29,11 @@ def test_the_data_checks_that_need_no_built_ui_pass():
 def test_version_has_a_single_source():
     cfg = tomllib.loads((Path(__file__).parents[1] / "pyproject.toml").read_text(encoding="utf-8"))
     assert "version" in cfg["project"]["dynamic"] and "version" not in cfg["project"]
-    assert cfg["tool"]["setuptools"]["dynamic"]["version"] == {"attr": "lorewrite.__version__"}
+    assert cfg["tool"]["setuptools"]["dynamic"]["version"] == {"attr": "chisel.__version__"}
 
 
 def test_render_check_is_linux_only(monkeypatch):
-    monkeypatch.setenv("LOREWRITE_SELFTEST_RENDER", "1")
+    monkeypatch.setenv("CHISEL_SELFTEST_RENDER", "1")
     monkeypatch.setattr(selftest.sys, "platform", "win32")
     assert selftest._render().startswith("skipped")   # no qtpy off Linux: must not import it
     monkeypatch.setattr(selftest.sys, "platform", "darwin")

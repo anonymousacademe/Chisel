@@ -1,6 +1,6 @@
 // How the UI reaches the Python core. Three transports, picked at startup:
 //   pywebview  window.pywebview.api.<method>(...)   (the real app)
-//   http       POST /api/<method>                   (lorewrite.gui.devserver)
+//   http       POST /api/<method>                   (chisel.gui.devserver)
 //   none       no core available -> the in-memory mock bridge (npm run dev)
 // Every bridge call resolves to {ok: true, ...} or {ok: false, error}; it never throws.
 

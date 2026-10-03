@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from lorewrite.core import drafts
-from lorewrite.core.index import Index
-from lorewrite.core.project import Project
+from chisel.core import drafts
+from chisel.core.index import Index
+from chisel.core.project import Project
 
 EXAMPLE = Path(__file__).resolve().parent.parent / "examples" / "residual"
 
@@ -250,7 +250,7 @@ def test_unplaced_scenes_are_outside_the_book_but_indexed(book: Project):
     # indexed for backlinks even though not in the book
     book.create_entity("Mara", "character")
     moved.write_text("# B\n\nMara waits.\n")
-    idx = Index(book.root / ".lorewrite" / "index.sqlite")
+    idx = Index(book.root / ".chisel" / "index.sqlite")
     idx.rebuild(book)
     ent = book.load_entities()[0]
     assert [b.source for b in idx.backlinks(ent)] == [

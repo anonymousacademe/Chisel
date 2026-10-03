@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from lorewrite.core.recents import add_recent, load_recents, remove_recent
+from chisel.core.recents import add_recent, load_recents, remove_recent
 
 
 def test_add_and_load(tmp_path: Path):
@@ -39,7 +39,7 @@ def test_missing_or_corrupt_file(tmp_path: Path):
 
 
 def test_env_override(tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("LOREWRITE_STATE_DIR", str(tmp_path))
+    monkeypatch.setenv("CHISEL_STATE_DIR", str(tmp_path))
     add_recent(tmp_path / "a", "A")
     assert (tmp_path / "recent.json").is_file()
     assert load_recents()[0].title == "A"

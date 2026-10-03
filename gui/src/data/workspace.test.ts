@@ -7,7 +7,7 @@ import { sceneGroups } from "./reorder";
 import { filterSwitcher, switcherItems } from "./switcher";
 
 // workspace.json is written by the Python side (tests/test_gui_workspace.py
-// compares lorewrite.gui.workspace output against it), so this checks that the
+// compares chisel.gui.workspace output against it), so this checks that the
 // TS types and helpers agree with what Python really produces.
 const ws = fixture as unknown as Workspace;
 

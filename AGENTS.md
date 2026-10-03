@@ -1,16 +1,18 @@
-# AGENTS.md — guide for AI assistants working on lorewrite
+# AGENTS.md — guide for AI assistants working on Chisel
 
-Naming: the app is called **Chisel** wherever a user reads it (UI, README, installers, guide). The package
-`lorewrite`, the commands `lorewrite` / `lorewrite-gui`, state folders, `LOREWRITE_*` variables and the repo
-name `lorewriter` are unchanged on purpose; keep it that way. Packaging files are still named
-`lorewriter.spec` / `lorewriter.iss`; the artifacts they build are `Chisel-*`.
+Naming: the app, the package `chisel` (PyPI distribution `chisel-writer`), the commands `chisel` / `chisel-gui`,
+the state folders, the `CHISEL_*` variables and the repo (`anonymousacademe/Chisel`) are all called Chisel. The
+old LoreWriter names (`lorewrite`, `LOREWRITE_*`, `.lorewrite/`) must appear only in
+`src/chisel/core/migrate.py` / `envvars.py`, their tests, and the rename notes. The packaging files are
+`packaging/chisel.spec` / `chisel.iss`; the desktop executable is `Chisel`, the terminal one `chisel-tui`
+(`chisel.exe` and `Chisel.exe` would be one file on Windows and macOS).
 
 Read this before changing anything. [SPEC.md](SPEC.md) is the source of truth
 for design; this file is the operational guide.
 
 ## Project in one paragraph
 
-lorewrite (shown to users as Chisel) is a fiction-writing app with a terminal front end (Python 3.11+,
+Chisel is a fiction-writing app with a terminal front end (Python 3.11+,
 Textual) and a desktop front end (pywebview + React) over the same core. Scenes
 are plain Markdown files; characters/places are Markdown notes with small YAML
 frontmatter; `[[wiki-links]]` connect them; a SQLite index (a rebuildable
@@ -22,7 +24,7 @@ and are **suggest-and-confirm only — AI never edits prose unprompted**.
 ```
 SPEC.md                 # master design doc — update it when design changes
 README.md               # user-facing intro
-src/lorewrite/
+src/chisel/
   core/                 # pure Python, no Textual — fully unit-testable
     links.py            # [[link]] parsing, plain-name mentions, offset<->rowcol
     entities.py         # entity notes: frontmatter, aliases, resolve, add_alias
@@ -35,10 +37,11 @@ src/lorewrite/
     continuity.py       # continuity flags/waivers shared by both front ends
     spans.py            # UTF-16 <-> code point offsets for the GUI bridge
     index.py            # SQLite backlink index; no-ops after close()
-    recents.py          # recent projects; state dir = platformdirs (Linux ~/.local/state/lorewrite); LOREWRITE_STATE_DIR env override
-    soundpacks.py       # typing-sound packs + ambience loops in the user DATA dir (LOREWRITE_DATA_DIR in tests); zip import/export validation
+    recents.py          # recent projects; state dir = platformdirs (Linux ~/.local/state/chisel); CHISEL_STATE_DIR env override (via envvars.get_env)
+    soundpacks.py       # typing-sound packs + ambience loops in the user DATA dir (CHISEL_DATA_DIR in tests); zip import/export validation
     atmosphere.py       # sound prefs + radio stations in user settings (http(s) only)
     desktop.py          # open_path: os.startfile / open / xdg-open (only on a click)
+    migrate.py          # one-time migration from the old lorewrite names (state/data dirs, keyring, .lorewrite/ -> .chisel/); envvars.py: get_env with the deprecated LOREWRITE_* aliases
     fsutil.py           # replace/rename with a short retry (Windows PermissionError); use instead of Path.replace
     settings.py         # user settings (tour_seen, ...)
     style.py            # style.md (project root): load/save/backup, manuscript sampling
@@ -72,15 +75,15 @@ src/lorewrite/
     aijobs.py           # AI jobs for ai_start / ai_poll / ai_cancel (Stop)
     mockai.py           # canned AI for screenshots/demos (never the real app)
     inspiration.py      # bridge helpers for the pictures (rows, data URLs, save batch, upload: save_upload; byte sniffing is core/inspiration.sniff_ext)
-    app.py              # lorewrite-gui: pywebview window
+    app.py              # chisel-gui: pywebview window
     webroot.py          # finds the built UI: package web/ first, then repo gui/dist
     exports.py          # export worker-thread jobs (export_start / export_status)
   tui/                  # everything Textual
-    app.py              # LorewriteApp: layout, save, status, actions, AI wiring
+    app.py              # ChiselApp: layout, save, status, actions, AI wiring
     editor.py           # LinkedTextArea — see "fragile spots" below
     sidebar.py panels.py launch.py commands.py linkreview.py (alias review)
     structurescreens.py (part picker, Trash, scene details form)
-    inspirationmixin.py inspirationscreens.py (inspiration images: LorewriteApp mixin + modals)
+    inspirationmixin.py inspirationscreens.py (inspiration images: ChiselApp mixin + modals)
     spellscreen.py (f6 fix window)
     stylereview.py promptscreen.py tour.py theme.py
     exportscreen.py (Export manuscript form)
@@ -88,8 +91,8 @@ gui/                    # React/TS front end (see gui/README.md); src-tauri/ is 
   src/components/SentReport.tsx   # the "What was sent" disclosure (data/sent.ts)
   src/data/subject.ts             # the "About:" chip: subjectOf + the subject_id payload
   src/data/storyTime.ts           # story-time display helpers (parsing stays in Python)
-packaging/              # PyInstaller spec, build.py, Inno Setup script (see docs/dev/packaging.md); the files
-                        #   are still named lorewriter.spec / lorewriter.iss, their output is Chisel-*
+packaging/              # PyInstaller spec, build.py, Inno Setup script (see docs/dev/packaging.md); chisel.spec /
+                        #   chisel.iss (renamed from lorewriter.*), their output is Chisel-*
 CHANGELOG.md            # user-facing changes; add a line under Unreleased with every user-visible change
 .github/workflows/      # ci.yml (tests), release.yml (installers, draft release on a v* tag)
 tests/                  # pytest; asyncio_mode=auto; Pilot for TUI tests
@@ -107,7 +110,7 @@ requirements*.txt       # run / dev dependencies for a source checkout (pyprojec
 ```bash
 .venv/bin/pip install -e ".[dev]"   # after pulling
 .venv/bin/python -m pytest          # full suite (must stay green)
-.venv/bin/lorewrite                 # run the app
+.venv/bin/chisel                 # run the app
 ```
 
 Desktop GUI (plan: docs/dev/plan-gui.md, spec: SPEC "Desktop GUI"):
@@ -115,8 +118,8 @@ Desktop GUI (plan: docs/dev/plan-gui.md, spec: SPEC "Desktop GUI"):
 ```bash
 python3 -m venv --system-site-packages .venv-gui && .venv-gui/bin/pip install -e ".[dev,gui]"
 (cd gui && npm install && npm run build && npm run lint && npm test)
-.venv-gui/bin/lorewrite-gui [--project PATH]
-PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project COPY --mock-ai   # headless
+.venv-gui/bin/chisel-gui [--project PATH]
+PYTHONPATH=src .venv-gui/bin/python -m chisel.gui.devserver --project COPY --mock-ai   # headless
 ```
 
 CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.11 and 3.13, plus a Node job
@@ -137,6 +140,12 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   is wrapped in try/except with a plain-TextArea fallback.
   `tests/test_tui.py::test_link_highlighting_styles` locks the behavior — if it
   fails after a Textual upgrade, the internals moved.
+- **Migration from the LoreWriter names is non-destructive** (`core/migrate.py`): the old `lorewrite`
+  state/data folders are *copied* once (never moved or deleted, never over an existing `chisel` folder, skipped
+  when an env override is set), the keyring key is read from the old service and copied, and a project's
+  `.lorewrite/` is renamed to `.chisel/` in `Project.open`, falling back to a fresh `.chisel/` if the rename
+  fails. Every step is wrapped so it cannot block start-up. Tests use the `fake_keyring` fixture from
+  `tests/conftest.py`; never touch the real keyring or the real user folders from a test.
 - **Never name a method `_render` on a Widget** — it shadows Textual's
   internal `Widget._render()` and crashes rendering (bit us in the sidebar;
   the filter helper is `_render_lists`).
@@ -202,7 +211,7 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   (`Api._doc_kind`) but are **never indexed** (`_index_file`, TUI `_write_to_disk` skip them), never
   spell-checked, and not scenes (`is_scene_path` is false). The Ask-my-notebook question is
   `ai.writing.research_context` + `research_answer` (shared by `gui/api.py` and `tui/app.py`; mock it
-  in `gui/mockai.py` and `lorewrite.tui.app.research_answer`). It must refuse with no AI call when
+  in `gui/mockai.py` and `chisel.tui.app.research_answer`). It must refuse with no AI call when
   there are no notes. The palette has a `Notebook ·` category (like `Scene ·`).
 - **Inspiration images** (`core/inspiration.py`, `ai/images.py`; SPEC "Inspiration images") are
   reference only: never in the prose, never indexed, counted, spell-checked or sent to an AI. They
@@ -228,12 +237,12 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   sidecar as `<item>.<ext>`) - code that lists, restores or empties the Trash handles three kinds
   now. `image` is a fourth model role (`resolve_model("image")`); the picker lists only
   `output_modalities` containing `image`. Never send `provider.require_parameters` or a JSON schema
-  to an image model. The TUI app calls `lorewrite.tui.app.generate_image` /
-  `suggest_image_prompt` and the GUI `lorewrite.gui.api.generate_images` / `suggest_image_prompt`
+  to an image model. The TUI app calls `chisel.tui.app.generate_image` /
+  `suggest_image_prompt` and the GUI `chisel.gui.api.generate_images` / `suggest_image_prompt`
   (mock those names; `gui/mockai.py` returns a generated PNG, and the signature test lists them).
   the desktop opener (`core/desktop.open_path`: startfile / open / xdg-open) runs only when the author chooses (`inspiration.open_path`; tests stub
-  `LorewriteApp.open_external`). Method names on `InspirationMixin` must not collide with
-  `LorewriteApp`'s (`_generate_worker` already exists - the mixin's are `_inspiration_*`).
+  `ChiselApp.open_external`). Method names on `InspirationMixin` must not collide with
+  `ChiselApp`'s (`_generate_worker` already exists - the mixin's are `_inspiration_*`).
 - **Chats and attachments** (`core/chats.py`, `core/attach.py`). The open item is the chat's
   **subject**: `ask`, `brainstorm` and `describe_scene` take an optional `subject_id` (any document id) and
   `Api._subject_context` / `_chat_context` append `SUBJECT (character|place|object|notebook note): name` + the
@@ -247,9 +256,9 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   cross the bridge: `chats._path` and `attach._path` are the only doors, keep them. Comments reach
   an AI **only** through an explicit attachment. Attachments are capped and every trim/skip is in
   the `attached` report the UI shows - do not add a silent cap. The terminal chat window
-  (`tui/assistantscreen.py`) has no attach in v1; its AI calls are `lorewrite.tui.app.ask_writer` /
-  `research_answer` (mock those names). Brainstorm is `lorewrite.tui.app.brainstorm_ideas` (terminal) and
-  `lorewrite.gui.api.brainstorm_writer` (GUI; `gui/mockai.py` fakes it, and the signature test in
+  (`tui/assistantscreen.py`) has no attach in v1; its AI calls are `chisel.tui.app.ask_writer` /
+  `research_answer` (mock those names). Brainstorm is `chisel.tui.app.brainstorm_ideas` (terminal) and
+  `chisel.gui.api.brainstorm_writer` (GUI; `gui/mockai.py` fakes it, and the signature test in
   `tests/test_gui_shell.py` lists it); a brainstorm reply is a chat message carrying `ideas`.
 - **Context budget** (`ai/budget.py`, `ai/relevance.py`; SPEC "Context budget and the sent report"). Every
   AI context is a list of `budget.Section`s run through `fit()` (or `writing.fit_context`, which also
@@ -268,19 +277,19 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   (`client.cached_context_length`, never a new request), else 32k. Token counts are estimates (chars / 4).
   Continuity, canon and alias requests send only the entities the scene is about (`relevance.rank`) once the
   project has `relevance.ALL_MAX` (40) entities; below that, everything, exactly as before. The terminal app
-  appends `SentReport.summary()` to each AI notification (`LorewriteApp._cost_note(calls, sent)`). The fixed
+  appends `SentReport.summary()` to each AI notification (`ChiselApp._cost_note(calls, sent)`). The fixed
   caps of `describe_scene` (small, no budget) and the chat history (last 6 turns, 1500 characters each) are not
   in the report yet.
 - **AI jobs and Stop** (`ai/stream.py`, `gui/aijobs.py`, `tui/aimixin.py`). Streaming text calls take
   `on_delta=` / `cancel=` (a `CancelToken`) and raise `Cancelled` when stopped; a stopped call must never
   insert, save or register anything - in the GUI the sync bridge methods run unchanged inside a job
   (`Api._stream` routes deltas; `aijobs.checkpoint()` before any write that follows a slow call), in the TUI
-  every AI call goes through `LorewriteApp._ai_call` and the worker catches `Cancelled` and returns.
+  every AI call goes through `ChiselApp._ai_call` and the worker catches `Cancelled` and returns.
   A stopped non-streaming request is only abandoned: it may still finish server-side and its cost is still
   recorded (the connection is not closed). New AI function in `ai/`: add the kwargs (or `call_ai` filters them), mock it with them in `gui/mockai.py`.
   `ctrl+x` is a priority App binding gated by `check_action` (it is cut when no job runs).
 - **Writing stats** (`core/stats.py`) are personal: `<state dir>/stats/<project-id>.json`, never in the
-  project folder, and they MUST honour `LOREWRITE_STATE_DIR` (tests/screenshots point it at a temp dir).
+  project folder, and they MUST honour `CHISEL_STATE_DIR` (tests/screenshots point it at a temp dir).
   Both front ends call `Tracker.seen(key, words)` when a scene is opened or replaced wholesale (snapshot
   restore!) and `record(key, words)` on save; anything that rewrites a scene's prose behind the editor's
   back must `seen` it or the difference is counted as writing. Accepting an AI draft calls `accepted`
@@ -302,10 +311,10 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   The manuscript layout's line numbers assume the 24 pt grid (no paragraph spacing). pandoc input is
   escaped (`markdown.py`) and read with raw HTML/TeX off. Output names come from `run_export` and are
   never overwritten; the UI opens files only through `resolve_export` + `open_in_desktop` and only
-  on a click. Tests mock `lorewrite.core.export.open_in_desktop`.
+  on a click. Tests mock `chisel.core.export.open_in_desktop`.
 - **Rename everywhere** (`core/rename.py`; SPEC "Rename a character everywhere"). `plan_rename` never writes;
   `apply_rename` takes only the ticked ids, refuses files changed since the preview, snapshots each scene
-  (`before-rename`) before any write and keeps an undo journal in `.lorewrite/rename-undo/`. Pending AI draft
+  (`before-rename`) before any write and keeps an undo journal in `.chisel/rename-undo/`. Pending AI draft
   bodies are `in_draft` and unticked by default; never rewrite markers or sidecars. Anything new that
   renames or moves notes/scenes must keep going through `Structure._apply_renames`; this module only
   rewrites text and the note's own file. GUI/TUI callers flush the open buffer first and reopen it after
@@ -407,26 +416,26 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   chain); the hook returns false and swallows every error. Audio starts only from a gesture and the app starts
   silent: never autoplay, never contact a station before the author picks it. Pack/loop names cross the
   bridge: go through `soundpacks._plain` / `_inside`; zip import is all-or-nothing. Tests set
-  `LOREWRITE_DATA_DIR` (conftest does).
+  `CHISEL_DATA_DIR` (conftest does).
 - **Placeholders** use `components/placeholder.ts` only. Do not invent a second
   treatment, and do not show fake data in them.
 - **Dev-only fakes**: `mockai.py` and `backend/mock.ts` must never be reachable in
   the real app; tests booby-trap `make_client`. Screenshots/interaction tests run
   headless Chromium against `devserver` on a *copy* of `examples/residual` with
-  `LOREWRITE_STATE_DIR` pointed at a temp dir and the keyring backend nulled.
+  `CHISEL_STATE_DIR` pointed at a temp dir and the keyring backend nulled.
 - Key map differences from the TUI: `ctrl+j` in the GUI editor opens/makes a note
   (elsewhere it focuses the composer, as designed); `ctrl+k` quick switcher; `f11`
   focus mode.
 
 - **Packaging** (`packaging/`, docs/dev/packaging.md). The bundles are built by PyInstaller; anything that
   loads a data file by path or a module by name (export layouts, fonts, dictionaries, UI) must keep working
-  frozen: put new data in `lorewrite/` package folders, add it to `packaging/lorewriter.spec` and, if it
-  can break silently, to `src/lorewrite/selftest.py` (no window, no network). Do not add imports of
+  frozen: put new data in `chisel/` package folders, add it to `packaging/chisel.spec` and, if it
+  can break silently, to `src/chisel/selftest.py` (no window, no network). Do not add imports of
   `webview` / Textual at module level of `selftest.py`.
 
 ## Testing conventions
 
-- `tests/conftest.py` isolates app state per test via `LOREWRITE_STATE_DIR`
+- `tests/conftest.py` isolates app state per test via `CHISEL_STATE_DIR`
   and pre-marks the tour as seen. New user-state features must honor the env
   override.
 - TUI tests use `app.run_test(size=(120, 40))` + `pilot`; call
@@ -434,13 +443,13 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
 - Context-size tests (`tests/test_budget*.py`) build a 400-entity / 200-scene project in `tmp_path`; small-project
   equivalence tests keep a copy of the pre-budget builders as the reference - if one fails, the text a short
   project sends changed.
-- Mock AI at the function boundary: monkeypatch `lorewrite.tui.app.<ai_fn>`
-  (see `tests/test_ai_links.py`) or, for the GUI, `lorewrite.gui.api.<fn>`
+- Mock AI at the function boundary: monkeypatch `chisel.tui.app.<ai_fn>`
+  (see `tests/test_ai_links.py`) or, for the GUI, `chisel.gui.api.<fn>`
   (see `tests/test_gui_ai.py`). Never hit the network in tests.
 - GUI: `tests/test_gui_*.py` + `tests/test_spans.py` (plain pytest, temp projects via
   `tests/gui_helpers.py`); `gui/src/**/*.test.ts` (vitest). The workspace JSON
   fixture `gui/src/data/fixtures/workspace.json` is regenerated with
-  `LOREWRITE_REGEN_FIXTURE=1 pytest tests/test_gui_workspace.py`.
+  `CHISEL_REGEN_FIXTURE=1 pytest tests/test_gui_workspace.py`.
 
 ## Workflow requirements
 
@@ -464,14 +473,14 @@ item and picture upload, *Parked scenes* (desktop name of the Unplaced folder), 
 Windows window-icon fix. The previous release was 0.3.1.
 
 **Icons and the logo** (artwork supplied by the project author; vector and PNG sources in `docs/brand/`, see
-its README). The rule: the desktop window icon is `src/lorewrite/gui/icon.ico` on Windows (pywebview's WinForms
-backend only accepts an `.ico`) and `src/lorewrite/gui/icon.png` everywhere else (`gui/app.py` picks by
+its README). The rule: the desktop window icon is `src/chisel/gui/icon.ico` on Windows (pywebview's WinForms
+backend only accepts an `.ico`) and `src/chisel/gui/icon.png` everywhere else (`gui/app.py` picks by
 `sys.platform`; both are package data in `pyproject.toml`; `tests/test_packaging_files.py` checks it). The
 installers and bundles use `gui/src-tauri/icons/icon.ico` (Windows), `icon.icns` (macOS) and `icon.png`
 (Linux) plus the sized PNGs beside them. The in-app logo (rail, launch screen) is `gui/src/assets/logo.svg`
 (the `Logo` component; `gui/public/logo.svg` and `favicon.png` are copies). `gui/scripts/make-icons.sh`
 regenerates the PNGs, `.ico` and `.icns` from `gui/src/assets/logo.svg`; it does not write
-`src/lorewrite/gui/icon.ico`, so copy `gui/src-tauri/icons/icon.ico` over it after running it.
+`src/chisel/gui/icon.ico`, so copy `gui/src-tauri/icons/icon.ico` over it after running it.
 
 Done before that: M1 (editor + links), M1.5 (UX polish), M2 (alias finder), M3 (continuity + Contextual
 Tracker), settings, bracket-free implicit mentions (SPEC §5), AI spend tracking, **M4** (style guide,

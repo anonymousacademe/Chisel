@@ -5,11 +5,11 @@ from pathlib import Path
 import pytest
 from textual.widgets.text_area import Selection
 
-from lorewrite.core import settings as user_settings
-from lorewrite.core import spelling
-from lorewrite.core.project import Project
-from lorewrite.tui.app import LorewriteApp
-from lorewrite.tui.spellscreen import SpellScreen
+from chisel.core import settings as user_settings
+from chisel.core import spelling
+from chisel.core.project import Project
+from chisel.tui.app import ChiselApp
+from chisel.tui.spellscreen import SpellScreen
 
 SCENE = "# Docks\n\nHe would recieve Zorblax at the dock.\n\nA second pragraph.\n"
 
@@ -22,7 +22,7 @@ def project(tmp_path: Path) -> Project:
     return proj
 
 
-def underlined(app: LorewriteApp, row: int) -> str:
+def underlined(app: ChiselApp, row: int) -> str:
     strip = app.editor.render_line(row)
     return "".join(seg.text for seg in strip
                    if seg.style and seg.style.underline
@@ -39,7 +39,7 @@ async def wait_until(pilot, check, tries: int = 50) -> bool:
 
 
 async def test_misspelling_is_underlined_and_toggle_removes_it(project):
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.refresh_spelling()
@@ -55,7 +55,7 @@ async def test_misspelling_is_underlined_and_toggle_removes_it(project):
 
 
 async def test_debounced_check_runs_on_open_and_after_edit(project):
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause(0.9)
         await app.workers.wait_for_complete()
@@ -70,7 +70,7 @@ async def test_debounced_check_runs_on_open_and_after_edit(project):
 
 
 async def test_only_scenes_are_checked(project):
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_project_dictionary()
@@ -83,7 +83,7 @@ async def test_only_scenes_are_checked(project):
 
 
 async def test_f6_replace(project):
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.editor.move_cursor((0, 0))
@@ -96,7 +96,7 @@ async def test_f6_replace(project):
 
 
 async def test_f6_add_project_personal_and_ignore(project):
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.editor.move_cursor((0, 0))
@@ -127,7 +127,7 @@ async def test_f6_add_project_personal_and_ignore(project):
 
 
 async def test_f6_esc_cancels_and_wraps(project):
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.editor.move_cursor((4, 20))  # past the last misspelling
@@ -141,7 +141,7 @@ async def test_f6_esc_cancels_and_wraps(project):
 
 
 async def test_add_selection_as_phrase(project):
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.editor.load_text("The maglev spur ran.\n")
@@ -160,8 +160,8 @@ async def test_add_selection_as_phrase(project):
 
 
 async def test_settings_checkbox_persists(project):
-    from lorewrite.tui.settingscreen import SettingsScreen
-    app = LorewriteApp(project)
+    from chisel.tui.settingscreen import SettingsScreen
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_settings()
@@ -176,7 +176,7 @@ async def test_settings_checkbox_persists(project):
 
 
 async def test_teardown_with_pending_spell_check(project):
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.editor.move_cursor((4, 0))
@@ -189,7 +189,7 @@ async def test_large_scene_applies_quickly(project):
     para = "The quick brown fox recieve the lazy dog near Kessler's noodle-stall.\n\n"
     text = "# Big\n\n" + para * 4000  # ~50k words, 4000 misspellings
     (project.manuscript_dir / "01-docks.md").write_text(text, encoding="utf-8")
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         found = spelling.check(app.editor.text, app._accepted())

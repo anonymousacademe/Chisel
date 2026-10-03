@@ -19,6 +19,6 @@ mark where it sits next to text or on a surface that already has its own colour.
   (`gui/public/logo.svg` and `favicon.png` are copies for the page).
 - `gui/src-tauri/icons/` holds the sized PNGs, `icon.ico` and `icon.icns` that the installers and bundles use.
   `gui/scripts/make-icons.sh` regenerates them from `gui/src/assets/logo.svg`.
-- `src/lorewrite/gui/icon.ico` (Windows) and `icon.png` (macOS and Linux) are the desktop window's icon.
+- `src/chisel/gui/icon.ico` (Windows) and `icon.png` (macOS and Linux) are the desktop window's icon.
 
 The details and the reason for the two window icons are in [../dev/packaging.md](../dev/packaging.md#icons).

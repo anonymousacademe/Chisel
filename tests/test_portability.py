@@ -5,20 +5,20 @@ from pathlib import Path
 
 import pytest
 
-from lorewrite.core import fsutil, recents
-from lorewrite.core.project import Project, write_atomic
+from chisel.core import fsutil, recents
+from chisel.core.project import Project, write_atomic
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="the Linux state dir")
 def test_linux_state_dir_is_unchanged(monkeypatch, tmp_path):
-    monkeypatch.delenv("LOREWRITE_STATE_DIR", raising=False)
+    monkeypatch.delenv("CHISEL_STATE_DIR", raising=False)
     monkeypatch.delenv("XDG_STATE_HOME", raising=False)
     monkeypatch.setenv("HOME", str(tmp_path))
-    assert recents.default_state_dir() == tmp_path / ".local/state/lorewrite"
+    assert recents.default_state_dir() == tmp_path / ".local/state/chisel"
 
 
 def test_state_dir_override_wins(monkeypatch, tmp_path):
-    monkeypatch.setenv("LOREWRITE_STATE_DIR", str(tmp_path / "s"))
+    monkeypatch.setenv("CHISEL_STATE_DIR", str(tmp_path / "s"))
     assert recents.default_state_dir() == tmp_path / "s"
 
 
@@ -75,7 +75,7 @@ def test_saves_write_lf_even_when_the_platform_would_not(monkeypatch, tmp_path):
 def test_every_write_text_in_src_pins_the_newline():
     import ast
 
-    root = Path(__file__).resolve().parents[1] / "src" / "lorewrite"
+    root = Path(__file__).resolve().parents[1] / "src" / "chisel"
     bad = []
     for path in root.rglob("*.py"):
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):

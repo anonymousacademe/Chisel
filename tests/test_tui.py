@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 from textual.widgets import ListView, Markdown
 
-from lorewrite.core.project import Project
-from lorewrite.tui.app import LorewriteApp
+from chisel.core.project import Project
+from chisel.tui.app import ChiselApp
 
 
 @pytest.fixture
@@ -19,7 +19,7 @@ def project(tmp_path: Path) -> Project:
 
 
 async def test_app_mounts_and_lists_project(project: Project):
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         scenes = app.query_one("#scenes", ListView)
@@ -31,7 +31,7 @@ async def test_app_mounts_and_lists_project(project: Project):
 
 
 async def test_jump_to_existing_entity(project: Project):
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(project.manuscript_dir / "02-tavern.md")
@@ -46,7 +46,7 @@ async def test_jump_to_existing_entity(project: Project):
 
 
 async def test_jump_to_unresolved_link_creates_entity(project: Project):
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         # cursor inside [[New Character]] in the sample scene (line 3)
@@ -63,7 +63,7 @@ async def test_jump_to_unresolved_link_creates_entity(project: Project):
 
 
 async def test_autosave_and_backlinks(project: Project):
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(project.manuscript_dir / "02-tavern.md")
@@ -88,7 +88,7 @@ async def test_link_highlighting_styles(project: Project):
     this should fail loudly rather than silently lose highlighting.
     Works with any active theme by comparing against the editor's style.
     """
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(project.manuscript_dir / "02-tavern.md")
@@ -104,7 +104,7 @@ async def test_link_highlighting_styles(project: Project):
 
 
 async def test_ctrl_s_saves_and_status_bar(project: Project):
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(project.manuscript_dir / "02-tavern.md")
@@ -125,7 +125,7 @@ async def test_ctrl_s_saves_and_status_bar(project: Project):
 
 async def test_teardown_with_pending_autosave_does_not_crash(project: Project):
     """Regression: autosave timer fired during teardown raised NoMatches."""
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(project.manuscript_dir / "02-tavern.md")
@@ -136,7 +136,7 @@ async def test_teardown_with_pending_autosave_does_not_crash(project: Project):
 
 
 async def test_status_bar_link_hint(project: Project):
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(project.manuscript_dir / "02-tavern.md")
@@ -156,7 +156,7 @@ async def test_select_name_and_ctrl_j_creates_note_then_mentions_resolve(tmp_pat
     scene.write_text("# Road\n\nBorin drank.\n", encoding="utf-8")
     earlier = proj.manuscript_dir / "03-inn.md"
     earlier.write_text("# Inn\n\nLater, Borin slept.\n", encoding="utf-8")
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -187,7 +187,7 @@ async def test_mentions_colored_and_brackets_faded(project: Project):
     scene = project.manuscript_dir / "02-tavern.md"
     scene.write_text("# The Tavern\n\nElara Vance sat. [[Elara Vance]] rose.\n",
                      encoding="utf-8")
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -206,7 +206,7 @@ async def test_mentions_colored_and_brackets_faded(project: Project):
 
 
 async def test_entity_notes_do_not_highlight_plain_names(project: Project):
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         note = project.entities_dir / "characters" / "elara-vance.md"

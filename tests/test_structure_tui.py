@@ -4,11 +4,11 @@ from pathlib import Path
 
 from textual.widgets import Button, Input, ListView
 
-from lorewrite.core import scenemeta
-from lorewrite.core.project import Project
-from lorewrite.tui.app import LorewriteApp
-from lorewrite.tui.commands import ActionProvider, SceneProvider
-from lorewrite.tui.structurescreens import ChoiceScreen, DetailsScreen, TrashScreen
+from chisel.core import scenemeta
+from chisel.core.project import Project
+from chisel.tui.app import ChiselApp
+from chisel.tui.commands import ActionProvider, SceneProvider
+from chisel.tui.structurescreens import ChoiceScreen, DetailsScreen, TrashScreen
 
 
 def _mk(path: Path, title: str, body: str = "Prose here.") -> Path:
@@ -34,7 +34,7 @@ def _labels(app) -> list[str]:
 
 
 async def test_sidebar_groups_scenes_under_part_headers(tmp_path: Path):
-    app = LorewriteApp(_book(tmp_path))
+    app = ChiselApp(_book(tmp_path))
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         assert _labels(app) == [
@@ -58,7 +58,7 @@ async def test_sidebar_groups_scenes_under_part_headers(tmp_path: Path):
 async def test_flat_projects_look_exactly_as_before(tmp_path: Path):
     p = Project.create(tmp_path / "flat", "Flat")
     (p.manuscript_dir / "02-second.md").write_text("# Second\n\nTwo.\n")
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         assert _labels(app) == ["Opening", "Second"]
@@ -66,7 +66,7 @@ async def test_flat_projects_look_exactly_as_before(tmp_path: Path):
 
 async def test_new_scene_lands_in_the_open_scenes_part(tmp_path: Path):
     p = _book(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(p.manuscript_dir / "02-ghost-frequency" / "01-c.md")
@@ -80,7 +80,7 @@ async def test_new_scene_lands_in_the_open_scenes_part(tmp_path: Path):
 
 async def test_new_part_and_move_scene_to_it_and_unplace(tmp_path: Path):
     p = _book(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.new_part_prompt()
@@ -108,7 +108,7 @@ async def test_new_part_and_move_scene_to_it_and_unplace(tmp_path: Path):
 
 async def test_delete_goes_to_trash_and_restores(tmp_path: Path):
     p = _book(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         target = p.manuscript_dir / "01-the-recall" / "02-b.md"
@@ -133,7 +133,7 @@ async def test_delete_goes_to_trash_and_restores(tmp_path: Path):
 async def test_trash_delete_forever_asks_first(tmp_path: Path):
     p = _book(tmp_path)
     p.delete_scene(p.manuscript_dir / "01-the-recall" / "01-a.md")
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_trash()
@@ -154,7 +154,7 @@ async def test_trash_delete_forever_asks_first(tmp_path: Path):
 async def test_edit_details_writes_frontmatter_and_fades_it(tmp_path: Path):
     p = _book(tmp_path)
     p.create_entity("Mara Vale", "character")
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         scene = p.manuscript_dir / "01-the-recall" / "01-a.md"
@@ -187,7 +187,7 @@ async def test_edit_details_writes_frontmatter_and_fades_it(tmp_path: Path):
 
 async def test_details_rejects_a_non_numeric_target(tmp_path: Path):
     p = _book(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(p.manuscript_dir / "01-the-recall" / "01-a.md")
@@ -202,7 +202,7 @@ async def test_details_rejects_a_non_numeric_target(tmp_path: Path):
 
 async def test_move_part_keeps_the_open_scene_open(tmp_path: Path):
     p = _book(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(p.manuscript_dir / "01-the-recall" / "01-a.md")
@@ -221,7 +221,7 @@ async def test_move_part_keeps_the_open_scene_open(tmp_path: Path):
 async def test_delete_empty_part_asks_which_part_with_a_part_scene_open(tmp_path: Path):
     p = _book(tmp_path)
     empty = p.new_part("Epilogue")
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(p.manuscript_dir / "01-the-recall" / "01-a.md")
@@ -242,7 +242,7 @@ async def test_delete_empty_part_asks_which_part_with_a_part_scene_open(tmp_path
 async def test_chapter_unit_changes_palette_words_only(tmp_path: Path):
     p = _book(tmp_path)
     p.update_manuscript_settings(unit="chapter")
-    app = LorewriteApp(Project.open(p.root))
+    app = ChiselApp(Project.open(p.root))
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         scene_hits = [str(h.display) async for h in SceneProvider(app.screen).discover()]
@@ -254,7 +254,7 @@ async def test_chapter_unit_changes_palette_words_only(tmp_path: Path):
 
 async def test_unit_switch_label_names_the_switch(tmp_path: Path):
     p = _book(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         hits = [str(h.display) async for h in ActionProvider(app.screen).discover()]
@@ -268,7 +268,7 @@ async def test_unit_switch_label_names_the_switch(tmp_path: Path):
 
 async def test_details_form_sets_and_clears_story_time(tmp_path: Path):
     p = _book(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         scene = p.manuscript_dir / "01-the-recall" / "01-a.md"

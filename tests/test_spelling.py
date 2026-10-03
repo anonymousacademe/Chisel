@@ -2,8 +2,8 @@ import time
 
 import pytest
 
-from lorewrite.core import spelling as sp
-from lorewrite.core.project import Project
+from chisel.core import spelling as sp
+from chisel.core.project import Project
 from tests.gui_helpers import make_project
 
 
@@ -114,7 +114,7 @@ def test_session_ignores_and_dictionaries(tmp_path):
 
 
 def test_personal_dictionary_honours_state_dir(tmp_path, monkeypatch):
-    monkeypatch.setenv("LOREWRITE_STATE_DIR", str(tmp_path / "elsewhere"))
+    monkeypatch.setenv("CHISEL_STATE_DIR", str(tmp_path / "elsewhere"))
     assert sp.personal_dictionary_path() == tmp_path / "elsewhere" / "dictionary.txt"
 
 

@@ -2,12 +2,12 @@
 
 from pathlib import Path
 
-import lorewrite.ai.continuity as ai_cont
-from lorewrite.core.continuity import Contradiction, get_canon, load_waivers
-from lorewrite.core.project import Project
-from lorewrite.tui.app import LorewriteApp
-from lorewrite.tui.continuityscreen import ContinuityScreen
-from lorewrite.tui.noteupdates import NoteUpdateScreen
+import chisel.ai.continuity as ai_cont
+from chisel.core.continuity import Contradiction, get_canon, load_waivers
+from chisel.core.project import Project
+from chisel.tui.app import ChiselApp
+from chisel.tui.continuityscreen import ContinuityScreen
+from chisel.tui.noteupdates import NoteUpdateScreen
 
 
 def _project(tmp_path: Path) -> Project:
@@ -36,7 +36,7 @@ async def test_check_continuity_flow_waive_and_jump(tmp_path: Path, monkeypatch)
         lambda text, entities, canon, model, client=None: [_fake_contradiction()],
     )
     proj = _project(tmp_path)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(proj.manuscript_dir / "02-tavern.md")
@@ -63,11 +63,11 @@ async def test_check_continuity_none_found(tmp_path: Path, monkeypatch):
     )
     notified: list[str] = []
     monkeypatch.setattr(
-        LorewriteApp, "notify",
+        ChiselApp, "notify",
         lambda self, message, **kwargs: notified.append(str(message)),
     )
     proj = _project(tmp_path)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.action_check_continuity()
@@ -83,11 +83,11 @@ async def test_check_continuity_failure_notifies(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(ai_cont, "check_scene", boom)
     notified: list[str] = []
     monkeypatch.setattr(
-        LorewriteApp, "notify",
+        ChiselApp, "notify",
         lambda self, message, **kwargs: notified.append(str(message)),
     )
     proj = _project(tmp_path)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.action_check_continuity()
@@ -106,7 +106,7 @@ async def test_update_bible_flow(tmp_path: Path, monkeypatch):
         lambda text, entities, model, client=None: [_update("Green eyes")],
     )
     proj = _project(tmp_path)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(proj.manuscript_dir / "02-tavern.md")
@@ -126,7 +126,7 @@ async def test_second_bible_update_keeps_first_facts(tmp_path: Path, monkeypatch
         lambda text, entities, model, client=None: replies.pop(0),
     )
     proj = _project(tmp_path)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(proj.manuscript_dir / "02-tavern.md")
@@ -149,7 +149,7 @@ async def test_bible_review_shows_long_facts_untruncated_and_toggles(
             _update(long_fact, "Short fact", existing="- Old fact one")],
     )
     proj = _project(tmp_path)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(proj.manuscript_dir / "02-tavern.md")
@@ -183,7 +183,7 @@ async def test_bible_review_cancel_writes_nothing(tmp_path: Path, monkeypatch):
     proj = _project(tmp_path)
     note_path = proj.entities_dir / "characters" / "elara-vance.md"
     before = note_path.read_text()
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(proj.manuscript_dir / "02-tavern.md")
@@ -195,7 +195,7 @@ async def test_bible_review_cancel_writes_nothing(tmp_path: Path, monkeypatch):
 
 
 async def test_update_bible_strips_pending_drafts(tmp_path: Path, monkeypatch):
-    from lorewrite.core import drafts
+    from chisel.core import drafts
 
     seen = {}
 
@@ -207,7 +207,7 @@ async def test_update_bible_strips_pending_drafts(tmp_path: Path, monkeypatch):
     proj = _project(tmp_path)
     scene = proj.manuscript_dir / "02-tavern.md"
     scene.write_text("# T\n\nElara sat. " + drafts.wrap("GHOST FACT") + "\n")
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -217,7 +217,7 @@ async def test_update_bible_strips_pending_drafts(tmp_path: Path, monkeypatch):
 
 
 async def test_restore_waived_clears_only_this_scenes_waivers(tmp_path: Path, monkeypatch):
-    from lorewrite.core.continuity import save_waiver
+    from chisel.core.continuity import save_waiver
 
     proj = _project(tmp_path)
     other = proj.manuscript_dir / "03-other.md"
@@ -228,9 +228,9 @@ async def test_restore_waived_clears_only_this_scenes_waivers(tmp_path: Path, mo
     save_waiver(proj.root, "cccc", "manuscript/03-other.md")
     save_waiver(proj.root, "legacy")           # no scene recorded
     notified: list[str] = []
-    monkeypatch.setattr(LorewriteApp, "notify",
+    monkeypatch.setattr(ChiselApp, "notify",
                         lambda self, message, **kw: notified.append(str(message)))
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -247,7 +247,7 @@ async def test_waive_via_report_records_scene_then_restore_reports_again(
         lambda text, entities, canon, model, client=None: [_fake_contradiction()],
     )
     proj = _project(tmp_path)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(proj.manuscript_dir / "02-tavern.md")
@@ -270,10 +270,10 @@ async def test_waive_via_report_records_scene_then_restore_reports_again(
 
 async def test_restore_waived_with_nothing_to_restore_notifies(tmp_path: Path, monkeypatch):
     notified: list[str] = []
-    monkeypatch.setattr(LorewriteApp, "notify",
+    monkeypatch.setattr(ChiselApp, "notify",
                         lambda self, message, **kw: notified.append(str(message)))
     proj = _project(tmp_path)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(proj.manuscript_dir / "02-tavern.md")
@@ -283,7 +283,7 @@ async def test_restore_waived_with_nothing_to_restore_notifies(tmp_path: Path, m
 
 
 def test_restore_waived_in_palette():
-    from lorewrite.tui.commands import ActionProvider
+    from chisel.tui.commands import ActionProvider
 
     assert "Restore waived continuity issues (this scene)" in [
         t for t, _, _ in ActionProvider.ACTIONS]

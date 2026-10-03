@@ -1,6 +1,6 @@
 """Api: rename a note everywhere (preview, apply, undo)."""
 
-from lorewrite.core import snapshots
+from chisel.core import snapshots
 from tests.test_gui_api import open_api
 
 A = "manuscript/01-arrival.md"
@@ -47,7 +47,7 @@ def test_rename_errors_do_not_raise(tmp_path):
 
 
 def test_rename_and_undo_carry_the_pictures_made_for_the_note(tmp_path):
-    from lorewrite.core import inspiration as store
+    from chisel.core import inspiration as store
 
     snapshots._daily_done.clear()
     api, root = open_api(tmp_path)
@@ -74,7 +74,7 @@ def test_rename_and_undo_carry_the_pictures_made_for_the_note(tmp_path):
 
 
 def test_a_rename_that_keeps_the_file_name_leaves_the_pictures_alone(tmp_path):
-    from lorewrite.core import inspiration as store
+    from chisel.core import inspiration as store
 
     snapshots._daily_done.clear()
     api, root = open_api(tmp_path)

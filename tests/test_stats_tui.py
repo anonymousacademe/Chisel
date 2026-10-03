@@ -4,11 +4,11 @@ from pathlib import Path
 
 from textual.widgets import Input
 
-from lorewrite.core import stats as writing_stats
-from lorewrite.core.project import Project
-from lorewrite.tui.app import LorewriteApp
-from lorewrite.tui.commands import ActionProvider
-from lorewrite.tui.statsscreens import StatsScreen
+from chisel.core import stats as writing_stats
+from chisel.core.project import Project
+from chisel.tui.app import ChiselApp
+from chisel.tui.commands import ActionProvider
+from chisel.tui.statsscreens import StatsScreen
 
 
 def _project(tmp_path: Path) -> Project:
@@ -19,7 +19,7 @@ def _project(tmp_path: Path) -> Project:
 
 async def test_saving_counts_words_in_state_dir(tmp_path: Path):
     p = _project(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.editor.insert("one two three four\n", app.editor.document.end)
@@ -35,7 +35,7 @@ async def test_saving_counts_words_in_state_dir(tmp_path: Path):
 
 async def test_opening_scene_counts_nothing_and_stats_screen(tmp_path: Path):
     p = _project(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         assert app.stats.summary()["today"]["words"] == 0
@@ -52,7 +52,7 @@ async def test_accepting_a_draft_is_ai_words(tmp_path: Path):
     p = _project(tmp_path)
     path = p.manuscript_dir / "01-opening.md"
     path.write_text("# Opening\n\nalpha beta gamma\n<!--ai-->six new words from the model ok<!--/ai-->\n")
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         text = app.editor.text
@@ -66,8 +66,8 @@ async def test_accepting_a_draft_is_ai_words(tmp_path: Path):
 
 
 async def test_daily_target_is_saved_from_settings(tmp_path: Path):
-    from lorewrite.tui.settingscreen import SettingsScreen
-    app = LorewriteApp(_project(tmp_path))
+    from chisel.tui.settingscreen import SettingsScreen
+    app = ChiselApp(_project(tmp_path))
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.push_screen(SettingsScreen(app.project))
@@ -85,7 +85,7 @@ def test_palette_lists_session_stats():
 
 async def test_focus_sprint_counts_down_ends_and_is_recorded(tmp_path: Path):
     p = _project(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         now = [app.stats._clock()]
@@ -110,14 +110,14 @@ async def test_focus_sprint_counts_down_ends_and_is_recorded(tmp_path: Path):
 
 
 async def test_focus_sprint_can_be_stopped_early(tmp_path: Path):
-    app = LorewriteApp(_project(tmp_path))
+    app = ChiselApp(_project(tmp_path))
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app._start_sprint(15, writer=False)
         assert not app._writer_mode
         app.focus_sprint()                    # running: offers to stop
         await pilot.pause()
-        from lorewrite.tui.structurescreens import ChoiceScreen
+        from chisel.tui.structurescreens import ChoiceScreen
         assert isinstance(app.screen, ChoiceScreen)
         app.screen.dismiss("stop")
         await pilot.pause()

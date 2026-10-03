@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from lorewrite.core import entities as ent
-from lorewrite.core import rename, snapshots
-from lorewrite.core.continuity import apply_canon_update
-from lorewrite.core.project import Project
-from lorewrite.gui.api import Api
+from chisel.core import entities as ent
+from chisel.core import rename, snapshots
+from chisel.core.continuity import apply_canon_update
+from chisel.core.project import Project
+from chisel.gui.api import Api
 
 NOTE = """\
 ---

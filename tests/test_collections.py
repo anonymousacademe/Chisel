@@ -2,9 +2,9 @@
 
 import pytest
 
-from lorewrite.core import collections as coll
-from lorewrite.core import scenemeta
-from lorewrite.core.project import Project
+from chisel.core import collections as coll
+from chisel.core import scenemeta
+from chisel.core.project import Project
 from tests.gui_helpers import make_project
 
 

@@ -7,13 +7,13 @@ from pathlib import Path
 
 import pytest
 
-import lorewrite.tui.app as app_mod
-from lorewrite.ai.stream import Cancelled
-from lorewrite.core import drafts
-from lorewrite.core import research as rs
-from lorewrite.core.project import Project
-from lorewrite.tui.app import LorewriteApp
-from lorewrite.tui.assistantscreen import AssistantScreen
+import chisel.tui.app as app_mod
+from chisel.ai.stream import Cancelled
+from chisel.core import drafts
+from chisel.core import research as rs
+from chisel.core.project import Project
+from chisel.tui.app import ChiselApp
+from chisel.tui.assistantscreen import AssistantScreen
 from textual.widgets import Input
 
 
@@ -51,7 +51,7 @@ async def test_draft_shows_status_and_preview_and_ctrl_x_stops_it(project, monke
     started = threading.Event()
     monkeypatch.setattr(app_mod, "generate", slow_generate(started))
     scene = project.manuscript_dir / "02-scene.md"
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await start_draft(app, pilot, scene)
         await pilot.pause(0.6)
@@ -72,7 +72,7 @@ async def test_escape_stops_a_running_draft_and_ctrl_x_is_cut_otherwise(project,
     started = threading.Event()
     monkeypatch.setattr(app_mod, "generate", slow_generate(started))
     scene = project.manuscript_dir / "02-scene.md"
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await start_draft(app, pilot, scene)
         await pilot.pause(0.3)
@@ -98,7 +98,7 @@ async def test_a_second_ai_request_is_refused_while_one_runs(project, monkeypatc
 
     monkeypatch.setattr(app_mod, "generate", fake)
     scene = project.manuscript_dir / "02-scene.md"
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await start_draft(app, pilot, scene)
         await pilot.pause(0.3)
@@ -117,7 +117,7 @@ async def test_finished_draft_still_inserts_and_clears_the_status(project, monke
 
     monkeypatch.setattr(app_mod, "generate", fast)
     scene = project.manuscript_dir / "02-scene.md"
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await start_draft(app, pilot, scene)
         await pilot.pause(1.0)
@@ -138,7 +138,7 @@ async def test_chat_streams_live_and_a_stopped_answer_is_a_note_not_a_message(pr
         return "never"
 
     monkeypatch.setattr(app_mod, "ask_writer", slow_ask)
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_assistant("chat")
@@ -173,7 +173,7 @@ async def test_non_streaming_call_is_abandoned_on_stop(project, monkeypatch):
 
     monkeypatch.setattr(app_mod, "suggest_links", slow_aliases)
     scene = project.manuscript_dir / "02-scene.md"
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)

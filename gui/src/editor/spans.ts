@@ -1,4 +1,4 @@
-// Spans come from Python (lorewrite.core.spans) in UTF-16 offsets. This file
+// Spans come from Python (chisel.core.spans) in UTF-16 offsets. This file
 // only maps them to editor decorations; it never decides what a mention is.
 
 export type SpanKind = "mention" | "link" | "unresolved" | "pending" | "expand";
@@ -18,7 +18,7 @@ export interface Span {
   instruction?: string;
 }
 
-/** A misspelled word from Python (lorewrite.core.spelling), UTF-16 offsets. */
+/** A misspelled word from Python (chisel.core.spelling), UTF-16 offsets. */
 export interface Misspelling { start: number; end: number; word: string }
 
 /** The misspelling containing *pos* (edges count: a click at the end of a word). */

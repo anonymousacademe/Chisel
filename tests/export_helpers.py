@@ -4,8 +4,8 @@ expand markers, [[links]], scene details, italics and scene breaks."""
 
 from pathlib import Path
 
-from lorewrite.core import drafts
-from lorewrite.core.project import Project
+from chisel.core import drafts
+from chisel.core.project import Project
 
 from tests.gui_helpers import make_project
 

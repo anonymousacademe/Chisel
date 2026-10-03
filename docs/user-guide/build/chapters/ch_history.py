@@ -358,7 +358,7 @@ def build(s, R):
         "with a message. Everything in the folder is included: "
         "scenes, notes, research, `project.toml`, the `.snapshots/` "
         "and `.drafts/` folders, and your settings files. Only the "
-        "index cache, `.lorewrite/`, is left out, because Chisel "
+        "index cache, `.chisel/`, is left out, because Chisel "
         "puts a line for it in the project's `.gitignore`. Your name "
         "and e-mail address must already be set in git; if not, git's "
         "own complaint appears.")
@@ -366,7 +366,7 @@ def build(s, R):
         f"application, or click the sync item and choose **Commit "
         f"//N// changes…** in the desktop application. Chisel saves "
         f"the open scene first and offers a message such as "
-        f"//lorewrite: 2026-10-01 — 3 scenes changed// (when no scene "
+        f"//chisel: 2026-10-01 — 3 scenes changed// (when no scene "
         f"changed it counts //files//), which you can edit "
         f"({R('fig_tuicommit')}, {R('fig_gcommit')}). The terminal "
         f"prompt says //Commit// //N// //change(s) in this project "
@@ -415,7 +415,7 @@ def build(s, R):
         "desktop sync menu offers **Initialize git for this "
         "project…**. After a confirmation Chisel turns the folder "
         "into a repository and makes sure `.gitignore` hides "
-        "`.lorewrite/`. It does not commit anything, add a remote or "
+        "`.chisel/`. It does not commit anything, add a remote or "
         "name a branch. The offer is not made for a project that is "
         "inside another repository.")
     s.p(f"The palette entries are listed in {R('t_histpalette')} "

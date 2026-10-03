@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from lorewrite.ai import continuity as ai_cont
-from lorewrite.ai.writing import build_context
-from lorewrite.core import drafts, scenemeta, snapshots, spelling, timeline
-from lorewrite.core import entities as ent
-from lorewrite.core.project import Project
-from lorewrite.core.style import sample_manuscript
-from lorewrite.gui.api import Api
+from chisel.ai import continuity as ai_cont
+from chisel.ai.writing import build_context
+from chisel.core import drafts, scenemeta, snapshots, spelling, timeline
+from chisel.core import entities as ent
+from chisel.core.project import Project
+from chisel.core.style import sample_manuscript
+from chisel.gui.api import Api
 from tests.gui_helpers import make_project
 
 A = "manuscript/01-arrival.md"
@@ -208,7 +208,7 @@ def test_born_round_trips_through_every_save_path(tmp_path):
     assert api.add_alias("Mara Vale", "Cap")["ok"] and born_ok()
     assert api.apply_aliases([{"entity": "Mara Vale", "surface": "the archivist"}])["added"] == 1
     assert born_ok()
-    from lorewrite.core.continuity import apply_canon_update
+    from chisel.core.continuity import apply_canon_update
     apply_canon_update(ent.resolve("Mara Vale", api.entities), ["Left-handed (age 6)."])
     assert born_ok()
     prev = api.rename_preview("Mara Vale", "Mara Okoye")

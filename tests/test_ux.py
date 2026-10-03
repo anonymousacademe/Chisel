@@ -4,11 +4,11 @@ from pathlib import Path
 
 from textual.widgets import Input, ListView
 
-from lorewrite import __version__
-from lorewrite.core import settings as user_settings
-from lorewrite.core.project import Project
-from lorewrite.tui.app import LorewriteApp
-from lorewrite.tui.tour import TourScreen
+from chisel import __version__
+from chisel.core import settings as user_settings
+from chisel.core.project import Project
+from chisel.tui.app import ChiselApp
+from chisel.tui.tour import TourScreen
 
 
 def _project(tmp_path: Path, title: str = "UX") -> Project:
@@ -34,7 +34,7 @@ async def test_tour_shows_on_first_run_only(tmp_path: Path):
     proj = _project(tmp_path)
     user_settings.set("tour_seen", False)  # conftest pre-set it True
 
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         assert isinstance(app.screen, TourScreen)
@@ -42,7 +42,7 @@ async def test_tour_shows_on_first_run_only(tmp_path: Path):
         await pilot.pause()
 
     # second launch: tour already seen
-    app2 = LorewriteApp(proj)
+    app2 = ChiselApp(proj)
     async with app2.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         assert not isinstance(app2.screen, TourScreen)
@@ -51,7 +51,7 @@ async def test_tour_shows_on_first_run_only(tmp_path: Path):
 async def test_tour_pages_advance(tmp_path: Path):
     proj = _project(tmp_path)
     user_settings.set("tour_seen", False)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         screen = app.screen
@@ -67,7 +67,7 @@ async def test_tour_pages_advance(tmp_path: Path):
 
 async def test_writer_mode_toggles(tmp_path: Path):
     proj = _project(tmp_path)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         assert "writer-mode" not in app.screen.classes
@@ -86,7 +86,7 @@ async def test_writer_mode_toggles(tmp_path: Path):
 
 async def test_scene_navigation(tmp_path: Path):
     proj = _project(tmp_path)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         assert app.current_path is not None
@@ -110,7 +110,7 @@ async def test_scene_navigation(tmp_path: Path):
 
 async def test_sidebar_filter(tmp_path: Path):
     proj = _project(tmp_path)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         scenes = app.query_one("#scenes", ListView)
@@ -130,7 +130,7 @@ async def test_sidebar_filter(tmp_path: Path):
 
 async def test_status_shows_save_time_and_project_words(tmp_path: Path):
     proj = _project(tmp_path)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.save_current()
@@ -161,7 +161,7 @@ async def test_editor_settings_applied(tmp_path: Path):
         'title = "UX"\n\n[editor]\npadding = 3\nline_numbers = false\n'
     )
     proj = Project.open(proj.root)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         assert app.editor.show_line_numbers is False
@@ -173,7 +173,7 @@ async def test_editor_settings_applied(tmp_path: Path):
 
 async def test_version_in_title(tmp_path: Path):
     proj = _project(tmp_path)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         assert __version__ in app.title

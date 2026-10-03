@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from lorewrite.core import sync
-from lorewrite.gui.api import Api
+from chisel.core import sync
+from chisel.gui.api import Api
 from tests.gui_helpers import make_project
 
 
@@ -54,7 +54,7 @@ def test_init_commit_push_flow(tmp_path):
     api, root = open_api(tmp_path)
     r = api.sync_init()
     assert r["ok"] and r["sync"]["repo"] is True and r["sync"]["state"] == "changes"
-    assert ".lorewrite/" in (root / ".gitignore").read_text(encoding="utf-8")
+    assert ".chisel/" in (root / ".gitignore").read_text(encoding="utf-8")
     assert api.sync_init()["ok"] is False          # already a repository
     s = r["sync"]
     assert s["scenes"] == 2 and s["defaultMessage"].endswith("— 2 scenes changed")

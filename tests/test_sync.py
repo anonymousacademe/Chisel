@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from lorewrite.core import snapshots, sync
-from lorewrite.core.project import Project
+from chisel.core import snapshots, sync
+from chisel.core.project import Project
 
 
 @pytest.fixture(autouse=True)
@@ -55,11 +55,11 @@ def test_init_creates_a_repo_and_hides_only_the_cache(tmp_path):
     (p.root / ".gitignore").write_text("*.tmp", encoding="utf-8")   # no trailing newline
     sync.init(p.root)
     assert (p.root / ".git").is_dir()
-    assert (p.root / ".gitignore").read_text(encoding="utf-8").splitlines() == ["*.tmp", ".lorewrite/"]
+    assert (p.root / ".gitignore").read_text(encoding="utf-8").splitlines() == ["*.tmp", ".chisel/"]
     with pytest.raises(sync.GitError):
         sync.init(p.root)          # already a repository
     # a second init attempt never duplicates the line either
-    assert (p.root / ".gitignore").read_text(encoding="utf-8").count(".lorewrite/") == 1
+    assert (p.root / ".gitignore").read_text(encoding="utf-8").count(".chisel/") == 1
 
 
 def test_init_on_a_bare_project_creates_gitignore(tmp_path):
@@ -67,30 +67,30 @@ def test_init_on_a_bare_project_creates_gitignore(tmp_path):
     root.mkdir()
     (root / "project.toml").write_text('title = "x"\n')
     sync.init(root)
-    assert (root / ".gitignore").read_text(encoding="utf-8") == ".lorewrite/\n"
+    assert (root / ".gitignore").read_text(encoding="utf-8") == ".chisel/\n"
 
 
 def test_status_counts_changes_and_scenes_then_commit_makes_it_synced(tmp_path):
     p = novel(tmp_path)
     sync.init(p.root)
-    (p.root / ".lorewrite").mkdir()
-    (p.root / ".lorewrite" / "index.sqlite").write_text("cache")   # ignored: not a change
+    (p.root / ".chisel").mkdir()
+    (p.root / ".chisel" / "index.sqlite").write_text("cache")   # ignored: not a change
     st = sync.status(p.root)
     assert st.state == "changes" and st.scenes == 2          # both scenes are untracked
     assert st.changes >= 4 and st.label == f"{st.changes} changes"
     assert st.remote is None and st.can_push is False
     msg = sync.default_message(st, date(2026, 10, 1))
-    assert msg == "lorewrite: 2026-10-01 — 2 scenes changed"
+    assert msg == "chisel: 2026-10-01 — 2 scenes changed"
     sync.commit(p.root, msg)                                   # first commit of a new repo
     st = sync.status(p.root)
     assert (st.state, st.label, st.changes) == ("synced", "Synced", 0)
     assert git(p.root, "log", "-1", "--format=%s") .strip() == msg
-    assert ".lorewrite" not in git(p.root, "ls-files")
+    assert ".chisel" not in git(p.root, "ls-files")
 
     (p.manuscript_dir / "02-two.md").write_text("# Two\n\nchanged\n", encoding="utf-8")
     st = sync.status(p.root)
     assert (st.state, st.label, st.scenes) == ("changes", "1 change", 1)
-    assert sync.default_message(st, date(2026, 10, 2)) == "lorewrite: 2026-10-02 — 1 scene changed"
+    assert sync.default_message(st, date(2026, 10, 2)) == "chisel: 2026-10-02 — 1 scene changed"
 
 
 def test_nothing_to_commit_and_empty_message_are_errors(tmp_path):

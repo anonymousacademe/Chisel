@@ -9,10 +9,10 @@ of plain Markdown files; characters and places are notes that link both ways; an
 AI helps you keep the story consistent, but it only ever **suggests** — it never
 changes your prose unless you accept the change.
 
-![Chisel: binder, live-preview editor and assistant panel](docs/screenshots/lorewriter.png)
+![Chisel: binder, live-preview editor and assistant panel](docs/screenshots/chisel.png)
 
-Chisel runs on Windows, macOS and Linux. The desktop app (`lorewrite-gui`)
-and the terminal app (`lorewrite`) open the same projects, so you can use either,
+Chisel runs on Windows, macOS and Linux. The desktop app (`chisel-gui`)
+and the terminal app (`chisel`) open the same projects, so you can use either,
 or both.
 
 ## Why
@@ -79,9 +79,9 @@ or both.
 ## Install
 
 Download the installer for your system from the
-[Releases page](https://github.com/anonymousacademe/lorewriter/releases). Every
+[Releases page](https://github.com/anonymousacademe/Chisel/releases). Every
 download contains **both** apps: the desktop app (Chisel) and the terminal app
-(`lorewrite`). Replace `<version>` with the number of the release.
+(`chisel`). Replace `<version>` with the number of the release.
 
 | System | Download | Notes |
 |---|---|---|
@@ -90,7 +90,7 @@ download contains **both** apps: the desktop app (Chisel) and the terminal app
 | macOS, Apple silicon (M1 or newer) | `Chisel-<version>-macos-arm64.dmg` | Open it, drag Chisel to Applications. |
 | macOS, Intel | `Chisel-<version>-macos-x86_64.dmg` | Best effort: built when the Intel build runner works, so a release may not have it. Otherwise install from source. |
 | Linux (x86-64) | `Chisel-<version>-x86_64.AppImage` | `chmod +x` it and run it. |
-| Any system with Python | `pipx install lorewriter` (PyPI) | coming; see "From source" for now. |
+| Any system with Python | `pipx install chisel-writer` (PyPI) | coming; see "From source" for now. |
 
 `SHA256SUMS.txt` on the release page lets you check a download.
 
@@ -101,15 +101,15 @@ The apps are **not signed** yet, so the first launch needs one extra step:
   choose **Open**, then **Open** again. If macOS still refuses, run
   `xattr -dr com.apple.quarantine /Applications/Chisel.app` in Terminal once.
 - **Linux**: `chmod +x Chisel-*.AppImage && ./Chisel-*.AppImage`. To start the terminal app from the
-  same file: `./Chisel-*.AppImage --terminal` (or link the file as `lorewrite`). The AppImage carries its
+  same file: `./Chisel-*.AppImage --terminal` (or link the file as `chisel`). The AppImage carries its
   own web engine (Qt WebEngine), so it needs no extra packages; it does need FUSE 2 to mount itself, or run it
   with `--appimage-extract-and-run`.
-- **Terminal app on Windows / macOS**: it is `lorewrite.exe` next to `Chisel.exe` in the install folder
-  (Start menu: "Chisel (terminal)"), and `Chisel.app/Contents/MacOS/lorewrite` on macOS.
+- **Terminal app on Windows / macOS**: it is `chisel-tui.exe` next to `Chisel.exe` in the install folder
+  (Start menu: "Chisel (terminal)"), and `Chisel.app/Contents/MacOS/chisel-tui` on macOS.
 
 Your settings, recent projects and writing stats live in a per-user folder (never in your project):
-`%LOCALAPPDATA%\lorewrite` on Windows, `~/Library/Application Support/lorewrite` on macOS,
-`~/.local/state/lorewrite` on Linux. Your projects are ordinary folders you choose (default `~/novels`).
+`%LOCALAPPDATA%\chisel` on Windows, `~/Library/Application Support/chisel` on macOS,
+`~/.local/state/chisel` on Linux. Your projects are ordinary folders you choose (default `~/novels`).
 Your OpenRouter key is kept in the system's keyring (Credential Manager, Keychain, Secret Service).
 
 **pandoc** is optional and is not included: only DOCX, EPUB and LaTeX export need it (they stay greyed out
@@ -137,8 +137,8 @@ sudo pacman -S python-gobject webkit2gtk-4.1
 Windows 10 and 11. **macOS** needs nothing extra.
 
 ```bash
-git clone https://github.com/anonymousacademe/lorewriter
-cd lorewriter
+git clone https://github.com/anonymousacademe/Chisel
+cd Chisel
 
 python3 -m venv .venv                      # Linux: add --system-site-packages
 source .venv/bin/activate                  # Windows: .venv\Scripts\activate
@@ -146,8 +146,8 @@ pip install -e ".[all]"                    # or: pip install -r requirements.txt
 
 (cd gui && npm ci && npm run build)        # builds the desktop UI into the package
 
-lorewrite-gui                              # the desktop app
-lorewrite                                  # the terminal app
+chisel-gui                              # the desktop app
+chisel                                  # the terminal app
 ```
 
 `pip install -e .` alone gives the terminal app. Extras: `gui` (pywebview), `export`
@@ -162,7 +162,7 @@ Open a copy of the bundled example, a short cyberpunk story with a story bible
 
 ```bash
 cp -r examples/residual ~/residual         # Windows: xcopy /E /I examples\residual %USERPROFILE%\residual
-lorewrite-gui --project ~/residual         # or: lorewrite --project ~/residual
+chisel-gui --project ~/residual         # or: chisel --project ~/residual
 ```
 
 Or start your own: both apps open on a launch screen with your recent projects,
@@ -231,7 +231,7 @@ my-novel/
 └── .trash/ .drafts/ .snapshots/ .comments/ .assistant/   # app data, plain files
 ```
 
-A SQLite index under `.lorewrite/` powers backlinks. It is a rebuildable cache
+A SQLite index under `.chisel/` powers backlinks. It is a rebuildable cache
 (`f9` in the terminal): your files are always the truth.
 
 ## Privacy
@@ -260,18 +260,46 @@ A SQLite index under `.lorewrite/` powers backlinks. It is a rebuildable cache
 - The only other network request is the public OpenRouter model catalogue, fetched
   when you open a model picker.
 
+## Upgrading from LoreWriter / lorewrite
+
+Chisel was called LoreWriter (command `lorewrite`) before. From the first release after 0.4.0 the commands
+are **`chisel`** (terminal app) and **`chisel-gui`** (desktop app); the old command names are gone, with no
+aliases. Your files are not lost: the first start copies what it can.
+
+- **Copied (once, the old folders stay where they are):** your settings, recent projects, writing stats and
+  typing-sound packs, from `%LOCALAPPDATA%\lorewrite` (Windows), `~/Library/Application Support/lorewrite`
+  (macOS) or `~/.local/state/lorewrite` and `~/.local/share/lorewrite` (Linux) to the same place named
+  `chisel`. A new folder is never overwritten.
+- **Your OpenRouter key:** read from the old keyring entry when the new one is empty, and stored under the new
+  name; the old entry stays.
+- **Projects:** when a project opens, its hidden `.lorewrite/` folder (the index cache, continuity waivers and
+  the rename undo list) is renamed to `.chisel/`. If the project's `.gitignore` listed `.lorewrite/`, the line
+  `.chisel/` is added, so git does not suddenly show the cache as new files. Scenes, notes and everything else
+  in the project are never touched.
+- **Not copied:** anything outside those folders. Projects are not moved, and nothing is deleted.
+- **Environment variables:** `CHISEL_STATE_DIR` and `CHISEL_DATA_DIR` replace `LOREWRITE_STATE_DIR` and
+  `LOREWRITE_DATA_DIR`. The old names still work, as deprecated aliases, when the new ones are not set. When
+  either is set, the platform folders are not copied.
+- **Installer and shortcuts:** the Windows installer upgrades the old install in place. The terminal program
+  is now `chisel-tui.exe` (Start menu: "Chisel (terminal)"); a Windows or macOS folder cannot hold both
+  `chisel.exe` and `Chisel.exe`. Pin or script it by the new name. From source, run `pip install -e .` again
+  (the package is `chisel-writer`, imported as `chisel`) and uninstall `lorewriter`.
+
+When you are happy with Chisel, you can delete the old `lorewrite` folders and, in each project, any leftover
+`.lorewrite/` folder.
+
 ## Status
 
 Chisel is pre-1.0: formats and
 screens can still change. Your files are plain Markdown, so you are never locked in. The name changed
-from LoreWriter to Chisel; commands, folders and settings keep the old `lorewrite` name. Next on the
+from LoreWriter to Chisel (see "Upgrading from LoreWriter" above). Next on the
 roadmap (see [SPEC.md](SPEC.md)): character relationships, talking as a character, local models,
 per-scene summaries and a timeline view.
 
 ## Documentation
 
 - **User's Guide** (PDF with screenshots): attached to each
-  [GitHub Release](https://github.com/anonymousacademe/lorewriter/releases).
+  [GitHub Release](https://github.com/anonymousacademe/Chisel/releases).
   Its sources are in [docs/user-guide/](docs/user-guide/).
 - [CHANGELOG.md](CHANGELOG.md): what changed, in plain words.
 - [SPEC.md](SPEC.md): the design document and roadmap.
@@ -284,10 +312,10 @@ per-scene summaries and a timeline view.
 pip install -r requirements-dev.txt && pip install -e .
 python -m pytest                          # pure core units, headless TUI, GUI backend
 (cd gui && npm ci && npm run lint && npm test && npm run build)
-python -m lorewrite.gui.devserver --project COPY --mock-ai   # the UI in any browser, canned AI
+python -m chisel.gui.devserver --project COPY --mock-ai   # the UI in any browser, canned AI
 ```
 
-The desktop UI is built with Vite into `src/lorewrite/gui/web/` (git-ignored, shipped
+The desktop UI is built with Vite into `src/chisel/gui/web/` (git-ignored, shipped
 as package data). Architecture notes: [gui/README.md](gui/README.md).
 
 This project was built with the help of AI coding assistants, which wrote much of
@@ -297,4 +325,4 @@ the code under the author's direction.
 
 [MIT](LICENSE) © 2026 Mishkin. Bundled export fonts: Noto Serif (SIL OFL 1.1) and
 Liberation Mono (SIL OFL 1.1); their licences are in
-`src/lorewrite/core/export/fonts/`.
+`src/chisel/core/export/fonts/`.

@@ -1,4 +1,4 @@
-from lorewrite.core.links import (
+from chisel.core.links import (
     find_all_links,
     find_links,
     find_mentions,
@@ -90,7 +90,7 @@ def test_overlapping_mentions_prefer_the_longest():
 
 def _bruteforce_mentions(text, names):
     """The original O(n^2) resolution, kept as the reference."""
-    from lorewrite.core.links import _mention_re, find_links
+    from chisel.core.links import _mention_re, find_links
 
     pattern = _mention_re(tuple(sorted(set(names))))
     taken = [(l.start, l.end) for l in find_links(text)]
@@ -108,7 +108,7 @@ def _bruteforce_mentions(text, names):
 def test_find_mentions_matches_bruteforce_reference():
     import random
 
-    from lorewrite.core.links import find_mentions
+    from chisel.core.links import find_mentions
 
     rng = random.Random(7)
     words = ["the", "Hollow", "Market", "Hollow Market", "the Hollow", "Rook", "Rook Tanaka",
@@ -123,7 +123,7 @@ def test_find_mentions_matches_bruteforce_reference():
 def test_find_mentions_scales_to_a_huge_dense_scene():
     import time
 
-    from lorewrite.core.links import find_mentions
+    from chisel.core.links import find_mentions
 
     text = " ".join(["Rook said Wren spoke in the Hollow Market"] * 6000)  # ~250 KB, ~18k mentions
     t = time.process_time()  # CPU time: wall time flakes on a busy machine

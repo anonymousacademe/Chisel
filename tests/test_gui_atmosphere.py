@@ -7,8 +7,8 @@ import zipfile
 
 import pytest
 
-from lorewrite.core import atmosphere, soundpacks
-from lorewrite.gui.api import Api
+from chisel.core import atmosphere, soundpacks
+from chisel.gui.api import Api
 
 WAV = b"RIFF\x24\x00\x00\x00WAVEfmt " + b"\x00" * 40
 OGG = b"OggS" + b"\x00" * 30

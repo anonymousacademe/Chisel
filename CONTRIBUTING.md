@@ -6,7 +6,7 @@ feature, please open an issue first so we can agree on the shape of it.
 ## Set up
 
 ```bash
-git clone https://github.com/anonymousacademe/lorewriter && cd lorewriter
+git clone https://github.com/anonymousacademe/Chisel && cd Chisel
 python3 -m venv .venv                      # Linux desktop app: add --system-site-packages
 source .venv/bin/activate                  # Windows: .venv\Scripts\activate
 pip install -r requirements-dev.txt && pip install -e .
@@ -32,8 +32,10 @@ AI calls are mocked at the function boundary — never call a real model in a te
 3. **AI suggests, never edits.** Every AI feature ends in an accept/reject step.
 4. **Entity notes** are free text plus minimal YAML frontmatter (name, type, aliases; any other keys are kept as written).
 
-Naming: the app is called Chisel in anything a user reads. The package (`lorewrite`), its commands,
-state folders, `LOREWRITE_*` variables and the repository name stay as they are.
+Naming: the app, the package (`chisel`), the commands (`chisel`, `chisel-gui`), the state folders, the
+`CHISEL_*` variables and the repository are all called Chisel. The PyPI distribution is `chisel-writer`
+(`chisel` is taken). The old LoreWriter names survive only in the migration code
+(`src/chisel/core/migrate.py`) and its tests.
 
 Icons and the logo: the artwork and its sources are in [docs/brand/](docs/brand/README.md); which file is used
 where (the Windows window needs an `.ico`) is in [docs/dev/packaging.md](docs/dev/packaging.md#icons).
@@ -54,7 +56,7 @@ By contributing you agree that your work is released under the [MIT licence](LIC
 
 ## Releases
 
-Maintainers only. The version lives in one place, `src/lorewrite/__init__.py`
+Maintainers only. The version lives in one place, `src/chisel/__init__.py`
 (`__version__`); the wheel, the Windows file version, the macOS `Info.plist` and
 the AppImage desktop file all read it. To cut a release: bump it, merge to `main`,
 then `git tag vX.Y.Z && git push --tags`. The `Release` workflow builds the

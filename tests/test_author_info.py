@@ -1,7 +1,7 @@
 """Project and author details: reading and writing to project.toml."""
 
 from pathlib import Path
-from lorewrite.core.project import Project
+from chisel.core.project import Project
 
 
 def test_author_info_read_defaults_when_not_set(tmp_path: Path):
@@ -96,7 +96,7 @@ def test_author_info_language_defaults_to_en(tmp_path: Path):
 
 def test_export_uses_pen_name_when_set(tmp_path: Path):
     """Export uses pen_name if set, otherwise author."""
-    from lorewrite.core.export.manuscript import assemble
+    from chisel.core.export.manuscript import assemble
 
     proj = Project.create(tmp_path, "Test Project")
     (proj.manuscript_dir / "01-opening.md").write_text(

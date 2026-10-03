@@ -1439,7 +1439,7 @@ export default function App() {
       )}
       {dialog?.kind === "sync-init" && (
         <ConfirmDialog title="Initialize git" confirm="Initialize" tone="primary"
-          message={<>Turn this project folder into a git repository? A <code>.gitignore</code> hides the rebuildable index cache (<code>.lorewrite/</code>). Nothing is committed or pushed.</>}
+          message={<>Turn this project folder into a git repository? A <code>.gitignore</code> hides the rebuildable index cache (<code>.chisel/</code>). Nothing is committed or pushed.</>}
           onConfirm={() => void syncInit()} onClose={() => setDialog(null)} />
       )}
       {dialog?.kind === "add-comment" && (

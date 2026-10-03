@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build docs/user-guide/lorewrite-users-guide.pdf.
+"""Build docs/user-guide/chisel-users-guide.pdf.
 
     python3 docs/user-guide/build_guide.py            # use captured screens
     python3 docs/user-guide/build_guide.py --capture  # re-capture screens first
@@ -43,9 +43,9 @@ NEW_CHAPTERS = [ch_organize, ch_history, ch_notes, ch_aids, ch_inspiration, ch_e
 
 def palette_rows():
     """The palette's Action entries, read from the program's own table
-    (src/lorewrite/tui/commands.py) so the book cannot drift from it."""
+    (src/chisel/tui/commands.py) so the book cannot drift from it."""
     import ast
-    src = (HERE.parents[1] / "src" / "lorewrite" / "tui" / "commands.py").read_text()
+    src = (HERE.parents[1] / "src" / "chisel" / "tui" / "commands.py").read_text()
     actions, category = None, {}
     for node in ast.walk(ast.parse(src)):
         if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name):
@@ -84,7 +84,7 @@ from guidelib import (  # noqa: E402
     Ruled, TocLine, IdxP,
 )
 
-OUT = HERE / "lorewrite-users-guide.pdf"
+OUT = HERE / "chisel-users-guide.pdf"
 SHOTS = HERE / "build" / "shots"
 FIGS = HERE / "build" / "fig"
 VERSION = "0.4.0"
@@ -465,12 +465,17 @@ def build_story(st) -> list:
     s.p("This edition replaces and makes obsolete the Fifth Edition, "
         "LW00-0001-4.", style="notice")
     s.p("This edition applies to Version 0.4.0 of Chisel, including the "
-        "terminal application (`lorewrite`) and the desktop application "
-        "(`lorewrite-gui`, whose window is titled Chisel). The program "
-        "was called Lorewrite in earlier editions of this book. The "
-        "commands, the Python package, the settings folder and the "
-        "`LOREWRITE_*` environment variables keep their old names, so "
-        "nothing you set up needs to change. It applies to all "
+        "terminal application (`chisel`) and the desktop application "
+        "(`chisel-gui`, whose window is titled Chisel). The program "
+        "was called LoreWriter in earlier editions of this book. "
+        "Version 0.4.0 still starts with the commands `lorewrite` and "
+        "`lorewrite-gui`; from the next release the commands, the "
+        "settings folder (`chisel`), the project cache folder "
+        "(`.chisel`) and the `CHISEL_*` environment variables carry the "
+        "new name, and this book uses the new names throughout. The "
+        "next release copies your settings and your API key on its first "
+        "start, and renames each project's cache folder when you open "
+        "it; nothing is deleted. It applies to all "
         "subsequent releases and modifications until otherwise "
         "indicated in new editions. Make sure you are using the correct "
         "edition for the level of the product. The version number is "
@@ -532,8 +537,8 @@ def build_story(st) -> list:
     s.front("About This Book")
     s.p("This book describes Chisel, a program for writing fiction. It "
         "comes in two forms that work on the same files: a //terminal "
-        "application//, started with `lorewrite`, and a //desktop "
-        "application//, started with `lorewrite-gui`, whose window is "
+        "application//, started with `chisel`, and a //desktop "
+        "application//, started with `chisel-gui`, whose window is "
         "titled Chisel. The book explains what Chisel does, how to "
         "install and start it, how to write and organize scenes, how to "
         "keep track of your characters and places, how to keep a history "
@@ -563,7 +568,7 @@ def build_story(st) -> list:
         "Chisel, start either application, open or create a project, "
         "and what happens the first time you run it.",
         "**Chapter 3, The Desktop Application**, tours the window of "
-        "`lorewrite-gui`: the binder, the editor, the assistant, the status "
+        "`chisel-gui`: the binder, the editor, the assistant, the status "
         "bar and the dialogs.",
         "**Chapter 4, Writing Scenes**, covers the editor, saving, the "
         "status bar, writer mode, and creating, renaming, reordering and "
@@ -655,8 +660,9 @@ def build_story(st) -> list:
         "depend on your theme; figures of the desktop application are "
         "printed in shades of gray.")
     s.h2("Names and Terms")
-    s.p("The program is called Chisel. Its commands keep their older "
-        "names: `lorewrite` (terminal) and `lorewrite-gui` (desktop). The "
+    s.p("The program is called Chisel. From the next release its "
+        "commands are `chisel` (terminal) and `chisel-gui` (desktop); "
+        "they were `lorewrite` and `lorewrite-gui` up to Version 0.4.0. The "
         "desktop window and its assistant call themselves //Chisel//; it "
         "is the same program. A //project// is one book: a folder of "
         "plain files. In the desktop application, scenes taken out of "
@@ -669,16 +675,17 @@ def build_story(st) -> list:
     s.front("Summary of Changes")
     s.p("This Sixth Edition (LW00-0001-5) covers Version 0.4.0 of "
         "Chisel. The Fifth Edition covered Version 0.2.0, when the "
-        "program was called Lorewrite. The changes are listed below, "
+        "program was called LoreWriter. The changes are listed below, "
         "with the chapter that describes each. Chapters 15, 16 and 17 "
         "are new, and the Fifth Edition's Chapters 15 and 16 (Settings "
         "Reference, Command and Key Reference) are now Chapters 18 and "
         "19. Appendix D is new.")
     s.table(None, None, ["Change", "Where described"], [
         ["**The new name.** The program is called Chisel, with a new "
-         "logo. The commands (`lorewrite`, `lorewrite-gui`), your "
-         "settings folder and the `LOREWRITE_*` variables are "
-         "unchanged. Release files are named `Chisel-<version>-...`.",
+         "logo. From the next release the commands are `chisel` and "
+         "`chisel-gui`, your settings folder is named `chisel`, a "
+         "project's cache folder is `.chisel`, and the variables are "
+         "`CHISEL_*`; your data is copied on the first start. Release files are named `Chisel-<version>-...`.",
          "Edition Notice, Chapter 2"],
         ["**An assistant that knows the open item.** The assistant, "
          "Brainstorm and Describe this scene are told about the "
@@ -734,9 +741,9 @@ def build_story(st) -> list:
         "plain, your notes close, and your story consistent.")
     s.h3("Two applications, one project", idx=["terminal application",
                                               "desktop application"])
-    s.p("The //terminal application// (`lorewrite`) runs inside a terminal "
+    s.p("The //terminal application// (`chisel`) runs inside a terminal "
         "window and is driven by keys and a command palette. The //desktop "
-        "application// (`lorewrite-gui`) is an ordinary window with a "
+        "application// (`chisel-gui`) is an ordinary window with a "
         "binder of scenes and notes on the left, a page-like editor in the "
         "middle and an assistant panel on the right; it is driven by the "
         "mouse and by keys. Neither one needs the other. Both read and "
@@ -884,21 +891,21 @@ def build_story(st) -> list:
         "OpenRouter), and Keyring (to keep your API key safe).")
     s.proc("To install Chisel:", [
         "Open a terminal and change to the folder where you keep programs.",
-        "Fetch the source: `git clone <repo-url> lorewrite`, where "
+        "Fetch the source: `git clone <repo-url> Chisel`, where "
         "//repo-url// is the address you were given.",
-        "Change into the new folder: `cd lorewrite`.",
+        "Change into the new folder: `cd Chisel`.",
         "Create a private Python environment: `python3 -m venv .venv`.",
         "Install: `.venv/bin/pip install -e \".[dev]\"`.",
     ], idx=["virtual environment"])
     s.note("The `[dev]` part also installs the tools used to test the "
            "program. You can leave it out (`.venv/bin/pip install -e .`) "
            "if you only want to write.")
-    s.p("The installer places a command named `lorewrite` in "
+    s.p("The installer places a command named `chisel` in "
         "`.venv/bin`. You can run it by its full path, add `.venv/bin` to "
         "your PATH, or make a shell alias.")
-    s.h3("Installing the desktop application", idx=["lorewrite-gui command",
+    s.h3("Installing the desktop application", idx=["chisel-gui command",
                                                    "pywebview"])
-    s.p("The desktop application (`lorewrite-gui`) needs a little more: "
+    s.p("The desktop application (`chisel-gui`) needs a little more: "
         "pywebview, which puts a web page in a native window, and the "
         "WebKitGTK and PyGObject libraries that pywebview draws with, which "
         "come from your operating system, not from Python. Its page is "
@@ -910,29 +917,29 @@ def build_story(st) -> list:
         "Install: `.venv-gui/bin/pip install -e \".[dev,gui]\"`.",
         "Build the window's pages: `cd gui`, then `npm install`, then "
         "`npm run build`.",
-        "Start it with `.venv-gui/bin/lorewrite-gui`.",
+        "Start it with `.venv-gui/bin/chisel-gui`.",
     ])
-    s.note("If you start `lorewrite-gui` before building the pages, it "
+    s.note("If you start `chisel-gui` before building the pages, it "
            "stops with //the UI is not built// and tells you to run "
            "`npm install && npm run build` in `gui`. If pywebview is "
            "missing it says so and names the install command.")
     s.p("On the computer this edition was prepared on, both commands are "
-        "linked into `~/.local/bin`, so `lorewrite` and `lorewrite-gui` "
+        "linked into `~/.local/bin`, so `chisel` and `chisel-gui` "
         "start by name from any folder. On yours, do the same with `ln -s`, "
         "or put the environment's `bin` folder on your PATH.")
 
-    s.h2("Starting Chisel", idx=["lorewrite command", "command line"])
+    s.h2("Starting Chisel", idx=["chisel command", "command line"])
     s.p(f"Start Chisel by typing the command name. {R('fig_syntax')} "
         "shows its syntax. Read the diagram from left to right, following "
         "the line. Items on the main line are required; items below the "
         "line are optional. Words in bold type are typed exactly as "
         "shown; words in italic type stand for something you supply.")
     s.figure_flow("fig_syntax", Railroad([
-        "lorewrite",
+        "chisel",
         ("opt", ["--project", ("var", "PATH")]),
         ("opt", ["--new", ("var", "TITLE")]),
-    ]), "Syntax of the lorewrite command")
-    s.table("t_opts", "Options of the lorewrite command",
+    ]), "Syntax of the chisel command")
+    s.table("t_opts", "Options of the chisel command",
             ["Option", "Effect"], [
         ["--project PATH",
          "Open the project in the folder //PATH//. If //PATH// is not a "
@@ -952,11 +959,11 @@ def build_story(st) -> list:
     s.p(f"The desktop application is started the same way, with its own "
         f"command ({R('fig_syntax2')}, {R('t_opts2')}).")
     s.figure_flow("fig_syntax2", Railroad([
-        "lorewrite-gui",
+        "chisel-gui",
         ("opt", ["--project", ("var", "PATH")]),
         ("opt", ["--new", ("var", "TITLE")]),
-    ]), "Syntax of the lorewrite-gui command")
-    s.table("t_opts2", "Options of the lorewrite-gui command",
+    ]), "Syntax of the chisel-gui command")
+    s.table("t_opts2", "Options of the chisel-gui command",
             ["Option", "Effect"], [
         ["--project PATH",
          "Open the project in the folder //PATH// at once. If it is not a "
@@ -1003,7 +1010,7 @@ def build_story(st) -> list:
     s.p("Press `o`. A box titled //Project folder:// asks for a path. "
         "Type it (a leading `~` stands for your home folder) and press "
         "`enter`. If the folder does not contain a `project.toml` file, "
-        "Chisel says //No lorewrite project in// followed by the path.")
+        "Chisel says //No Chisel project in// followed by the path.")
     s.h3("The launch screen of the desktop application",
          idx=["launch screen|desktop"])
     s.p(f"The desktop application shows its launch screen "
@@ -1058,13 +1065,13 @@ def build_story(st) -> list:
     s.code("""\
 the-salt-road/
   project.toml            title = "The Salt Road", author = ""
-  .gitignore              contains: .lorewrite/
+  .gitignore              contains: .chisel/
   manuscript/
     01-opening.md         a short sample scene with a few tips
   entities/               empty folders, one for each kind of note
     characters/  places/  objects/  factions/""")
     s.p("You can create the same thing from the command line with "
-        "`lorewrite --new \"The Salt Road\" --project ~/novels/the-salt-road`.")
+        "`chisel --new \"The Salt Road\" --project ~/novels/the-salt-road`.")
 
     s.h2("The First-Run Tour", idx=["tour", "first run"])
     s.p(f"The first time you open a project, a five-page tour appears "
@@ -1084,13 +1091,13 @@ the-salt-road/
          idx=["state folder", "settings.json", "recent.json"])
     s.p("Apart from your projects, Chisel keeps small files in a "
         "//state folder// of its own, whose place depends on your "
-        f"system ({R('t_statedir')}). The folder is named `lorewrite`: "
+        f"system ({R('t_statedir')}). The folder is named `chisel`: "
         "the name did not change with the program's.")
     s.table("t_statedir", "Where Chisel keeps its own settings",
             ["System", "Folder"], [
-        ["Linux", "`~/.local/state/lorewrite`"],
-        ["macOS", "`~/Library/Application Support/lorewrite`"],
-        ["Windows", "`%LOCALAPPDATA%" + chr(92) + "lorewrite`"],
+        ["Linux", "`~/.local/state/chisel`"],
+        ["macOS", "`~/Library/Application Support/chisel`"],
+        ["Windows", "`%LOCALAPPDATA%" + chr(92) + "chisel`"],
     ], [0.20, 0.80])
     s.p("In it are `recent.json` (the list on the launch "
         "screen), `settings.json` (whether you have seen the tour, your "
@@ -1103,7 +1110,7 @@ the-salt-road/
         "(your personal dictionary; Chapter 7). The first two can be "
         "deleted safely; Chisel recreates them. Both applications read "
         "and write the same files. If you set the environment variable "
-        "`LOREWRITE_STATE_DIR` to a folder, Chisel keeps them there "
+        "`CHISEL_STATE_DIR` to a folder, Chisel keeps them there "
         "instead. This is handy for trying the program without disturbing "
         "your real settings. Your API key is not in these files: it is in "
         "the system keyring (Chapter 10).")
@@ -1131,7 +1138,7 @@ the-salt-road/
         "click; a right click starts the terminal application. These "
         "launchers are set up through Omarchy, not by Chisel; see the "
         "Omarchy documentation for the steps on your system. The entry is "
-        "an ordinary desktop file that runs `lorewrite-gui`.",
+        "an ordinary desktop file that runs `chisel-gui`.",
         idx=["launcher"])
 
     s.h2("Leaving Chisel", idx=["quitting", "ctrl+q"])
@@ -1149,7 +1156,7 @@ the-salt-road/
 
     # ============================================================ CH 3 (desktop)
     s.chapter("3", "The Desktop Application",
-              "A tour of the window of lorewrite-gui: where everything is, "
+              "A tour of the window of chisel-gui: where everything is, "
               "and what each control does.")
     s.p("The desktop application is the same Chisel seen through a "
         "window. It shows the project you opened, lets you write in a "
@@ -1964,7 +1971,7 @@ the-salt-road/
 
     s.h2("Rebuilding the Index", idx=["index (cache)|rebuilding", "f9", "rebuild index"])
     s.p("Backlinks come from the index, a cache kept in the project's "
-        "`.lorewrite` folder. Chisel updates it as you work. If you "
+        "`.chisel` folder. Chisel updates it as you work. If you "
         "add, edit or delete note files with another program, or if a "
         "backlink list looks out of date, press `f9`. Chisel saves the "
         "open file, rebuilds the index from every scene and note, reloads "
@@ -2126,8 +2133,8 @@ the-salt-road/
          "the project when you copy or back it up, and is kept by version "
          "control."],
         ["Personal dictionary", "`dictionary.txt` in Chisel's state "
-         "folder (`~/.local/state/lorewrite`, or the folder named by "
-         "`LOREWRITE_STATE_DIR`).", "Every project you open on this "
+         "folder (`~/.local/state/chisel`, or the folder named by "
+         "`CHISEL_STATE_DIR`).", "Every project you open on this "
          "computer."],
     ], [0.22, 0.46, 0.32])
     s.p("Put a word of your world (a place, an invented material, a "
@@ -2152,7 +2159,7 @@ sweet rot""")
         "project dictionary** does. The personal dictionary has no "
         "button; open it with any editor.")
     s.attention("`dictionary.txt` is your data, not a cache: it is not in "
-                "the `.lorewrite` folder and the `.gitignore` of a new "
+                "the `.chisel` folder and the `.gitignore` of a new "
                 "project does not list it. It is not a scene and not a "
                 "note, so it never appears in the sidebar's scene list, the "
                 "word counts or the index.")
@@ -2432,7 +2439,7 @@ sweet rot""")
         f"issue ({R('fig_waived')}); the entry is marked //(waived)// and "
         "Chisel will not report that issue again. Pressing `space` "
         "again in the same report takes the waiver back. Waivers are "
-        "saved at once, in the project's `.lorewrite/waivers.json` file, "
+        "saved at once, in the project's `.chisel/waivers.json` file, "
         "and identify an issue by its kind, the entity and the "
         "conflicting words, together with the scene it was waived in. "
         "Once you close the report, a waived issue no longer appears in "
@@ -2442,7 +2449,7 @@ sweet rot""")
         "it restored, and the next check reports them again. Waivers made "
         "with an earlier version of Chisel did not record a scene and "
         "cannot be restored this way; to reinstate one, edit "
-        "`.lorewrite/waivers.json` and remove its code from the list.")
+        "`.chisel/waivers.json` and remove its code from the list.")
     s.figure("fig_waived", "continuity_waived", "A waived issue")
     s.p("Pending AI drafts (Chapter 11) are removed from the scene before "
         "it is checked: unaccepted AI text is not part of your story yet.")
@@ -3175,14 +3182,14 @@ the koi holo.<!--/ai-->""")
         ["`project.toml` in the project", "Title, author, and the `[editor]`, "
          "`[ai]`, `[manuscript]` and `[collections]` sections.",
          "That project only."],
-        ["`~/.local/state/lorewrite/settings.json`", "`tour_seen`, "
+        ["`~/.local/state/chisel/settings.json`", "`tour_seen`, "
          "`fast_model`, `strong_model`, `writing_model`, `spellcheck`, "
          "`daily_target`, `auto_snapshot`, `gui_zoom`, `gui_reflow`.",
          "All projects."],
-        ["`~/.local/state/lorewrite/stats/<id>.json`", "Your writing "
+        ["`~/.local/state/chisel/stats/<id>.json`", "Your writing "
          "numbers for one project (Chapter 12).", "That project, on this "
          "computer."],
-        ["`~/.local/state/lorewrite/dictionary.txt`", "Your personal "
+        ["`~/.local/state/chisel/dictionary.txt`", "Your personal "
          "dictionary (Chapter 7).", "All projects."],
         ["System keyring", "Your OpenRouter API key.", "All projects."],
     ], [0.36, 0.38, 0.26])
@@ -3190,8 +3197,10 @@ the koi holo.<!--/ai-->""")
             ["Variable", "Effect"], [
         ["OPENROUTER_API_KEY", "The API key. Takes precedence over the "
          "keyring."],
-        ["LOREWRITE_STATE_DIR", "Folder for `recent.json` and "
-         "`settings.json`, instead of `~/.local/state/lorewrite`."],
+        ["CHISEL_STATE_DIR", "Folder for `recent.json` and "
+         "`settings.json`, instead of `~/.local/state/chisel`. The "
+         "older name LOREWRITE_STATE_DIR still works when this is not "
+         "set."],
     ], [0.30, 0.70], mono_cols=(0,))
     s.p("All of the settings in `project.toml` are described in "
         "Appendix A.")
@@ -3443,7 +3452,7 @@ the koi holo.<!--/ai-->""")
     s.code("""\
 residual/
   project.toml          title, author and the [editor] [ai] [manuscript]
-  .gitignore            hides .lorewrite/ (and nothing else)
+  .gitignore            hides .chisel/ (and nothing else)
   style.md, style.md.bak  your style guide, and the one before the last
   dictionary.txt        words this project never flags
   manuscript/
@@ -3466,7 +3475,7 @@ residual/
   .assistant/chats/     saved conversations with the assistant
   exports/              the book as PDF, DOCX, EPUB, Markdown, LaTeX
   inspiration/          reference pictures, each with a .md sidecar
-  .lorewrite/           cache: index.sqlite, waivers.json (safe to delete)""")
+  .chisel/           cache: index.sqlite, waivers.json (safe to delete)""")
     s.table("t_projmap", "What is in the project folder",
             ["Path", "What it holds", "Written by", "Edit by hand?"], [
         ["`project.toml`", "Title, author and settings of this project.",
@@ -3498,7 +3507,7 @@ residual/
         ["`inspiration/`", "Inspiration pictures, drawn or added by you, "
          "and their notes (Chapter 13).", "Chisel and you", "Notes in "
          "the .md files, yes"],
-        ["`.lorewrite/`", "The link index and waived continuity issues.",
+        ["`.chisel/`", "The link index and waived continuity issues.",
          "Chisel", "No; safe to delete"],
     ], [0.27, 0.37, 0.18, 0.18])
     s.p("Chisel reads scenes from `manuscript/` (directly in it, in a "
@@ -3508,7 +3517,7 @@ residual/
         "research notes from `research/`, plus `style.md`, "
         "`dictionary.txt` and the folders above. Everything else in the "
         "project folder is ignored, so you may keep other files beside "
-        "them. Only `.lorewrite/` is hidden from git by the `.gitignore` "
+        "them. Only `.chisel/` is hidden from git by the `.gitignore` "
         "of a new project; everything else is yours and is committed.")
     s.p("Not in the folder, because they are about you rather than the "
         "book, are your personal dictionary, your settings and your "
@@ -3771,7 +3780,7 @@ favor and resents it.
     s.p("The file is written safely, and it is deleted when it would be "
         "empty (and the `.drafts` folder with it, if nothing else is in "
         "it). It belongs to the project, not to the cache: it is not "
-        "under `.lorewrite`, and the `.gitignore` of a new project does "
+        "under `.chisel`, and the `.gitignore` of a new project does "
         "not list it. Accepting a draft removes the markers and the "
         "entry; rejecting restores the original and removes the entry. If "
         "an id has no entry, reject refuses (Chapter 11). A body that "
@@ -3889,7 +3898,7 @@ https://www.example.com/articles/capsule-hotel-etiquette.html""")
 # Lines starting with # and blank lines are ignored.
 hundered
 maglev spur""")
-    s.h2("The .lorewrite Folder", idx=[".lorewrite folder"])
+    s.h2("The .chisel Folder", idx=[".chisel folder"])
     s.p("`index.sqlite` is the backlink index (see Chapter 6); it is "
         "rebuilt when the project opens and by `f9`. `waivers.json` "
         "records waived continuity issues as a list of short codes, with, "
@@ -3910,7 +3919,7 @@ maglev spur""")
         "want your waivers kept with the book.")
     s.h2("Chisel's State Files", idx=["state folder|files"])
     s.code("""\
-~/.local/state/lorewrite/
+~/.local/state/chisel/
   recent.json      recent projects: path, title, time opened (max 10)
   settings.json    {"tour_seen": true, "fast_model": null, "spellcheck": true,
                     "daily_target": 500, "auto_snapshot": true,
@@ -4079,7 +4088,7 @@ maglev spur""")
         ["Couldn't load models (//reason//). Type a model id in Settings "
          "instead.", "The model picker could not reach OpenRouter. Check "
          "your network, or type a model name yourself."],
-        ["No lorewrite project in //path//", "The folder has no "
+        ["No Chisel project in //path//", "The folder has no "
          "`project.toml`. Choose the project's own folder."],
         ["//path// is no longer a project", "A recent project was moved or "
          "deleted; it is removed from the list."],
@@ -4088,7 +4097,7 @@ maglev spur""")
         ["Could not create project: //reason//", "The folder could not be "
          "made, often for lack of permission."],
         ["No OpenRouter API key. Set OPENROUTER_API_KEY or store one via "
-         "lorewrite.ai.client.set_api_key().",
+         "chisel.ai.client.set_api_key().",
          "Shown after //failed:// when no key is found. Store a key "
          "(Chapter 10); you do not need to use the technical name in the "
          "message."],
@@ -4262,8 +4271,8 @@ maglev spur""")
         "In the terminal, change to the Chisel folder you installed "
         "from (Chapter 2).",
         "Copy the example: `cp -r examples/residual /tmp/residual`.",
-        "Open the copy: `lorewrite --project /tmp/residual` for the "
-        "terminal application, or `lorewrite-gui --project /tmp/residual` "
+        "Open the copy: `chisel --project /tmp/residual` for the "
+        "terminal application, or `chisel-gui --project /tmp/residual` "
         "for the desktop application.",
     ], idx=["Residual example", "examples folder"])
     s.p("Steps 1 to 8 use the terminal application. “The Same Story in "
@@ -4290,7 +4299,7 @@ maglev spur""")
     s.h2("Step 1. Open the Project")
     s.proc("Look at the project you opened:", [
         f"Chisel adds the project to the list on the launch screen "
-        f"({R('fig_launch')}), so next time you can start with `lorewrite` "
+        f"({R('fig_launch')}), so next time you can start with `chisel` "
         "alone and press `enter`.",
         "The main window opens on the first scene, //Rain on the "
         "Spur//. Look at the sidebar: four scenes and eight entities.",
@@ -4396,7 +4405,7 @@ maglev spur""")
     s.h2("The Same Story in the Desktop Application")
     s.p("Quit the terminal application, delete `/tmp/residual`, copy the "
         "example again (a fresh copy shows the same results as the "
-        "figures), and start `lorewrite-gui --project /tmp/residual`. "
+        "figures), and start `chisel-gui --project /tmp/residual`. "
         f"The window opens as in {R('fig_gmain')}. The steps that use AI "
         "need an API key (Chapter 10).")
     s.proc("Look around:", [
@@ -4605,7 +4614,7 @@ def _parts_diagram():
   +-- .trash/  .snapshots/          deleted scenes; history
   +-- .comments/  .drafts/           comments; AI draft originals
   +-- .assistant/chats/              saved conversations
-  +-- .lorewrite/                    cache, rebuilt at any time"""
+  +-- .chisel/                    cache, rebuilt at any time"""
     for ln in txt.split("\n"):
         assert len(ln) <= 78
     return Preformatted(txt, ST["code"])
@@ -4622,7 +4631,7 @@ GLOSSARY = [
      "disk or Keep my version."),
     ("corkboard", "A view of the desktop editor that shows each scene as a "
      "card."),
-    ("desktop application", "`lorewrite-gui`: the windowed form of "
+    ("desktop application", "`chisel-gui`: the windowed form of "
      "Chisel. Its window is titled Chisel."),
     ("dictionary", "A plain text file of words and phrases that spell check "
      "never flags. There is one for each project (`dictionary.txt`) and one "
@@ -4643,7 +4652,7 @@ GLOSSARY = [
      "application, which opens any scene or note."),
     ("spell check", "Underlining of misspelled words in scenes; spelling "
      "only, never grammar."),
-    ("terminal application", "`lorewrite`: the form of Chisel that runs "
+    ("terminal application", "`chisel`: the form of Chisel that runs "
      "in a terminal window."),
     ("voice samples", "About two thousand words of your own paragraphs "
      "that `ctrl+g` sends as examples of your style."),
@@ -4664,7 +4673,7 @@ GLOSSARY = [
     ("backlink", "A line of your book that mentions an entity, listed in "
      "the entity panel when the cursor is on that entity's name."),
     ("cache", "Information Chisel can rebuild from your files. The "
-     "search index in `.lorewrite` is a cache."),
+     "search index in `.chisel` is a cache."),
     ("AI draft", "See //pending draft//."),
     ("canon", "The established facts about an entity, kept in the "
      "`## Canon (auto)` section of its note (or, failing that, the "
@@ -4680,7 +4689,7 @@ GLOSSARY = [
     ("frontmatter", "The few lines between two rows of hyphens at the top "
      "of a note that give its name, kind and aliases."),
     ("index", "The cache of where each entity is mentioned, stored in "
-     "`.lorewrite/index.sqlite`. Rebuilt with `f9`."),
+     "`.chisel/index.sqlite`. Rebuilt with `f9`."),
     ("launch screen", "The screen shown when Chisel starts without a "
      "project: recent projects, open, new (and, in the terminal "
      "application, settings)."),

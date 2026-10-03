@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from lorewrite.core import comments as cm
-from lorewrite.core import scenemeta
+from chisel.core import comments as cm
+from chisel.core import scenemeta
 from tests.gui_helpers import make_book, make_project
 
 PROSE = ("# Rain\n\nThe rain in the Hollow Market came down warm and tasted of copper. "

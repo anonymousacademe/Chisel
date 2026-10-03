@@ -5,10 +5,10 @@ import inspect
 
 import pytest
 
-from lorewrite.ai.usage import LEDGER
-from lorewrite.gui import api as api_module
-from lorewrite.gui import mockai
-from lorewrite.core import inspiration as store
+from chisel.ai.usage import LEDGER
+from chisel.gui import api as api_module
+from chisel.gui import mockai
+from chisel.core import inspiration as store
 from tests.test_gui_api import open_api
 
 JPEG = b"\xff\xd8\xff\xe0" + b"j" * 30
@@ -82,7 +82,7 @@ def test_regenerate_reuses_prompt_and_scene_and_keeps_the_old_one(api):
 
 
 def test_a_failed_generation_saves_nothing(api, monkeypatch):
-    from lorewrite.ai.images import ImageError
+    from chisel.ai.images import ImageError
 
     def boom(*a, **k):
         raise ImageError("The model did not return an image: no")
@@ -173,7 +173,7 @@ def test_the_image_calls_are_in_the_bridge_and_the_mock_matches(api, monkeypatch
     for name in ("list_inspiration", "inspiration_image", "describe_scene", "generate_inspiration",
                  "regenerate_inspiration", "update_inspiration", "delete_inspiration", "reveal_inspiration"):
         assert name in api.bridge_methods()
-    from lorewrite.ai import images as image_ai
+    from chisel.ai import images as image_ai
 
     real = {"generate_images": image_ai.generate, "suggest_image_prompt": image_ai.suggest_prompt}
     mockai.install(api_module)

@@ -4,8 +4,8 @@ import sys
 
 import pytest
 
-from lorewrite.core import inspiration as insp
-from lorewrite.core.project import Project
+from chisel.core import inspiration as insp
+from chisel.core.project import Project
 
 from tests.gui_helpers import make_book
 
@@ -201,4 +201,4 @@ def test_the_folder_is_not_git_ignored(tmp_path):
     p = Project.create(tmp_path / "ignored", "Ignored")
     insp.save(p, JPEG, "jpg", {"prompt": "x"})
     ignore = (p.root / ".gitignore").read_text()
-    assert "inspiration" not in ignore and ".lorewrite/" in ignore
+    assert "inspiration" not in ignore and ".chisel/" in ignore

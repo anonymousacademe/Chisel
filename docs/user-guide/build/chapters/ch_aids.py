@@ -25,7 +25,7 @@ def build(s, R):
     s.p("Your numbers are stored in the //state folder//, never inside the "
         "project. A project folder holds the book; your daily word counts "
         "are personal data, so they live beside your other personal "
-        "settings, in `~/.local/state/lorewrite/stats/`, in one small file "
+        "settings, in `~/.local/state/chisel/stats/`, in one small file "
         "for each project. Because the file is not in the project, it is "
         "not copied when you share, back up or commit the project "
         "(Appendix A lists every file).")

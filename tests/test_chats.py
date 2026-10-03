@@ -5,7 +5,7 @@ from datetime import datetime
 
 import pytest
 
-from lorewrite.core import attach, chats, comments, research
+from chisel.core import attach, chats, comments, research
 from tests.gui_helpers import make_project
 
 

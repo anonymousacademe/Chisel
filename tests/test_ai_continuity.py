@@ -1,7 +1,7 @@
 """AI continuity checking: prompt, parse, check_scene, canon updates, jev gate.
 
 Tests the contract pinned in docs/dev/specification-guide.md §2.2.
-Skips cleanly if lorewrite.ai.continuity has not landed yet.
+Skips cleanly if chisel.ai.continuity has not landed yet.
 """
 
 import json
@@ -11,9 +11,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-ai_cont = pytest.importorskip("lorewrite.ai.continuity")
+ai_cont = pytest.importorskip("chisel.ai.continuity")
 
-from lorewrite.ai.continuity import (
+from chisel.ai.continuity import (
     ACCUMULATION_SCHEMA,
     CONTRADICTION_SCHEMA,
     CanonUpdate,
@@ -23,8 +23,8 @@ from lorewrite.ai.continuity import (
     parse_canon_updates,
     propose_canon_updates,
 )
-from lorewrite.core import entities as ent
-from lorewrite.core.continuity import Contradiction
+from chisel.core import entities as ent
+from chisel.core.continuity import Contradiction
 
 SCENE = "# Tavern\n\nElara Vance walked in. Her eyes were brown.\n"
 ENTITIES = [ent.Entity(name="Elara Vance", type="character")]
@@ -156,7 +156,7 @@ def _make_fake_client(raw_json: str):
 
 def test_check_scene_with_fake_client(monkeypatch):
     monkeypatch.setattr(
-        "lorewrite.ai.continuity.pre_screen",
+        "chisel.ai.continuity.pre_screen",
         lambda *a, **kw: None,
     )
     raw = json.dumps({"contradictions": [
@@ -184,7 +184,7 @@ def test_propose_canon_updates_with_fake_client():
 
 
 def test_propose_sends_existing_canon_capped_and_asks_for_additions():
-    from lorewrite.ai.continuity import CANON_CAP
+    from chisel.ai.continuity import CANON_CAP
 
     long_canon = "- " + "x" * 3000
     elara = ent.Entity(name="Elara Vance", body=f"## Canon (auto)\n\n{long_canon}\n")
@@ -207,7 +207,7 @@ def test_propose_sends_existing_canon_capped_and_asks_for_additions():
 
 def test_check_scene_jev_gate_returns_empty_without_calling_client(monkeypatch):
     monkeypatch.setattr(
-        "lorewrite.ai.continuity.pre_screen",
+        "chisel.ai.continuity.pre_screen",
         lambda *a, **kw: [],
     )
     client = MagicMock()
@@ -220,7 +220,7 @@ def test_check_scene_jev_gate_returns_empty_without_calling_client(monkeypatch):
 
 
 def test_pre_screen_reads_current_jev_reply_shape(monkeypatch):
-    from lorewrite.core import jev_interface as J
+    from chisel.core import jev_interface as J
 
     replies = {"Elara Vance": 0.85}
     monkeypatch.setattr(J, "jev_available", lambda: True)
@@ -232,7 +232,7 @@ def test_pre_screen_reads_current_jev_reply_shape(monkeypatch):
 
 
 def test_pre_screen_fails_open_on_unknown_reply_shape(monkeypatch):
-    from lorewrite.core import jev_interface as J
+    from chisel.core import jev_interface as J
 
     monkeypatch.setattr(J, "jev_available", lambda: True)
     monkeypatch.setattr(J, "_ask", lambda state, q: {"something": "else"})
@@ -240,7 +240,7 @@ def test_pre_screen_fails_open_on_unknown_reply_shape(monkeypatch):
 
 
 def test_contradiction_score_shapes():
-    from lorewrite.core.jev_interface import _contradiction_score as score
+    from chisel.core.jev_interface import _contradiction_score as score
 
     assert score({"answers": {"contradiction": {"noul": 0.7}}}) == 0.7
     assert score({"answers": {"contradiction": 0.4}}) == 0.4
@@ -250,7 +250,7 @@ def test_contradiction_score_shapes():
 
 
 def test_make_client_sets_timeout_and_retries(monkeypatch):
-    from lorewrite.ai import client as C
+    from chisel.ai import client as C
 
     monkeypatch.setattr(C, "get_api_key", lambda: "sk-test")
     c = C.make_client()

@@ -1,8 +1,8 @@
 """ai/relevance.py: which entities a scene is about (named, POV / place, everyone else)."""
 
-from lorewrite.ai import relevance
-from lorewrite.core import scenemeta
-from lorewrite.core.entities import Entity
+from chisel.ai import relevance
+from chisel.core import scenemeta
+from chisel.core.entities import Entity
 
 MARA = Entity(name="Mara Vale", aliases=["Mara"], body="a")
 ELIAS = Entity(name="Elias Vale", aliases=["Elias"], body="b")

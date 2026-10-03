@@ -1,6 +1,6 @@
 // In-memory stand-in for the Python core, used only by `npm run dev` in a
 // plain browser (no pywebview, no devserver). Same JSON bridge contract as
-// lorewrite.gui.api.Api; methods it does not implement return an error so the
+// chisel.gui.api.Api; methods it does not implement return an error so the
 // UI shows "not available" instead of inventing results.
 import type { BinderNode, DocumentPayload, EntityInfo, EntitySummary, InspirationImage, SceneMention, SceneSummary, SentReport, Workspace } from "../data/types";
 

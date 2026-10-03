@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from lorewrite.core import drafts
-from lorewrite.core.project import Project
-from lorewrite.tui.app import LorewriteApp, _word_count
+from chisel.core import drafts
+from chisel.core.project import Project
+from chisel.tui.app import ChiselApp, _word_count
 
 # -- core ---------------------------------------------------------------------------
 
@@ -203,7 +203,7 @@ def _styled(app, row: int, predicate) -> str:
 async def test_editor_styles_ai_body_and_fades_markers(project):
     text = "# S\n\nStart " + drafts.wrap("ghost prose") + " end.\n"
     scene = _scene(project, text)
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -219,7 +219,7 @@ async def test_editor_styles_ai_body_and_fades_markers(project):
 
 async def test_expand_marker_is_faded(project):
     scene = _scene(project, "# S\n\nA {{expand: the rain}} B\n")
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -231,7 +231,7 @@ async def test_f7_accepts_and_f8_rejects_draft_under_cursor(project):
     body = ("# S\n\nOne " + drafts.wrap("alpha") + " two "
             + drafts.wrap("beta", "abc123") + " end.\n")
     scene = _scene(project, body, {"abc123": "ORIG"})
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -263,7 +263,7 @@ async def test_f7_accepts_and_f8_rejects_draft_under_cursor(project):
 
 async def test_f5_selects_all(project):
     scene = _scene(project, "# S\n\ntext\n")
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -277,7 +277,7 @@ async def test_accept_all_and_reject_all_via_palette_methods(project):
     body = ("# S\n\nA " + drafts.wrap("one") + " B " + drafts.wrap("two", "abc123")
             + " C\n")
     scene = _scene(project, body, {"abc123": "TWO"})
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -290,7 +290,7 @@ async def test_accept_all_and_reject_all_via_palette_methods(project):
         await pilot.pause()
         assert app.editor.text == "# S\n\nA one B two C\n"
         titles = [t for t, _, _ in __import__(
-            "lorewrite.tui.commands", fromlist=["ActionProvider"]).ActionProvider.ACTIONS]
+            "chisel.tui.commands", fromlist=["ActionProvider"]).ActionProvider.ACTIONS]
         assert "Accept all AI drafts in this scene" in titles
         assert "Reject all AI drafts in this scene" in titles
 
@@ -298,9 +298,9 @@ async def test_accept_all_and_reject_all_via_palette_methods(project):
 async def test_no_draft_under_cursor_notifies(project, monkeypatch):
     scene = _scene(project, "# S\n\nplain\n")
     notified = []
-    monkeypatch.setattr(LorewriteApp, "notify",
+    monkeypatch.setattr(ChiselApp, "notify",
                         lambda self, message, **kw: notified.append(str(message)))
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -315,7 +315,7 @@ async def test_no_draft_under_cursor_notifies(project, monkeypatch):
 
 async def test_word_counts_in_status_exclude_pending(project):
     scene = _scene(project, "# S\n\nreal words " + drafts.wrap("ghost " * 20) + "\n")
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -330,7 +330,7 @@ async def test_word_counts_in_status_exclude_pending(project):
 
 
 async def test_ai_tools_ignore_pending_bodies(project, monkeypatch):
-    import lorewrite.tui.app as app_mod
+    import chisel.tui.app as app_mod
 
     seen = {}
 
@@ -340,7 +340,7 @@ async def test_ai_tools_ignore_pending_bodies(project, monkeypatch):
 
     monkeypatch.setattr(app_mod, "suggest_links", fake)
     scene = _scene(project, "# S\n\nBorin sat. " + drafts.wrap("SECRET DRAFT") + "\n")
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -350,7 +350,7 @@ async def test_ai_tools_ignore_pending_bodies(project, monkeypatch):
 
 
 def test_style_sampling_ignores_pending(tmp_path):
-    from lorewrite.core.style import sample_manuscript
+    from chisel.core.style import sample_manuscript
 
     proj = Project.create(tmp_path / "n", title="N")
     para = " ".join(f"w{i}" for i in range(30))
@@ -362,7 +362,7 @@ def test_style_sampling_ignores_pending(tmp_path):
 
 async def test_teardown_with_pending_draft_does_not_crash(project):
     scene = _scene(project, "# S\n\ntext " + drafts.wrap("draft") + "\n")
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -387,8 +387,8 @@ def test_blank_pending_keeps_length_newlines_and_offsets():
 
 
 def test_index_ignores_names_inside_pending_but_keeps_real_rows(tmp_path):
-    from lorewrite.core import entities as ent
-    from lorewrite.core.index import Index
+    from chisel.core import entities as ent
+    from chisel.core.index import Index
 
     proj = Project.create(tmp_path / "n", title="N")
     proj.create_entity("Borin")
@@ -412,8 +412,8 @@ def test_index_ignores_names_inside_pending_but_keeps_real_rows(tmp_path):
 
 
 async def test_alias_finder_line_numbers_match_the_file_with_drafts(project, monkeypatch):
-    import lorewrite.tui.app as app_mod
-    from lorewrite.ai.links import Suggestion
+    import chisel.tui.app as app_mod
+    from chisel.ai.links import Suggestion
 
     def fake(text, entities, model):
         i = text.index("the old smith")
@@ -424,7 +424,7 @@ async def test_alias_finder_line_numbers_match_the_file_with_drafts(project, mon
             "Then the old smith spoke.\n")
     scene = _scene(project, body, {"abc123": "orig"})
     real_line = body.split("\n").index("Then the old smith spoke.") + 1
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)

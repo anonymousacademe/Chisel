@@ -5,8 +5,8 @@ import os
 from pathlib import Path
 
 from tests.gui_helpers import make_book, make_project
-from lorewrite.core import collections as coll
-from lorewrite.gui import workspace as ws
+from chisel.core import collections as coll
+from chisel.gui import workspace as ws
 
 FIXTURE = Path(__file__).resolve().parents[1] / "gui/src/data/fixtures/workspace.json"
 PARTS_FIXTURE = Path(__file__).resolve().parents[1] / "gui/src/data/fixtures/workspace-parts.json"
@@ -52,7 +52,7 @@ def test_workspace_shape_matches_fixture(tmp_path):
     built = ws.build_workspace(project, project.load_entities(),
                                baseline_words=5, session_minutes=3, ai_cost=0.0123)
     built["project"]["path"] = "<root>"
-    if os.environ.get("LOREWRITE_REGEN_FIXTURE"):
+    if os.environ.get("CHISEL_REGEN_FIXTURE"):
         FIXTURE.write_text(json.dumps(built, indent=2) + "\n", encoding="utf-8")
     assert json.loads(FIXTURE.read_text(encoding="utf-8")) == built
 
@@ -75,7 +75,7 @@ def test_workspace_with_parts_matches_fixture(tmp_path):
     built = ws.build_workspace(project, project.load_entities(),
                                baseline_words=0, session_minutes=0, ai_cost=0)
     built["project"]["path"] = "<root>"
-    if os.environ.get("LOREWRITE_REGEN_FIXTURE"):
+    if os.environ.get("CHISEL_REGEN_FIXTURE"):
         PARTS_FIXTURE.write_text(json.dumps(built, indent=2) + "\n", encoding="utf-8")
     assert json.loads(PARTS_FIXTURE.read_text(encoding="utf-8")) == built
 
@@ -126,5 +126,5 @@ def test_parked_scenes_group_hidden_when_empty_and_shown_with_a_count(tmp_path):
 
 
 def test_dead_placeholder_helper_is_gone():
-    from lorewrite.gui import workspace
+    from chisel.gui import workspace
     assert not hasattr(workspace, "_placeholder")

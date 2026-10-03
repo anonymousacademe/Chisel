@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from lorewrite.core.continuity import (
+from chisel.core.continuity import (
     CANON_HEADER,
     Contradiction,
     apply_canon_update,
@@ -16,7 +16,7 @@ from lorewrite.core.continuity import (
     save_waiver,
     set_canon,
 )
-from lorewrite.core import entities as ent
+from chisel.core import entities as ent
 
 
 # -- Contradiction.waiver_key --------------------------------------------------
@@ -97,7 +97,7 @@ def test_filter_waived_removes_waived():
 
 
 def test_load_waivers_corrupt_file_tolerated(tmp_path: Path):
-    wpath = tmp_path / ".lorewrite" / "waivers.json"
+    wpath = tmp_path / ".chisel" / "waivers.json"
     wpath.parent.mkdir(parents=True, exist_ok=True)
     wpath.write_text("NOT JSON{{{{", encoding="utf-8")
     assert load_waivers(tmp_path) == set()
@@ -165,7 +165,7 @@ def test_locate_evidence_absent_returns_none():
 
 
 def test_add_canon_facts_appends_and_never_removes():
-    from lorewrite.core.continuity import add_canon_facts
+    from chisel.core.continuity import add_canon_facts
 
     body = "Author text.\n\n## Canon (auto)\n\n- Blue eyes\n- Left-handed\n\n## Notes\n\nKeep.\n"
     out = add_canon_facts(body, ["Owns a boat", "blue eyes.", "  - Owns a boat "])
@@ -175,7 +175,7 @@ def test_add_canon_facts_appends_and_never_removes():
 
 
 def test_add_canon_facts_creates_section_and_noop_when_all_dupes():
-    from lorewrite.core.continuity import add_canon_facts
+    from chisel.core.continuity import add_canon_facts
 
     out = add_canon_facts("Intro.\n", ["First fact"])
     assert out.startswith("Intro.") and get_canon(out) == "- First fact"
@@ -193,7 +193,7 @@ def test_second_update_never_removes_first_facts(tmp_path: Path):
 
 
 def test_waivers_record_scene_and_clear_by_scene(tmp_path: Path):
-    from lorewrite.core.continuity import clear_scene_waivers, remove_waiver
+    from chisel.core.continuity import clear_scene_waivers, remove_waiver
 
     save_waiver(tmp_path, "k1", "manuscript/01.md")
     save_waiver(tmp_path, "k2", "manuscript/01.md")
@@ -206,7 +206,7 @@ def test_waivers_record_scene_and_clear_by_scene(tmp_path: Path):
 
 
 def test_legacy_waivers_file_without_scenes_still_loads(tmp_path: Path):
-    wpath = tmp_path / ".lorewrite" / "waivers.json"
+    wpath = tmp_path / ".chisel" / "waivers.json"
     wpath.parent.mkdir(parents=True)
     wpath.write_text('{"waived": ["old1"]}')
     assert load_waivers(tmp_path) == {"old1"}
@@ -215,7 +215,7 @@ def test_legacy_waivers_file_without_scenes_still_loads(tmp_path: Path):
 
 
 def test_locate_evidence_across_hard_wrapped_lines():
-    from lorewrite.core.continuity import locate_evidence
+    from chisel.core.continuity import locate_evidence
 
     text = "First line.\nShe stood in the kitchen with one hand\naround a cup gone cold.\n"
     assert locate_evidence(text, "She stood in the kitchen with one hand around a cup") == 1

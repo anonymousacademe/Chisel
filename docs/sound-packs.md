@@ -33,8 +33,8 @@ volume = 0.8         # 0 to 1, a gain applied on top of the volume slider
 
 ## Where packs live
 
-`sounds/<pack>/` inside Chisel's data folder (Linux `~/.local/share/lorewrite`, macOS
-`~/Library/Application Support/lorewrite`, Windows `%LOCALAPPDATA%\lorewrite`). **Sound -> Open sounds
+`sounds/<pack>/` inside Chisel's data folder (Linux `~/.local/share/chisel`, macOS
+`~/Library/Application Support/chisel`, Windows `%LOCALAPPDATA%\chisel`). **Sound -> Open sounds
 folder** opens it (and creates it). Packs there are listed automatically. Your own ambience loops go in
 `ambience/` next to it (wav/ogg/mp3/flac, up to 30 MB each).
 

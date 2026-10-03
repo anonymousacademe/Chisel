@@ -1,7 +1,7 @@
-//! LoreWriter desktop shell.
+//! Chisel desktop shell.
 //!
 //! The UI talks to the backend through the commands below (see `src/backend/` in the
-//! frontend). They are stubs: wire them to the existing LoreWriter core — either by
+//! frontend). They are stubs: wire them to the existing Chisel core — either by
 //! porting the logic here or by spawning the TUI's Python core as a Tauri sidecar and
 //! forwarding JSON. Until then the frontend falls back to its mock backend.
 

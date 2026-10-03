@@ -10,12 +10,12 @@ in-process through pywebview's `js_api`; all project logic lives in `core/` and 
 ```bash
 python3 -m venv --system-site-packages .venv-gui     # needs system PyGObject + WebKit2 4.1
 .venv-gui/bin/pip install -e ".[dev,gui]"
-cd gui && npm install && npm run build               # writes src/lorewrite/gui/web (git-ignored, shipped in the package)
-.venv-gui/bin/lorewrite-gui [--project PATH]         # --dev URL loads `npm run dev` instead
+cd gui && npm install && npm run build               # writes src/chisel/gui/web (git-ignored, shipped in the package)
+.venv-gui/bin/chisel-gui [--project PATH]         # --dev URL loads `npm run dev` instead
 ```
 
-`lorewrite-gui` exits with a clear message when no build exists (`gui/webroot.py` looks in
-`src/lorewrite/gui/web/` first, then the old `gui/dist/`).
+`chisel-gui` exits with a clear message when no build exists (`gui/webroot.py` looks in
+`src/chisel/gui/web/` first, then the old `gui/dist/`).
 
 ## Develop
 
@@ -26,7 +26,7 @@ npm run lint     # oxlint
 npm test         # vitest: decoration mapping, save state machine, transports, ...
 
 # the real core, headless (for screenshots / debugging), on a *copy* of a project:
-PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project /tmp/residual [--mock-ai]
+PYTHONPATH=src .venv-gui/bin/python -m chisel.gui.devserver --project /tmp/residual [--mock-ai]
 # prints http://127.0.0.1:<port>/ ; open it in Chromium. --mock-ai = canned AI, no network.
 ```
 
@@ -35,7 +35,7 @@ PYTHONPATH=src .venv-gui/bin/python -m lorewrite.gui.devserver --project /tmp/re
 ```
 src/
   backend/transport.ts   pywebview | http (devserver) | in-memory mock, picked at startup
-  backend/api.ts         typed wrappers; method names match lorewrite.gui.api.Api
+  backend/api.ts         typed wrappers; method names match chisel.gui.api.Api
   backend/mock.ts        the mock core used by `npm run dev`
   data/types.ts          Workspace / document / AI result shapes (mirror workspace.py)
   data/tree.ts switcher.ts noteBlocks.ts   pure helpers (vitest)
@@ -64,7 +64,7 @@ The `Logo` component draws `src/assets/logo.svg`, the Chisel icon (an open book,
 The vector and PNG sources of the artwork (the icon on its rounded square and the mark without a background)
 are in [`docs/brand/`](../docs/brand/README.md); `public/logo.svg` and `public/favicon.png` are copies for the
 page. `scripts/make-icons.sh` regenerates the installer icons in `src-tauri/icons/` from `src/assets/logo.svg`
-(needs `rsvg-convert` and Pillow). The desktop window's own icon is `src/lorewrite/gui/icon.ico` on Windows
+(needs `rsvg-convert` and Pillow). The desktop window's own icon is `src/chisel/gui/icon.ico` on Windows
 and `icon.png` elsewhere; see [docs/dev/packaging.md](../docs/dev/packaging.md#icons).
 
 ## Placeholders

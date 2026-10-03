@@ -5,10 +5,10 @@ import time
 
 import pytest
 
-from lorewrite.ai.stream import Cancelled
-from lorewrite.gui import aijobs
-from lorewrite.gui import api as api_module
-from lorewrite.gui.aijobs import AiJobs
+from chisel.ai.stream import Cancelled
+from chisel.gui import aijobs
+from chisel.gui import api as api_module
+from chisel.gui.aijobs import AiJobs
 from tests.test_gui_api import open_api
 
 SCENE = "manuscript/01-arrival.md"
@@ -19,7 +19,7 @@ def no_network(monkeypatch):
     def boom(*a, **k):
         raise RuntimeError("network is blocked in tests")
 
-    monkeypatch.setattr("lorewrite.ai.client.make_client", boom)
+    monkeypatch.setattr("chisel.ai.client.make_client", boom)
 
 
 def wait(api, job, states=("done", "cancelled", "error"), timeout=5):
@@ -150,7 +150,7 @@ MOCKED = ("suggest_links", "check_scene", "propose_canon_updates", "learn_style"
 
 @pytest.fixture
 def mock_ai(monkeypatch):
-    from lorewrite.gui import mockai
+    from chisel.gui import mockai
 
     for name in MOCKED:
         monkeypatch.setattr(api_module, name, getattr(api_module, name))   # undone after the test

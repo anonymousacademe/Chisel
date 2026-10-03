@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from lorewrite.core import entities as ent
-from lorewrite.core.project import Project
+from chisel.core import entities as ent
+from chisel.core.project import Project
 
 SCENE_1 = """\
 # Arrival

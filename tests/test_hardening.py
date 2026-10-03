@@ -7,13 +7,13 @@ import urllib.request
 
 import pytest
 
-from lorewrite.core import comments, drafts, fsutil, rename, snapshots
-from lorewrite.core import entities as ent
-from lorewrite.core import links
-from lorewrite.core.index import Index
-from lorewrite.core.project import Project
-from lorewrite.gui import devserver
-from lorewrite.gui.api import Api
+from chisel.core import comments, drafts, fsutil, rename, snapshots
+from chisel.core import entities as ent
+from chisel.core import links
+from chisel.core.index import Index
+from chisel.core.project import Project
+from chisel.gui import devserver
+from chisel.gui.api import Api
 from tests.gui_helpers import make_project
 
 
@@ -41,7 +41,7 @@ def test_title_round_trips(tmp_path, title):
 
 
 def test_export_ok_when_remembering_options_fails(tmp_path, monkeypatch):
-    from lorewrite.core import export
+    from chisel.core import export
     project = blank(tmp_path)
     (project.manuscript_dir / "01-a.md").write_text("# A\n\nText.\n", encoding="utf-8")
 
@@ -437,7 +437,7 @@ def test_entity_saves_refuse_non_utf8(tmp_path):
 
 
 def test_notebook_and_style_core_writes_refuse_non_utf8(tmp_path):
-    from lorewrite.core import research, spelling, style
+    from chisel.core import research, spelling, style
     project = blank(tmp_path)
     folder = research.research_dir(project)
     folder.mkdir(parents=True, exist_ok=True)
@@ -520,7 +520,7 @@ def test_valid_utf8_still_saves_bom_and_crlf(tmp_path, monkeypatch):
 
 
 def test_notebook_slug_is_capped(tmp_path):
-    from lorewrite.core import research
+    from chisel.core import research
     project = blank(tmp_path)
     path = research.new_note(project, "word " * 400)
     assert len(path.stem) <= ent.MAX_SLUG + 4 and path.is_file()

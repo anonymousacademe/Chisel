@@ -6,9 +6,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from lorewrite.ai import writing
-from lorewrite.ai.stream import Cancelled, CancelToken, call_ai, stream_text
-from lorewrite.ai.usage import LEDGER
+from chisel.ai import writing
+from chisel.ai.stream import Cancelled, CancelToken, call_ai, stream_text
+from chisel.ai.usage import LEDGER
 
 
 def chunk(text=None, usage=None):

@@ -4,12 +4,12 @@ import json
 
 import pytest
 
-from lorewrite.ai import budget as B
-from lorewrite.ai.budget import (
+from chisel.ai import budget as B
+from chisel.ai.budget import (
     Budget, BudgetError, Item, Section, estimate_tokens, fit, fit_text, merge_attached, preflight, render, trim,
     validate_window, window_for,
 )
-from lorewrite.ai.client import ModelInfo, cached_context_length, remember_context_lengths
+from chisel.ai.client import ModelInfo, cached_context_length, remember_context_lengths
 
 
 def budget_of(chars: int, reserve_chars: int = 0) -> Budget:
@@ -48,7 +48,7 @@ def test_window_for_without_a_catalogue_reads_the_remembered_lengths_never_the_n
     def boom(*a, **k):
         raise AssertionError("the budget must never fetch the catalogue")
 
-    monkeypatch.setattr("lorewrite.ai.client.list_models", boom)
+    monkeypatch.setattr("chisel.ai.client.list_models", boom)
     monkeypatch.setattr("urllib.request.urlopen", boom)
     assert cached_context_length("m/x") is None
     assert window_for("m/x", settings={}) == B.DEFAULT_WINDOW

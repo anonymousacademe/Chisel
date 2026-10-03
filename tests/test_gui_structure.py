@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 
 from tests.gui_helpers import make_book
-from lorewrite.core import drafts, scenemeta
-from lorewrite.gui.api import Api
+from chisel.core import drafts, scenemeta
+from chisel.gui.api import Api
 
 
 def open_book(tmp_path):
@@ -232,8 +232,8 @@ def test_residual_example_opens_unchanged_in_the_gui_api(tmp_path):
     new = api.new_scene("A Fifth")["id"]          # new scenes still go to the top level
     assert new == "manuscript/05-a-fifth.md"
     assert sorted(p.relative_to(root).as_posix() for p in root.rglob("*")
-                  if ".lorewrite" not in p.parts) == sorted(
-        [p for p in before if ".lorewrite" not in p.split("/")] + ["manuscript/05-a-fifth.md"])
+                  if ".chisel" not in p.parts) == sorted(
+        [p for p in before if ".chisel" not in p.split("/")] + ["manuscript/05-a-fifth.md"])
 
 
 def test_restore_reports_where_it_went(tmp_path):

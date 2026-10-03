@@ -4,13 +4,13 @@ from pathlib import Path
 
 from textual.widgets import Input, Static
 
-from lorewrite.core import research as rs
-from lorewrite.core.project import Project
-from lorewrite.tui import app as app_module
-from lorewrite.tui.app import ConfirmScreen, LorewriteApp, NamePrompt
-from lorewrite.tui.assistantscreen import AssistantScreen
-from lorewrite.tui.commands import ActionProvider, ResearchProvider
-from lorewrite.tui.structurescreens import ChoiceScreen
+from chisel.core import research as rs
+from chisel.core.project import Project
+from chisel.tui import app as app_module
+from chisel.tui.app import ConfirmScreen, ChiselApp, NamePrompt
+from chisel.tui.assistantscreen import AssistantScreen
+from chisel.tui.commands import ActionProvider, ResearchProvider
+from chisel.tui.structurescreens import ChoiceScreen
 
 
 def _project(tmp_path: Path) -> Project:
@@ -27,12 +27,12 @@ def test_palette_lists_the_research_actions_and_provider():
     methods = {m for _, m, _ in ActionProvider.ACTIONS}
     assert {"new_research_note_prompt", "new_research_from_link_prompt", "delete_research_note_confirm",
             "open_assistant", "open_research_question", "send_selection_to_notebook"} <= methods
-    assert ResearchProvider.__name__ in {c.__name__ for c in LorewriteApp.COMMANDS}
+    assert ResearchProvider.__name__ in {c.__name__ for c in ChiselApp.COMMANDS}
 
 
 async def test_new_note_link_open_and_delete(tmp_path: Path):
     p = _project(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.new_research_note_prompt()
@@ -89,7 +89,7 @@ async def test_new_note_link_open_and_delete(tmp_path: Path):
 
 async def test_research_question_cites_notes_and_chat_mode_asks(tmp_path: Path, monkeypatch):
     p = _project(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     calls = {}
 
     def fake_research(prompt, context, model, history=None, client=None):
@@ -145,11 +145,11 @@ async def test_research_question_cites_notes_and_chat_mode_asks(tmp_path: Path, 
 
 
 async def test_conversations_are_saved_listed_reopened_and_replies_saved_to_notes(tmp_path: Path, monkeypatch):
-    from lorewrite.core import chats
-    from lorewrite.tui.assistantscreen import ChatsScreen
+    from chisel.core import chats
+    from chisel.tui.assistantscreen import ChatsScreen
 
     p = _project(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     monkeypatch.setattr(app_module, "ask_writer", lambda prompt, context, model, history=None, client=None: f"Re: {prompt}")
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
@@ -203,14 +203,14 @@ async def test_conversations_are_saved_listed_reopened_and_replies_saved_to_note
 
 
 def test_saved_conversations_key_is_not_a_terminal_control_code():
-    from lorewrite.tui.assistantscreen import AssistantScreen
+    from chisel.tui.assistantscreen import AssistantScreen
     keys = {b.key for b in AssistantScreen.BINDINGS}
     assert "ctrl+t" in keys and not keys & {"ctrl+h", "ctrl+i", "ctrl+m", "ctrl+["}
 
 
 async def test_send_selection_to_notebook(tmp_path: Path):
     p = _project(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.send_selection_to_notebook()                           # nothing selected: refused

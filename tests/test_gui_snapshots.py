@@ -3,8 +3,8 @@
 from pathlib import Path
 
 from tests.gui_helpers import make_book, make_project
-from lorewrite.core import drafts, snapshots
-from lorewrite.gui.api import Api
+from chisel.core import drafts, snapshots
+from chisel.gui.api import Api
 
 RAIN = "manuscript/01-the-recall/01-rain.md"
 
@@ -155,7 +155,7 @@ def test_example_project_opens_unchanged_and_creates_nothing(tmp_path):
     assert api.read_document(first)["snapshotAt"] is None
     assert api.list_snapshots(first)["items"] == []
     after = {p: p.read_bytes() for p in root.rglob("*")
-             if p.is_file() and ".lorewrite" not in p.parts}
-    before = {p: b for p, b in before.items() if ".lorewrite" not in p.parts}
+             if p.is_file() and ".chisel" not in p.parts}
+    before = {p: b for p, b in before.items() if ".chisel" not in p.parts}
     assert after == before
     assert not (root / ".snapshots").exists()

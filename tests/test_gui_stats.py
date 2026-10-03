@@ -1,8 +1,8 @@
 """Api: writing stats (Wave 4.1) - counted on save, kept in the state dir."""
 
 from tests.gui_helpers import make_book
-from lorewrite.core import stats as writing_stats
-from lorewrite.gui.api import Api
+from chisel.core import stats as writing_stats
+from chisel.gui.api import Api
 
 RAIN = "manuscript/01-the-recall/01-rain.md"
 

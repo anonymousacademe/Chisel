@@ -6,7 +6,7 @@
     python packaging/build.py package    # installer / DMG / AppImage / zip -> dist/release/
     python packaging/build.py all        # the three above
 
-Needs the web UI built first (``npm run build`` in gui/ writes src/lorewrite/gui/web/)
+Needs the web UI built first (``npm run build`` in gui/ writes src/chisel/gui/web/)
 and the build dependencies (packaging/requirements-build.txt). Nothing here signs
 or uploads anything. See docs/dev/packaging.md.
 """
@@ -45,7 +45,7 @@ APPIMAGETOOL_URL = ("https://github.com/AppImage/appimagetool/releases/download/
 
 def version() -> str:
     ns: dict = {}
-    exec((ROOT / "src" / "lorewrite" / "__init__.py").read_text(encoding="utf-8"), ns)
+    exec((ROOT / "src" / "chisel" / "__init__.py").read_text(encoding="utf-8"), ns)
     return ns["__version__"]
 
 
@@ -59,19 +59,19 @@ def run(cmd: list[str | Path], **kw) -> None:
 
 
 def mac_arch() -> str:
-    return os.environ.get("LOREWRITE_TARGET_ARCH") or platform.machine().replace("aarch64", "arm64")
+    return os.environ.get("CHISEL_TARGET_ARCH") or platform.machine().replace("aarch64", "arm64")
 
 
 # -- bundle ------------------------------------------------------------------------
 
 
 def bundle() -> None:
-    if not (ROOT / "src" / "lorewrite" / "gui" / "web" / "index.html").is_file():
+    if not (ROOT / "src" / "chisel" / "gui" / "web" / "index.html").is_file():
         sys.exit("the web UI is not built: run `npm ci && npm run build` in gui/ first")
     for folder in (DIST / "Chisel", DIST / "Chisel.app", WORK):
         if folder.exists():
             shutil.rmtree(folder)
-    run([sys.executable, "-m", "PyInstaller", PKG / "lorewriter.spec", "--noconfirm", "--clean",
+    run([sys.executable, "-m", "PyInstaller", PKG / "chisel.spec", "--noconfirm", "--clean",
          "--distpath", DIST, "--workpath", WORK])
 
 
@@ -80,8 +80,8 @@ def bundle_exes() -> tuple[Path, Path]:
     exe = ".exe" if sys.platform == "win32" else ""
     if sys.platform == "darwin":
         macos = DIST / "Chisel.app" / "Contents" / "MacOS"
-        return macos / "Chisel", macos / "lorewrite"
-    return BUNDLE / f"Chisel{exe}", BUNDLE / f"lorewrite{exe}"
+        return macos / "Chisel", macos / "chisel-tui"
+    return BUNDLE / f"Chisel{exe}", BUNDLE / f"chisel-tui{exe}"
 
 
 # -- self test ---------------------------------------------------------------------
@@ -140,7 +140,7 @@ def package_windows() -> None:
         sys.exit("Inno Setup (ISCC.exe) not found: choco install innosetup")
     run([iscc, f"/DAppVersion={ver}", f"/DSourceDir={BUNDLE}", f"/DOutputDir={RELEASE}",
          f"/DIconFile={ROOT / 'gui' / 'src-tauri' / 'icons' / 'icon.ico'}",
-         f"/DLicenseFile={ROOT / 'LICENSE'}", PKG / "lorewriter.iss"])
+         f"/DLicenseFile={ROOT / 'LICENSE'}", PKG / "chisel.iss"])
 
 
 def package_macos() -> None:
@@ -194,13 +194,13 @@ def appimagetool() -> Path:
 
 APPRUN = """#!/bin/sh
 # Chisel AppImage launcher: the desktop app by default; the terminal app when run
-# through a link named "lorewrite" or as `Chisel.AppImage --terminal [options]`.
+# through a link named "chisel" (or "chisel-tui") or as `Chisel.AppImage --terminal [options]`.
 HERE="$(dirname "$(readlink -f "$0")")"
 APP="$HERE/usr/lib/Chisel"
 case "$(basename "${ARGV0:-}")" in
-  lorewrite) exec "$APP/lorewrite" "$@" ;;
+  chisel|chisel-tui) exec "$APP/chisel-tui" "$@" ;;
 esac
-if [ "$1" = "--terminal" ]; then shift; exec "$APP/lorewrite" "$@"; fi
+if [ "$1" = "--terminal" ]; then shift; exec "$APP/chisel-tui" "$@"; fi
 exec "$APP/Chisel" "$@"
 """
 
@@ -210,7 +210,7 @@ Name=Chisel
 GenericName=Fiction writing
 Comment=Write fiction in plain Markdown, with linked characters and places
 Exec=Chisel %F
-Icon=lorewriter
+Icon=chisel
 Terminal=false
 Categories=Office;TextEditor;
 Keywords=fiction;novel;writing;markdown;
@@ -230,14 +230,14 @@ def package_linux() -> None:
     apprun.chmod(0o755)
     (appdir / "Chisel.desktop").write_text(DESKTOP.format(version=ver), encoding="utf-8",
                                                newline="\n")
-    shutil.copy(ICON_PNG, appdir / "lorewriter.png")
-    (appdir / ".DirIcon").symlink_to("lorewriter.png")
+    shutil.copy(ICON_PNG, appdir / "chisel.png")
+    (appdir / ".DirIcon").symlink_to("chisel.png")
     share = appdir / "usr" / "share"
     (share / "applications").mkdir(parents=True)
     shutil.copy(appdir / "Chisel.desktop", share / "applications" / "Chisel.desktop")
     icons = share / "icons" / "hicolor" / "512x512" / "apps"
     icons.mkdir(parents=True)
-    shutil.copy(ICON_PNG, icons / "lorewriter.png")
+    shutil.copy(ICON_PNG, icons / "chisel.png")
     out = RELEASE / f"Chisel-{ver}-x86_64.AppImage"
     out.unlink(missing_ok=True)
     env = dict(os.environ, ARCH="x86_64", APPIMAGE_EXTRACT_AND_RUN="1")

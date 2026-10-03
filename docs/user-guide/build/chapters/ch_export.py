@@ -50,14 +50,14 @@ def build(s, R):
     s.h3("What the Program Needs", idx=["pandoc", "ReportLab", "export|requirements"])
     s.p("Markdown needs nothing. The PDF layouts are drawn by a Python "
         "library called ReportLab, which is an optional part of the "
-        "install: `pip install 'lorewrite[export]'` (it also brings the "
+        "install: `pip install 'chisel-writer[export]'` (it also brings the "
         "hyphenation helper that lets the Book layout break long words "
         "at line ends). DOCX, EPUB and LaTeX are written by a separate "
         "program, **pandoc**, which must be installed on your computer "
         "and findable on its path. Chisel never downloads either.")
     s.p("When a tool is missing the format is still listed, but marked. "
         "In the terminal form the entry reads //PDF (install ReportLab: "
-        "pip install 'lorewrite[export]')// or //Word (DOCX) (install "
+        "pip install 'chisel-writer[export]')// or //Word (DOCX) (install "
         "pandoc)//. In the desktop dialog the format button is dimmed, "
         "and a line below the buttons gives the same reason. A missing "
         "format cannot be exported; choosing it in the terminal and "
@@ -464,7 +464,7 @@ copyright = "First edition, 2026"
         ["There is nothing to export yet: the book has no scenes",
          "No placed scenes. Nothing is written."],
         ["PDF export needs ReportLab: pip install "
-         "'lorewrite[export]'", "The PDF library is not installed."],
+         "'chisel-writer[export]'", "The PDF library is not installed."],
         ["pandoc is not installed; install it to export DOCX, EPUB or "
          "LaTeX", "pandoc is not on the path."],
         ["pandoc failed: //detail//", "pandoc reported an error; the "
@@ -516,7 +516,7 @@ copyright = "First edition, 2026"
         "A scene with a missing or malformed title line is exported "
         "under its file name.",
         "The Book layout hyphenates only when the `pyphen` helper is "
-        "installed (it comes with `lorewrite[export]`).",
+        "installed (it comes with `chisel-writer[export]`).",
         "The look of the Word, EPUB and LaTeX files is pandoc's default; "
         "Chisel does not offer styles for them. Open the file in "
         "your own tool to restyle it.",
@@ -544,7 +544,7 @@ GLOSSARY = [
      "DOCX, EPUB and LaTeX files. It must be installed to use those "
      "formats."),
     ("ReportLab", "The Python library that draws the PDF layouts. An "
-     "optional install: `pip install 'lorewrite[export]'`."),
+     "optional install: `pip install 'chisel-writer[export]'`."),
     ("scene break ornament", "The mark printed between scenes that run on "
      "within a chapter: three asterisks in the Book layout, `#` in "
      "Manuscript review."),
@@ -565,7 +565,7 @@ MSG_TUI = {
         ["//N// scene(s) have unaccepted AI drafts; their original text "
          "is exported unless you tick the box.", "Shown in the form."],
         ["Install pandoc / Install ReportLab: pip install "
-         "'lorewrite[export]'", "The chosen format cannot run yet."],
+         "'chisel-writer[export]'", "The chosen format cannot run yet."],
         ["//scene//: expand marker removed: //text//",
          "An `{{expand: ...}}` note was left out of the book."],
         ["//Font// is not installed; used //Other font//.",
@@ -576,7 +576,7 @@ MSG_TUI = {
     "err": [
         ["pandoc is not installed; install it to export DOCX, EPUB or "
          "LaTeX", "pandoc is missing."],
-        ["PDF export needs ReportLab: pip install 'lorewrite[export]'",
+        ["PDF export needs ReportLab: pip install 'chisel-writer[export]'",
          "ReportLab is missing."],
         ["pandoc failed: //detail//", "pandoc reported an error."],
     ],
@@ -596,7 +596,7 @@ MSG_GUI = [
      "that the file was moved or deleted."],
     ["pandoc is not installed; install it to export DOCX, EPUB or LaTeX",
      "pandoc is missing."],
-    ["PDF export needs ReportLab: pip install 'lorewrite[export]'",
+    ["PDF export needs ReportLab: pip install 'chisel-writer[export]'",
      "ReportLab is missing."],
     ["Could not save the current document first.", "The open scene "
      "could not be saved, so the dialog did not open."],
@@ -609,7 +609,7 @@ PROBLEMS = [
      "Install pandoc with your system's package manager, then open the "
      "export window again."],
     ["The PDF format is dimmed, or says “install ReportLab”.",
-     "Install the export extras: `pip install 'lorewrite[export]'`, then "
+     "Install the export extras: `pip install 'chisel-writer[export]'`, then "
      "restart Chisel."],
     ["The export says there is nothing to export.", "Only placed scenes "
      "are exported. Move scenes out of Parked scenes and the Trash "

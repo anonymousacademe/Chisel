@@ -15,16 +15,16 @@ work = Path(sys.argv[1])
 work.mkdir(parents=True, exist_ok=True)
 state = work / "state"
 proj = work / "proj"
-os.environ["LOREWRITE_STATE_DIR"] = str(state)
+os.environ["CHISEL_STATE_DIR"] = str(state)
 subprocess.run([sys.executable, str(HERE / "rich_project.py"), str(proj), str(state)], check=True,
                env={**os.environ, "PYTHONPATH": str(REPO / "src")})
-import lorewrite
-assert Path(lorewrite.__file__).resolve().is_relative_to(REPO)
+import chisel
+assert Path(chisel.__file__).resolve().is_relative_to(REPO)
 toml = proj / "project.toml"
 toml.write_text(toml.read_text().replace('author = ""', 'author = "Mara Vale"'))
 
-from lorewrite.core.export import ExportOptions, run_export  # noqa: E402
-from lorewrite.core.project import Project  # noqa: E402
+from chisel.core.export import ExportOptions, run_export  # noqa: E402
+from chisel.core.project import Project  # noqa: E402
 
 p = Project.open(proj)
 OUT = HERE / "exportshots"

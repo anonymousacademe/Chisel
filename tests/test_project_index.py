@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from lorewrite.core.index import Index
-from lorewrite.core.project import Project
+from chisel.core.index import Index
+from chisel.core.project import Project
 
 
 @pytest.fixture
@@ -88,8 +88,8 @@ def test_plain_mentions_count_as_backlinks_in_scenes(project: Project):
 
 
 def test_index_rows_match_offset_to_rowcol(tmp_path):
-    from lorewrite.core.index import Index
-    from lorewrite.core.links import find_all_links, offset_to_rowcol
+    from chisel.core.index import Index
+    from chisel.core.links import find_all_links, offset_to_rowcol
 
     text = "# T\n\nMara walked.\nThen [[Elias]] and Mara.\n\n\nLast Mara line"
     idx = Index(tmp_path / "i.sqlite")

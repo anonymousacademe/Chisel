@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from lorewrite.core import comments, drafts, rename, snapshots
-from lorewrite.core import entities as ent
-from lorewrite.core.project import Project
+from chisel.core import comments, drafts, rename, snapshots
+from chisel.core import entities as ent
+from chisel.core.project import Project
 
 
 @pytest.fixture(autouse=True)
@@ -249,7 +249,7 @@ def test_entity_and_research_scope(tmp_path):
     other = entity(project, "Elias")
     other.body = "Elias trusts Mara.\n"
     ent.save_entity(other, other.path)
-    from lorewrite.core import research
+    from chisel.core import research
     note = research.new_note(project, "Tides", "Mara studied the tides.\n")
     plan = plan_for(project, "Mara", "Nia", scope=("entities", "research"))
     files = plan.files()
@@ -278,7 +278,7 @@ def test_draft_sidecar_and_part_scene_ids(tmp_path):
 
 
 def test_index_rebuilt_when_given(tmp_path):
-    from lorewrite.core.index import Index
+    from chisel.core.index import Index
     project = make(tmp_path)
     entity(project, "Mara")
     scene(project, "01-a.md", "Mara one.\n")

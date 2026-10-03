@@ -11,7 +11,7 @@ for s in 30 44 71 89 107 142 150 284 310; do png $s $OUT/Square${s}x${s}Logo.png
 png 50 $OUT/StoreLogo.png
 png 192 public/favicon.png
 cp "$SVG" public/logo.svg
-png 512 ../src/lorewrite/gui/icon.png
+png 512 ../src/chisel/gui/icon.png
 python3 - <<'PY'
 from PIL import Image
 im = Image.open("src-tauri/icons/icon.png").convert("RGBA")
