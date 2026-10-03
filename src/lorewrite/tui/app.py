@@ -18,20 +18,27 @@ from textual.widgets.text_area import Selection
 from textual import work
 
 from .. import __version__
+from ..ai.budget import Budget, BudgetError, Section, SentReport
 from ..ai.client import MODEL_DEFAULTS, resolve_model, set_api_key
 from ..ai.images import generate as generate_image, suggest_prompt as suggest_image_prompt
-from ..ai.links import Suggestion, alias_form, suggest_links
+from ..ai.links import Suggestion, alias_form, plan_aliases, suggest_links
 from ..ai.style import learn_style
 from ..ai.stream import Cancelled
 from ..ai.usage import LEDGER, format_cost
 from ..ai.writing import (
+    ASK_SYSTEM_PROMPT,
+    RESEARCH_SYSTEM_PROMPT,
     ask as ask_writer,
     brainstorm as brainstorm_ideas,
-    build_context,
-    build_project_context,
+    brainstorm_instructions,
+    build_context_sections,
+    build_project_context_sections,
+    chat_instructions,
+    fit_context,
     generate,
+    generate_instructions,
     research_answer,
-    research_context,
+    research_sections,
 )
 from ..core import chats, fsutil, inspiration
 from ..core import collections as coll
@@ -1050,16 +1057,17 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
             link_hint = f"{link.target} — no note, ctrl+j to create"
         return f"{hint}  |  {link_hint}" if hint else link_hint
 
-    def _cost_note(self, calls_before: int) -> str:
+    def _cost_note(self, calls_before: int, sent: SentReport | None = None) -> str:
         """' (AI $0.0031)' for the AI call made since *calls_before*, if the
-        provider reported a cost. Also refreshes the status-bar total."""
+        provider reported a cost, then ' - sent ~3.2k tokens of 200k; 2 dropped' when the
+        call's ``SentReport`` is given (what the request carried, ai.budget). Also
+        refreshes the status-bar total."""
         self.update_status()
-        if LEDGER.count() <= calls_before:
-            return ""
+        note = ""
         last = LEDGER.last()
-        if last is None or last.cost is None:
-            return ""
-        return f" ({format_cost(last.cost)})"
+        if LEDGER.count() > calls_before and last is not None and last.cost is not None:
+            note = f" ({format_cost(last.cost)})"
+        return note + (f" - {sent.summary()}" if sent is not None else "")
 
     # -- entity panel / backlinks --------------------------------------------------
 
@@ -1354,16 +1362,20 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
         scene_text = scenemeta.blank(drafts.blank_pending(self.editor.text))
         entities = list(self.entities)
         calls = LEDGER.count()
+        model = self._ai_fast_model()
         try:
+            entities, sent = plan_aliases(
+                scene_text, entities, Budget.for_model(model),
+                details_text=drafts.blank_pending(self.editor.text))
             suggestions = await self._ai_call(
-                "finding aliases", suggest_links, scene_text, entities, self._ai_fast_model())
+                "finding aliases", suggest_links, scene_text, entities, model)
         except Cancelled:
             return
         except Exception as exc:
             self.notify(f"Alias search failed: {exc}", severity="error",
                         timeout=6)
             return
-        cost = self._cost_note(calls)
+        cost = self._cost_note(calls, sent)
         if not suggestions:
             self.notify("No new aliases found" + cost, timeout=2)
             return
@@ -1536,24 +1548,29 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
         text = self.editor.text
         selection = text[start:end] if end > start else None
         span = (start, end) if end > start else None
-        context = build_context(text, start, self.entities, self._canon_map(),
-                                load_style(self.project), span=span,
-                                originals=self._originals(text),
-                                voice_samples=select_voice_samples(
-                                    self.project, self.current_path, text,
-                                    self.entities))
+        model = self._ai_model("writing")
+        sections = build_context_sections(
+            text, start, self.entities, self._canon_map(), load_style(self.project),
+            span=span, originals=self._originals(text),
+            voice_samples=select_voice_samples(
+                self.project, self.current_path, text, self.entities))
+        try:
+            context, sent = fit_context(
+                [*sections, generate_instructions(mode, instruction, selection)], model, mode)
+        except BudgetError as exc:
+            self.notify(str(exc), severity="error", timeout=10)
+            return
         if load_style(self.project) is None and not self._style_tip_shown:
             self._style_tip_shown = True
             self.notify("Tip: learn a style guide first (ctrl+p → learn style)",
                         timeout=5)
-        model = self._ai_model("writing")
         self.notify(f"Drafting… ({model})", timeout=3)
         self._generate_worker(mode, instruction, context, model, selection,
-                              start, end, self.current_path, text)
+                              start, end, self.current_path, text, sent)
 
     @work(exclusive=True, group="generate")
     async def _generate_worker(self, mode, instruction, context, model,
-                               selection, start, end, path, snapshot) -> None:
+                               selection, start, end, path, snapshot, sent=None) -> None:
         calls = LEDGER.count()
         try:
             body = await self._ai_call(
@@ -1565,7 +1582,7 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
             self.notify(f"AI writing failed: {exc}", severity="error",
                         timeout=6)
             return
-        cost = self._cost_note(calls)
+        cost = self._cost_note(calls, sent)
         if self.current_path != path:
             self.notify("Scene changed while drafting — draft discarded" + cost,
                         severity="warning", timeout=5)
@@ -1706,18 +1723,19 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
     async def _check_continuity_worker(self) -> None:
         from dataclasses import replace
 
-        from ..ai.continuity import check_scene
+        from ..ai.continuity import check_scene, plan_check
 
         scene_text = drafts.strip_pending(  # AI text isn't canon
             self.editor.text, self._originals(self.editor.text))
-        entities = list(self.entities)
-        canon = self._canon_map()
         scene_rel = self.current_path.relative_to(self.project.root).as_posix()
         calls = LEDGER.count()
+        model = self._ai_strong_model()
         try:
+            entities, canon, sent = plan_check(
+                scene_text, list(self.entities), self._canon_map(), Budget.for_model(model))
             results = await self._ai_call(
                 "checking continuity", check_scene, scene_text, entities, canon,
-                self._ai_strong_model())
+                model) if entities else []
         except Cancelled:
             return
         except Exception as exc:
@@ -1725,7 +1743,7 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
                         timeout=6)
             return
         # check_scene leaves scene blank; the jump action needs it
-        cost = self._cost_note(calls)
+        cost = self._cost_note(calls, sent)
         results = [replace(c, scene=scene_rel) for c in results]
         results = filter_waived(results, load_waivers(self.project.root))
         if not results:
@@ -1793,24 +1811,25 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
 
     @work(exclusive=True)
     async def _update_bible_worker(self) -> None:
-        from ..ai.continuity import propose_canon_updates
+        from ..ai.continuity import plan_canon, propose_canon_updates
         from .noteupdates import NoteUpdateScreen
 
         scene_text = drafts.strip_pending(  # AI text isn't canon
             self.editor.text, self._originals(self.editor.text))
-        entities = list(self.entities)
         calls = LEDGER.count()
+        model = self._ai_strong_model()
         try:
+            entities, sent = plan_canon(scene_text, list(self.entities), Budget.for_model(model))
             updates = await self._ai_call(
                 "reading the scene for canon", propose_canon_updates, scene_text, entities,
-                self._ai_strong_model())
+                model) if entities else []
         except Cancelled:
             return
         except Exception as exc:
             self.notify(f"Story-bible update failed: {exc}", severity="error",
                         timeout=6)
             return
-        cost = self._cost_note(calls)
+        cost = self._cost_note(calls, sent)
         if not updates:
             self.notify("No new canon found in this scene" + cost, timeout=2)
             return
@@ -2604,32 +2623,39 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
         history = [{"role": m.role, "text": m.text} for m in screen.messages[:-1] if not m.error]
         entities = list(self.entities)
         canon = self._canon_map()
+        model = self._ai_model("writing")
         try:
             if mode == "research":
-                context, hits = research_context(self.project, entities, canon, prompt)
+                sections, hits = research_sections(self.project, entities, canon, prompt)
                 sources = [(h.note.path.relative_to(self.project.root).as_posix(), h.note.title) for h in hits]
             else:
                 sources = []
-                scene = self._current_scene_path()
-                if scene is not None:
-                    text = self.editor.text
-                    context = build_context(text, self._cursor_offset(), entities, canon,
-                                            load_style(self.project),
-                                            originals=self._originals(text))
-                else:
-                    titles = [self.project.scene_title(p) for p in self.project.list_scenes()]
-                    context = build_project_context(titles, entities, canon, load_style(self.project))
-        except ValueError as exc:
+                sections = self._scene_or_project_sections(entities, canon)
+            context, sent = fit_context(
+                [*sections, chat_instructions(
+                    RESEARCH_SYSTEM_PROMPT if mode == "research" else ASK_SYSTEM_PROMPT, prompt, history)],
+                model, "research" if mode == "research" else "ask")
+        except ValueError as exc:     # includes BudgetError: nothing is sent
             screen.add_message(ChatMsg("assistant", str(exc), error=True))
             return
         if self._ai_busy():
             return
         screen.set_busy(True)
-        self._assistant_worker(screen, prompt, mode, context, sources, history,
-                               self._ai_model("writing"))
+        self._assistant_worker(screen, prompt, mode, context, sources, history, model, sent)
+
+    def _scene_or_project_sections(self, entities, canon) -> list[Section]:
+        """The context of a chat question or Brainstorm: the open scene, else the whole project."""
+        if self._current_scene_path() is not None:
+            text = self.editor.text
+            return build_context_sections(text, self._cursor_offset(), entities, canon,
+                                          load_style(self.project), originals=self._originals(text))
+        titles = [self.project.scene_title(p) for p in self.project.list_scenes()]
+        return build_project_context_sections(titles, entities, canon, load_style(self.project)) or [
+            Section("Project", "(the project is empty)")]
 
     @work(exclusive=True, group="assistant")
-    async def _assistant_worker(self, screen, prompt, mode, context, sources, history, model) -> None:
+    async def _assistant_worker(self, screen, prompt, mode, context, sources, history, model,
+                                sent=None) -> None:
         calls = LEDGER.count()
         fn = research_answer if mode == "research" else ask_writer
         try:
@@ -2644,7 +2670,7 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
             return
         except Exception as exc:
             msg = ChatMsg("assistant", f"That request failed ({exc}). Nothing was changed.", error=True)
-        cost = self._cost_note(calls)
+        cost = self._cost_note(calls, sent)
         if screen.is_attached:
             screen.set_busy(False)
             screen.add_message(msg)
@@ -2663,22 +2689,22 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
             return
         entities, canon = list(self.entities), self._canon_map()
         scene = self._current_scene_path()
-        if scene is not None:
-            text = self.editor.text
-            offset = self._cursor_offset()
-            context = build_context(text, offset, entities, canon, load_style(self.project),
-                                    originals=self._originals(text))
-        else:
-            offset = 0
-            titles = [self.project.scene_title(p) for p in self.project.list_scenes()]
-            context = build_project_context(titles, entities, canon, load_style(self.project))
+        offset = self._cursor_offset() if scene is not None else 0
+        model = self._ai_model("writing")
+        try:
+            context, sent = fit_context(
+                [*self._scene_or_project_sections(entities, canon), brainstorm_instructions()],
+                model, "brainstorm")
+        except BudgetError as exc:
+            self.notify(str(exc), severity="error", timeout=10)
+            return
         if self._ai_busy():
             return
         self.notify("Brainstorming…", timeout=3)
-        self._brainstorm_worker(context, self._ai_model("writing"), scene, offset)
+        self._brainstorm_worker(context, model, scene, offset, sent)
 
     @work(exclusive=True, group="brainstorm")
-    async def _brainstorm_worker(self, context, model, scene, offset) -> None:
+    async def _brainstorm_worker(self, context, model, scene, offset, sent=None) -> None:
         calls = LEDGER.count()
         try:
             ideas = await self._ai_call("brainstorming", brainstorm_ideas, context, model,
@@ -2688,7 +2714,7 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
         except Exception as exc:
             self.notify(f"Brainstorm failed: {exc}", severity="error", timeout=6)
             return
-        cost = self._cost_note(calls)
+        cost = self._cost_note(calls, sent)
         self._show_ideas(ideas, scene, offset)
         if cost:
             self.notify(f"Ideas ready{cost}", timeout=3)

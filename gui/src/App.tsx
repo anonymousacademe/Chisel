@@ -4,7 +4,7 @@ import { runAiJob, AiCancelled, type AiJob } from "./backend/aijobs";
 import { DraftPanel, ProgressStrip } from "./components/AiProgress";
 import type { AiRunView } from "./components/aiRun";
 import type {
-  AliasSuggestion, AttachItem, AttachReport, BinderNode, CanonProposal, ChatMessage, ChatSummary, CollectionColor, CommentRow, DetailsPatch, DocumentPayload, EntityInfo, EntityType, GenerateResult, Issue, Remap, RenameDone, RenamePreview, RenameScope, RenameUndone, SceneMention, SettingsInfo, StyleStatus, SyncInfo, Workspace,
+  AliasSuggestion, AttachItem, AttachReport, BinderNode, CanonProposal, ChatMessage, ChatSummary, CollectionColor, CommentRow, DetailsPatch, DocumentPayload, EntityInfo, EntityType, GenerateResult, Issue, Remap, RenameDone, RenamePreview, RenameScope, RenameUndone, SceneMention, SentReport as SentInfo, SettingsInfo, StyleStatus, SyncInfo, Workspace,
 } from "./data/types";
 import type { BridgeResult } from "./backend/transport";
 import { anchorDraft } from "./editor/drafts";
@@ -20,6 +20,7 @@ import { Editor, type ViewMode } from "./components/Editor";
 import type { EditorHandle } from "./components/EditorPane";
 import { Assistant, type AssistantTab, type QuickAction } from "./components/Assistant";
 import { InspirationPanel } from "./components/InspirationPanel";
+import { scopeLabel, subjectArgs, subjectOf } from "./data/subject";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { AtmospherePanel } from "./components/AtmospherePanel";
 import { atmosphere } from "./audio/store";
@@ -30,7 +31,9 @@ import { SprintDialog, StatsDialog } from "./components/StatsDialog";
 import { remaining, sprintNotice } from "./data/stats";
 import { Launch } from "./components/Launch";
 import { QuickSwitcher } from "./components/QuickSwitcher";
-import { ConfirmDialog, Menu, PromptDialog, type MenuItem } from "./components/Dialogs";
+import { ConfirmDialog, Menu, Modal, PromptDialog, type MenuItem } from "./components/Dialogs";
+import { SentReport } from "./components/SentReport";
+import { isTrimmed, sentSummary } from "./data/sent";
 import { DetailsDialog, PartPickerDialog, TrashDialog } from "./components/StructureDialogs";
 import { SnapshotsDialog } from "./components/SnapshotsDialog";
 import { ExportDialog } from "./components/ExportDialog";
@@ -79,9 +82,10 @@ type Dialog =
   | { kind: "sync-init" }
   | { kind: "new-note"; name: string; openAfter: boolean }
   | { kind: "generate"; mode: "draft" | "rewrite"; from: number; to: number; title: string; label: string; initial: string }
-  | { kind: "aliases"; items: AliasSuggestion[] }
+  | { kind: "aliases"; items: AliasSuggestion[]; sent?: SentInfo }
+  | { kind: "sent"; report: SentInfo }
   | { kind: "rename-note"; name: string; aliases: string[] }
-  | { kind: "canon"; items: CanonProposal[] }
+  | { kind: "canon"; items: CanonProposal[]; sent?: SentInfo }
   | { kind: "style"; markdown: string; replacing: boolean }
   | { kind: "settings"; info: SettingsInfo }
   | null;
@@ -141,8 +145,10 @@ export default function App() {
   const stoppedRef = useRef(false); // the last AI job ended because the author pressed Stop
   const aiBusy = aiRun?.label ?? null;
   const [issues, setIssues] = useState<Issue[]>([]);
+  const [issuesSent, setIssuesSent] = useState<SentInfo | null>(null);   // what the last continuity check sent
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [scope, setScope] = useState<"scene" | "project">("scene");
+  const [subjectRemoved, setSubjectRemoved] = useState(false);   // the author removed the "About: ..." chip for this chat
   const [reflow, setReflow] = useState(true);
   const [spellCount, setSpellCount] = useState<number | null>(null);
   const [spellVersion, setSpellVersion] = useState(0);
@@ -220,7 +226,7 @@ export default function App() {
     if (!r.ok) { notify(r.error, "error"); return; }
     saver.open(r.id, r.text, r.mtime);
     setDoc(r);
-    setIssues([]);
+    setIssues([]); setIssuesSent(null);
     setMentions(r.mentions);
     setWords(r.words);
     setSnapshotAt(r.snapshotAt ?? null);
@@ -349,6 +355,10 @@ export default function App() {
   }
 
   const isScene = doc?.kind === "scene";
+  // The open item can be the assistant's subject (chip) and can have pictures when it is a scene or a note.
+  const eligibleSubject = doc?.kind === "scene" || doc?.kind === "entity" || doc?.kind === "research";
+  const pictureItem = eligibleSubject;
+  const subject = subjectOf(doc, { scope, removed: subjectRemoved, researchMode });
   const unit = ws.project.unit;
   const select = async (n: BinderNode) => {
     if (n.kind === "part") { setPartFocus(n.id); toggle(n.id); return; }
@@ -482,11 +492,12 @@ export default function App() {
   const quickContinuity = async () => {
     const d = docRef.current;
     if (!d || d.kind !== "scene") return notify("Open a scene first.");
-    const r = await aiCall<{ issues: Issue[]; waived: number; cost: number | null }>("Checking continuity…", "checking continuity", "continuity", { doc_id: d.id, text: liveText() });
+    const r = await aiCall<{ issues: Issue[]; waived: number; cost: number | null; sent: SentInfo }>("Checking continuity…", "checking continuity", "continuity", { doc_id: d.id, text: liveText() });
     if (!r || docRef.current?.id !== d.id) return;
-    setIssues(r.issues); setTab("assistant"); setAssistantOpen(true);
+    setIssues(r.issues); setIssuesSent(r.sent); setTab("assistant"); setAssistantOpen(true);
     const waived = r.waived ? ` (${r.waived} waived)` : "";
-    notify((r.issues.length ? `${r.issues.length} possible conflict${r.issues.length === 1 ? "" : "s"}` : "No continuity issues found") + waived + cost(r.cost));
+    notify((r.issues.length ? `${r.issues.length} possible conflict${r.issues.length === 1 ? "" : "s"}` : "No continuity issues found") + waived + cost(r.cost)
+      + (isTrimmed(r.sent) ? `; ${sentSummary(r.sent)}` : ""), "info", { label: "What was sent", run: () => setDialog({ kind: "sent", report: r.sent }) });
   };
   const reviewIssue = (it: Issue) => {
     if (it.row === null) notify("Could not locate that passage; the quote on the card is what the assistant flagged.");
@@ -511,10 +522,10 @@ export default function App() {
   const findAliases = async () => {
     const d = docRef.current;
     if (!d || d.kind !== "scene") return notify("Open a scene first.");
-    const r = await aiCall<{ suggestions: AliasSuggestion[]; cost: number | null }>("Looking for aliases…", "looking for aliases", "aliases", { doc_id: d.id, text: liveText() });
+    const r = await aiCall<{ suggestions: AliasSuggestion[]; cost: number | null; sent: SentInfo }>("Looking for aliases…", "looking for aliases", "aliases", { doc_id: d.id, text: liveText() });
     if (!r) return;
-    if (!r.suggestions.length) return notify("No new aliases found" + cost(r.cost));
-    setDialog({ kind: "aliases", items: r.suggestions });
+    if (!r.suggestions.length) return notify("No new aliases found" + cost(r.cost) + (isTrimmed(r.sent) ? `; ${sentSummary(r.sent)}` : ""), "info", { label: "What was sent", run: () => setDialog({ kind: "sent", report: r.sent }) });
+    setDialog({ kind: "aliases", items: r.suggestions, sent: r.sent });
   };
   const applyAliases = async (picked: AliasSuggestion[]) => {
     setDialog(null);
@@ -529,10 +540,10 @@ export default function App() {
   const updateBible = async () => {
     const d = docRef.current;
     if (!d || d.kind !== "scene") return notify("Open a scene first.");
-    const r = await aiCall<{ updates: CanonProposal[]; cost: number | null }>("Reading the scene for new canon…", "reading for canon", "canon", { doc_id: d.id, text: liveText() });
+    const r = await aiCall<{ updates: CanonProposal[]; cost: number | null; sent: SentInfo }>("Reading the scene for new canon…", "reading for canon", "canon", { doc_id: d.id, text: liveText() });
     if (!r) return;
-    if (!r.updates.length) return notify("No new canon found in this scene" + cost(r.cost));
-    setDialog({ kind: "canon", items: r.updates });
+    if (!r.updates.length) return notify("No new canon found in this scene" + cost(r.cost) + (isTrimmed(r.sent) ? `; ${sentSummary(r.sent)}` : ""), "info", { label: "What was sent", run: () => setDialog({ kind: "sent", report: r.sent }) });
+    setDialog({ kind: "canon", items: r.updates, sent: r.sent });
   };
   const applyCanon = async (picked: { entity: string; facts: string[] }[]) => {
     setDialog(null);
@@ -579,7 +590,8 @@ export default function App() {
       if (!reg.ok) return notify(reg.error, "error");
     }
     editorRef.current.insertDraft(at.from, at.to, r.insert);
-    notify(`AI draft ready: F7 accept, F8 reject${cost(r.cost)}`);
+    notify(`AI draft ready: F7 accept, F8 reject${cost(r.cost)}${isTrimmed(r.sent) ? `; ${sentSummary(r.sent)}` : ""}`, "info",
+      { label: "What was sent", run: () => setDialog({ kind: "sent", report: r.sent }) });
     if (r.noStyle) notify("Tip: learn a style guide first (AI menu, Learn style guide).");
   };
   const startGenerate = (): boolean => {
@@ -645,30 +657,33 @@ export default function App() {
     else setMessages((m) => m.filter((x) => x.id !== replaceId));
     const attached = attachments.map(({ kind, id }) => ({ kind, id }));
     if (researchMode) {
-      const r = await aiCall<{ reply: string; sources: { id: string; title: string; score: number }[]; attached: AttachReport[]; cost: number | null }>("Searching your notes…", "searching notes", "research", { prompt: text, history, attachments: attached });
+      const r = await aiCall<{ reply: string; sources: { id: string; title: string; score: number }[]; attached: AttachReport[]; cost: number | null; sent: SentInfo }>("Searching your notes…", "searching notes", "research", { prompt: text, history, attachments: attached });
       if (r) reportAttached(r.attached);
       persistChat.current = !!r;
       setMessages((m) => [...m, r
-        ? { id: uid(), role: "assistant", text: r.reply, sources: r.sources.map((s) => ({ id: s.id, title: s.title })) }
+        ? { id: uid(), role: "assistant", text: r.reply, sources: r.sources.map((s) => ({ id: s.id, title: s.title })), sent: r.sent }
         : failedReply()]);
       return;
     }
-    const r = await aiCall<{ reply: string; attached: AttachReport[]; cost: number | null }>("Thinking…", "thinking", "ask", { prompt: text, scope, doc_id: d?.kind === "scene" ? d.id : null, text: ed ? ed.getText() : null, cursor: ed?.head() ?? 0, history, attachments: attached });
+    // the open item is the subject of the question (shown as a chip); scenes travel as doc_id, notes as subject_id
+    const sent = subjectArgs(d, subjectOf(d, { scope, removed: subjectRemoved, researchMode }));
+    const r = await aiCall<{ reply: string; attached: AttachReport[]; cost: number | null; sent: SentInfo }>("Thinking…", "thinking", "ask", { prompt: text, scope, ...sent, text: ed && sent.doc_id ? ed.getText() : null, cursor: ed?.head() ?? 0, history, attachments: attached });
     if (r) reportAttached(r.attached);
     persistChat.current = !!r;
-    setMessages((m) => [...m, r ? { id: uid(), role: "assistant", text: r.reply } : failedReply()]);
+    setMessages((m) => [...m, r ? { id: uid(), role: "assistant", text: r.reply, sent: r.sent } : failedReply()]);
   };
   /** Brainstorm quick action: ideas to get unstuck, from the scene around the cursor + canon + style. */
   const runBrainstorm = async (replaceId?: string) => {
     const ed = editorRef.current, d = docRef.current;
     if (!requireAi()) return;
     const attached = attachments.map(({ kind, id }) => ({ kind, id }));
+    const sent = subjectArgs(d, subjectOf(d, { scope: "scene", removed: subjectRemoved, researchMode: false }));
     if (replaceId) setMessages((m) => m.filter((x) => x.id !== replaceId));
     else setMessages((m) => [...m, { id: uid(), role: "user", text: "Brainstorm: ideas to get unstuck." }]);
-    const r = await aiCall<{ reply: string; ideas: string[]; attached: AttachReport[]; cost: number | null }>("Brainstorming…", "brainstorming", "brainstorm", { doc_id: d?.kind === "scene" ? d.id : null, text: ed ? ed.getText() : null, cursor: ed?.head() ?? 0, attachments: attached });
+    const r = await aiCall<{ reply: string; ideas: string[]; attached: AttachReport[]; cost: number | null; sent: SentInfo }>("Brainstorming…", "brainstorming", "brainstorm", { ...sent, text: ed && sent.doc_id ? ed.getText() : null, cursor: ed?.head() ?? 0, attachments: attached });
     if (r) reportAttached(r.attached);
     persistChat.current = !!r;
-    setMessages((m) => [...m, r ? { id: uid(), role: "assistant", text: r.reply, ideas: r.ideas }
+    setMessages((m) => [...m, r ? { id: uid(), role: "assistant", text: r.reply, ideas: r.ideas, sent: r.sent }
       : failedReply()]);
   };
   /** "Draft from this": the ctrl+g prompt, prefilled with the idea, at the cursor. */
@@ -908,7 +923,7 @@ export default function App() {
   // -- chat history, attachments, save to notes ------------------------------------------------
   const newChat = () => {
     setChat(null); persistChat.current = false;
-    setMessages([]); setAttachments([]); setDialog(null);
+    setMessages([]); setAttachments([]); setSubjectRemoved(false); setDialog(null);
   };
   const openChatHistory = async () => {
     setChatList(null);
@@ -925,7 +940,7 @@ export default function App() {
     setChat(c.id); persistChat.current = false;
     setMessages(c.messages.map((m) => (m.role === "user" ? { id: m.id, role: "user" as const, text: m.text }
       : { id: m.id, role: "assistant" as const, text: m.text, ...(m.sources ? { sources: m.sources } : {}), ...(m.ideas ? { ideas: m.ideas } : {}) })));
-    setScope(c.scope);
+    setScope(c.scope); setSubjectRemoved(false);
     setAttachments(c.attachments.flatMap((a) => {
       const hit = known.get(`${a.kind}:${a.id}`);
       return hit ? [{ kind: a.kind, id: a.id, title: hit.title, words: hit.words }] : [];
@@ -1203,7 +1218,7 @@ export default function App() {
       { label: `Move ${unit} to part…`, disabled: !isScene, onSelect: () => doc && setDialog({ kind: "pick-part", sceneId: doc.id, unplaced: !!doc.unplaced }) },
       doc?.unplaced
         ? { label: "Place in the book…", onSelect: () => doc && setDialog({ kind: "pick-part", sceneId: doc.id, unplaced: true }) }
-        : { label: "Move to Unplaced Scenes", disabled: !isScene, onSelect: () => doc && void placeScene(doc.id, null, null, true).then((r) => r && notify("Moved to Unplaced Scenes. It no longer counts in the book.")) },
+        : { label: "Move to Parked scenes", disabled: !isScene, onSelect: () => doc && void placeScene(doc.id, null, null, true).then((r) => r && notify("Moved to Parked scenes. It no longer counts in the book.")) },
       { label: "Collections…", disabled: !isScene, onSelect: () => setDialog({ kind: "scene-collections" }) },
       { label: "History (snapshots)…", disabled: !isScene, onSelect: openHistory },
       { label: `Delete ${unit}…`, disabled: !isScene, danger: true, onSelect: () => setDialog({ kind: "delete" }) },
@@ -1269,8 +1284,10 @@ export default function App() {
           <Assistant tab={tab} onTab={setTab} mentions={mentions} onPickEntity={showNote}
             note={note} missingTarget={missingTarget} onOpenNote={(id) => void openDoc(id)} onAddAlias={(n, a) => void addAlias(n, a)} onRename={(n, al) => setDialog({ kind: "rename-note", name: n, aliases: al })}
             onCreateNote={(t) => setDialog({ kind: "new-note", name: t, openAfter: false })} onOpenBacklink={(id, row) => void openBacklink(id, row)}
-            issues={issues} onReviewIssue={reviewIssue} onDismissIssue={(i) => void dismissIssue(i)}
+            issues={issues} issuesSent={issuesSent} onReviewIssue={reviewIssue} onDismissIssue={(i) => void dismissIssue(i)}
             messages={messages} busy={aiBusy} run={aiRun} onStop={stopAi} aiReady={aiReady} scope={scope} onScope={() => setScope((c) => (c === "scene" ? "project" : "scene"))}
+            scopeText={scopeLabel(scope, subject)} subject={subject} onRemoveSubject={() => setSubjectRemoved(true)}
+            onRestoreSubject={subjectRemoved && !researchMode && eligibleSubject ? () => setSubjectRemoved(false) : undefined}
             onSend={(t) => void sendChat(t)} onRegenerate={regenerate} onInsertDraft={(id) => void insertReplyAsDraft(id)}
             researchMode={researchMode} onOpenSource={(id) => void openDoc(id)}
             onHistory={() => void openChatHistory()} onAttach={() => void openAttach()} attachments={attachments}
@@ -1282,7 +1299,7 @@ export default function App() {
                 onResolve={(c, resolved) => void commentCall((id, text) => api.resolveComment(id, c.id, resolved, text))} />
             ) : null}
             inspiration={
-              <InspirationPanel key={ws.project.path} sceneId={doc?.kind === "scene" ? doc.id : null} sceneTitle={doc?.kind === "scene" ? doc.title : ""}
+              <InspirationPanel key={ws.project.path} itemId={pictureItem ? doc!.id : null} itemTitle={pictureItem ? doc!.title : ""} itemKind={pictureItem ? doc!.kind : null}
                 rev={inspRev} getEditor={() => { const ed = editorRef.current; return ed ? { text: ed.getText(), cursor: ed.head() } : null; }}
                 requireAi={requireAi} job={aiCall} notify={notify} onSpent={() => void refresh()} />
             }
@@ -1327,8 +1344,14 @@ export default function App() {
         <RenameDialog name={dialog.name} aliases={dialog.aliases} onPreview={renamePreview} onApply={renameApply} onUndo={renameUndo}
           onClose={() => setDialog(null)} />
       )}
-      {dialog?.kind === "aliases" && <AliasReviewDialog suggestions={dialog.items} onApply={(p) => void applyAliases(p)} onClose={() => setDialog(null)} />}
-      {dialog?.kind === "canon" && <CanonReviewDialog proposals={dialog.items} onApply={(p) => void applyCanon(p)} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "aliases" && <AliasReviewDialog suggestions={dialog.items} sent={dialog.sent} onApply={(p) => void applyAliases(p)} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "sent" && (
+        <Modal title="What was sent" onClose={() => setDialog(null)}>
+          <SentReport report={dialog.report} open />
+          <div className="lw-dialog__buttons"><button className="lw-btn lw-btn--primary" onClick={() => setDialog(null)}>Close</button></div>
+        </Modal>
+      )}
+      {dialog?.kind === "canon" && <CanonReviewDialog proposals={dialog.items} sent={dialog.sent} onApply={(p) => void applyCanon(p)} onClose={() => setDialog(null)} />}
       {dialog?.kind === "style" && <StyleReviewDialog markdown={dialog.markdown} replacing={dialog.replacing} onSave={(t) => void saveStyle(t)} onClose={() => setDialog(null)} />}
       {dialog?.kind === "settings" && <SettingsDialog initial={dialog.info} onClose={() => setDialog(null)} onSaved={settingsSaved} notify={notify} />}
       {dialog?.kind === "rename" && doc && (

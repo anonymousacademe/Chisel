@@ -248,3 +248,101 @@ def test_ensure_style_creates_the_stub_once(tmp_path):
     assert "Mine." in (root / "style.md").read_text()
     binder = {n["id"]: n for n in api.get_workspace()["workspace"]["binder"]}
     assert "meta" not in binder["style.md"]
+
+
+# -- the open item as the subject of a question (subject_id) -------------------------------------
+
+MARA = "entities/characters/mara-vale.md"
+MARA_NOTE = ("---\nname: Mara Vale\ntype: character\naliases: [Mara]\n---\n\n"
+             "Left-handed archivist; hums when she lies.\n")
+
+
+def _subject_api(tmp_path, monkeypatch):
+    api, root = open_api(tmp_path)
+    (root / MARA).write_text(MARA_NOTE, encoding="utf-8")
+    api.reload_entities()
+    nb = api.new_research_note("Tide tables")["id"]
+    (root / nb).write_text("# Tide tables\n\nThe spur floods at dusk.\n", encoding="utf-8")
+    seen = {}
+    monkeypatch.setattr(api_module, "ask_writer",
+                        lambda prompt, context, model, history=None: seen.update(ask=context) or "ok")
+    monkeypatch.setattr(api_module, "brainstorm_writer",
+                        lambda context, model, client=None: seen.update(brain=context) or ["Idea."])
+    return api, root, nb, seen
+
+
+def test_subject_entity_note_goes_into_ask_and_brainstorm_context(tmp_path, monkeypatch):
+    api, root, nb, seen = _subject_api(tmp_path, monkeypatch)
+    # no scene open, the whole project, plus the subject
+    assert api.ask("who?", "scene", None, None, 0, [], [], MARA)["ok"]
+    ctx = seen["ask"]
+    assert "SCENES (in order)" in ctx and "SUBJECT (character): Mara Vale" in ctx
+    assert ctx.endswith("Left-handed archivist; hums when she lies.")
+    assert "aliases: [Mara]" not in ctx.split("SUBJECT")[1]            # frontmatter is not part of it
+    # a scene is open as well: the scene context stays, the subject is appended
+    assert api.ask("who?", "scene", SCENE, None, 10, [], [], MARA)["ok"]
+    ctx = seen["ask"]
+    assert "<<CURSOR>>" in ctx and ctx.index("<<CURSOR>>") < ctx.index("SUBJECT (character): Mara Vale")
+    assert api.brainstorm(None, None, 0, [], MARA)["ok"]
+    assert "SUBJECT (character): Mara Vale" in seen["brain"] and "SCENES (in order)" in seen["brain"]
+    assert api.brainstorm(SCENE, None, 5, [], MARA)["ok"]
+    assert "<<CURSOR>>" in seen["brain"] and "Left-handed archivist" in seen["brain"]
+
+
+def test_subject_notebook_note_and_scene_subject(tmp_path, monkeypatch):
+    api, root, nb, seen = _subject_api(tmp_path, monkeypatch)
+    assert api.ask("tides?", "scene", None, None, 0, [], [], nb)["ok"]
+    assert "SUBJECT (notebook note): Tide tables" in seen["ask"] and "floods at dusk" in seen["ask"]
+    assert api.brainstorm(None, None, 0, [], nb)["ok"] and "floods at dusk" in seen["brain"]
+    # a scene as the subject is simply the scene context (the editor text is honoured)
+    assert api.ask("scene?", "scene", None, "Mara waits.", 0, [], [], SCENE)["ok"]
+    assert "<<CURSOR>>Mara waits." in seen["ask"] and "SUBJECT" not in seen["ask"] and "<<CURSOR>>" in seen["ask"]
+    # ... unless the author asked for the whole project: then no scene text goes
+    assert api.ask("scene?", "project", None, None, 0, [], [], SCENE)["ok"]
+    assert "SCENES (in order)" in seen["ask"] and "<<CURSOR>>" not in seen["ask"]
+
+
+def test_subject_text_is_capped_like_an_attachment(tmp_path, monkeypatch):
+    from lorewrite.core import attach
+
+    api, root, nb, seen = _subject_api(tmp_path, monkeypatch)
+    (root / nb).write_text("# Tide tables\n\n" + "tide " * 5000, encoding="utf-8")
+    assert api.ask("tides?", "scene", None, None, 0, [], [], nb)["ok"]
+    sent = seen["ask"].split("SUBJECT (notebook note): Tide tables\n", 1)[1]
+    assert 0 < len(sent) <= attach.ITEM_CHARS and sent.endswith("…")
+
+
+def test_without_a_subject_the_context_is_unchanged_and_no_note_text_is_sent(tmp_path, monkeypatch):
+    api, root, nb, seen = _subject_api(tmp_path, monkeypatch)
+    api.ask("q", "scene", SCENE, None, 10)
+    plain = seen["ask"]
+    assert api.ask("q", "scene", SCENE, None, 10, None, None, None)["ok"] and seen["ask"] == plain
+    assert "SUBJECT" not in plain and "floods at dusk" not in plain           # the notebook is not canon
+    api.ask("q", "project", None)
+    assert "SUBJECT" not in seen["ask"] and "floods at dusk" not in seen["ask"]
+    api.brainstorm(None)
+    assert "SUBJECT" not in seen["brain"] and "floods at dusk" not in seen["brain"]
+    # an empty / null subject is "off"
+    api.ask("q", "scene", SCENE, None, 10, [], [], "")
+    assert seen["ask"] == plain
+
+
+def test_unknown_or_unsuitable_subject_fails_cleanly_without_an_ai_call(tmp_path, monkeypatch):
+    api, root, nb, seen = _subject_api(tmp_path, monkeypatch)
+    for bad in ("entities/characters/nobody.md", "../x.md", "notebook/none.md", "style.md", "dictionary.txt", "nope"):
+        r = api.ask("q", "scene", None, None, 0, [], [], bad)
+        assert r["ok"] is False, bad
+        assert api.brainstorm(None, None, 0, [], bad)["ok"] is False, bad
+    assert seen == {}                                                   # nothing was sent
+
+
+def test_subject_goes_through_the_job_runner_and_chat_context_has_no_images(tmp_path, monkeypatch):
+    from lorewrite.core import inspiration as store
+
+    api, root, nb, seen = _subject_api(tmp_path, monkeypatch)
+    store.save(api.project, b"\xff\xd8\xff\xe0IMAGEBYTES", "jpg", {"prompt": "A tall woman", "for": MARA})
+    assert api.ask("who?", "scene", None, None, 0, [], [], MARA)["ok"]
+    assert "IMAGEBYTES" not in seen["ask"] and "A tall woman" not in seen["ask"] and "inspiration" not in seen["ask"]
+    assert api.brainstorm(None, None, 0, [], MARA)["ok"]
+    assert "IMAGEBYTES" not in seen["brain"] and "A tall woman" not in seen["brain"]
+    assert api.AI_JOBS["ask"] == "ask" and api.AI_JOBS["brainstorm"] == "brainstorm"

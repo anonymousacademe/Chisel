@@ -25,22 +25,32 @@ from ..ai.client import (
     clear_api_key as _clear_api_key,
     get_api_key,
     list_models as _list_models,
+    remember_context_lengths,
     resolve_model,
     set_api_key as _set_api_key,
 )
-from ..ai.continuity import check_scene, propose_canon_updates
+from ..ai.budget import (
+    SETTING as SETTING_WINDOW, Budget, BudgetError, Section, merge_attached, validate_window,
+)
+from ..ai.continuity import check_scene, plan_canon, plan_check, propose_canon_updates
 from ..ai import images as image_ai
 from ..ai.images import generate as generate_images, suggest_prompt as suggest_image_prompt
-from ..ai.links import alias_form, suggest_links
+from ..ai.links import alias_form, plan_aliases, suggest_links
 from ..ai.style import learn_style
 from ..ai.stream import call_ai
 from ..ai.usage import LEDGER
 from ..ai.writing import (
+    ASK_SYSTEM_PROMPT,
+    RESEARCH_SYSTEM_PROMPT,
     ask as ask_writer,
     brainstorm as brainstorm_writer,
-    build_context,
-    build_project_context,
-    research_context,
+    brainstorm_instructions,
+    build_context_sections,
+    build_project_context_sections,
+    chat_instructions,
+    fit_context,
+    generate_instructions,
+    research_sections,
     generate as generate_text,
     research_answer as research_writer,
 )
@@ -85,7 +95,7 @@ from .exports import ExportJobs
 # Errors the core raises on purpose, with a message written for the author:
 # shown as-is. Anything else keeps its class name (it is a bug worth reporting).
 USER_ERRORS = (ValueError, FileNotFoundError, FileExistsError, LookupError, IndexError, RuntimeError,
-               sync.GitError, fsutil.NotUtf8Error)
+               sync.GitError, fsutil.NotUtf8Error, BudgetError)
 
 
 def bridge(fn: Callable[..., dict]) -> Callable[..., dict]:
@@ -265,7 +275,7 @@ class Api:
                 kicker = ws.scene_kicker(project, path)
                 part = project.part_of(path)
                 parent = (project.part_title(part) if part
-                          else "Unplaced Scenes" if project.is_unplaced(path) else "Manuscript")
+                          else ws.PARKED_TITLE if project.is_unplaced(path) else "Manuscript")
                 if self.stats is not None:  # baseline for the stats; nothing is counted here
                     self.stats.seen(self._scene_key(path), drafts.count_words(text, originals))
                 extra = {
@@ -987,14 +997,17 @@ class Api:
         with self._lock:
             project = self._require()
             entities = list(self.entities)
-            context, hits = research_context(project, entities, canon_map(entities), prompt)
-            context, attached = self._with_attachments(project, context, attachments)
+            sections, hits = research_sections(project, entities, canon_map(entities), prompt)
+            sections, attached = self._with_attachments(project, sections, attachments)
             sources = [{"id": ws.rel_id(project, h.note.path), "title": h.note.title,
                         "score": h.score} for h in hits]
             model = resolve_model("writing", project.meta)
+            context, sent = fit_context(
+                [*sections, chat_instructions(RESEARCH_SYSTEM_PROMPT, prompt, history)], model, "research")
             calls = LEDGER.count()
         reply = self._stream(research_writer, prompt, context, model, history=history)
-        return {"reply": reply, "sources": sources, "attached": attached, "cost": self._spent(calls)}
+        return {"reply": reply, "sources": sources, "attached": attached, "cost": self._spent(calls),
+                "sent": merge_attached(sent, attached).to_dict()}
 
     # -- comments ---------------------------------------------------------------------
     # Author notes anchored to a passage (core.comments), in .comments/<scene>.json - never in the
@@ -1117,10 +1130,26 @@ class Api:
     # Reference pictures kept beside the writing; never inserted into prose. Thin wrappers:
     # the work is in gui/inspiration.py. Generation is the slow call: lock released.
 
+    def _item_link(self, doc_id: str | None) -> str:
+        """The project-relative path of any item (scene, entity note, notebook note, ...) a
+        picture can be for; "" for no item. ValueError / FileNotFoundError for an id that
+        names no document."""
+        if not doc_id:
+            return ""
+        path, _ = self.resolve_document(doc_id)
+        return ws.rel_id(self._require(), path)
+
     @bridge
-    def list_inspiration(self) -> dict:
+    def list_inspiration(self, doc_id: str | None = None) -> dict:
+        """Every picture (newest first). With *doc_id* (any document id) `mine` lists the ids
+        of the pictures made for that item; an id that names nothing is an error."""
         with self._lock:
-            return insp_api.listing(self._require())
+            project = self._require()
+            link = self._item_link(doc_id)
+            out = insp_api.listing(project)
+            if doc_id:
+                out["mine"] = [i["id"] for i in out["images"] if i["for"] == link]
+            return out
 
     @bridge
     def inspiration_image(self, image_id: str) -> dict:
@@ -1129,26 +1158,39 @@ class Api:
             return {"dataUrl": insp_api.data_url(self._require(), image_id)}
 
     @bridge
-    def describe_scene(self, doc_id: str, text: str | None = None, cursor: int = 0) -> dict:
-        """**Describe this scene**: a visual prompt from the passage around the cursor and the
-        place/character notes. The author edits it; nothing is generated or saved."""
+    def describe_scene(self, doc_id: str, text: str | None = None, cursor: int = 0,
+                       subject_id: str | None = None) -> dict:
+        """**Describe this**: a visual prompt from the open item. For a scene, the passage around
+        the cursor and the place/character notes; for an entity or notebook note, the note's
+        text. The subject is *subject_id* if given, else *doc_id*. The author edits the result;
+        nothing is generated or saved."""
         with self._lock:
-            inp = self._scene_inputs(doc_id, text)
-            context = image_ai.scene_context(
-                inp["text"], from_utf16(inp["text"], cursor), inp["entities"],
-                canon_map(inp["entities"]), inp["originals"])
-            model = resolve_model("fast", inp["project"].meta)
+            project = self._require()
+            target = subject_id or doc_id
+            _, kind = self.resolve_document(target)
+            if kind == "scene":
+                inp = self._scene_inputs(target, text)
+                context = image_ai.scene_context(
+                    inp["text"], from_utf16(inp["text"], cursor), inp["entities"],
+                    canon_map(inp["entities"]), inp["originals"])
+            elif kind in ("entity", "research"):
+                heading, body = attach.subject(project, target)
+                context = f"{heading}\n{body}"
+            else:
+                raise ValueError("open a scene or a note to describe it")
+            model = resolve_model("fast", project.meta)
             calls = LEDGER.count()
         prompt = suggest_image_prompt(context, model)
         return {"prompt": prompt, "model": model, "cost": self._spent(calls)}
 
     @bridge
     def generate_inspiration(self, prompt: str, doc_id: str | None = None, pin: bool = False) -> dict:
-        """Make pictures for *prompt* and save them (linked to the scene *doc_id*, pinned
-        to it when *pin*). Costs about $0.03 per picture; returns the new rows."""
+        """Make pictures for *prompt* and save them (linked to the item *doc_id*: a scene, an
+        entity note or a notebook note; pinned to it when *pin*). Costs about $0.03 per picture;
+        returns the new rows."""
         with self._lock:
             project = self._require()
-            scene = ws.rel_id(project, self._scene_path(doc_id)) if doc_id else ""
+            scene = self._item_link(doc_id)
             model = resolve_model("image", project.meta)
             style = image_ai.style_suffix()
             calls = LEDGER.count()
@@ -1164,10 +1206,13 @@ class Api:
 
     @bridge
     def regenerate_inspiration(self, image_id: str) -> dict:
-        """Another picture from the same prompt and scene (the old one stays)."""
+        """Another picture from the same prompt and item (the old one stays). A picture the
+        author added has no prompt and cannot be regenerated."""
         with self._lock:
             project = self._require()
             old = insp_api.get(project, image_id)
+            if old.source == "upload":
+                raise ValueError("a picture you added cannot be regenerated: there is no prompt")
             model = resolve_model("image", project.meta)
             style = image_ai.style_suffix()
             calls = LEDGER.count()
@@ -1175,15 +1220,26 @@ class Api:
         aijobs.checkpoint()
         cost = self._spent(calls)
         with self._lock:
-            return insp_api.save_pictures(self._require(), pictures, old.prompt, model, old.scene,
+            return insp_api.save_pictures(self._require(), pictures, old.prompt, model, old.link,
                                           False, cost)
 
     @bridge
-    def update_inspiration(self, image_id: str, fields: dict) -> dict:
-        """Pin / unpin (`pinned`, with `scene` = a scene id to pin to), `title`, `notes`."""
+    def upload_inspiration(self, name: str, data_url: str, doc_id: str | None = None) -> dict:
+        """Add a picture of the author's own (a `data:image/...;base64,` URL; JPG, PNG or WebP,
+        at most 10 MB, checked against its bytes) to inspiration/, optionally for the item
+        *doc_id*. Nothing is sent anywhere; the file name is made here, never taken from *name*."""
         with self._lock:
             project = self._require()
-            return {"image": insp_api.update(project, image_id, fields, self._scene_path)}
+            return insp_api.save_upload(project, name, data_url, self._item_link(doc_id))
+
+    @bridge
+    def update_inspiration(self, image_id: str, fields: dict) -> dict:
+        """Pin / unpin (`pinned`, with `for` = the id of any document to show it with),
+        `title`, `notes`. (`scene` is the old name of `for`.)"""
+        with self._lock:
+            project = self._require()
+            return {"image": insp_api.update(project, image_id, fields,
+                                             lambda doc_id: self.resolve_document(doc_id)[0])}
 
     @bridge
     def delete_inspiration(self, image_id: str) -> dict:
@@ -1319,17 +1375,23 @@ class Api:
                 "spellcheck": self.spellcheck_enabled(),
                 "autoSnapshot": snapshots.auto_enabled(),
                 "imageStyle": image_ai.style_suffix(), "imageStyleDefault": image_ai.DEFAULT_STYLE,
-                "dailyTarget": writing_stats.get_target()}
+                "dailyTarget": writing_stats.get_target(),
+                "contextWindow": user_settings.get(SETTING_WINDOW) or ""}
 
     @bridge
     def set_settings(self, models: dict | None = None, editor: dict | None = None,
                      spellcheck: bool | None = None,
                      auto_snapshot: bool | None = None,
                      daily_target: int | None = None,
-                     image_style: str | None = None) -> dict:
+                     image_style: str | None = None,
+                     context_window: int | str | None = None) -> dict:
         """Save model choices ("" resets to the default), GUI editor prefs and
-        the spell-check toggle (shared with the TUI)."""
+        the spell-check toggle (shared with the TUI). `context_window` (tokens, "" = ask the
+        model list) is for models whose real window is not in the catalogue."""
         with self._lock:
+            if context_window is not None:
+                user_settings.set(SETTING_WINDOW,
+                                  None if context_window == "" else validate_window(context_window))
             for kind, value in (models or {}).items():
                 if kind not in MODEL_DEFAULTS:
                     raise ValueError(f"unknown model kind: {kind}")
@@ -1403,6 +1465,7 @@ class Api:
         `modality="image"` (with structured_only false) lists image-output models."""
         models = _list_models(structured_only=structured_only,
                               **({"output_modality": modality} if modality else {}))
+        remember_context_lengths(models)   # the budget plans AI requests against these (never fetched there)
         return {"models": [{
             "id": m.id, "name": m.name, "promptPerM": m.prompt_per_m,
             "completionPerM": m.completion_per_m, "context": m.context_length,
@@ -1429,6 +1492,60 @@ class Api:
             "project": project, "path": path, "text": text, "originals": originals,
             "entities": list(self.entities), "rel": ws.rel_id(project, path),
         }
+
+    def _subject_sections(self, subject_id: str, text: str | None = None, cursor: int = 0) -> list[Section]:
+        """What an AI call is *about* (call with the lock held), as context sections: for an
+        entity note `SUBJECT (character|place|object|...): name` + the note body; for a notebook
+        note `SUBJECT (notebook note): title` + its text (both capped like an attachment, see
+        core.attach); for a scene the usual scene context around *cursor*. An id that names
+        nothing, or a file that is not a subject (style guide, dictionary), is an error."""
+        project = self._require()
+        _, kind = self.resolve_document(subject_id)
+        if kind in ("entity", "research"):
+            heading, body = attach.subject(project, subject_id)
+            return [Section("About: " + heading.split(": ", 1)[-1],
+                            f"{heading}\n{body}" if body else heading)]
+        if kind != "scene":
+            raise ValueError("that item cannot be the subject of a question")
+        inp = self._scene_inputs(subject_id, text)
+        entities = inp["entities"]
+        return build_context_sections(inp["text"], from_utf16(inp["text"], cursor), entities,
+                                      canon_map(entities), load_style(project), originals=inp["originals"])
+
+    def _chat_sections(self, scope: str, doc_id: str | None, text: str | None, cursor: int,
+                       subject_id: str | None) -> list[Section]:
+        """The context of a chat question or Brainstorm as sections (call with the lock held): the
+        open scene (or the whole project when *scope* is "project" or no scene is open), plus the
+        *subject_id* item when it is an entity or notebook note. A scene subject *is* the scene
+        context (unless the whole project was asked for)."""
+        project = self._require()
+        entities = list(self.entities)
+        canon = canon_map(entities)
+        style_md = load_style(project)
+        note_subject = None
+        if subject_id:
+            _, kind = self.resolve_document(subject_id)
+            if kind in ("entity", "research"):
+                note_subject = subject_id
+            elif kind != "scene":
+                raise ValueError("that item cannot be the subject of a question")
+            elif scope != "project":
+                if doc_id != subject_id:
+                    doc_id, text = subject_id, (None if doc_id else text)
+        if scope == "project" or not doc_id:
+            sections = build_project_context_sections(
+                [ws.split_title(fsutil.read_text_lenient(p))[0] or p.stem
+                 for p in project.list_scenes()], entities, canon, style_md)
+            if not sections:
+                sections = [Section("Project", "(the project is empty)")]
+        else:
+            inp = self._scene_inputs(doc_id, text)
+            sections = build_context_sections(
+                inp["text"], from_utf16(inp["text"], cursor), entities, canon,
+                style_md, originals=inp["originals"])
+        if note_subject:
+            sections += self._subject_sections(note_subject)
+        return sections
 
     @staticmethod
     def _spent(calls_before: int) -> float | None:
@@ -1548,8 +1665,10 @@ class Api:
             scene_text = scenemeta.blank(  # AI text and the details block aren't prose
                 drafts.blank_pending(inp["text"]))
             model = resolve_model("fast", inp["project"].meta)
+            entities, sent = plan_aliases(scene_text, inp["entities"], Budget.for_model(model),
+                                          details_text=drafts.blank_pending(inp["text"]))
             calls = LEDGER.count()
-        suggestions = suggest_links(scene_text, inp["entities"], model)
+        suggestions = suggest_links(scene_text, entities, model)
         out = []
         for s in suggestions:
             around = lambda a, b: " ".join(scene_text[max(0, a):b].split())
@@ -1557,7 +1676,7 @@ class Api:
                 "entity": s.entity, "surface": s.surface, "alias": alias_form(s.surface),
                 "before": around(s.start - 60, s.start), "after": around(s.end, s.end + 60),
             })
-        return {"suggestions": out, "cost": self._spent(calls)}
+        return {"suggestions": out, "cost": self._spent(calls), "sent": sent.to_dict()}
 
     @bridge
     def apply_aliases(self, items: list) -> dict:
@@ -1588,10 +1707,11 @@ class Api:
             if not inp["entities"]:
                 raise ValueError("No notes yet - there is nothing to check against")
             scene_text = drafts.strip_pending(inp["text"], inp["originals"])
-            canon = canon_map(inp["entities"])
             model = resolve_model("strong", inp["project"].meta)
+            entities, canon, sent = plan_check(scene_text, inp["entities"], canon_map(inp["entities"]),
+                                               Budget.for_model(model))
             calls = LEDGER.count()
-        found = check_scene(scene_text, inp["entities"], canon, model)
+        found = check_scene(scene_text, entities, canon, model) if entities else []
         with self._lock:
             waived = load_waivers(inp["project"].root)
         shown = filter_waived(found, waived)
@@ -1602,7 +1722,7 @@ class Api:
             "row": locate_evidence(inp["text"], c.evidence),
         } for c in shown]
         return {"issues": issues, "waived": len(found) - len(shown),
-                "cost": self._spent(calls)}
+                "cost": self._spent(calls), "sent": sent.to_dict()}
 
     @bridge
     def waive(self, key: str, doc_id: str) -> dict:
@@ -1628,12 +1748,13 @@ class Api:
                 raise ValueError("No notes yet - create some notes first")
             scene_text = drafts.strip_pending(inp["text"], inp["originals"])
             model = resolve_model("strong", inp["project"].meta)
+            entities, sent = plan_canon(scene_text, inp["entities"], Budget.for_model(model))
             calls = LEDGER.count()
-        updates = propose_canon_updates(scene_text, inp["entities"], model)
+        updates = propose_canon_updates(scene_text, entities, model) if entities else []
         return {"updates": [{
             "entity": u.entity, "facts": list(u.new_facts), "evidence": u.evidence,
             "existing": u.existing_canon,
-        } for u in updates], "cost": self._spent(calls)}
+        } for u in updates], "cost": self._spent(calls), "sent": sent.to_dict()}
 
     @bridge
     def apply_canon(self, updates: list) -> dict:
@@ -1705,12 +1826,14 @@ class Api:
             lo, hi = from_utf16(text, start), from_utf16(text, end)
             selection = text[lo:hi] if hi > lo else None
             style_md = load_style(project)
-            context = build_context(
+            sections = build_context_sections(
                 text, lo, inp["entities"], canon_map(inp["entities"]), style_md,
                 span=(lo, hi) if hi > lo else None, originals=inp["originals"],
                 voice_samples=select_voice_samples(
                     project, inp.get("path"), text, inp["entities"]))
             model = resolve_model("writing", project.meta)
+            context, sent = fit_context(
+                [*sections, generate_instructions(mode, instruction.strip(), selection)], model, mode)
             calls = LEDGER.count()
         body = self._stream(generate_text, mode, instruction.strip(), context, model,
                             selection=selection)
@@ -1721,6 +1844,7 @@ class Api:
             "mode": mode, "insert": insert, "draftId": draft_id, "original": selection,
             "from": index_to_utf16(text, a), "to": index_to_utf16(text, b),
             "noStyle": style_md is None, "model": model, "cost": self._spent(calls),
+            "sent": sent.to_dict(),
         }
 
     @bridge
@@ -1792,63 +1916,52 @@ class Api:
     @bridge
     def ask(self, prompt: str, scope: str, doc_id: str | None = None,
             text: str | None = None, cursor: int = 0,
-            history: list | None = None, attachments: list | None = None) -> dict:
-        """Chat: answer a question about the scene or the whole project. The
-        reply is text for the chat only; the manuscript is never touched."""
+            history: list | None = None, attachments: list | None = None,
+            subject_id: str | None = None) -> dict:
+        """Chat: answer a question about the scene or the whole project, and about the open
+        item (*subject_id*: a character / place / object note, a notebook note or a scene)
+        when the author keeps it on. The reply is text for the chat only; the manuscript is
+        never touched."""
         with self._lock:
             project = self._require()
-            entities = list(self.entities)
-            canon = canon_map(entities)
-            style_md = load_style(project)
             model = resolve_model("writing", project.meta)
-            if scope == "project" or not doc_id:
-                context = build_project_context(
-                    [ws.split_title(fsutil.read_text_lenient(p))[0] or p.stem
-                     for p in project.list_scenes()], entities, canon, style_md)
-            else:
-                inp = self._scene_inputs(doc_id, text)
-                context = build_context(
-                    inp["text"], from_utf16(inp["text"], cursor), entities, canon,
-                    style_md, originals=inp["originals"])
-            context, attached = self._with_attachments(project, context, attachments)
+            sections = self._chat_sections(scope, doc_id, text, cursor, subject_id)
+            sections, attached = self._with_attachments(project, sections, attachments)
+            context, sent = fit_context(
+                [*sections, chat_instructions(ASK_SYSTEM_PROMPT, prompt, history)], model, "ask")
             calls = LEDGER.count()
         reply = self._stream(ask_writer, prompt, context, model, history=history)
-        return {"reply": reply, "attached": attached, "cost": self._spent(calls)}
+        return {"reply": reply, "attached": attached, "cost": self._spent(calls),
+                "sent": merge_attached(sent, attached).to_dict()}
 
     @bridge
     def brainstorm(self, doc_id: str | None = None, text: str | None = None, cursor: int = 0,
-                   attachments: list | None = None) -> dict:
+                   attachments: list | None = None, subject_id: str | None = None) -> dict:
         """Chat: 3-5 "unstuck" ideas for the open scene (or the project when no scene is
-        open) from the scene around the cursor, the canon and the style guide. The reply
-        is chat text (a numbered list) plus the ideas as a list, for per-idea actions;
-        the manuscript is never touched."""
+        open) from the scene around the cursor, the canon and the style guide, and for the
+        open item (*subject_id*: a character / place / object note or a notebook note) when
+        the author keeps it on. The reply is chat text (a numbered list) plus the ideas as a
+        list, for per-idea actions; the manuscript is never touched."""
         with self._lock:
             project = self._require()
-            entities = list(self.entities)
-            canon = canon_map(entities)
-            style_md = load_style(project)
             model = resolve_model("writing", project.meta)
-            if not doc_id:
-                context = build_project_context(
-                    [ws.split_title(fsutil.read_text_lenient(p))[0] or p.stem
-                     for p in project.list_scenes()], entities, canon, style_md)
-            else:
-                inp = self._scene_inputs(doc_id, text)
-                context = build_context(
-                    inp["text"], from_utf16(inp["text"], cursor), entities, canon,
-                    style_md, originals=inp["originals"])
-            context, attached = self._with_attachments(project, context, attachments)
+            sections = self._chat_sections("scene", doc_id, text, cursor, subject_id)
+            sections, attached = self._with_attachments(project, sections, attachments)
+            context, sent = fit_context([*sections, brainstorm_instructions()], model, "brainstorm")
             calls = LEDGER.count()
         ideas = self._stream(brainstorm_writer, context, model)
         reply = "\n".join(f"{i}. {idea}" for i, idea in enumerate(ideas, 1))
-        return {"reply": reply, "ideas": ideas, "attached": attached, "cost": self._spent(calls)}
+        return {"reply": reply, "ideas": ideas, "attached": attached, "cost": self._spent(calls),
+                "sent": merge_attached(sent, attached).to_dict()}
 
     @staticmethod
-    def _with_attachments(project: Project, context: str, attachments: list | None) -> tuple[str, list]:
-        """Append the author's attachments (capped, core.attach) to a chat context; the
-        report says what was truncated or skipped."""
+    def _with_attachments(project: Project, sections: list[Section],
+                          attachments: list | None) -> tuple[list[Section], list]:
+        """Append the author's attachments (capped, core.attach) to a chat context as a section
+        that is never dropped; the report (`attached`) says what was truncated or skipped and is
+        merged into the sent report (`budget.merge_attached`)."""
         text, report = attach.build(project, [a for a in attachments or [] if isinstance(a, dict)])
-        return (f"{context}\n\n{text}" if text else context), report
+        return ([*sections, Section("Attachments", text)] if text else list(sections)), report
 
     @bridge
     def list_attachable(self) -> dict:

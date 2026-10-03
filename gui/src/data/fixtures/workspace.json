@@ -87,12 +87,6 @@
       "children": []
     },
     {
-      "id": "group:unplaced",
-      "title": "Unplaced Scenes",
-      "kind": "inbox",
-      "children": []
-    },
-    {
       "id": "group:trash",
       "title": "Trash",
       "kind": "trash",

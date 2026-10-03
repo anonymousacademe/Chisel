@@ -36,7 +36,7 @@ def test_kicker_follows_the_unit_and_the_part(tmp_path):
     assert ws.scene_kicker(project, scene) == "SCENE 02"
     project.update_manuscript_settings(unit="chapter")
     assert ws.scene_kicker(project, scene) == "CHAPTER 02"
-    assert ws.scene_kicker(project, project.unplace_scene(scene)) == "UNPLACED"
+    assert ws.scene_kicker(project, project.unplace_scene(scene)) == "PARKED"
 
 
 def test_pending_drafts_do_not_count(tmp_path):
@@ -91,10 +91,38 @@ def test_binder_groups_and_placeholders(tmp_path):
     assert top["group:research"]["kind"] == "research" and top["group:research"]["children"] == []   # real since Wave 3
     assert not any(n.get("placeholder") for n in built["binder"])
     assert not top["group:trash"].get("placeholder") and top["group:trash"]["kind"] == "trash"
-    assert top["group:unplaced"]["kind"] == "inbox" and top["group:unplaced"]["children"] == []
+    assert "group:unplaced" not in top        # Parked scenes is listed only while it holds scenes
     assert not any(c.get("placeholder") for c in top["project"]["children"])  # Parts are real now
     manuscript = next(c for c in top["project"]["children"] if c["id"] == "group:manuscript")
     assert [c["title"] for c in manuscript["children"]] == ["01  Arrival", "02  The Archive"]
+
+
+def test_parked_scenes_group_hidden_when_empty_and_shown_with_a_count(tmp_path):
+    project = make_book(tmp_path / "p")
+
+    def ids():
+        built = ws.build_workspace(project, project.load_entities(),
+                                   baseline_words=0, session_minutes=0, ai_cost=0)
+        return built, {n["id"]: n for n in built["binder"]}
+
+    built, top = ids()
+    assert "group:unplaced" not in top
+    first = project.manuscript_dir / "01-the-recall" / "01-rain.md"
+    second = project.manuscript_dir / "01-the-recall" / "02-capsule.md"
+    parked = project.unplace_scene(first)
+    built, top = ids()
+    node = top["group:unplaced"]
+    assert (node["title"], node["kind"], node["meta"]) == ("Parked scenes", "inbox", "1")
+    assert node["description"].startswith("Written but not part of the book.")
+    assert "Not counted in word totals or export" in node["description"] and "searchable" in node["description"]
+    project.unplace_scene(second)
+    assert ids()[1]["group:unplaced"]["meta"] == "2"
+    # the folder and the internal names do not change
+    assert parked.parent.name == "_unplaced" and node["id"] == "group:unplaced"
+    # putting everything back hides the group again
+    for p in sorted(project.unplaced_dir.glob("*.md")):
+        project.place_scene(p, project.list_parts()[-1])
+    assert "group:unplaced" not in ids()[1]
 
 
 def test_dead_placeholder_helper_is_gone():

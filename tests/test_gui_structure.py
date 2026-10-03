@@ -110,8 +110,11 @@ def test_unplaced_scenes_leave_the_book_but_stay_readable_and_indexed(tmp_path):
     assert w["status"]["projectWords"] == before - 12
     un = next(n for n in w["binder"] if n["id"] == "group:unplaced")
     assert [c["title"] for c in un["children"]] == ["Capsule"] and un["meta"] == "1"
+    assert un["title"] == "Parked scenes" and un["kind"] == "inbox"
+    assert un["description"] == ("Written but not part of the book. Not counted in word totals or export. "
+                                 "Still searchable.")
     doc = api.read_document(r["id"])
-    assert doc["ok"] and doc["kicker"] == "UNPLACED" and doc["parent"] == "Unplaced Scenes"
+    assert doc["ok"] and doc["kicker"] == "PARKED" and doc["parent"] == "Parked scenes"
     # editing it still re-indexes (backlinks) via the normal save
     text = doc["text"] + "\nMara Vale watches.\n"
     assert api.save_document(r["id"], text, doc["mtime"])["saved"]

@@ -92,7 +92,7 @@ describe("a book with parts (shape shared with Python)", () => {
     expect(isOpenable(kids[1].children![0])).toBe(true);
   });
 
-  it("Unplaced Scenes and Trash are real rows", () => {
+  it("Parked scenes and Trash are real rows", () => {
     const un = findNode(book.binder, "group:unplaced")!;
     expect(un.kind).toBe("inbox");
     expect(un.children!.map((c) => c.title)).toEqual(["Capsule"]);
@@ -115,6 +115,6 @@ describe("a book with parts (shape shared with Python)", () => {
   it("groups feed the corkboard in book order", () => {
     const groups = sceneGroups(book.scenes, book.parts, { unplaced: true });
     expect(groups.map((g) => [g.title, g.scenes.map((s) => s.title)])).toEqual([
-      ["Front Matter", ["Title Page"]], ["The Recall", ["Rain"]], ["Ghost", []], ["Unplaced scenes", ["Capsule"]]]);
+      ["Front Matter", ["Title Page"]], ["The Recall", ["Rain"]], ["Ghost", []], ["Parked scenes", ["Capsule"]]]);
   });
 });

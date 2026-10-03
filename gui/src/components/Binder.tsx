@@ -57,7 +57,7 @@ function Row({ node, depth, activeId, focusId, expanded, onToggle, onSelect, onN
           ? <span className="lw-binder__disclosure" aria-hidden><Icon icon={ChevronRight} size={11} stroke={1.8} /></span>
           : <span className="lw-binder__disclosure" aria-hidden />}
         <Icon icon={nodeIcon(node, open, active)} size={14} stroke={1.5} className="lw-binder__icon" />
-        <span className="lw-binder__title" title={ph ? undefined : node.title}>{node.title}</span>
+        <span className="lw-binder__title" title={ph ? undefined : node.description ?? node.title}>{node.title}</span>
         {node.meta && <span className="lw-binder__meta">{node.meta}</span>}
         {node.kind === "research" && !ph && (
           <button className="lw-binder__add" aria-label="New note" title="New note in the Notebook"

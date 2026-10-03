@@ -44,3 +44,44 @@ def test_rename_errors_do_not_raise(tmp_path):
     assert api.rename_preview("Nobody", "X")["ok"] is False
     assert "another note" in api.rename_preview("Mara Vale", "elias vale")["error"]
     assert api.rename_apply("nope", [])["ok"] is False
+
+
+def test_rename_and_undo_carry_the_pictures_made_for_the_note(tmp_path):
+    from lorewrite.core import inspiration as store
+
+    snapshots._daily_done.clear()
+    api, root = open_api(tmp_path)
+    old, new = "entities/characters/mara-vale.md", "entities/characters/nia-vale.md"
+    mine = store.save(api.project, b"\xff\xd8\xff\xe0" + b"j" * 20, "jpg", {"prompt": "Mara", "for": old, "pinned": True})
+    other = store.save(api.project, b"\xff\xd8\xff\xe0" + b"j" * 20, "jpg", {"prompt": "Elias", "for": "entities/characters/elias-vale.md"})
+    legacy = store.save(api.project, b"\xff\xd8\xff\xe0" + b"j" * 20, "jpg", {"prompt": "Old"})
+    legacy.meta_path.write_text(f"---\nprompt: Old\nscene: {old}\n---\n", encoding="utf-8", newline="\n")   # old sidecar
+    r = api.rename_preview("Mara Vale", "Nia Vale", True, {"Mara": "Nia"})
+    done = api.rename_apply(r["plan"], [o["id"] for f in r["files"] for o in f["occurrences"]])
+    assert done["ok"] and done["remap"] == {old: new}
+    by_id = {i["id"]: i for i in api.list_inspiration()["images"]}
+    assert by_id[mine.id]["for"] == new and by_id[mine.id]["pinned"] and by_id[mine.id]["unlinked"] is False
+    assert by_id[legacy.id]["for"] == new                                    # a legacy scene: link follows too
+    assert "for: " + new in legacy.meta_path.read_text(encoding="utf-8")
+    assert by_id[other.id]["for"] == "entities/characters/elias-vale.md"
+    assert api.list_inspiration(new)["mine"] and set(api.list_inspiration(new)["mine"]) == {mine.id, legacy.id}
+
+    undone = api.rename_undo(done["undoId"])
+    assert undone["ok"] and undone["skipped"] == []
+    by_id = {i["id"]: i for i in api.list_inspiration()["images"]}
+    assert by_id[mine.id]["for"] == old and by_id[legacy.id]["for"] == old and by_id[mine.id]["pinned"]
+    assert by_id[other.id]["for"] == "entities/characters/elias-vale.md"
+
+
+def test_a_rename_that_keeps_the_file_name_leaves_the_pictures_alone(tmp_path):
+    from lorewrite.core import inspiration as store
+
+    snapshots._daily_done.clear()
+    api, root = open_api(tmp_path)
+    old = "entities/characters/mara-vale.md"
+    img = store.save(api.project, b"\xff\xd8\xff\xe0" + b"j" * 20, "jpg", {"prompt": "Mara", "for": old})
+    before = img.meta_path.read_bytes()
+    r = api.rename_preview("Mara Vale", "Mara Vale", True, {})
+    if r["ok"]:                                                              # nothing to rename: a no-op plan or an error
+        api.rename_apply(r["plan"], [])
+    assert store.get(api.project, img.id).link == old and img.meta_path.read_bytes() == before

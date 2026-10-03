@@ -177,6 +177,8 @@ def scene_context(scene_text: str, cursor_offset: int, entities, canon_by_name: 
 
 
 def build_description_request(context: str) -> str:
+    if "<<CURSOR>>" not in context:   # a note (character, place, ...) has no cursor
+        return f"{context}\n\nWrite the image prompt for the subject above."
     return f"{context}\n\nWrite the image prompt for the setting around <<CURSOR>>."
 
 

@@ -13,6 +13,6 @@ describe("sceneFacts", () => {
     expect(kickerOf(base, "chapter")).toBe("CHAPTER 07");
     expect(kickerOf({ ...base, number: "" }, "scene")).toBe("SCENE");
     expect(kickerOf({ ...base, frontMatter: true }, "scene")).toBe("FRONT MATTER");
-    expect(kickerOf({ ...base, unplaced: true }, "scene")).toBe("UNPLACED");
+    expect(kickerOf({ ...base, unplaced: true }, "scene")).toBe("PARKED");
   });
 });

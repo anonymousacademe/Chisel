@@ -9,9 +9,9 @@ export function wordsLabel(s: Pick<SceneSummary, "words" | "details">) {
   return s.details.target ? `${fmt(s.words)} / ${fmt(s.details.target)}` : fmt(s.words);
 }
 
-/** The small caps label above a card: "SCENE 07", "CHAPTER 07", "FRONT MATTER", "UNPLACED". */
+/** The small caps label above a card: "SCENE 07", "CHAPTER 07", "FRONT MATTER", "PARKED". */
 export function kickerOf(s: Pick<SceneSummary, "number" | "frontMatter" | "unplaced">, unit: string) {
   if (s.frontMatter) return "FRONT MATTER";
-  if (s.unplaced) return "UNPLACED";
+  if (s.unplaced) return "PARKED";
   return s.number ? `${unit.toUpperCase()} ${s.number}` : unit.toUpperCase();
 }

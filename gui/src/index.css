@@ -598,6 +598,9 @@ button.lw-picklist__row:hover { border-color: var(--lw-accent); background: var(
 .lw-chip--attached { gap: 6px; max-width: 100%; }
 .lw-chip--attached button { color: var(--lw-text-faint); line-height: 1; }
 .lw-chip--attached button:hover { color: var(--lw-danger); }
+.lw-about { display: flex; padding: 0 12px 8px; }
+.lw-chip--about { max-width: 100%; }
+.lw-chip--about .lw-chip__text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .lw-picklist__row.lw-collections__check { justify-content: flex-start; text-align: left; }
 .lw-collections__check .lw-picklist__main { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -685,3 +688,16 @@ button.lw-picklist__row:hover { border-color: var(--lw-accent); background: var(
 .lw-atmo__via { font-size: 10.5px; padding-left: 38px; }
 .lw-atmo__via a { color: var(--lw-accent-text); }
 .lw-slider { flex: 1; min-width: 80px; accent-color: var(--lw-accent); }
+
+/* "What was sent" disclosure under AI results (components/SentReport.tsx) */
+.lw-sent { margin-top: 6px; font-size: 11px; color: var(--lw-text-muted); border: 1px solid var(--lw-border); border-radius: var(--lw-radius-sm); background: var(--lw-bg-raised); }
+.lw-sent.is-warn { border-color: var(--lw-warning); }
+.lw-sent__summary { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; padding: 4px 8px; cursor: pointer; user-select: none; }
+.lw-sent__summary > span:first-child { color: var(--lw-text); font-weight: 500; }
+.lw-sent.is-warn .lw-sent__line { color: var(--lw-warning); }
+.lw-sent__body { padding: 2px 8px 8px; user-select: text; }
+.lw-sent__list { margin: 0 0 4px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.lw-sent__list li.is-warn .lw-sent__note { color: var(--lw-warning); }
+.lw-sent__name { color: var(--lw-text); }
+.lw-sent__note { margin: 0; overflow-wrap: anywhere; }
+.lw-sent__total { margin: 4px 0 0; }

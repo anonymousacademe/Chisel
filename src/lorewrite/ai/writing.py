@@ -11,8 +11,9 @@ from __future__ import annotations
 import re
 
 from ..core import drafts, research as research_notes, scenemeta
-from ..core.entities import Entity, resolve
-from ..core.links import find_all_links
+from ..core.entities import Entity
+from . import relevance
+from .budget import Budget, Item, Section, SentReport, fit, fit_text, render
 from .client import usage_extra_body
 from .stream import stream_text
 from .usage import record_response
@@ -80,6 +81,59 @@ def _marked_scene(scene_text: str, cursor_offset: int,
     return drafts.strip_pending(text, originals)
 
 
+def build_context_sections(
+    scene_text: str,
+    cursor_offset: int,
+    entities: list[Entity],
+    canon_by_name: dict[str, str],
+    style_md: str | None,
+    span: tuple[int, int] | None = None,
+    originals: dict[str, str] | None = None,
+    voice_samples: list[tuple[str, str]] | None = None,
+) -> list[Section]:
+    """The parts of a draft / chat context (see ``build_context``), for ``budget.fit``:
+    the scene window and its details are always kept; the style guide, the entity notes
+    (best first: named in the prose, then the POV / place) and the voice samples are droppable."""
+    marked = _marked_scene(scene_text, cursor_offset, span, originals)
+    before, _, after = marked.partition(CURSOR)
+    window = _tail_words(before, CONTEXT_WORDS) + CURSOR + _head_words(
+        after, CONTEXT_WORDS)
+
+    sections: list[Section] = []
+    if style_md and style_md.strip():
+        sections.append(Section("Style guide", "STYLE GUIDE:\n" + style_md.strip(),
+                                priority=0, droppable=True))
+
+    ranked = relevance.in_scene(
+        relevance.rank(drafts.strip_pending(scene_text, originals), entities))
+    notes: list[Item] = []
+    for r in ranked:
+        entity = r.entity
+        note = (canon_by_name.get(entity.name) or entity.body or "").strip()
+        if note:
+            notes.append(Item(entity.name, note, f"### {entity.name} ({entity.type})",
+                              r.priority, ENTITY_CHARS))
+    if notes:
+        sections.append(Section("Characters and places", priority=1, droppable=True,
+                                items=tuple(notes), head="CHARACTERS AND PLACES:\n",
+                                group_cap=ENTITY_TOTAL_CHARS))
+
+    if voice_samples:
+        sections.append(Section(
+            "Your own prose", priority=2, droppable=True,
+            items=tuple(Item(title or f"passage {i}", para, priority=i)
+                        for i, (title, para) in enumerate(voice_samples, 1)),
+            head="THE AUTHOR'S OWN PROSE (match this voice; do not reuse its content):\n"))
+
+    details = scenemeta.header(scene_text)
+    if details:
+        sections.append(Section(
+            "Scene details", "SCENE DETAILS (the author's plan for this scene):\n" + details))
+
+    sections.append(Section("Scene", "SCENE (the new text goes at " + CURSOR + "):\n" + window))
+    return sections
+
+
 def build_context(
     scene_text: str,
     cursor_offset: int,
@@ -95,47 +149,26 @@ def build_context(
     (cut at word boundaries, CURSOR sentinel at the insertion point), and
     notes/canon of the entities the scene mentions (1200 chars each, 6000
     total). Pending AI drafts are stripped (*originals*: the scene's draft
-sidecar, so replaced text counts as the accepted prose)."""
-    marked = _marked_scene(scene_text, cursor_offset, span, originals)
-    before, _, after = marked.partition(CURSOR)
-    window = _tail_words(before, CONTEXT_WORDS) + CURSOR + _head_words(
-        after, CONTEXT_WORDS)
+    sidecar, so replaced text counts as the accepted prose). Only the fixed caps
+    apply here; what is sent to a model goes through ``fit_context`` (the window
+    limit and the report of what was left out) using ``build_context_sections``."""
+    return render(fit(build_context_sections(
+        scene_text, cursor_offset, entities, canon_by_name, style_md, span, originals,
+        voice_samples), Budget.unbounded())[0])
 
-    sections: list[str] = []
-    if style_md and style_md.strip():
-        sections.append("STYLE GUIDE:\n" + style_md.strip())
 
-    names = [n for e in entities for n in e.names]
-    mentioned: list[Entity] = []
-    for link in find_all_links(
-            scenemeta.blank(drafts.strip_pending(scene_text, originals),
-                            keep=scenemeta.MENTION_FIELDS), names):
-        entity = resolve(link.target, entities)
-        if entity is not None and entity not in mentioned:
-            mentioned.append(entity)
-    notes: list[str] = []
-    used = 0
-    for entity in mentioned:
-        note = (canon_by_name.get(entity.name) or entity.body or "").strip()
-        note = note[:ENTITY_CHARS]
-        if not note or used + len(note) > ENTITY_TOTAL_CHARS:
-            continue
-        used += len(note)
-        notes.append(f"### {entity.name} ({entity.type})\n{note}")
-    if notes:
-        sections.append("CHARACTERS AND PLACES:\n" + "\n\n".join(notes))
+def instructions(system: str, *parts: str) -> Section:
+    """The part of a request that is not context (system prompt, task, question,
+    history): counted in the size, never dropped, not part of the rendered context."""
+    return Section("Instructions and question", "\n\n".join([system, *parts]), visible=False)
 
-    if voice_samples:
-        sections.append(
-            "THE AUTHOR'S OWN PROSE (match this voice; do not reuse its content):\n"
-            + "\n\n".join(para for _, para in voice_samples))
 
-    details = scenemeta.header(scene_text)
-    if details:
-        sections.append("SCENE DETAILS (the author's plan for this scene):\n" + details)
-
-    sections.append("SCENE (the new text goes at " + CURSOR + "):\n" + window)
-    return "\n\n".join(sections)
+def fit_context(sections: list[Section], model: str, feature: str,
+                budget: Budget | None = None) -> tuple[str, SentReport]:
+    """Fit *sections* into *model*'s window (``budget.window_for``): the context text and
+    the report of what it carries. Raises ``budget.BudgetError`` (before any network call)
+    when even the parts that cannot be dropped do not fit."""
+    return fit_text(sections, budget or Budget.for_model(model), feature)
 
 
 _FENCE_RE = re.compile(r"\A\s*```[^\n]*\n(.*?)\n?```\s*\Z", re.DOTALL)
@@ -187,6 +220,11 @@ def _user_prompt(mode: str, instruction: str, context: str,
                 f"AUTHOR'S NOTE: {instruction}")
     return (f"{context}\n\nTASK: Write new prose to be inserted at {CURSOR}.\n\n"
             f"INSTRUCTION: {instruction}")
+
+
+def generate_instructions(mode: str, instruction: str, selection: str | None = None) -> Section:
+    """The non-context part of a draft / expand / rewrite request (counted, never dropped)."""
+    return instructions(SYSTEM_PROMPT, _user_prompt(mode, instruction, "", selection))
 
 
 def generate(
@@ -249,6 +287,36 @@ HISTORY_TURNS = 6
 HISTORY_CHARS = 1500
 
 
+def _entity_items(entities: list[Entity], canon_by_name: dict[str, str]) -> tuple[Item, ...]:
+    return tuple(Item(e.name, (canon_by_name.get(e.name) or e.body or "").strip(),
+                      f"### {e.name} ({e.type})", i, ENTITY_CHARS)
+                 for i, e in enumerate(entities))
+
+
+def build_project_context_sections(
+    scene_titles: list[str],
+    entities: list[Entity],
+    canon_by_name: dict[str, str],
+    style_md: str | None,
+) -> list[Section]:
+    """The parts of a project-wide context, all droppable: style guide, scene titles
+    in order, entity notes (in the project's order)."""
+    sections: list[Section] = []
+    if style_md and style_md.strip():
+        sections.append(Section("Style guide", "STYLE GUIDE:\n" + style_md.strip(),
+                                priority=0, droppable=True))
+    if scene_titles:
+        sections.append(Section(
+            "Scene titles", priority=2, droppable=True, head="SCENES (in order):\n", sep="\n",
+            items=tuple(Item(t, head=f"{i}. {t}", priority=i)
+                        for i, t in enumerate(scene_titles, 1))))
+    if entities:
+        sections.append(Section("Characters and places", priority=1, droppable=True,
+                                items=_entity_items(entities, canon_by_name),
+                                head="CHARACTERS AND PLACES:\n", group_cap=PROJECT_CONTEXT_CHARS))
+    return sections
+
+
 def build_project_context(
     scene_titles: list[str],
     entities: list[Entity],
@@ -256,25 +324,28 @@ def build_project_context(
     style_md: str | None,
 ) -> str:
     """Context for project-wide questions: style guide, every scene title in
-    order, and the canon of every entity (each capped, total capped)."""
-    sections: list[str] = []
-    if style_md and style_md.strip():
-        sections.append("STYLE GUIDE:\n" + style_md.strip())
-    if scene_titles:
-        sections.append("SCENES (in order):\n" + "\n".join(
-            f"{i}. {t}" for i, t in enumerate(scene_titles, 1)))
-    notes: list[str] = []
-    used = 0
-    for entity in entities:
-        note = (canon_by_name.get(entity.name) or entity.body or "").strip()[:ENTITY_CHARS]
-        if used + len(note) > PROJECT_CONTEXT_CHARS:
-            continue
-        used += len(note)
-        heading = f"### {entity.name} ({entity.type})"
-        notes.append(f"{heading}\n{note}" if note else heading)
-    if notes:
-        sections.append("CHARACTERS AND PLACES:\n" + "\n\n".join(notes))
-    return "\n\n".join(sections) or "(the project is empty)"
+    order, and the canon of every entity (each capped, total capped). Only the fixed caps
+    apply; what is sent goes through ``fit_context`` (``build_project_context_sections``)."""
+    return render(fit(build_project_context_sections(
+        scene_titles, entities, canon_by_name, style_md), Budget.unbounded())[0]) \
+        or "(the project is empty)"
+
+
+def _turns(history: list[dict] | None) -> list[dict]:
+    """The last few chat turns as messages (each capped)."""
+    turns = []
+    for turn in (history or [])[-HISTORY_TURNS:]:
+        role = turn.get("role")
+        text = str(turn.get("text") or "")[:HISTORY_CHARS]
+        if role in ("user", "assistant") and text:
+            turns.append({"role": role, "content": text})
+    return turns
+
+
+def chat_instructions(system: str, prompt: str, history: list[dict] | None = None) -> Section:
+    """The non-context part of a chat request: system prompt, the earlier turns that are
+    sent, and the question."""
+    return instructions(system, *[t["content"] for t in _turns(history)], prompt.strip())
 
 
 def _chat_reply(client, model: str, feature: str, messages: list[dict],
@@ -312,15 +383,9 @@ def ask(
         from .client import make_client
 
         client = make_client()
-    turns = []
-    for turn in (history or [])[-HISTORY_TURNS:]:
-        role = turn.get("role")
-        text = str(turn.get("text") or "")[:HISTORY_CHARS]
-        if role in ("user", "assistant") and text:
-            turns.append({"role": role, "content": text})
     reply = _chat_reply(client, model, "ask", [
         {"role": "system", "content": ASK_SYSTEM_PROMPT},
-        *turns,
+        *_turns(history),
         {"role": "user", "content": f"{context}\n\nQUESTION:\n{prompt.strip()}"},
     ], on_delta, cancel)
     if not reply:
@@ -349,20 +414,39 @@ RESEARCH_NOTE_CHARS = 1500
 RESEARCH_TOTAL_CHARS = 9000
 
 
+def build_research_sections(notes: list[tuple[str, str]], canon: list[Section]) -> list[Section]:
+    """The numbered research notes ((title, excerpt) in citation order; the number is part
+    of each note, so a dropped note never renumbers the others) followed by the canon parts."""
+    items = tuple(Item(title, excerpt.strip(), f"[{i}] {title}", i, RESEARCH_NOTE_CHARS)
+                  for i, (title, excerpt) in enumerate(notes, 1))
+    if items:
+        head = Section("Research notes", priority=0, droppable=True, items=items,
+                       head="RESEARCH NOTES:\n", group_cap=RESEARCH_TOTAL_CHARS)
+    else:
+        head = Section("Research notes",
+                       "RESEARCH NOTES: (none of the author's notes matched this question)")
+    return [head, *canon]
+
+
 def build_research_context(notes: list[tuple[str, str]], canon_context: str) -> str:
     """The numbered research notes ((title, excerpt) in citation order, each
     and the total capped) followed by the project canon."""
-    sections: list[str] = []
-    used = 0
-    for i, (title, excerpt) in enumerate(notes, 1):
-        body = excerpt.strip()[:RESEARCH_NOTE_CHARS]
-        if used + len(body) > RESEARCH_TOTAL_CHARS:
-            break
-        used += len(body)
-        sections.append(f"[{i}] {title}\n{body}")
-    head = ("RESEARCH NOTES:\n" + "\n\n".join(sections)) if sections else \
-        "RESEARCH NOTES: (none of the author's notes matched this question)"
-    return head + ("\n\n" + canon_context if canon_context else "")
+    canon = [Section("Characters and places", canon_context)] if canon_context else []
+    return render(fit(build_research_sections(notes, canon), Budget.unbounded())[0])
+
+
+def research_sections(project, entities: list[Entity], canon_by_name: dict[str, str],
+                      question: str) -> tuple[list[Section], list[research_notes.Hit]]:
+    """The parts of the context for a research *question* (for ``fit_context``) and the
+    notes it was given, in citation order. Raises ValueError when the project has no
+    research notes at all (no AI call is worth making)."""
+    if not research_notes.list_notes(project):
+        raise ValueError("Your notebook is empty. Add some notes under Notebook "
+                         "(a new note, or a pasted link) and ask again.")
+    hits = research_notes.search(project, question)
+    canon = build_project_context_sections([], entities, canon_by_name, None) or [
+        Section("Characters and places", "(the project is empty)")]
+    return build_research_sections([(h.note.title, h.excerpt) for h in hits], canon), hits
 
 
 def research_context(project, entities: list[Entity], canon_by_name: dict[str, str],
@@ -370,12 +454,8 @@ def research_context(project, entities: list[Entity], canon_by_name: dict[str, s
     """Everything the model is given for a research *question*: the best matching
     notes (numbered, in citation order) and the project canon. Raises ValueError
     when the project has no research notes at all (no AI call is worth making)."""
-    if not research_notes.list_notes(project):
-        raise ValueError("Your notebook is empty. Add some notes under Notebook "
-                         "(a new note, or a pasted link) and ask again.")
-    hits = research_notes.search(project, question)
-    canon = build_project_context([], entities, canon_by_name, None)
-    return build_research_context([(h.note.title, h.excerpt) for h in hits], canon), hits
+    sections, hits = research_sections(project, entities, canon_by_name, question)
+    return render(fit(sections, Budget.unbounded())[0]), hits
 
 
 def research_answer(
@@ -397,15 +477,9 @@ def research_answer(
         from .client import make_client
 
         client = make_client()
-    turns = []
-    for turn in (history or [])[-HISTORY_TURNS:]:
-        role = turn.get("role")
-        text = str(turn.get("text") or "")[:HISTORY_CHARS]
-        if role in ("user", "assistant") and text:
-            turns.append({"role": role, "content": text})
     reply = _chat_reply(client, model, "research", [
         {"role": "system", "content": RESEARCH_SYSTEM_PROMPT},
-        *turns,
+        *_turns(history),
         {"role": "user", "content": f"{context}\n\nQUESTION:\n{prompt.strip()}"},
     ], on_delta, cancel)
     if not reply:
@@ -460,6 +534,11 @@ def parse_ideas(raw: str) -> list[str]:
         if idea:
             cleaned.append(idea[:IDEA_CHARS])
     return cleaned[:BRAINSTORM_MAX]
+
+
+def brainstorm_instructions() -> Section:
+    """The non-context part of a Brainstorm request (counted, never dropped)."""
+    return instructions(BRAINSTORM_SYSTEM_PROMPT, "Give me ideas to get unstuck.")
 
 
 def brainstorm(context: str, model: str, client=None, on_delta=None, cancel=None) -> list[str]:

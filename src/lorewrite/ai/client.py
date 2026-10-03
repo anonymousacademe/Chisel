@@ -188,4 +188,51 @@ def list_models(timeout: float = 10, structured_only: bool = True,
             f"{OPENROUTER_BASE_URL}/models", timeout=timeout
         ) as resp:
             _models_payload = json.load(resp)
+        remember_context_lengths(parse_models(_models_payload, False))
     return parse_models(_models_payload, structured_only, output_modality)
+
+
+# -- context windows (ai.budget plans AI requests against these) -------------------------
+# The catalogue is fetched only when the author opens a model picker. The context lengths it
+# reported are also kept in <state dir>/model-context.json so a later session can plan against
+# the real window without a network call; ai.budget never fetches anything itself.
+
+CONTEXT_FILE = "model-context.json"
+
+
+def remember_context_lengths(models) -> None:
+    """Keep ``{id: context_length}`` of *models* (ModelInfo) on disk. Best effort."""
+    from ..core.recents import default_state_dir
+
+    lengths = {m.id: int(m.context_length) for m in models
+               if isinstance(m.context_length, (int, float)) and m.context_length > 0}
+    if not lengths:
+        return
+    try:
+        folder = default_state_dir()
+        folder.mkdir(parents=True, exist_ok=True)
+        try:   # keep what earlier (differently filtered) lists reported
+            old = json.loads((folder / CONTEXT_FILE).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            old = {}
+        merged = {**(old if isinstance(old, dict) else {}), **lengths}
+        (folder / CONTEXT_FILE).write_text(json.dumps(merged), encoding="utf-8", newline="\n")
+    except OSError:
+        pass
+
+
+def cached_context_length(model_id: str) -> int | None:
+    """The context length of *model_id* from a catalogue fetched earlier (this session or a
+    previous one), or None. Never touches the network."""
+    for m in (_models_payload or {}).get("data") or []:
+        if isinstance(m, dict) and m.get("id") == model_id:
+            length = m.get("context_length")
+            return int(length) if isinstance(length, (int, float)) and length > 0 else None
+    from ..core.recents import default_state_dir
+
+    try:
+        data = json.loads((default_state_dir() / CONTEXT_FILE).read_text(encoding="utf-8"))
+        length = data.get(model_id) if isinstance(data, dict) else None
+    except (OSError, ValueError):
+        return None
+    return int(length) if isinstance(length, (int, float)) and length > 0 else None

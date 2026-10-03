@@ -203,12 +203,13 @@ def apply_canon_update(entity: ent.Entity, new_facts: list[str]) -> None:
 
 
 def canon_map(entities: list[ent.Entity]) -> dict[str, str]:
-    """Established canon per entity: the managed section, else the note body
-    (capped). What the AI is shown as the story bible."""
+    """Established canon per entity: the managed section, else the note body.
+    What the AI is shown as the story bible. Not capped here: the callers cap each note and
+    fit the whole into the model's window (ai.budget), and report what they cut."""
     canon = {}
     for e in entities:
         managed = get_canon(e.body)
-        canon[e.name] = managed if managed else e.body[:1500]
+        canon[e.name] = managed if managed else e.body
     return canon
 
 

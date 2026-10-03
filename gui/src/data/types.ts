@@ -12,6 +12,8 @@ export interface BinderNode {
   kind: BinderKind;
   /** Right-aligned mono label: word count ("2.8k"), or an entity type. */
   meta?: string;
+  /** Tooltip text for the row (what the group is for). */
+  description?: string;
   /** Dimmed rows (e.g. Front Matter, Trash). */
   muted?: boolean;
   /** Shown as designed but not implemented: disabled, tooltip "Not in Chisel yet". */
@@ -194,6 +196,25 @@ export interface AliasSuggestion { entity: string; surface: string; alias: strin
 
 export interface CanonProposal { entity: string; facts: string[]; evidence: string; existing: string }
 
+/** One part of an AI request, as `SentReport` lists it (python: ai/budget.py `SectionReport.to_dict`). */
+export interface SentSection {
+  name: string; chars: number; estTokens: number;
+  itemsTotal: number; itemsSent: number;
+  /** Names left out (over the window, over a fixed cap, or not about this scene). */
+  itemsDropped: string[];
+  /** Names sent cut short. */
+  truncated: string[];
+  /** The whole section was left out. */
+  omitted: boolean;
+}
+/** What an AI request carried (an estimate: characters / 4). Returned as `sent` beside the result. */
+export interface SentReport {
+  feature: string; estTokens: number; window: number; reserve: number;
+  overBudget: boolean; trimmed: boolean;
+  sections: SentSection[];
+  attached: AttachReport[];
+}
+
 export interface GenerateResult {
   mode: "draft" | "expand" | "rewrite";
   insert: string;         // the wrapped <!--ai--> text to put in the editor
@@ -204,13 +225,14 @@ export interface GenerateResult {
   noStyle: boolean;
   model: string;
   cost: number | null;
+  sent: SentReport;
 }
 
 export interface DraftEdit { from: number; to: number; insert: string }
 
 export type ChatMessage =
   | { id: string; role: "user"; text: string }
-  | { id: string; role: "assistant"; text: string; error?: boolean; stopped?: boolean; sources?: ChatSource[]; ideas?: string[] };
+  | { id: string; role: "assistant"; text: string; error?: boolean; stopped?: boolean; sources?: ChatSource[]; ideas?: string[]; sent?: SentReport };
 /** A saved conversation (.assistant/chats/), newest activity first in lists. */
 export interface ChatSummary { id: string; title: string; created: string; updated: string; count: number }
 export interface SavedChat {
@@ -249,8 +271,16 @@ export interface ModelOption { id: string; name: string; promptPerM: number | nu
 
 /** An inspiration picture (inspiration/<id>.jpg|png + its .md sidecar); `scene` is a scene id or "". */
 export interface InspirationImage {
-  id: string; ext: "jpg" | "png" | "webp"; prompt: string; model: string; scene: string;
+  id: string; ext: "jpg" | "png" | "webp"; prompt: string; model: string;
+  /** The item it is for: the document id of a scene, an entity note or a notebook note ("" = none). */
+  for: string;
+  /** The old name of `for`. */
+  scene: string;
   created: string; cost: number | null; pinned: boolean; title: string; notes: string; label: string;
+  /** "upload" = added by the author (no prompt, cannot be regenerated); "" = generated. */
+  source: string;
+  /** Its item no longer exists (Trash, deleted); the link is kept, so a restore reconnects it. */
+  unlinked: boolean;
 }
 
 /** An author comment anchored to a passage (core.comments); offsets are UTF-16, null when detached. */

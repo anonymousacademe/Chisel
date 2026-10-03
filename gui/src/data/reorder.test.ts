@@ -62,7 +62,7 @@ describe("planMove", () => {
     expect(m.partId).toBe(P1);
     const n = planMove(groups, "a", { kind: "end", groupKey: "unplaced" })!;
     expect(n).toMatchObject({ unplaced: true, partId: null });
-    expect(n.sentence).toBe("Move “Rain” to Unplaced scenes, position 2?");
+    expect(n.sentence).toBe("Move “Rain” to Parked scenes, position 2?");
   });
   it("unknown ids are ignored", () => {
     expect(planMove(groups, "zzz", { kind: "end", groupKey: P1 })).toBeNull();

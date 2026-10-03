@@ -42,7 +42,7 @@ or both.
   numbers stay on your machine, never in the project.
 
 **Organising the book**
-- Parts (folders), scenes, an *Unplaced* shelf for scenes you wrote but kept out
+- Parts (folders), scenes, *Parked scenes* for scenes you wrote but kept out
   of the book, and a Trash: deleting always moves to `.trash/`.
 - Collections ("Needs continuity pass", "Mara's arc"), scene details (POV, place,
   status, word target) as YAML frontmatter, comments on passages (kept beside the
@@ -236,6 +236,11 @@ A SQLite index under `.lorewrite/` powers backlinks. It is a rebuildable cache
   assistant sends your question, the context it retrieved, and anything you attached;
   *Describe this scene* sends the passage around the cursor, and image generation
   sends only the prompt you approved.
+- What each AI request carried is shown, not hidden: the desktop app has a **What was sent** line under
+  assistant replies, review dialogs and drafts (every part of the request with its estimated size, and by
+  name any note that did not fit and was left out or shortened); the terminal app adds a one-line summary to
+  each AI notification. For a long book, only the notes of the characters and places a scene is about are sent,
+  and a request too big for the model's context window is refused before anything leaves your machine.
 - Never sent: scenes you did not open or attach, your comments (unless you attach
   them), unaccepted AI text as if it were your prose, scene details frontmatter as
   text, and your spelling dictionaries. Spell check, stats and search are fully local.

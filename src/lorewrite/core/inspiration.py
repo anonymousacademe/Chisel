@@ -10,11 +10,12 @@ never git-ignored).
     ---
     prompt: A dark subway platform at night, flickering fluorescent lights
     model: google/gemini-3.1-flash-lite-image
-    scene: manuscript/02-part-ii/03-the-tunnel.md     # optional
+    for: manuscript/02-part-ii/03-the-tunnel.md       # optional: any item (scene, entity note, notebook note)
     created: '2026-10-01T17:53:00'
     cost: 0.0336
-    pinned: true          # shown with that scene
+    pinned: true          # shown with that item
     title: Platform 9     # optional display name
+    source: upload        # only for pictures the author added (no model, no prompt, no cost)
     ---
     Optional notes by the author.
 
@@ -22,8 +23,9 @@ Reference only: nothing here is ever inserted into the prose, counted, indexed,
 spell-checked or sent to an AI. An image's *id* is its file stem; it crosses the
 GUI bridge, so ``_sidecar`` is the only door to a path (it refuses anything that
 is not a plain id). Deleting moves both files to the project Trash
-(``Structure.trash_inspiration``); renaming or moving a scene rewrites the
-``scene:`` links (``remap_scenes``). ``project`` arguments are duck-typed: ``root``.
+(``Structure.trash_inspiration``); renaming or moving a scene or renaming an entity note
+rewrites the ``for:`` links (``remap_links``). Old sidecars say ``scene:``: still read, never
+written. A link that no longer resolves is kept (a Trash restore reconnects it). ``project`` arguments are duck-typed: ``root``.
 """
 
 from __future__ import annotations
@@ -58,12 +60,18 @@ class Image:
     meta_path: Path    # its sidecar
     prompt: str
     model: str
-    scene: str         # project-relative scene path ("" = not tied to a scene)
+    link: str          # project-relative path of the item it is for ("" = none): sidecar ``for:``
     created: str       # ISO local time
     cost: float | None
     pinned: bool
     title: str         # the author's name for it ("" = show the prompt)
     notes: str
+    source: str = ""   # "upload" for a picture the author added ("" = generated)
+
+    @property
+    def scene(self) -> str:
+        """Compatibility name for ``link`` (it used to be scenes only)."""
+        return self.link
 
     @property
     def label(self) -> str:
@@ -143,7 +151,7 @@ def _str(value) -> str:
 
 
 def _dump(meta: dict, notes: str) -> str:
-    order = ("prompt", "model", "scene", "created", "cost", "pinned", "title")
+    order = ("prompt", "model", "for", "created", "cost", "pinned", "title", "source")
     data = {k: meta[k] for k in order if meta.get(k) not in (None, "", False)}
     head = yaml.safe_dump(data, sort_keys=False, allow_unicode=True, width=10_000,
                           default_flow_style=False)
@@ -152,6 +160,8 @@ def _dump(meta: dict, notes: str) -> str:
 
 
 def _write(path: Path, text: str) -> None:
+    if path.exists():
+        fsutil.ensure_utf8(path)   # never rewrite a file whose bytes this would lose
     tmp = path.with_name(f".{path.name}.tmp")
     tmp.write_text(text, encoding="utf-8", newline="\n")
     fsutil.replace(tmp, path)
@@ -168,30 +178,36 @@ def _image(project, sidecar: Path) -> Image | None:
     except (TypeError, ValueError):
         cost = None
     return Image(sidecar.stem, picture.suffix.lstrip("."), picture, sidecar,
-                 _str(meta.get("prompt")), _str(meta.get("model")), _str(meta.get("scene")),
+                 _str(meta.get("prompt")), _str(meta.get("model")),
+                 _str(meta.get("for") or meta.get("scene")),   # legacy sidecars say scene:
                  _str(meta.get("created")), cost, meta.get("pinned") is True,
-                 _str(meta.get("title")), notes.strip())
+                 _str(meta.get("title")), notes.strip(), _str(meta.get("source")))
 
 
 def _meta_of(image: Image) -> dict:
-    return {"prompt": image.prompt, "model": image.model, "scene": image.scene,
+    return {"prompt": image.prompt, "model": image.model, "for": image.link,
             "created": image.created, "cost": image.cost, "pinned": image.pinned,
-            "title": image.title}
+            "title": image.title, "source": image.source}
 
 
 # -- operations -------------------------------------------------------------------
 
 
 def save(project, image_bytes: bytes, ext: str, meta: dict) -> Image:
-    """Store a picture and its sidecar. *meta*: ``prompt`` (required), ``model``,
-    ``scene`` (project-relative path), ``cost``, ``pinned``, ``title``, ``notes``,
-    ``created`` (default now). Returns the saved image."""
+    """Store a picture and its sidecar. *meta*: ``prompt`` (required, except for a
+    ``source: "upload"`` picture, which is named by its ``title``), ``model``, ``for``
+    (project-relative path of any item; ``scene`` is the old name), ``cost``, ``pinned``,
+    ``title``, ``notes``, ``source``, ``created`` (default now). Returns the saved image."""
     if not image_bytes:
         raise ValueError("the image is empty")
     ext = normalize_ext(ext)
     prompt = " ".join(str(meta.get("prompt") or "").split())[:PROMPT_MAX]
-    if not prompt:
+    source = "upload" if meta.get("source") == "upload" else ""
+    title = " ".join(str(meta.get("title") or "").split())[:TITLE_MAX]
+    if not prompt and not source:
         raise ValueError("an inspiration image needs its prompt")
+    link = str(meta.get("for") or meta.get("scene") or "")
+    slug = _slug(prompt or title)
     created = meta.get("created") or datetime.now().isoformat(timespec="seconds")
     try:
         stamp = datetime.fromisoformat(str(created)).strftime("%Y%m%d-%H%M%S")
@@ -200,19 +216,19 @@ def save(project, image_bytes: bytes, ext: str, meta: dict) -> Image:
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     folder = inspiration_dir(project)
     folder.mkdir(parents=True, exist_ok=True)
-    stem, n = f"{stamp}-{_slug(prompt)}", 1
+    stem, n = f"{stamp}-{slug}", 1
     while any((folder / f"{stem}.{e}").exists() for e in (*EXTENSIONS, "md")):
         n += 1
-        stem = f"{stamp}-{_slug(prompt)}-{n}"
+        stem = f"{stamp}-{slug}-{n}"
     tmp = folder / f".{stem}.{ext}.tmp"
     tmp.write_bytes(image_bytes)
     fsutil.replace(tmp, folder / f"{stem}.{ext}")
     cost = meta.get("cost")
     record = {"prompt": prompt, "model": str(meta.get("model") or ""),
-              "scene": str(meta.get("scene") or ""), "created": str(created),
+              "for": link, "created": str(created),
               "cost": round(float(cost), 6) if cost is not None else None,
-              "pinned": bool(meta.get("pinned")) and bool(meta.get("scene")),
-              "title": " ".join(str(meta.get("title") or "").split())[:TITLE_MAX]}
+              "pinned": bool(meta.get("pinned")) and bool(link),
+              "title": title, "source": source}
     _write(folder / f"{stem}.md", _dump(record, str(meta.get("notes") or "")[:NOTES_MAX]))
     return get(project, stem)
 
@@ -225,8 +241,8 @@ def get(project, image_id: str) -> Image:
 
 
 def list_images(project, scene: str | None = None) -> list[Image]:
-    """Newest first. *scene* (a project-relative path) keeps only that scene's
-    images; None lists everything."""
+    """Newest first. *scene* (the project-relative path of any item: a scene, an entity
+    note or a notebook note) keeps only the images made for it; None lists everything."""
     folder = inspiration_dir(project)
     if not folder.is_dir():
         return []
@@ -235,12 +251,13 @@ def list_images(project, scene: str | None = None) -> list[Image]:
         if sidecar.name.startswith(".") or not _ID_RE.match(sidecar.stem):
             continue
         image = _image(project, sidecar)
-        if image is not None and (scene is None or image.scene == scene):
+        if image is not None and (scene is None or image.link == scene):
             out.append(image)
     return sorted(out, key=lambda i: (i.created, i.id), reverse=True)
 
 
 def pinned_for(project, scene: str) -> list[Image]:
+    """The images pinned ("show with this item") to the item at *scene*."""
     return [i for i in list_images(project, scene) if i.pinned]
 
 
@@ -248,24 +265,26 @@ _UNSET = object()
 
 
 def update(project, image_id: str, *, pinned=_UNSET, scene=_UNSET, title=_UNSET,
-           notes=_UNSET) -> Image:
-    """Pin / unpin, move to another scene (``""`` detaches and unpins), rename
-    (``title``) or edit the notes. Pinning needs a scene (pass *scene*, or the
-    image must already have one)."""
+           notes=_UNSET, link=_UNSET) -> Image:
+    """Pin / unpin, move to another item (``link``, or the older name ``scene``; ``""``
+    detaches and unpins), rename (``title``) or edit the notes. Pinning needs an item (pass
+    one, or the image must already have one)."""
+    if link is not _UNSET:
+        scene = link
     image = get(project, image_id)
     meta = _meta_of(image)
     body = image.notes
     if scene is not _UNSET:
-        meta["scene"] = str(scene or "")
+        meta["for"] = str(scene or "")
     if title is not _UNSET:
         meta["title"] = " ".join(str(title or "").split())[:TITLE_MAX]
     if notes is not _UNSET:
         body = str(notes or "")[:NOTES_MAX]
     if pinned is not _UNSET:
         meta["pinned"] = bool(pinned)
-    if meta["pinned"] and not meta["scene"]:
+    if meta["pinned"] and not meta["for"]:
         if pinned is not _UNSET and pinned:
-            raise ValueError("pin an image to a scene - open a scene first")
+            raise ValueError("pin an image to an item - open one first")
         meta["pinned"] = False
     _write(image.meta_path, _dump(meta, body))
     return get(project, image_id)
@@ -280,32 +299,42 @@ def read_file(project, image_id: str) -> tuple[bytes, str]:
     return picture.read_bytes(), MIME[picture.suffix.lstrip(".")]
 
 
-def remap_scenes(project, mapping: dict[str, str]) -> int:
-    """Follow a scene move: rewrite ``scene:`` in every sidecar that names an old
-    path (all at once, so swaps do not collide). Returns how many changed."""
+def remap_links(project, mapping: dict[str, str]) -> int:
+    """Follow a move or rename: rewrite ``for:`` in every sidecar that names an old
+    path (all at once, so swaps do not collide; old ``scene:`` sidecars are
+    rewritten as ``for:``). Returns how many changed."""
     changed = 0
     for image in list_images(project):
-        new = mapping.get(image.scene)
-        if image.scene and new and new != image.scene:
+        new = mapping.get(image.link)
+        if image.link and new and new != image.link:
             meta = _meta_of(image)
-            meta["scene"] = new
+            meta["for"] = new
             _write(image.meta_path, _dump(meta, image.notes))
             changed += 1
     return changed
 
 
+remap_scenes = remap_links   # the old name
+
+
 def remap_paths(project, pairs: dict[Path, Path]) -> int:
-    """``remap_scenes`` for the {old path: new path} of ``Structure.last_renames``
-    (part folders in it are ignored: they name no scene)."""
+    """``remap_links`` for {old path: new path} pairs: ``Structure.last_renames`` (scenes)
+    or an entity note's rename. Anything that is not a ``.md`` file on both sides is ignored
+    (part folders name no item), as is a path outside the project."""
     root = project.root
     mapping = {}
     for old, new in pairs.items():
-        try:
-            if old.suffix == ".md" and new.suffix == ".md":
-                mapping[old.relative_to(root).as_posix()] = new.relative_to(root).as_posix()
-        except ValueError:
+        if old.suffix != ".md" or new.suffix != ".md":
             continue
-    return remap_scenes(project, mapping) if mapping else 0
+        try:
+            mapping[old.relative_to(root).as_posix()] = new.relative_to(root).as_posix()
+        except ValueError:
+            try:   # one side resolved, the other not (symlinked or differently cased roots)
+                base = root.resolve()
+                mapping[old.resolve().relative_to(base).as_posix()] = new.resolve().relative_to(base).as_posix()
+            except (ValueError, OSError):
+                continue
+    return remap_links(project, mapping) if mapping else 0
 
 
 def trashed_label(sidecar: Path) -> str:
@@ -320,9 +349,9 @@ def trashed_label(sidecar: Path) -> str:
 def save_batch(project, pictures: list[tuple[bytes, str]], prompt: str, model: str,
                scene: str, pin: bool, cost: float | None) -> list[Image]:
     """Save every picture one generation call returned; the call's cost is split
-    between them and only the first is pinned (to *scene*, when *pin*)."""
+    between them and only the first is pinned (to the item *scene*, when *pin*)."""
     each = None if cost is None else cost / max(1, len(pictures))
-    return [save(project, data, ext, {"prompt": prompt, "model": model, "scene": scene,
+    return [save(project, data, ext, {"prompt": prompt, "model": model, "for": scene,
                                       "cost": each, "pinned": pin and k == 0})
             for k, (data, ext) in enumerate(pictures)]
 

@@ -127,8 +127,9 @@
     },
     {
       "id": "group:unplaced",
-      "title": "Unplaced Scenes",
+      "title": "Parked scenes",
       "kind": "inbox",
+      "description": "Written but not part of the book. Not counted in word totals or export. Still searchable.",
       "meta": "1",
       "children": [
         {

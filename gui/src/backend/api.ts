@@ -1,7 +1,7 @@
 import type { RestoreResult } from "../data/restoreText";
 import type { Misspelling, Span } from "../editor/spans";
 import type {
-  AliasSuggestion, AttachItem, RenameDone, RenamePreview, RenameScope, RenameUndone, AttachKind, AttachReport, CanonProposal, ChatSummary, CollectionColor, CommentRow, SavedChat, CollectionSummary, DiffSegment, SnapshotRow, SyncInfo, DetailsPatch, DocumentPayload, Remap, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
+  AliasSuggestion, AttachItem, RenameDone, RenamePreview, RenameScope, RenameUndone, AttachKind, AttachReport, CanonProposal, ChatSummary, CollectionColor, CommentRow, SavedChat, SentReport, CollectionSummary, DiffSegment, SnapshotRow, SyncInfo, DetailsPatch, DocumentPayload, Remap, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
   InspirationImage, Issue, ModelKind, ModelOption, RecentProject, SceneMention, SettingsInfo, EditorPrefs, SprintRecord, SprintState, StatsSummary, StyleStatus, Workspace,
 } from "../data/types";
 import type { AtmosphereInfo, KeyClass, PackRow, Prefs, Station } from "../data/atmosphere";
@@ -93,7 +93,7 @@ export const api = {
   deleteResearchNote: (id: string) => call("delete_research_note", id),
   /** Ask my notebook: answer from the notebook notes + canon; `sources` are the notes it was given, in citation order. */
   research: (prompt: string, history: { role: string; text: string }[], attachments: { kind: AttachKind; id: string }[] = []) =>
-    call<{ reply: string; sources: { id: string; title: string; score: number }[]; attached: AttachReport[]; cost: number | null }>("research", prompt, history, attachments),
+    call<{ reply: string; sources: { id: string; title: string; score: number }[]; attached: AttachReport[]; cost: number | null; sent: SentReport }>("research", prompt, history, attachments),
   // comments: notes beside the scene (.comments/), positioned against the editor's text
   listComments: (id: string, text: string) => call<{ comments: CommentRow[] }>("list_comments", id, text),
   addComment: (id: string, text: string, start: number, end: number, body: string) =>
@@ -129,12 +129,12 @@ export const api = {
   // AI (every result is a suggestion the UI must confirm; nothing here edits prose)
   aiStatus: () => call<{ hasKey: boolean; models: Record<ModelKind, string> }>("ai_status"),
   usage: () => call<{ cost: number; calls: number }>("usage"),
-  findAliases: (id: string, text: string) => call<{ suggestions: AliasSuggestion[]; cost: number | null }>("find_aliases", id, text),
+  findAliases: (id: string, text: string) => call<{ suggestions: AliasSuggestion[]; cost: number | null; sent: SentReport }>("find_aliases", id, text),
   applyAliases: (items: { entity: string; surface: string }[]) => call<{ added: number }>("apply_aliases", items),
-  checkContinuity: (id: string, text: string) => call<{ issues: Issue[]; waived: number; cost: number | null }>("check_continuity", id, text),
+  checkContinuity: (id: string, text: string) => call<{ issues: Issue[]; waived: number; cost: number | null; sent: SentReport }>("check_continuity", id, text),
   waive: (key: string, id: string) => call("waive", key, id),
   restoreWaivers: (id: string) => call<{ restored: number }>("restore_waivers", id),
-  proposeCanon: (id: string, text: string) => call<{ updates: CanonProposal[]; cost: number | null }>("propose_canon", id, text),
+  proposeCanon: (id: string, text: string) => call<{ updates: CanonProposal[]; cost: number | null; sent: SentReport }>("propose_canon", id, text),
   applyCanon: (updates: { entity: string; facts: string[] }[]) => call<{ applied: number }>("apply_canon", updates),
   learnStyle: () => call<{ markdown: string; replacing: boolean; samples: number; cost: number | null }>("learn_style"),
   ensureStyle: () => call<{ id: string }>("ensure_style"),
@@ -147,9 +147,10 @@ export const api = {
   registerDraft: (id: string, draftId: string, original: string) => call("register_draft", id, draftId, original),
   resolveDrafts: (id: string, text: string, accept: boolean, index: number | null = null) =>
     call<{ edits: DraftEdit[]; skipped: number; found: number }>("resolve_drafts", id, text, accept, index),
+  /** `subjectId`: the open item (character / place / object note, notebook note) the question is about; null = none. */
   ask: (prompt: string, scope: "scene" | "project", id: string | null, text: string | null, cursor: number,
-    history: { role: string; text: string }[], attachments: { kind: AttachKind; id: string }[] = []) =>
-    call<{ reply: string; attached: AttachReport[]; cost: number | null }>("ask", prompt, scope, id, text, cursor, history, attachments),
+    history: { role: string; text: string }[], attachments: { kind: AttachKind; id: string }[] = [], subjectId: string | null = null) =>
+    call<{ reply: string; attached: AttachReport[]; cost: number | null; sent: SentReport }>("ask", prompt, scope, id, text, cursor, history, attachments, subjectId),
   // saved conversations and attachments (.assistant/chats/)
   listAttachable: () => call<{ items: AttachItem[]; maxWords: number; maxItems: number }>("list_attachable"),
   listChats: () => call<{ chats: ChatSummary[] }>("list_chats"),
@@ -162,18 +163,22 @@ export const api = {
   /** Appends the reply, with the date and the prompt, to notebook/assistant-notes.md. */
   saveReplyToNotes: (prompt: string, reply: string) => call<{ id: string }>("save_reply_to_notes", prompt, reply),
   /** Brainstorm: 3-5 "unstuck" ideas for the open scene (null: the whole project); chat text only. */
-  brainstorm: (docId: string | null, text: string | null, cursor: number, attachments: { kind: AttachKind; id: string }[] = []) =>
-    call<{ reply: string; ideas: string[]; attached: AttachReport[]; cost: number | null }>("brainstorm", docId, text, cursor, attachments),
+  brainstorm: (docId: string | null, text: string | null, cursor: number, attachments: { kind: AttachKind; id: string }[] = [], subjectId: string | null = null) =>
+    call<{ reply: string; ideas: string[]; attached: AttachReport[]; cost: number | null; sent: SentReport }>("brainstorm", docId, text, cursor, attachments, subjectId),
   // inspiration pictures (inspiration/): reference only, never inserted into prose; generating costs money
-  listInspiration: () => call<{ images: InspirationImage[]; model: string; style: string }>("list_inspiration"),
+  /** Every picture; with `docId` (any document) `mine` lists the ids of the pictures made for it. */
+  listInspiration: (docId?: string) => call<{ images: InspirationImage[]; model: string; style: string; mine?: string[] }>("list_inspiration", docId ?? null),
+  /** Add a picture of the author's own (a data URL; JPG, PNG or WebP up to 10 MB), optionally for an item. Nothing is sent to an AI. */
+  uploadInspiration: (name: string, dataUrl: string, docId: string | null) =>
+    call<{ image: InspirationImage }>("upload_inspiration", name, dataUrl, docId),
   /** The picture as a data URL (files inside inspiration/ only). */
   inspirationImage: (id: string) => call<{ dataUrl: string }>("inspiration_image", id),
-  /** "Describe this scene": a visual prompt from the passage around the cursor; nothing is generated. */
+  /** "Describe this": a visual prompt from the passage around the cursor (scene) or the note's text; nothing is generated. */
   describeScene: (id: string, text: string, cursor: number) => call<{ prompt: string; model: string; cost: number | null }>("describe_scene", id, text, cursor),
-  generateInspiration: (prompt: string, sceneId: string | null, pin: boolean) =>
-    call<{ images: InspirationImage[]; cost: number | null }>("generate_inspiration", prompt, sceneId, pin),
+  generateInspiration: (prompt: string, docId: string | null, pin: boolean) =>
+    call<{ images: InspirationImage[]; cost: number | null }>("generate_inspiration", prompt, docId, pin),
   regenerateInspiration: (id: string) => call<{ images: InspirationImage[]; cost: number | null }>("regenerate_inspiration", id),
-  updateInspiration: (id: string, fields: { pinned?: boolean; scene?: string; title?: string; notes?: string }) =>
+  updateInspiration: (id: string, fields: { pinned?: boolean; for?: string; title?: string; notes?: string }) =>
     call<{ image: InspirationImage }>("update_inspiration", id, fields),
   /** Moves the picture to the Trash. */
   deleteInspiration: (id: string) => call("delete_inspiration", id),

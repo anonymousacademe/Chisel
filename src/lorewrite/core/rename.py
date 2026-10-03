@@ -28,7 +28,7 @@ from pathlib import Path
 
 import yaml
 
-from . import comments, drafts, fsutil, research, scenemeta, snapshots
+from . import comments, drafts, fsutil, inspiration, research, scenemeta, snapshots
 from . import entities as ent
 from .links import find_links, find_mentions
 
@@ -476,6 +476,7 @@ def apply_rename(project, plan: RenamePlan, accepted_ids, index=None) -> RenameR
         journal["after"][f"comments:{rel}"] = _digest(_read(side)) if side.is_file() else ""
     _write(jpath, json.dumps(journal, ensure_ascii=False, indent=1))
     _prune_journals(project)
+    _follow_pictures(project, plan.entity_file, plan.new_entity_file)
     if index is not None:
         index.rebuild(project)
     changed = list(dict.fromkeys([*new_texts, plan.new_entity_file]))
@@ -483,6 +484,17 @@ def apply_rename(project, plan: RenamePlan, accepted_ids, index=None) -> RenameR
              if plan.entity_file != plan.new_entity_file else {})
     return RenameResult(undo_id, len(picked), len(scene_rels), changed,
                         plan.new_entity_file, remap, snaps)
+
+
+def _follow_pictures(project, old_rel: str, new_rel: str) -> None:
+    """Inspiration pictures made for the note follow its file name (``for:``). Never
+    fails a rename that already happened."""
+    if old_rel == new_rel:
+        return
+    try:
+        inspiration.remap_paths(project, {project.root / old_rel: project.root / new_rel})
+    except OSError:
+        pass
 
 
 def _rewrite_comments(project, scene: Path, old_text: str, new_text: str,
@@ -599,6 +611,8 @@ def undo_rename(project, undo_id: str, index=None) -> UndoResult:
         restored.append(old_rel)  # an earlier, partial undo already put it back
     else:
         skipped.append(new_rel)
+    if old_rel in restored:
+        _follow_pictures(project, new_rel, old_rel)
     if restored and not skipped:
         jpath.unlink(missing_ok=True)  # otherwise keep it: a later undo can finish
     if index is not None:

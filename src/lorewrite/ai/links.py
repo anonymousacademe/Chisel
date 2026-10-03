@@ -14,6 +14,8 @@ from dataclasses import dataclass
 
 from ..core.entities import Entity
 from ..core.links import find_links, find_mentions
+from . import relevance
+from .budget import Budget, Item, Section, SentReport, fit, preflight
 from .client import usage_extra_body
 from .usage import record_response
 
@@ -83,6 +85,30 @@ def build_prompt(scene_text: str, entities: list[Entity]) -> str:
         for e in entities
     )
     return f"KNOWN ENTITIES:\n{roster or '(none)'}\n\nSCENE:\n{scene_text}"
+
+
+def plan_aliases(scene_text: str, entities: list[Entity], budget: Budget,
+                 details_text: str | None = None) -> tuple[list[Entity], SentReport]:
+    """What the alias finder sends, decided before any network call. The roster of names and
+    aliases is needed so existing ones are not proposed again, so every entity is sent when it
+    fits *budget*; if not, the ones the scene is about go first (named in it, then its POV /
+    place from *details_text*, the scene with its details block, if given). Pass the returned
+    entities to ``suggest_links``. Raises ``BudgetError`` when the scene alone does not fit."""
+    items = []
+    for r in relevance.rank(details_text if details_text is not None else scene_text, entities):
+        e = r.entity
+        items.append(Item(e.name, head=f"- {e.name} ({e.type})"
+                          + (f" — aliases: {', '.join(e.aliases)}" if e.aliases else ""),
+                          priority=r.priority))
+    fitted, report = fit([
+        Section("Instructions and question", SYSTEM_PROMPT + json.dumps(SCHEMA), visible=False),
+        Section("Known entities", priority=0, droppable=True, items=tuple(items),
+                head="KNOWN ENTITIES:\n", sep="\n"),
+        Section("Scene", "SCENE:\n" + scene_text),
+    ], budget, "aliases")
+    preflight(report)
+    kept = {it.name for it in next(s for s in fitted if s.name == "Known entities").items}
+    return [e for e in entities if e.name in kept], report
 
 
 def parse_suggestions(raw: str) -> list[dict]:

@@ -74,6 +74,33 @@ def resolve(project, kind: str, ident: str) -> tuple[str, str]:
     return research_notes.title_of(path, raw), raw.strip()
 
 
+def _cap(text: str, limit: int) -> tuple[str, bool]:
+    """*text* cut to at most *limit* characters at a word boundary (and whether it was)."""
+    if len(text) <= limit:
+        return text, False
+    return (text[:limit - 2].rsplit(" ", 1)[0] + " …")[:limit], True
+
+
+def subject(project, ident: str) -> tuple[str, str]:
+    """The *subject* of an AI call: the entity note (character / place / object / ...) or
+    notebook note the author has open. Returns ``(heading, text)`` such as
+    ``("SUBJECT (character): Mara", "<note body>")``, the text capped at ``ITEM_CHARS``
+    (the same limit as an attachment; frontmatter is not part of it). ValueError /
+    FileNotFoundError for anything else (a scene is the caller's own context)."""
+    path = _path(project, ident)
+    if not path.is_file():
+        raise FileNotFoundError(f"{ident} no longer exists")
+    if path.parent.parent == project.entities_dir.resolve():
+        entity = ent.load_entity(path)
+        heading, text = f"SUBJECT ({entity.type}): {entity.name}", entity.body.strip()
+    elif research_notes.is_research_path(project, path):
+        raw = path.read_text(encoding="utf-8")
+        heading, text = f"SUBJECT (notebook note): {research_notes.title_of(path, raw)}", raw.strip()
+    else:
+        raise ValueError("not a note")
+    return heading, _cap(text, ITEM_CHARS)[0]
+
+
 def build(project, items: list[dict]) -> tuple[str, list[dict]]:
     """The context text for *items* and a report ``[{kind, id, title, chars,
     truncated, skipped}]`` the UI can show. Items that cannot be resolved are
@@ -102,8 +129,7 @@ def build(project, items: list[dict]) -> tuple[str, list[dict]]:
             report.append({**row, "skipped": True, "reason": "too much is attached already"})
             continue
         limit = min(ITEM_CHARS, room)
-        if len(text) > limit:
-            text, row["truncated"] = (text[:limit - 2].rsplit(" ", 1)[0] + " …")[:limit], True
+        text, row["truncated"] = _cap(text, limit)
         used += len(text)
         row["chars"] = len(text)
         sections.append(f"ATTACHED {LABEL[kind]}: {title}\n{text}")

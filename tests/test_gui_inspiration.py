@@ -49,12 +49,15 @@ def test_generate_saves_every_picture_and_splits_the_cost(api):
     assert listed["ok"] and len(listed["images"]) == 2 and listed["model"].endswith("-image")
 
 
-def test_generate_without_a_scene_and_pin_needs_a_scene(api):
-    r = api.generate_inspiration("A pier", None, True)               # pin ignored: no scene
-    assert r["ok"] and not any(i["pinned"] for i in r["images"]) and r["images"][0]["scene"] == ""
+def test_generate_without_an_item_and_pin_needs_an_item(api):
+    r = api.generate_inspiration("A pier", None, True)               # pin ignored: no item
+    assert r["ok"] and not any(i["pinned"] for i in r["images"]) and r["images"][0]["for"] == ""
     assert api.generate_inspiration("   ")["ok"] is False
-    assert api.generate_inspiration("A pier", "entities/characters/mara-vale.md")["ok"] is False   # not a scene
+    assert api.generate_inspiration("A pier", "entities/characters/nobody.md")["ok"] is False   # names nothing
     assert api.generate_inspiration("A pier", "../x.md")["ok"] is False
+    assert api.list_inspiration()["images"][0]["for"] == ""
+    ok = api.generate_inspiration("A pier", "entities/characters/mara-vale.md", True)   # any kind is an item
+    assert ok["ok"] and ok["images"][0]["for"] == "entities/characters/mara-vale.md" and ok["images"][0]["pinned"]
 
 
 def test_image_model_and_style_settings_reach_the_call(api):
@@ -96,7 +99,8 @@ def test_describe_scene_sends_the_passage_and_notes(api):
     _, context, model = api.calls[-1]
     assert "<<CURSOR>>" in context and "Lower Meridian" in context and "STYLE GUIDE" not in context
     assert api.list_inspiration()["images"] == []                    # nothing generated or saved
-    assert api.describe_scene("entities/characters/mara-vale.md")["ok"] is False
+    assert api.describe_scene("entities/characters/nobody.md")["ok"] is False
+    assert api.describe_scene("manuscript/nope.md")["ok"] is False
 
 
 def test_describe_scene_leaves_pending_ai_text_out(api):
@@ -112,7 +116,7 @@ def test_update_pin_notes_title(api):
     assert (r["image"]["title"], r["image"]["notes"]) == ("Tram", "n")
     assert api.update_inspiration(img["id"], {"pinned": False})["image"]["pinned"] is False
     assert api.update_inspiration(img["id"], {"prompt": "hack"})["ok"] is False
-    assert api.update_inspiration(img["id"], {"scene": "entities/x.md"})["ok"] is False
+    assert api.update_inspiration(img["id"], {"scene": "entities/x.md"})["ok"] is False      # names nothing
     assert api.update_inspiration(img["id"], {"scene": ""})["image"]["scene"] == ""
 
 

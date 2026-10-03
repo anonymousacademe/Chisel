@@ -4,9 +4,11 @@ import {
   RefreshCw, BookmarkPlus, UserRound, X, FileText, ArrowUpRight, Paperclip, ArrowUp, Ellipsis, TextCursorInput, Feather,
   type LucideIcon,
 } from "lucide-react";
-import type { ChatMessage, EntityInfo, Issue, SceneMention, StyleStatus } from "../data/types";
+import type { ChatMessage, EntityInfo, Issue, SceneMention, SentReport as Report, StyleStatus } from "../data/types";
+import { SentReport } from "./SentReport";
 import { NotesPanel } from "./NotesPanel";
 import { attachKey, type Attachment } from "../data/chat";
+import type { Subject } from "../data/subject";
 import { Icon, IconButton, SectionLabel, Tag } from "./primitives";
 import { placeholderProps } from "./placeholder";
 import { Markdown } from "./Markdown";
@@ -38,10 +40,18 @@ export function Assistant(props: {
   onOpenNote: (id: string) => void; onAddAlias: (name: string, alias: string) => void; onRename: (name: string, aliases: string[]) => void;
   onCreateNote: (target: string) => void; onOpenBacklink: (sourceId: string, row: number) => void;
   issues: Issue[]; onReviewIssue: (i: Issue) => void; onDismissIssue: (i: Issue) => void;
+  /** What the last continuity check sent (shown under its issues). */
+  issuesSent?: Report | null;
   messages: ChatMessage[]; busy: string | null; aiReady: boolean;
   /** The running AI job (chat replies type in live while it runs); onStop cancels it. */
   run: AiRunView | null; onStop: () => void;
   scope: "scene" | "project"; onScope: () => void;
+  /** What the assistant reads now (the scope control's label). */
+  scopeText: string;
+  /** The open item the questions are about ("About: Mara (character)"); null = none is sent. The author can remove it for this chat. */
+  subject: Subject | null; onRemoveSubject: () => void;
+  /** Set when the author removed the chip and an item that could be the subject is open. */
+  onRestoreSubject?: () => void;
   onSend: (text: string) => void; onRegenerate: (id: string) => void; onInsertDraft: (id: string) => void;
   /** Ask-my-notebook mode: the next question is answered from the notebook notes (and canon), citing them. */
   researchMode: boolean; onOpenSource: (id: string) => void;
@@ -95,6 +105,20 @@ export function Assistant(props: {
           <IconButton icon={PanelRightClose} label="Close panel" onClick={props.onClose} />
         </div>
       </div>
+      {(props.subject || props.onRestoreSubject) && (
+        <div className="lw-about">
+          {props.subject ? (
+            <span className="lw-chip lw-chip--attached lw-chip--about" aria-label="The assistant is told about this item"
+              title="Your question and Brainstorm also send this item's text to the AI. Remove it to stop for this chat.">
+              <span className="lw-chip__text">{props.subject.label}</span>
+              <button aria-label={`Stop sending ${props.subject.label.replace(/^About: /, "")}`} onClick={props.onRemoveSubject}><Icon icon={X} size={11} stroke={2} /></button>
+            </span>
+          ) : (
+            <button className="lw-link" onClick={props.onRestoreSubject}
+              title="Tell the assistant about the item that is open now (its text is sent with your question)">Use the open item again</button>
+          )}
+        </div>
+      )}
       <div className="lw-divider" />
       <div className="lw-tabs" role="tablist">
         {(["assistant", "context", "notes", "inspiration"] as Tab[]).map((t) => (
@@ -152,6 +176,7 @@ export function Assistant(props: {
                 </div>
               </section>
             ))}
+            {props.issuesSent && <SentReport report={props.issuesSent} />}
 
             {props.messages.map((m) => m.role === "user" ? (
               <div key={m.id} className="lw-msg-user"><div className="lw-bubble">{m.text}</div></div>
@@ -189,6 +214,7 @@ export function Assistant(props: {
                       ))}
                     </div>
                   )}
+                  {!m.error && <SentReport report={m.sent} />}
                   {!m.error && (
                     <div className="lw-row lw-gap-4">
                       <IconButton icon={Copy} label="Copy" onClick={() => navigator.clipboard?.writeText(m.text)} />
@@ -233,8 +259,8 @@ export function Assistant(props: {
             <div className="lw-row lw-gap-4">
               <IconButton icon={Paperclip} label="Attach scenes, notes, notebook notes or comments" small onClick={props.onAttach} />
               <button className="lw-tag lw-tag--accent lw-tag--button" onClick={props.onScope}
-                title="What the assistant reads: this scene, or scene titles and notes for the whole project">
-                {props.scope === "scene" ? "Current scene" : "Project"}
+                title="What the assistant reads: the open scene (or scene titles and notes for the whole project) plus the open note, when it is shown above">
+                {props.scopeText}
               </button>
               {props.researchMode && <span className="lw-tag lw-tag--success">Notebook</span>}
             </div>

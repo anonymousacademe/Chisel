@@ -8,7 +8,7 @@ nothing here edits prose or entity notes unprompted (SPEC §2, §7).
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from ..core import scenemeta
 from ..core.continuity import (
@@ -16,9 +16,12 @@ from ..core.continuity import (
     contradiction_from_dict,
     get_canon,
     locate_evidence,
+    set_canon,
 )
 from ..core.jev_interface import pre_screen
 from ..core.entities import Entity
+from . import relevance
+from .budget import Budget, Item, Section, SentReport, fit, preflight, render, trim
 from .client import usage_extra_body
 from .usage import record_response
 
@@ -123,7 +126,8 @@ existing canon. Rules:
 - If the scene establishes nothing new about an entity, omit that entity.
 """
 
-CANON_CAP = 1500
+CANON_CAP = 1500   # an entity's existing canon in a canon proposal
+NOTE_CAP = 1500    # canon taken from a note body (a note with no managed canon section)
 
 
 @dataclass(frozen=True)
@@ -155,6 +159,36 @@ def build_check_prompt(scene_text: str, canon_by_name: dict[str, str]) -> str:
     canon_block = "\n\n".join(canon_lines) if canon_lines else "(no canon)"
     return (f"ENTITY CANON:\n{canon_block}\n\n"
             f"{_details_block(scene_text)}SCENE:\n{scenemeta.strip(scene_text)}")
+
+
+def plan_check(scene_text: str, entities: list[Entity], canon_by_name: dict[str, str],
+               budget: Budget) -> tuple[list[Entity], dict[str, str], SentReport]:
+    """What a continuity check sends, decided before any network call: the entities the
+    scene is about (named in it, then its POV / place; every entity for a project with fewer
+    than ``relevance.ALL_MAX``), their canon fitted into *budget*, and the report. Pass the
+    returned entities and canon to ``check_scene``. Raises ``BudgetError`` when the scene
+    alone does not fit."""
+    items = []
+    for r in relevance.rank(scene_text, entities):
+        e = r.entity
+        if e.name in canon_by_name:
+            managed = bool(get_canon(e.body))   # a managed canon section is not capped
+            items.append(Item(e.name, canon_by_name[e.name], f"### {e.name}", r.priority,
+                              None if managed else NOTE_CAP, empty="(no canon)"))
+    sections = [
+        Section("Instructions and question", SYSTEM_PROMPT + json.dumps(CONTRADICTION_SCHEMA),
+                visible=False),
+        Section("Entity canon", priority=0, droppable=True, items=tuple(items),
+                head="ENTITY CANON:\n", max_priority=relevance.priority_limit(entities)),
+    ]
+    details = _details_block(scene_text).strip()
+    if details:
+        sections.append(Section("Scene details", details))
+    sections.append(Section("Scene", "SCENE:\n" + scenemeta.strip(scene_text)))
+    fitted, report = fit(sections, budget, "continuity")
+    preflight(report)
+    canon = {it.name: it.body for it in next(s for s in fitted if s.name == "Entity canon").items}
+    return [e for e in entities if e.name in canon], canon, report
 
 
 def parse_contradictions(
@@ -304,6 +338,47 @@ def parse_canon_updates(
     return results
 
 
+def _canon_section(ranked: list[relevance.Ranked], max_priority: int | None = None) -> Section:
+    """The entity roster of a canon proposal: name, type, aliases and existing canon each."""
+    items = []
+    for r in ranked:
+        e = r.entity
+        line = f"- {e.name} ({e.type})"
+        if e.aliases:
+            line += f" — aliases: {', '.join(e.aliases)}"
+        items.append(Item(e.name, get_canon(e.body), line, r.priority, CANON_CAP,
+                          lead="  existing canon:\n", empty="  existing canon: (none)"))
+    return Section("Entity notes", priority=0, droppable=True, items=tuple(items), head="ENTITIES:\n",
+                   sep="\n", max_priority=max_priority)
+
+
+def plan_canon(scene_text: str, entities: list[Entity], budget: Budget) -> tuple[list[Entity], SentReport]:
+    """What a canon proposal sends, decided before any network call: the entities the scene
+    is about (see ``plan_check``), each with its existing canon fitted into *budget*. Pass the
+    returned entities to ``propose_canon_updates`` (one whose canon had to be cut further than
+    its usual cap is a copy carrying the cut text). Raises ``BudgetError`` when the scene alone
+    does not fit."""
+    sections = [
+        Section("Instructions and question", ACCUMULATION_SYSTEM_PROMPT + json.dumps(ACCUMULATION_SCHEMA),
+                visible=False),
+        _canon_section(relevance.rank(scene_text, entities), relevance.priority_limit(entities)),
+    ]
+    details = _details_block(scene_text).strip()
+    if details:
+        sections.append(Section("Scene details", details))
+    sections.append(Section("Scene", "SCENE:\n" + scenemeta.strip(scene_text)))
+    fitted, report = fit(sections, budget, "canon")
+    preflight(report)
+    by_name = {e.name: e for e in entities}
+    out = []
+    for item in next(s for s in fitted if s.name == "Entity notes").items:
+        e = by_name[item.name]
+        full = get_canon(e.body)
+        usual = trim(full, CANON_CAP) if len(full) > CANON_CAP else full
+        out.append(e if item.body == usual else replace(e, body=set_canon("", item.body)))
+    return out, report
+
+
 def propose_canon_updates(
     scene_text: str,
     entities: list[Entity],
@@ -313,18 +388,14 @@ def propose_canon_updates(
     """Network call: ask what NEW canon the scene establishes per entity.
 
     Additions only: each entity's existing canon is sent so the model can skip
-    known facts, and the reply is validated app-side against it.
+    known facts, and the reply is validated app-side against it. Every entity given is
+    sent (canon capped at ``CANON_CAP``): choose and fit them with ``plan_canon`` first.
     Synchronous — run in a worker thread from the TUI.
     """
-    roster = []
-    for e in entities:
-        line = f"- {e.name} ({e.type})"
-        if e.aliases:
-            line += f" — aliases: {', '.join(e.aliases)}"
-        canon = get_canon(e.body)[:CANON_CAP]
-        line += f"\n  existing canon:\n{canon}" if canon else "\n  existing canon: (none)"
-        roster.append(line)
-    prompt = (f"ENTITIES:\n{chr(10).join(roster) or '(none)'}\n\n"
+    roster = render(fit([_canon_section([relevance.Ranked(e, 0, i) for i, e in enumerate(entities)])],
+                        Budget.unbounded())[0])
+    roster = roster or "ENTITIES:\n(none)"
+    prompt = (f"{roster}\n\n"
               f"{_details_block(scene_text)}SCENE:\n{scenemeta.strip(scene_text)}")
 
     if client is None:

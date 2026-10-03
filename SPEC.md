@@ -211,7 +211,7 @@ rejection — the author explicitly wants a lightweight version.*
   - *Daily target* (user setting `daily_target`, default 500, 0 = off; Settings in both front ends). *Streak* = consecutive days with words >= target (>= 1 when off), counted back from today; today only breaks it once the day is over.
   - *Status bar* (both): `Streak N` and `+N / target words today` (today's words across sessions, not the net change since opening; with the target off, `+N words today`). Desktop: click either for the **Session stats** dialog (today, this session, streak, best day, average per session, project words, 30-day bar chart with days that met the target highlighted). Terminal: palette *Action · Session stats* (text plus a 30-day sparkline).
 - **Streaming, working state and Stop** ✅ (plan 1.5, `ai/stream.py`, `gui/aijobs.py`, `tui/aimixin.py`). The text calls (chat `ask`, Research, Brainstorm, `generate`) stream (`stream=True`): each delta goes to an `on_delta` sink, cost comes from the last chunk into the ledger. A `CancelToken` (a `threading.Event` whose `set()` closes the HTTP stream) makes a call raise `Cancelled` with nothing returned, so a stopped draft inserts, saves and registers nothing and a stopped chat reply is shown as "(stopped)" and never kept as an answer. Non-streaming calls (aliases, continuity, canon, style, describe, image, image regenerate) are abandoned on Stop: the request finishes unseen and its result is dropped before anything is written. The request may still complete server-side, so its cost is still recorded in the spend ledger. Desktop bridge: `ai_start(kind, args)` -> `{job}`, `ai_poll(job, since)` -> `{state, text, length, elapsed, result|error, cost}`, `ai_cancel(job)`; kinds are `ask research brainstorm generate continuity canon aliases style image describe_scene`, `args` are the keyword arguments of the synchronous method (which stays); jobs run on worker threads (project lock released during the network call) and finished jobs stay pollable for 5 minutes. Terminal: the status bar shows `AI: drafting... 12 s (ctrl+x to stop)`, the chat window types the answer in live, drafting shows the text so far in a strip above the status bar, and `ctrl+x` (or `escape`) stops the request.
-- **Idea generator (Brainstorm)** ✅ (Wave 4.3, `ai.writing.brainstorm`). The *writing* model gets the scene around the cursor (`build_context`: pending AI drafts excluded, `<<CURSOR>>` marked), the canon of the characters and places it mentions and the style guide - or, with no scene open, the project context (titles + canon) - and returns 3-5 ideas from different angles (what-if questions, complications, sensory angles, character pressure points, unused canon), each one or two sentences. `parse_ideas` reads the numbered list (at most five; `<!--` stripped). Ideas are suggestions in a list, never prose in the scene. Each has **Draft from this** (opens the `ctrl+g` prompt prefilled with the idea, at the cursor; the result is the usual pending draft) and **Save to notes** (appends it under `## date - Brainstorm idea - <scene>` to `notebook/assistant-notes.md`). Desktop: the Brainstorm quick action posts a chat turn whose reply is the idea list (per-idea buttons; *Regenerate* asks again; the reply is saved with the conversation, `ideas` in `.assistant/chats/<id>.json`; attachments are honoured). Terminal: palette *Action · Brainstorm* opens a list (`enter`/`d` draft from this, `s` save to notes, `esc`). No attach in the terminal; the usual cost note shows.
+- **Idea generator (Brainstorm)** ✅ (Wave 4.3, `ai.writing.brainstorm`). The *writing* model gets the scene around the cursor (`build_context`: pending AI drafts excluded, `<<CURSOR>>` marked), the canon of the characters and places it mentions and the style guide - or, with no scene open, the project context (titles + canon) - and returns 3-5 ideas from different angles (what-if questions, complications, sensory angles, character pressure points, unused canon), each one or two sentences. `parse_ideas` reads the numbered list (at most five; `<!--` stripped). Ideas are suggestions in a list, never prose in the scene. Each has **Draft from this** (opens the `ctrl+g` prompt prefilled with the idea, at the cursor; the result is the usual pending draft) and **Save to notes** (appends it under `## date - Brainstorm idea - <scene>` to `notebook/assistant-notes.md`). With the **open item as the subject** (below) the idea list is also about the open character / place / object note or notebook note. Desktop: the Brainstorm quick action posts a chat turn whose reply is the idea list (per-idea buttons; *Regenerate* asks again; the reply is saved with the conversation, `ideas` in `.assistant/chats/<id>.json`; attachments are honoured). Terminal: palette *Action · Brainstorm* opens a list (`enter`/`d` draft from this, `s` save to notes, `esc`). No attach in the terminal; the usual cost note shows.
 
 ### M7 — Manuscript organization + export
 
@@ -238,7 +238,9 @@ fiction workflow is solid.*
 flickering lights") and get a picture to keep on screen as visual inspiration. **Reference only -
 never inserted into the prose, counted, indexed, spell-checked or sent to an AI** (SPEC §2: AI
 suggests, never edits). An image costs real money (about $0.03), so nothing is automatic: two
-explicit clicks - *Describe this scene*, then *Generate*.
+explicit clicks - *Describe this scene*, then *Generate*. Pictures can be **for any item** (a scene, a
+character / place / object note or a notebook note), and the author can **add their own** pictures
+(upload); an uploaded picture is stored like the others and, like them, never sent to an AI.
 
 - **The call** (`ai/images.py`). An OpenRouter chat completion with
   `extra_body={"modalities": ["image", "text"], "usage": {"include": True}}` on the image model
@@ -262,32 +264,46 @@ explicit clicks - *Describe this scene*, then *Generate*.
   not limited to structured-output models) with the catalog's per-image price when it has one; the
   settings say "about $0.03 per image". `image_style` is a user setting.
 - **Storage** (`core/inspiration.py`). `<project>/inspiration/<YYYYMMDD-HHMMSS>-<slug>.<jpg|png|webp>`
-  plus a sidecar `<same stem>.md`: YAML frontmatter `prompt`, `model`, `scene` (project-relative scene
-  path, optional), `created` (ISO local), `cost` (USD, split between the pictures of one call),
-  `pinned` (true = shown with that scene; needs a `scene`), `title` (optional name); the body is the
-  author's notes. Plain author data in the project folder, not git-ignored, never in `.lorewrite/`. An
+  plus a sidecar `<same stem>.md`: YAML frontmatter `prompt`, `model`, `for` (project-relative path of
+  the item it is for - a scene, an entity note or a notebook note; optional; old sidecars say `scene:`,
+  which is still read and is rewritten as `for:` the next time the sidecar is written), `created` (ISO
+  local), `cost` (USD, split between the pictures of one call), `pinned` (true = shown with that item;
+  needs a `for`), `title` (optional name), `source` (`upload` for a picture the author added: no prompt,
+  no cost, model `upload`); the body is the author's notes. The files stay in `inspiration/` (not beside
+  the note). Plain author data in the project folder, not git-ignored, never in `.lorewrite/`. An
   image's id is its file stem; ids cross the bridge, so `_sidecar` / `_picture` refuse anything that
   is not a plain id and `read_file` refuses a symlink pointing out of the folder. Operations: `save`,
-  `save_batch`, `get`, `list_images(scene=None)`, `pinned_for`, `update` (pin / unpin, scene, title,
-  notes), `read_file`, `remap_scenes`. Several pictures can be pinned to one scene; pinning from another
-  scene moves the link.
-- **Scene moves keep the link.** `Structure._apply_renames` and `move_part` call
-  `inspiration.remap_paths` with `last_renames` once all moves are known (so swaps do not collide).
-  Deleting a scene leaves its pictures where they are (listed under *All*); a restored scene may get a
-  new number, in which case pin the picture again.
+  `save_batch`, `get`, `list_images(item=None)`, `pinned_for`, `update` (pin / unpin, item, title,
+  notes), `read_file`, `remap_links`. Several pictures can be pinned to one item; pinning from another
+  item moves the link.
+- **Upload** (`gui/inspiration.save_upload`, bridge `upload_inspiration(name, data_url, doc_id=None)`). A
+  `data:image/...;base64,` URL, at most 10 MB, JPG / PNG / WebP only; the type is decided from the
+  bytes (`sniff_ext`) and a mime type that disagrees is refused, as are GIF, SVG and anything else. The
+  author's file name is never used for the file (it becomes the display title; the stem is the usual
+  stamp + slug). Same store, `source: upload`, `model: upload`, no cost, no prompt. *Regenerate* is
+  refused for uploads.
+- **Moves and renames keep the link.** `Structure._apply_renames` and `move_part` call
+  `inspiration.remap_paths` with `last_renames` once all moves are known (so swaps do not collide);
+  *Rename a character everywhere* (and its undo) remaps the entity note's file name the same way.
+  Notebook notes have stable ids. Deleting an item leaves its pictures and their link where they are
+  (shown as *Unlinked* in the grid); restoring it reconnects them.
 - **Trash.** Deleting a picture moves the sidecar to `.trash/<stamp>-inspiration__<stem>.md` and the
   picture beside it as `<that name>.<ext>`; `TrashItem.kind == "inspiration"`. Restore puts both back
   (a free name if one was taken since); delete forever and empty remove both.
 - **Desktop GUI.** An **Inspiration** tab in the assistant panel (kept mounted, so a half-written
-  description survives switching tabs): prompt box, *Describe this scene*, *Generate* with "about
-  $0.03 per image", "Pin to this scene" (default on); the open scene's pinned pictures large at the top
-  (they follow the open scene), a grid of this scene's other pictures with a *This scene / All* toggle;
+  description survives switching tabs) that works for whatever is open (scene, character / place /
+  object note, notebook note): prompt box, *Describe this scene* / *Describe this note* (a note is
+  described from its own text), *Generate* with "about $0.03 per image", "Pin to this scene / note"
+  (default on), *Add picture* (file picker) and drag-and-drop of JPG / PNG / WebP onto the panel
+  (uploads show in the same grid with an *uploaded* badge); the open item's pinned pictures large at the
+  top (they follow the open item), a grid of its other pictures, then a *Show all* grid of the rest;
   per picture a menu and a large view (lightbox): open large, pin / unpin, regenerate (a new picture
   from the same prompt; the old one stays), rename / notes, copy prompt, reveal file (opens the folder
   in the real window only), move to Trash (confirmed). Pictures reach the page as data URLs from
   `inspiration_image` (only files inside `inspiration/`). Bridge: `list_inspiration`,
   `inspiration_image`, `describe_scene`, `generate_inspiration`, `regenerate_inspiration`,
-  `update_inspiration`, `delete_inspiration`, `reveal_inspiration`. The focus-mode corner picture
+  `update_inspiration`, `upload_inspiration`, `delete_inspiration`, `reveal_inspiration` (`list_inspiration`,
+  `generate_inspiration` and `describe_scene` take any document id). The focus-mode corner picture
   from the plan was not built.
 - **Terminal.** Terminals cannot show images well, so: palette *Action · Inspiration image…* (a prompt
   form: `ctrl+d` describe this scene, `ctrl+g` generate, a pin checkbox) saves the picture and says its
@@ -327,10 +343,14 @@ open and behave exactly as before.*
 - **Display unit.** `project.toml` `[manuscript] unit = "scene" | "chapter"` (default
   `scene`) changes only labels: the kicker ("Chapter 03"), the sidebar heading, palette
   wording and GUI menus. Terminal: *Call them chapters* / *Call them scenes* (names the switch it performs); GUI: project menu.
-- **Unplaced Scenes** = `manuscript/_unplaced/`: not counted in the manuscript words, not in
-  the reading order (`list_scenes()`), still indexed (backlinks) and openable. The continuity check
-  looks only at the open scene, so being unplaced neither includes nor excludes a scene from it. *Move scene to
-  Unplaced* / *Place scene in the book*.
+- **Parked scenes** (folder `manuscript/_unplaced/`; the code and the terminal still say "unplaced") are
+  written but not part of the book: not counted in the manuscript words or the export, not in
+  the reading order (`list_scenes()`), still indexed (backlinks), searchable and openable. The continuity check
+  looks only at the open scene, so being parked neither includes nor excludes a scene from it. Terminal: *Move scene to
+  Unplaced* / *Place scene in the book*. Desktop: the binder lists **Parked scenes** (tooltip: "Written but not part
+  of the book. Not counted in word totals or export. Still searchable.") only while it holds scenes, and the scene menu
+  has *Move to Parked scenes* / *Place in the book...* (the only way to park a scene: the corkboard and outline show the
+  group, and so offer it as a drop target, once it has a scene).
 - **Trash** = `<project>/.trash/<YYYYMMDD-HHMMSS>[-n]-<project-relative path, "/" as "__">.md`
   plus `….md.drafts.json` for the draft originals. Deleting a scene moves it there (no
   permanent delete from either UI); the Trash view (GUI binder row, terminal *Open Trash*)
@@ -534,6 +554,17 @@ open and behave exactly as before.*
     `ctrl+n` new chat, `ctrl+s` save the last answer to notes, `ctrl+o` open a cited note); *Action ·
     Saved conversations* goes straight to the list. The terminal chat has **no attach** in v1. A chat
     about the open scene reads it (`build_context`); with no scene open, the project (titles + canon).
+  - *The open item as the subject* (`subject_id` on `ask`, `brainstorm` and `describe_scene`; `Api._subject_context`).
+    The GUI chat, Brainstorm and Describe take their subject from the item open in the left menu, automatically:
+    for a character / place / object note `SUBJECT (character|place|object): name` + the note's body (frontmatter
+    removed), for a notebook note `SUBJECT (notebook note): title` + its text, each capped at the attachment item
+    limit (`core.attach.ITEM_CHARS`, 8,000 characters), appended to the project or scene context already built
+    (the project context when no scene is open); a scene as the subject is the usual scene context. The
+    Assistant header shows it as a chip ("About: Mara (character)") whenever it is being sent; the author
+    removes it for the current chat (client state, reset by *New chat*; sending then omits `subject_id`), and can
+    switch it back on. The scope control reads "Current scene", "Project" or "Project + this note". An unknown
+    id is a clean error before any AI call. Images are never part of it, and with the chip removed nothing of
+    the note is sent.
   - *Attach* (GUI paperclip). Pick scenes, entity notes, research notes, or a scene's open
     **comments** (the only way a comment reaches the AI). Chips above the composer, removable; a
     change to a saved chat's attachments is saved. `core.attach.build` resolves them at send time:
@@ -710,6 +741,31 @@ both edit the same plain-Markdown projects.
   settings (defaults: four SomaFM channels, shown "via SomaFM - listener-supported, consider supporting
   them"); http(s) only, and nothing plays until the author picks a station. Everything starts silent and
   pauses while the window is hidden. Preferences live in user settings, never in a project.
+
+### Context budget and the sent report ✅ (long-book hardening; `ai/budget.py`, `ai/relevance.py`)
+- **Why.** Nothing counts tokens by itself; a long book's whole bible would be a provider error (or a large bill)
+  on every continuity check. Every AI request now has a size budget and the author can see what it carried.
+- **Budget.** Each request is built as sections that cannot be dropped (the scene, the question, attachments,
+  the About note) and sections that can (entity notes, style guide, voice samples, scene titles, research
+  notes), each with a priority. `fit()` keeps the first kind, then adds the second best-first, item by item,
+  and trims one item last, at a sentence or line end, never inside a word. Sizes are estimates
+  (characters / 4). The window is the `context_window` setting (for local models) or the model's context length
+  from the model catalogue fetched by the picker (remembered on disk, never fetched for a request), else a
+  conservative 32k; 4k tokens are kept free for the reply.
+- **Too big.** If even the sections that cannot be dropped exceed the window, the request is refused before
+  any network call (nothing is sent, no cost): "This request is too large for the model's context window ...
+  choose a model with a bigger window, shorten the scene, or remove attachments".
+- **Relevance.** Continuity, canon proposals and the alias finder send the notes of the entities the scene
+  names (in its prose), then its POV and place (from the scene details), then - only for an author with fewer
+  than 40 entities and room left - everyone else. A short project therefore sends exactly what it always did.
+  The alias finder still needs the whole roster of names (so it does not propose existing ones): it is sent
+  whole when it fits, else best-first. Drafting and chat already sent only the entities a scene mentions.
+- **The sent report.** Every AI bridge method returns `sent`: per section its size, `N of M sent`, the names
+  dropped and the names trimmed (the fixed per-note caps are reported too), the estimated tokens against the
+  window, and the attachments. The desktop app shows it as a **What was sent** disclosure under assistant
+  replies, in the alias and canon review dialogs, under continuity issues and behind a toast action after a
+  draft; it is styled as a warning when anything was left out. The terminal app appends one line
+  (`sent ~3.2k tokens of 200k; 2 dropped`) to each AI notification.
 
 ## 8. Cost & key management
 

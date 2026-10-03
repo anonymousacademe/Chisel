@@ -192,7 +192,7 @@ def test_mock_non_streaming_job_runs_and_can_be_stopped(tmp_path, mock_ai):
 def test_image_regenerate_job_saves_unless_stopped(tmp_path, monkeypatch):
     api, root = open_api(tmp_path)
     saved = []
-    old = type("Old", (), {"prompt": "a pier", "scene": ""})()
+    old = type("Old", (), {"prompt": "a pier", "link": "", "source": ""})()
     monkeypatch.setattr(api_module.insp_api, "get", lambda project, image_id: old)
     monkeypatch.setattr(api_module, "generate_images",
                         lambda prompt, model, client=None, style=None: (time.sleep(0.3), [(b"p", "png")])[1])

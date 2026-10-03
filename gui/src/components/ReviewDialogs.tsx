@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
-import type { AliasSuggestion, CanonProposal } from "../data/types";
+import type { AliasSuggestion, CanonProposal, SentReport as Report } from "../data/types";
 import { Modal } from "./Dialogs";
+import { SentReport } from "./SentReport";
 
 function Footer(props: { confirm: string; disabled?: boolean; onConfirm: () => void; onClose: () => void; left?: ReactNode }) {
   return (
@@ -15,8 +16,8 @@ function Footer(props: { confirm: string; disabled?: boolean; onConfirm: () => v
 }
 
 /** Alias finder results: each one is an opt-in; accepting only adds an alias to a note. */
-export function AliasReviewDialog({ suggestions, onApply, onClose }: {
-  suggestions: AliasSuggestion[]; onApply: (picked: AliasSuggestion[]) => void; onClose: () => void;
+export function AliasReviewDialog({ suggestions, sent, onApply, onClose }: {
+  suggestions: AliasSuggestion[]; sent?: Report | null; onApply: (picked: AliasSuggestion[]) => void; onClose: () => void;
 }) {
   const [on, setOn] = useState<Set<number>>(new Set());
   const toggle = (i: number) => setOn((s) => { const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i); return n; });
@@ -37,6 +38,7 @@ export function AliasReviewDialog({ suggestions, onApply, onClose }: {
           </label>
         ))}
       </div>
+      <SentReport report={sent} />
       <Footer confirm={on.size ? `Add ${on.size} alias${on.size === 1 ? "" : "es"}` : "Add aliases"} disabled={on.size === 0}
         onConfirm={() => onApply(suggestions.filter((_, i) => on.has(i)))} onClose={onClose}
         left={<button className="lw-link" onClick={() => setOn(new Set(suggestions.map((_, i) => i)))}>Select all</button>} />
@@ -45,8 +47,8 @@ export function AliasReviewDialog({ suggestions, onApply, onClose }: {
 }
 
 /** Story-bible updates: per-fact review. Facts are only ever appended to a note's canon section. */
-export function CanonReviewDialog({ proposals, onApply, onClose }: {
-  proposals: CanonProposal[]; onApply: (picked: { entity: string; facts: string[] }[]) => void; onClose: () => void;
+export function CanonReviewDialog({ proposals, sent, onApply, onClose }: {
+  proposals: CanonProposal[]; sent?: Report | null; onApply: (picked: { entity: string; facts: string[] }[]) => void; onClose: () => void;
 }) {
   const [on, setOn] = useState<Set<string>>(new Set());
   const key = (e: string, f: string) => `${e}\u0000${f}`;
@@ -75,6 +77,7 @@ export function CanonReviewDialog({ proposals, onApply, onClose }: {
           </div>
         ))}
       </div>
+      <SentReport report={sent} />
       <Footer confirm={total ? `Add ${total} fact${total === 1 ? "" : "s"}` : "Add facts"} disabled={total === 0}
         onConfirm={() => onApply(picked)} onClose={onClose}
         left={<button className="lw-link" onClick={() => setOn(new Set(proposals.flatMap((p) => p.facts.map((f) => key(p.entity, f)))))}>Select all</button>} />

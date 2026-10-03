@@ -54,7 +54,7 @@ def scene_kicker(project: Project, path: Path) -> str:
     if project.is_front_matter(path):
         return "FRONT MATTER"
     if project.is_unplaced(path):
-        return "UNPLACED"
+        return "PARKED"
     return f"{unit_word(project)} {n}" if n else unit_word(project)
 
 
@@ -263,6 +263,10 @@ def _scene_node(s: dict, project: Project) -> dict:
     return node
 
 
+PARKED_TITLE = "Parked scenes"
+PARKED_HELP = "Written but not part of the book. Not counted in word totals or export. Still searchable."
+
+
 def build_binder(project: Project, scenes: list[dict], entities: list[dict],
                  has_style: bool, parts: list[dict] | None = None,
                  trash_count: int = 0, research: list[dict] | None = None) -> list[dict]:
@@ -313,11 +317,12 @@ def build_binder(project: Project, scenes: list[dict], entities: list[dict],
                    **({} if has_style else {"meta": "new"})})
     # always listed: opening it creates it with a comment header (Api.open_dictionary)
     binder.append({"id": DICTIONARY_ID, "title": "Dictionary", "kind": "dictionary"})
+    binder.append(research_node(research or []))
+    if unplaced:   # Parked scenes (folder manuscript/_unplaced/): listed only while it holds scenes
+        binder.append({"id": "group:unplaced", "title": PARKED_TITLE, "kind": "inbox",
+                       "description": PARKED_HELP, "meta": str(len(unplaced)),
+                       "children": [_scene_node(s, project) for s in unplaced]})
     binder += [
-        research_node(research or []),
-        {"id": "group:unplaced", "title": "Unplaced Scenes", "kind": "inbox",
-         "meta": str(len(unplaced)) if unplaced else None,
-         "children": [_scene_node(s, project) for s in unplaced]},
         {"id": "group:trash", "title": "Trash", "kind": "trash",
          "meta": str(trash_count) if trash_count else None, "muted": not trash_count},
     ]

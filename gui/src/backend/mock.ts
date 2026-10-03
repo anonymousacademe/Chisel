@@ -2,7 +2,7 @@
 // plain browser (no pywebview, no devserver). Same JSON bridge contract as
 // lorewrite.gui.api.Api; methods it does not implement return an error so the
 // UI shows "not available" instead of inventing results.
-import type { BinderNode, DocumentPayload, EntityInfo, EntitySummary, SceneMention, SceneSummary, Workspace } from "../data/types";
+import type { BinderNode, DocumentPayload, EntityInfo, EntitySummary, InspirationImage, SceneMention, SceneSummary, SentReport, Workspace } from "../data/types";
 
 const CH07 = [
   "The city woke before Mara did. It moved beneath the floorboards in small electrical sighs, drawing yesterday’s rain back through the copper veins of the building. By three seventeen, every window on Vesper Street had clouded from the inside.",
@@ -56,7 +56,6 @@ function buildWorkspace(): Workspace {
       { id: "group:world", title: "World Bible", kind: "world",
         children: ENTITIES.filter((e) => e.type !== "character").map((e) => ({ ...ent(e), meta: e.type })) },
       ph("research", "Notebook", "research"),
-      { id: "group:unplaced", title: "Unplaced Scenes", kind: "inbox", children: [] },
       { id: "group:trash", title: "Trash", kind: "trash", muted: true },
     ],
     scenes,
@@ -104,18 +103,30 @@ const jobs = new Map<string, MockJob>();
 let jobSeq = 0;
 const STREAM_KINDS = ["ask", "research", "brainstorm", "generate"];
 
+/** A sample "what was sent" report (the real one comes from python's ai/budget.py): some notes dropped, one shortened. */
+function sampleSent(feature: string): SentReport {
+  return {
+    feature, estTokens: 3200, window: 32000, reserve: 4000, overBudget: false, trimmed: true, attached: [],
+    sections: [
+      { name: "Instructions and question", chars: 900, estTokens: 225, itemsTotal: 1, itemsSent: 1, itemsDropped: [], truncated: [], omitted: false },
+      { name: "Characters and places", chars: 5200, estTokens: 1300, itemsTotal: 4, itemsSent: 2, itemsDropped: ["Elias Vale", "Lower Meridian"], truncated: ["Mara Vale"], omitted: false },
+      { name: "Scene", chars: 6700, estTokens: 1675, itemsTotal: 1, itemsSent: 1, itemsDropped: [], truncated: [], omitted: false },
+    ],
+  };
+}
+
 function mockResult(kind: string, args: Record<string, unknown>): Record<string, unknown> {
   switch (kind) {
-    case "ask": return { reply: REPLY, attached: [], cost: 0.0012 };
-    case "research": return { reply: REPLY, sources: [], attached: [], cost: 0.0012 };
-    case "brainstorm": return { reply: REPLY, ideas: ["The wall speaks first.", "Mara records the voice.", "Elias answers from the archive."], attached: [], cost: 0.0012 };
+    case "ask": return { reply: REPLY, attached: [], cost: 0.0012, sent: sampleSent("ask") };
+    case "research": return { reply: REPLY, sources: [], attached: [], cost: 0.0012, sent: sampleSent("research") };
+    case "brainstorm": return { reply: REPLY, ideas: ["The wall speaks first.", "Mara records the voice.", "Elias answers from the archive."], attached: [], cost: 0.0012, sent: sampleSent("brainstorm") };
     case "generate": {
       const at = Number(args.start ?? 0), end = Number(args.end ?? at);
-      return { mode: args.mode ?? "draft", insert: `<!--ai-->${DRAFT}<!--/ai-->`, draftId: null, original: null, from: at, to: end, noStyle: false, cost: 0.003 };
+      return { mode: args.mode ?? "draft", insert: `<!--ai-->${DRAFT}<!--/ai-->`, draftId: null, original: null, from: at, to: end, noStyle: false, cost: 0.003, sent: sampleSent(String(args.mode ?? "draft")) };
     }
-    case "continuity": return { issues: [], waived: 0, cost: 0.002 };
-    case "canon": return { updates: [], cost: 0.002 };
-    case "aliases": return { suggestions: [], cost: 0.002 };
+    case "continuity": return { issues: [], waived: 0, cost: 0.002, sent: sampleSent("continuity") };
+    case "canon": return { updates: [], cost: 0.002, sent: sampleSent("canon") };
+    case "aliases": return { suggestions: [], cost: 0.002, sent: sampleSent("aliases") };
     case "style": return { markdown: "# Style guide\n\nShort, concrete sentences.", replacing: false, samples: 3, cost: 0.004 };
     case "describe_scene": return { prompt: "A rain-lit kitchen at 3 a.m., a terminal glowing behind smoked glass.", model: "mock", cost: 0.001 };
     case "image": case "image_regenerate": return { images: [], cost: 0.03 };
@@ -150,6 +161,27 @@ function aiCancel(id: string): object {
   const j = jobs.get(id);
   if (j) j.cancelled = true;
   return { ok: true, state: "cancelled" };
+}
+
+// -- inspiration pictures: in memory only (the real store is inspiration/ on disk)
+const pictures: (InspirationImage & { dataUrl: string })[] = [];
+const MOCK_MIME: Record<string, "jpg" | "png" | "webp"> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+const knownDoc = (id: unknown) => typeof id === "string" && (SCENES.some((s) => s.id === id) || ENTITIES.some((e) => e.id === id));
+const imageRows = () => pictures.map(({ dataUrl: _d, ...row }) => row);
+
+function uploadPicture(name: string, dataUrl: string, docId: unknown): object {
+  const m = /^data:([^;,]*);base64,(.+)$/s.exec(dataUrl ?? "");
+  const ext = m ? MOCK_MIME[m[1].toLowerCase()] : undefined;
+  if (!ext) return { ok: false, error: "only JPG, PNG and WebP pictures can be added" };
+  if (docId && !knownDoc(docId)) return { ok: false, error: `no such document: ${String(docId)}` };
+  const title = (name.split(/[\\/]/).pop() ?? "").replace(/\.[A-Za-z0-9]{1,5}$/, "").trim() || "Added picture";
+  const image: InspirationImage = {
+    id: `${new Date().toISOString().replace(/\D/g, "").slice(0, 14)}-${slug(title) || "image"}-${pictures.length + 1}`, ext, prompt: "", model: "upload",
+    for: docId ? String(docId) : "", scene: docId ? String(docId) : "", created: new Date().toISOString().slice(0, 19), cost: null,
+    pinned: false, title, notes: "", label: title, source: "upload", unlinked: false,
+  };
+  pictures.unshift({ ...image, dataUrl });
+  return { ok: true, image };
 }
 
 /** URLs passed to open_external in the mock (read by tests). */
@@ -197,7 +229,16 @@ export function mockCall(method: string, args: unknown[]): object {
     case "set_atmosphere": return { ok: true, prefs: args[0] };
     case "ai_status": return { ok: true, hasKey: true, models: { fast: "", strong: "", writing: "", image: "" } };
     case "recent_projects": return { ok: true, recents: [] };
-    case "list_inspiration": return { ok: true, images: [], model: "", style: "" };
+    case "list_inspiration": {
+      if (args[0] && !knownDoc(args[0])) return { ok: false, error: `no such document: ${String(args[0])}` };
+      const rows = imageRows();
+      return { ok: true, images: rows, model: "", style: "", ...(args[0] ? { mine: rows.filter((i) => i.for === args[0]).map((i) => i.id) } : {}) };
+    }
+    case "upload_inspiration": return uploadPicture(String(args[0] ?? ""), String(args[1] ?? ""), args[2]);
+    case "inspiration_image": {
+      const p = pictures.find((x) => x.id === args[0]);
+      return p ? { ok: true, dataUrl: p.dataUrl } : { ok: false, error: "no such inspiration image" };
+    }
     case "style_status": return { ok: true, exists: false, learned: null, sampledWords: null,
       manuscriptWordsThen: null, manuscriptWords: 0, scenes: 0, stale: false };
     case "suggest_project_path": {

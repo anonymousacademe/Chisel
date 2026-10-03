@@ -41,7 +41,7 @@ src/lorewrite/
     chats.py            # saved assistant chats: .assistant/chats/<id>.json
     attach.py           # chat attachments (scene/note/research(=notebook)/comments), capped and reported
     stats.py            # writing stats/streak/sprints: Tracker, state dir stats/<project-id>.json
-    inspiration.py      # inspiration/ pictures + .md sidecars: save/list/update/pin, scene-link remap
+    inspiration.py      # inspiration/ pictures + .md sidecars: save/list/update/pin, `for:` link remap
     rename.py           # rename an entity everywhere: plan (read-only) / apply (snapshots first) / undo
     export/             # M7: manuscript.py (assemble -> Book), layouts/ (PDF: book, manuscript, plain),
                         #   pdfkit.py (fonts), markdown.py, pandoc.py, __init__.py (run_export, options)
@@ -52,6 +52,8 @@ src/lorewrite/
     style.py            # learn a style guide from sampled prose
     writing.py          # draft / expand / rewrite: context builder + plain-text generate
     images.py           # inspiration pictures: generate (OpenRouter image output), suggest_prompt
+    budget.py           # context budget: estimate_tokens, Section/Item, fit(), SentReport, window_for, BudgetError
+    relevance.py        # which entities a scene is about (named / POV+place / rest), for continuity, canon, aliases
   gui/                  # desktop GUI backend (pywebview); no Textual
     api.py              # Api: JSON bridge (every method -> {ok,...}); facade() = js_api
     workspace.py        # Project -> Workspace JSON for the React UI
@@ -132,7 +134,9 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   `open_file`, or autosave resurrects the deleted file (regression-tested).
 - **ListView swallows Enter** — modal screens with a ListView must handle
   `on_list_view_selected` if Enter should confirm (see AliasReviewScreen).
-- **Manuscript structure** (`core/structure.py`; SPEC "Manuscript structure"):
+- **Manuscript structure** (`core/structure.py`; SPEC "Manuscript structure"). The GUI calls the Unplaced
+  folder **Parked scenes** (binder group, menus, kicker `PARKED`); the group is not in the binder while it is
+  empty, and internal names (`manuscript/_unplaced/`, `group:unplaced`, `unplaced` fields) did not change:
   - Never assume a flat `manuscript/`. `Project.list_scenes()` is the book in reading order
     (recursive, **excludes** `_unplaced/`); `all_scene_files()` adds Unplaced (the index covers
     it); `counted_scenes()` also drops front matter (use it for word totals and style
@@ -185,12 +189,22 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   reference only: never in the prose, never indexed, counted, spell-checked or sent to an AI. They
   cost money (~$0.03), so generation is only ever started by a click / palette pick, never
   automatically (Describe this scene fills a box; Generate is a second click). Files are
-  `inspiration/<stem>.<jpg|png|webp>` + `<stem>.md` (YAML: prompt, model, scene, created, cost,
-  pinned, title; body = notes); ids cross the bridge, so go through `inspiration._sidecar` /
+  `inspiration/<stem>.<jpg|png|webp>` + `<stem>.md` (YAML: prompt, model, for, created, cost,
+  pinned, title, source; body = notes); ids cross the bridge, so go through `inspiration._sidecar` /
   `_picture` / `read_file` (they refuse non-plain ids and symlinks out of the folder) and serve
-  pictures only via `inspiration_image`. `scene:` is a project-relative path: anything that renames
-  or moves scenes goes through `Structure._apply_renames` / `move_part`, which call
-  `inspiration.remap_paths` (do not add another rename path). Deleting goes to the Trash
+  pictures only via `inspiration_image`. `for:` is the project-relative path (= GUI document id) of
+  **any** item - scene, entity note or notebook note; always WRITE `for:`, keep READING the legacy
+  `scene:` (`Image.link`, with `Image.scene` as a compatibility property; the files stay in
+  `inspiration/`, never beside the note). `pinned` means "show with that item" for every kind. Anything
+  that renames or moves a scene goes through `Structure._apply_renames` / `move_part`, and an entity
+  note rename (and its undo) goes through `rename.apply_rename` / `undo_rename`; both call
+  `inspiration.remap_paths` (do not add another rename path; notebook notes have stable ids). A link
+  that no longer resolves is kept (Trash, deleted): the listing marks it `unlinked` and a restore
+  reconnects it. **Uploads** (`Api.upload_inspiration` -> `gui/inspiration.save_upload`): data URL, 10 MB,
+  JPG / PNG / WebP decided from the BYTES (`sniff_ext`; a lying mime type, GIF and SVG are refused), the
+  user's file name is only the display title (the file name is stamp + `_slug`), `source: upload`,
+  `model: upload`, no cost; `regenerate_inspiration` refuses them. Uploaded or generated, a picture is
+  never sent to an AI. Deleting goes to the Trash
   (`Project.trash_inspiration`; `TrashItem.kind == "inspiration"`, the picture rides beside the
   sidecar as `<item>.<ext>`) - code that lists, restores or empties the Trash handles three kinds
   now. `image` is a fourth model role (`resolve_model("image")`); the picker lists only
@@ -201,7 +215,14 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   the desktop opener (`core/desktop.open_path`: startfile / open / xdg-open) runs only when the author chooses (`inspiration.open_path`; tests stub
   `LorewriteApp.open_external`). Method names on `InspirationMixin` must not collide with
   `LorewriteApp`'s (`_generate_worker` already exists - the mixin's are `_inspiration_*`).
-- **Chats and attachments** (`core/chats.py`, `core/attach.py`). The GUI saves the whole conversation
+- **Chats and attachments** (`core/chats.py`, `core/attach.py`). The open item is the chat's
+  **subject**: `ask`, `brainstorm` and `describe_scene` take an optional `subject_id` (any document id) and
+  `Api._subject_context` / `_chat_context` append `SUBJECT (character|place|object|notebook note): name` + the
+  note body (frontmatter stripped, capped by `attach.subject` at `ITEM_CHARS`) to the project/scene context;
+  an unknown id is a clean error before any AI call. The GUI shows it as the "About: ..." chip in the
+  Assistant header (`data/subject.ts`; removing it omits `subject_id` for that chat): the chip must be visible
+  whenever the text is sent, so keep `subjectOf` and the payload in step. The `ask_writer` /
+  `brainstorm_writer` signatures did not change (the subject rides in the context string). The GUI saves the whole conversation
   after each answer (`persistChat` ref + effect in `App.tsx`); keep it client-driven so regenerate /
   delete / load stay consistent, and never store `error` messages. Chat ids and attachment ids
   cross the bridge: `chats._path` and `attach._path` are the only doors, keep them. Comments reach
@@ -211,6 +232,26 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   `research_answer` (mock those names). Brainstorm is `lorewrite.tui.app.brainstorm_ideas` (terminal) and
   `lorewrite.gui.api.brainstorm_writer` (GUI; `gui/mockai.py` fakes it, and the signature test in
   `tests/test_gui_shell.py` lists it); a brainstorm reply is a chat message carrying `ideas`.
+- **Context budget** (`ai/budget.py`, `ai/relevance.py`; SPEC "Context budget and the sent report"). Every
+  AI context is a list of `budget.Section`s run through `fit()` (or `writing.fit_context`, which also
+  preflights and renders): continuity (`continuity.plan_check`), canon proposals (`plan_canon`), the alias
+  finder (`links.plan_aliases`), draft / expand / rewrite, chat, Brainstorm, project scope and Ask-my-notebook
+  (`writing.build_context_sections`, `build_project_context_sections`, `research_sections`). **Never add a
+  silent `continue`, `break` or `[:N]` to a context builder**: a fixed cap is an `Item.cap` / `Section.group_cap`
+  and the budget, not the builder, drops things, so every cap, drop and trim lands in the `SentReport`
+  (names, not counts). The `plan_*` functions run before any network call, raise `BudgetError` (a
+  `ValueError`, listed in `USER_ERRORS`: the message is shown as is) when even the parts that cannot be dropped
+  exceed the window, and pass the fitted entities / canon through the existing parameters of the mocked
+  functions (`check_scene`, `propose_canon_updates`, `suggest_links`, `generate_text`, `ask_writer`...), whose
+  signatures did not change. Each bridge method returns the report as `sent` beside its other fields;
+  attachments are merged in (`merge_attached`), not listed twice. The window is `window_for(model)`: the
+  `context_window` setting, else the model's `context_length` from the catalogue the picker already fetched
+  (`client.cached_context_length`, never a new request), else 32k. Token counts are estimates (chars / 4).
+  Continuity, canon and alias requests send only the entities the scene is about (`relevance.rank`) once the
+  project has `relevance.ALL_MAX` (40) entities; below that, everything, exactly as before. The terminal app
+  appends `SentReport.summary()` to each AI notification (`LorewriteApp._cost_note(calls, sent)`). The fixed
+  caps of `describe_scene` (small, no budget) and the chat history (last 6 turns, 1500 characters each) are not
+  in the report yet.
 - **AI jobs and Stop** (`ai/stream.py`, `gui/aijobs.py`, `tui/aimixin.py`). Streaming text calls take
   `on_delta=` / `cancel=` (a `CancelToken`) and raise `Cancelled` when stopped; a stopped call must never
   insert, save or register anything - in the GUI the sync bridge methods run unchanged inside a job
@@ -353,6 +394,9 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   override.
 - TUI tests use `app.run_test(size=(120, 40))` + `pilot`; call
   `await pilot.pause()` after actions before asserting.
+- Context-size tests (`tests/test_budget*.py`) build a 400-entity / 200-scene project in `tmp_path`; small-project
+  equivalence tests keep a copy of the pre-budget builders as the reference - if one fails, the text a short
+  project sends changed.
 - Mock AI at the function boundary: monkeypatch `lorewrite.tui.app.<ai_fn>`
   (see `tests/test_ai_links.py`) or, for the GUI, `lorewrite.gui.api.<fn>`
   (see `tests/test_gui_ai.py`). Never hit the network in tests.
