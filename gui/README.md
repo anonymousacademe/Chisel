@@ -39,12 +39,16 @@ src/
   backend/mock.ts        the mock core used by `npm run dev`
   data/types.ts          Workspace / document / AI result shapes (mirror workspace.py)
   data/tree.ts switcher.ts noteBlocks.ts   pure helpers (vitest)
+  data/subject.ts        the "About:" chip: which open item the assistant is told about (`subject_id`)
+  data/sent.ts           formats the "What was sent" report the bridge returns as `sent`
+  data/storyTime.ts      shows story times and ages (parsing stays in Python)
   editor/cm.ts           CodeMirror setup: decorations, title block, draft widgets, hover cards
   editor/spans.ts        span -> decoration mapping, soft breaks (pure)
   editor/saveController.ts   autosave + conflict state machine (pure)
   editor/drafts.ts       where generated text lands if the buffer changed meanwhile
   components/            TitleBar ActivityRail Binder Editor EditorPane Assistant NotesPanel
                          StatusBar Launch QuickSwitcher SettingsDialog ReviewDialogs Dialogs Toast
+                         SentReport ("What was sent") InspirationPanel (pictures: generate, upload, link)
                          SpellMenu (misspelling popover; the check itself is core/spelling.py)
   components/placeholder.ts   the one "Not in Chisel yet" treatment
   styles/tokens.css      colours, fonts, radii from the Figma file

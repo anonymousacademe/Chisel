@@ -30,7 +30,7 @@ def test_details_parsed_and_normalized():
     d = scenemeta.details(SCENE)
     assert d == {"pov": "Mara Vale", "place": "Lower Meridian",
                  "purpose": "First contact with Elias's signal",
-                 "status": "revising", "target": 2400,
+                 "status": "revising", "when": "", "target": 2400,
                  "collections": ["Needs continuity pass"]}
 
 

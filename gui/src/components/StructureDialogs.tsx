@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../backend/api";
-import type { DetailsPatch, EntitySummary, PartSummary, SceneDetails, TrashItem } from "../data/types";
+import type { DetailsPatch, EntitySummary, PartSummary, SceneDetails, TimelineInfo, TrashItem, WhenInfo } from "../data/types";
+import { inheritedHint, whenHelp } from "../data/storyTime";
 import { SUGGESTED_STATUS } from "../data/sceneFacts";
 import { restoredText } from "../data/restoreText";
 import { Modal } from "./Dialogs";
@@ -123,8 +124,10 @@ export function TrashDialog({ onClose, onRestored, onChanged, notify }: {
 }
 
 /** Status, POV, place, purpose and word target of a scene. Saved into its frontmatter by the caller. */
-export function DetailsDialog({ details, entities, onSave, onClose, unit }: {
+export function DetailsDialog({ details, entities, onSave, onClose, unit, when, timeline }: {
   details: SceneDetails; entities: EntitySummary[]; unit: string;
+  /** Python's reading of this scene's story time, and the project's timeline mode sentence. */
+  when?: WhenInfo; timeline?: TimelineInfo;
   onSave: (patch: DetailsPatch) => void; onClose: () => void;
 }) {
   const [status, setStatus] = useState(details.status);
@@ -132,10 +135,26 @@ export function DetailsDialog({ details, entities, onSave, onClose, unit }: {
   const [place, setPlace] = useState(details.place);
   const [purpose, setPurpose] = useState(details.purpose);
   const [target, setTarget] = useState(details.target ? String(details.target) : "");
+  const [storyTime, setStoryTime] = useState(details.when);
+  // is the typed text a story time? Python decides (core/timeline.py): what was loaded for the saved text,
+  // a (debounced) bridge answer for anything the author changed
+  const [checked, setChecked] = useState<{ text: string; valid: boolean } | null>(null);
+  const loaded = storyTime === details.when && when;
+  useEffect(() => {
+    if (loaded) return;
+    let live = true;
+    const t = window.setTimeout(() => {
+      void api.checkStoryTime(storyTime).then((r) => { if (live && r.ok) setChecked({ text: storyTime, valid: r.valid }); });
+    }, 250);
+    return () => { live = false; window.clearTimeout(t); };
+  }, [storyTime, loaded]);
+  const timeValid: boolean | null = loaded ? !when.invalid : checked && checked.text === storyTime ? checked.valid : null;
+  const hint = inheritedHint(when, storyTime);
+  const timeBad = storyTime.trim() !== "" && timeValid === false;
   const bad = target.trim() !== "" && !/^\d[\d,]*$/.test(target.trim());
   const submit = () => {
     if (bad) return;
-    onSave({ status, pov, place, purpose, target: target.trim() === "" ? null : target.trim() });
+    onSave({ status, pov, place, purpose, when: storyTime, target: target.trim() === "" ? null : target.trim() });
   };
   const names = (types: string[]) => entities.filter((e) => types.includes(e.type)).map((e) => e.name);
   return (
@@ -161,11 +180,18 @@ export function DetailsDialog({ details, entities, onSave, onClose, unit }: {
         <textarea className="lw-launch__input lw-details__purpose" rows={3} value={purpose} onChange={(e) => setPurpose(e.target.value)}
           placeholder="What this is for in the story" />
       </label>
+      <label className="lw-dialog__label">Story time
+        <input className="lw-launch__input" value={storyTime} placeholder="2187 or 2187-03-14" aria-invalid={timeBad}
+          onChange={(e) => setStoryTime(e.target.value)} />
+        {hint && <span className="lw-faint lw-details__hint">{hint}</span>}
+        <span className={timeBad ? "lw-details__error" : "lw-faint lw-details__hint"}>{whenHelp(storyTime, timeValid)}</span>
+      </label>
       <label className="lw-dialog__label">Target words
         <input className="lw-launch__input" inputMode="numeric" value={target} placeholder="blank for none"
           aria-invalid={bad} onChange={(e) => setTarget(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
         {bad && <span className="lw-details__error">A number of words, like 2400.</span>}
       </label>
+      {timeline && <p className="lw-faint lw-details__hint lw-details__timeline">{timeline.sentence}</p>}
       <div className="lw-dialog__buttons">
         <button className="lw-btn" onClick={onClose}>Cancel</button>
         <button className="lw-btn lw-btn--primary" disabled={bad} onClick={submit}>Save</button>

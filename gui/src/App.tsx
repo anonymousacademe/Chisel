@@ -263,13 +263,16 @@ export default function App() {
     if (doc?.kind === "entity") { setNoteName(doc.title); setMissingTarget(null); }
   }, [doc]);
 
+  // (for a scene, the note also shows the character's age there: Python computes it)
+  const sceneDocId = doc?.kind === "scene" ? doc.id : undefined;
+
   // ...and loads whichever note it points at
   useEffect(() => {
     if (!noteName) { setNote(null); return; }
     let live = true;
-    void api.getEntity(noteName).then((r) => { if (live && r.ok) setNote(r); });
+    void api.getEntity(noteName, sceneDocId).then((r) => { if (live && r.ok) setNote(r); });
     return () => { live = false; };
-  }, [noteName, noteVersion]);
+  }, [noteName, noteVersion, sceneDocId]);
 
   // Global keys, and flushing saves when the window loses focus or goes away.
   useEffect(() => {
@@ -446,6 +449,14 @@ export default function App() {
       const c = await api.sceneContext(doc.id, editorRef.current?.getText());
       if (c.ok) setMentions(c.mentions);
     }
+  };
+  const setBorn = async (name: string, born: string) => {
+    const open = doc?.kind === "entity" ? doc.id : null;   // the note's own file is rewritten: flush first, reopen after
+    if (open && !(await saver.flush())) return notify("Could not save the current document first.", "error");
+    const r = await api.setEntityBorn(name, born);
+    if (!r.ok) return notify(r.error, "error");
+    setNoteVersion((v) => v + 1);
+    if (open) await openDoc(open, { force: true, keepMode: true });
   };
   const openBacklink = async (sourceId: string, row: number) => {
     if (doc?.id === sourceId) { editorRef.current?.gotoLine(row); return; }
@@ -1282,7 +1293,7 @@ export default function App() {
           ]} />
         {showAssistant && (
           <Assistant tab={tab} onTab={setTab} mentions={mentions} onPickEntity={showNote}
-            note={note} missingTarget={missingTarget} onOpenNote={(id) => void openDoc(id)} onAddAlias={(n, a) => void addAlias(n, a)} onRename={(n, al) => setDialog({ kind: "rename-note", name: n, aliases: al })}
+            note={note} missingTarget={missingTarget} onOpenNote={(id) => void openDoc(id)} onAddAlias={(n, a) => void addAlias(n, a)} onSetBorn={(n, b) => void setBorn(n, b)} onRename={(n, al) => setDialog({ kind: "rename-note", name: n, aliases: al })}
             onCreateNote={(t) => setDialog({ kind: "new-note", name: t, openAfter: false })} onOpenBacklink={(id, row) => void openBacklink(id, row)}
             issues={issues} issuesSent={issuesSent} onReviewIssue={reviewIssue} onDismissIssue={(i) => void dismissIssue(i)}
             messages={messages} busy={aiBusy} run={aiRun} onStop={stopAi} aiReady={aiReady} scope={scope} onScope={() => setScope((c) => (c === "scene" ? "project" : "scene"))}
@@ -1480,6 +1491,7 @@ export default function App() {
       )}
       {dialog?.kind === "details" && doc?.kind === "scene" && doc.details && (
         <DetailsDialog details={doc.details} entities={ws.entities} unit={unit}
+          when={ws.scenes.find((s) => s.id === doc.id)?.when} timeline={ws.timeline}
           onSave={(patch) => void saveDetails(patch)} onClose={() => setDialog(null)} />
       )}
       <Toasts notices={notices} onDismiss={(id) => setNotices((n) => n.filter((x) => x.id !== id))} />

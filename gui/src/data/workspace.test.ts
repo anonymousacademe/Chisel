@@ -13,7 +13,9 @@ const ws = fixture as unknown as Workspace;
 
 describe("workspace fixture (shape shared with Python)", () => {
   it("has the top-level keys the UI reads", () => {
-    expect(Object.keys(ws).sort()).toEqual(["binder", "collections", "entities", "parts", "project", "research", "scenes", "status"]);
+    expect(Object.keys(ws).sort()).toEqual(["binder", "collections", "entities", "parts", "project", "research", "scenes", "status", "timeline"]);
+    expect(ws.timeline).toMatchObject({ mode: "reading-order", scenes: 0, sentence: expect.any(String) });
+    expect(ws.scenes[0].when).toEqual({ value: "", label: "", source: "none", raw: "", invalid: false });
     expect(ws.status).toMatchObject({ projectWords: expect.any(Number), hasStyle: false });
   });
 

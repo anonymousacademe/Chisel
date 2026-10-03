@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { follow, planMove, sceneGroups } from "./reorder";
 import type { PartSummary, SceneSummary } from "./types";
 
-const d = { pov: "", place: "", purpose: "", status: "", target: null, collections: [] };
+const d = { pov: "", place: "", purpose: "", status: "", when: "", target: null, collections: [] };
 const sc = (id: string, title: string, part: string | null, extra: Partial<SceneSummary> = {}): SceneSummary => ({
-  id, number: "", title, words: 10, excerpt: "", headings: [], part, frontMatter: false, unplaced: false, details: d, ...extra,
+  id, number: "", title, words: 10, excerpt: "", headings: [], part, frontMatter: false, unplaced: false, details: d, when: { value: "", label: "", source: "none", raw: "", invalid: false }, ...extra,
 });
 const P1 = "part:manuscript/01-recall", P2 = "part:manuscript/02-ghost";
 const scenes = [

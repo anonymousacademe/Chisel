@@ -112,7 +112,7 @@ class TrashScreen(ModalScreen["tuple[str, str] | None"]):
 
 class DetailsScreen(ModalScreen["dict | None"]):
     """Edit a scene's details. Dismisses with the new field values
-    ({"pov", "place", "purpose", "status", "target"}) or None."""
+    ({"pov", "place", "purpose", "status", "when", "target"}) or None."""
 
     BINDINGS = [Binding("escape", "cancel", "Cancel"),
                 Binding("ctrl+s", "save", "Save")]
@@ -122,6 +122,7 @@ class DetailsScreen(ModalScreen["dict | None"]):
         ("place", "Place"),
         ("purpose", "Scene purpose"),
         ("status", "Status (idea / draft / revising / done, or your own)"),
+        ("when", "Story time (optional: 2187, 2187-03 or 2187-03-14; blank = reading order)"),
         ("target", "Target words (a number, blank for none)"),
     )
 

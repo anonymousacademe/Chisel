@@ -109,8 +109,16 @@
         "place": "",
         "purpose": "",
         "status": "",
+        "when": "",
         "target": null,
         "collections": []
+      },
+      "when": {
+        "value": "",
+        "label": "",
+        "source": "none",
+        "raw": "",
+        "invalid": false
       }
     },
     {
@@ -130,13 +138,28 @@
         "place": "",
         "purpose": "",
         "status": "",
+        "when": "",
         "target": null,
         "collections": []
+      },
+      "when": {
+        "value": "",
+        "label": "",
+        "source": "none",
+        "raw": "",
+        "invalid": false
       }
     }
   ],
   "parts": [],
   "collections": [],
+  "timeline": {
+    "mode": "reading-order",
+    "scenes": 0,
+    "sentence": "No story times set; using reading order",
+    "era": "",
+    "unit": "year"
+  },
   "research": [],
   "entities": [
     {

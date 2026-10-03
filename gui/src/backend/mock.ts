@@ -41,7 +41,8 @@ function buildWorkspace(): Workspace {
   const scenes: SceneSummary[] = SCENES.map((s) => ({
     id: s.id, number: s.number, title: s.title, words: words(s.text), excerpt: s.text.split("\n\n")[1]?.slice(0, 160) ?? "", headings: [],
     part: null, frontMatter: false, unplaced: false,
-    details: { pov: "", place: "", purpose: "", status: "", target: null, collections: [] },
+    details: { pov: "", place: "", purpose: "", status: "", when: "", target: null, collections: [] },
+    when: { value: "", label: "", source: "none", raw: "", invalid: false },
   }));
   const total = scenes.reduce((n, s) => n + s.words, 0);
   const ent = (e: EntitySummary): BinderNode => ({ id: e.id, title: e.name, kind: "entity" });
@@ -60,6 +61,7 @@ function buildWorkspace(): Workspace {
     ],
     scenes,
     parts: [], collections: [], research: [],
+    timeline: { mode: "reading-order", scenes: 0, sentence: "No story times set; using reading order", era: "", unit: "year" },
     entities: ENTITIES.map(({ body: _b, ...e }) => e),
     status: { projectWords: total, sessionWords: 0, sessionMinutes: 0, aiCost: 0, hasStyle: false, trashCount: 0, stats: null },
   };
@@ -76,7 +78,7 @@ const mentionsOf = (text: string): SceneMention[] =>
 function getEntity(name: string): EntityInfo {
   const e = ENTITIES.find((x) => [x.name, ...x.aliases].some((n) => n.toLowerCase() === name.toLowerCase()));
   if (!e) return { found: false, name };
-  return { found: true, id: e.id, name: e.name, type: e.type, aliases: e.aliases, body: e.body, canon: "", summary: e.body, backlinks: [] };
+  return { found: true, id: e.id, name: e.name, type: e.type, aliases: e.aliases, body: e.body, canon: "", summary: e.body, backlinks: [], born: "", bornInvalid: false, ageNow: "" };
 }
 
 function readDocument(id: string): DocumentPayload | null {
@@ -84,7 +86,7 @@ function readDocument(id: string): DocumentPayload | null {
   if (s) {
     return { id, kind: "scene", title: s.title, kicker: `SCENE ${s.number}`, parent: "Manuscript", text: s.text,
       mtime: "0", words: words(s.text), mentions: mentionsOf(s.text),
-      details: { pov: "", place: "", purpose: "", status: "", target: null, collections: [] }, bodyStart: 0 };
+      details: { pov: "", place: "", purpose: "", status: "", when: "", target: null, collections: [] }, bodyStart: 0 };
   }
   const e = ENTITIES.find((x) => x.id === id);
   if (e) {

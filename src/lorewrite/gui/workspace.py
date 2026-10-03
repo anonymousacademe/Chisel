@@ -12,7 +12,7 @@ from pathlib import Path
 
 from ..core import collections as coll
 from ..core import research as research_notes
-from ..core import drafts, fsutil, scenemeta
+from ..core import drafts, fsutil, scenemeta, timeline
 from ..core import entities as ent
 from ..core.continuity import get_canon
 from ..core.links import find_all_links
@@ -136,8 +136,35 @@ def summary_line(body: str, limit: int = 240) -> str:
     return ""
 
 
-def entity_payload(project: Project, entity: ent.Entity, index) -> dict:
-    """An entity note for the Notes tab and hover cards, with backlinks."""
+def when_payload(project: Project, text: str, st: timeline.SceneTime | None,
+                 era: str) -> dict:
+    """A scene's story time for the UI: the effective ``value`` ("" = none) and
+    its ``label`` (with the era), ``source`` explicit / inherited / none, the
+    scene's own text in ``raw`` and ``invalid`` when that is not a story time.
+    *st* is None for a scene outside the reading order (Parked): only its own
+    ``when`` counts there."""
+    if st is not None:
+        value = st.format()
+        return {"value": value, "label": st.format(era), "source": st.source,
+                "raw": st.raw, "invalid": st.invalid}
+    raw, when = timeline.explicit_when(text, era)
+    return {"value": when.format() if when else "", "label": when.format(era) if when else "",
+            "source": timeline.SOURCE_EXPLICIT if when else timeline.SOURCE_NONE,
+            "raw": raw, "invalid": bool(raw) and when is None}
+
+
+def timeline_payload(project: Project, scenes: list[dict]) -> dict:
+    """The mode sentence and settings, from the scene summaries already read
+    (only book scenes count, as in ``timeline.mode``)."""
+    cfg = project.timeline_settings()
+    n = sum(1 for s in scenes if not s["unplaced"] and s["when"]["source"] == timeline.SOURCE_EXPLICIT)
+    return {**timeline.mode_for_count(n).to_dict(), "era": cfg["era"], "unit": cfg["unit"]}
+
+
+def entity_payload(project: Project, entity: ent.Entity, index,
+                   scene_id: str | None = None) -> dict:
+    """An entity note for the Notes tab and hover cards, with backlinks. With a
+    *scene_id* (the open scene) ``ageNow`` is the character's age there."""
     backlinks = []
     for b in (index.backlinks(entity) if index is not None else []):
         path = project.root / b.source
@@ -152,17 +179,27 @@ def entity_payload(project: Project, entity: ent.Entity, index) -> dict:
             kind, label = "entity", ent.Entity.from_markdown(text, path).name
         backlinks.append({"sourceId": b.source, "sourceKind": kind,
                           "sourceTitle": label, "row": b.row, "line": b.line.strip()})
+    era = project.timeline_settings()["era"]
+    born_raw, born = timeline.born_of(entity, era)
+    age_now = ""
+    if scene_id and born is not None:
+        st = next((t for t in timeline.scene_times(project) if t.id == scene_id), None)
+        age_now = timeline.age_label(entity, st.when, era) if st else ""
     return {
         "id": rel_id(project, entity.path), "name": entity.name, "type": entity.type,
         "aliases": list(entity.aliases), "body": entity.body,
         "canon": get_canon(entity.body), "summary": summary_line(entity.body),
         "backlinks": backlinks,
+        "born": born_raw, "bornInvalid": bool(born_raw) and born is None,
+        "ageNow": age_now,
     }
 
 
 def scene_summaries(project: Project) -> list[dict]:
     """Every scene in reading order (book scenes, then unplaced ones)."""
     out = []
+    era = project.timeline_settings()["era"]
+    times = {t.id: t for t in timeline.scene_times(project)}
     for path in project.all_scene_files():
         try:
             text, originals = read_text(project, path)
@@ -181,6 +218,7 @@ def scene_summaries(project: Project) -> list[dict]:
             "frontMatter": project.is_front_matter(path),
             "unplaced": project.is_unplaced(path),
             "details": scenemeta.details(text),
+            "when": when_payload(project, text, times.get(rel_id(project, path)), era),
         })
     return out
 
@@ -371,6 +409,7 @@ def build_workspace(project: Project, entities: list[ent.Entity], *,
         "scenes": scenes,
         "parts": parts,
         "collections": collection_summaries(project, scenes),
+        "timeline": timeline_payload(project, scenes),
         "research": research,
         "entities": summaries,
         "status": {

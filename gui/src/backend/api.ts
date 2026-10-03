@@ -114,7 +114,9 @@ export const api = {
   rebuildIndex: () => call("rebuild_index"),
   sceneContext: (id: string, text?: string) => call<{ mentions: SceneMention[] }>("scene_context", id, text ?? null),
   listEntities: () => call<{ entities: EntitySummary[] }>("list_entities"),
-  getEntity: (name: string) => call<EntityInfo>("get_entity", name),
+  getEntity: (name: string, sceneId?: string) => call<EntityInfo>("get_entity", name, sceneId ?? null),
+  setEntityBorn: (name: string, born: string) => call<{ born: string; invalid: boolean }>("set_entity_born", name, born),
+  checkStoryTime: (text: string) => call<{ valid: boolean; normalized: string }>("check_story_time", text),
   createEntity: (name: string, type: EntityType) => call<{ id: string; name: string; existed: boolean }>("create_entity", name, type),
   addAlias: (name: string, alias: string) => call("add_alias", name, alias),
   // rename a note everywhere: preview writes nothing; apply snapshots every scene first; undo restores

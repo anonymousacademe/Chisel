@@ -237,6 +237,37 @@ class Project(Structure):
             for k, v in raw.items() if isinstance(v, (str, int)) and not isinstance(v, bool))
         self._write_section("manuscript", body)
 
+    def timeline_settings(self) -> dict:
+        """Story-time preferences from project.toml [timeline] (all optional):
+        ``era`` is a label shown after years ("AE"); ``unit`` is "year" (the only
+        one for now). Anything invalid reads as the default."""
+        from . import timeline
+        raw = self.meta.get("timeline")
+        raw = raw if isinstance(raw, dict) else {}
+        unit = raw.get("unit")
+        return {"era": timeline.toml_era(raw.get("era")),
+                "unit": unit if unit in timeline.UNITS else timeline.UNIT_YEAR}
+
+    def update_timeline_settings(self, era: str | None = None,
+                                 unit: str | None = None) -> None:
+        """Write [timeline] into project.toml (``ValueError`` for a bad value)."""
+        from . import timeline
+        current = self.timeline_settings()
+        if era is not None:
+            if not isinstance(era, str):
+                raise ValueError("era must be text")
+            era = " ".join(era.split())
+            if len(era) > 24:
+                raise ValueError("era is a short label (24 characters at most)")
+            current["era"] = era
+        if unit is not None:
+            if unit not in timeline.UNITS:
+                raise ValueError("unit must be 'year'")
+            current["unit"] = unit
+        era_line = f"era = {toml_string(current['era'])}\n"
+        unit_line = f"unit = {toml_string(current['unit'])}\n"
+        self._write_section("timeline", era_line + unit_line)
+
     def _write_section(self, name: str, body: str) -> None:
         """Replace (or append) the [name] table of project.toml, preserving
         everything else, atomically; refresh the in-memory meta."""

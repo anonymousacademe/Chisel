@@ -25,10 +25,26 @@ export interface BinderNode {
 /** A scene's own details, stored as its YAML frontmatter ("" / null = unset). */
 export interface SceneDetails {
   pov: string; place: string; purpose: string; status: string;
+  /** Optional story time as typed ("2187", "2187-03-14"); "" = none (reading order). */
+  when: string;
   target: number | null;
   collections: string[];
 }
 export type DetailsPatch = Partial<Omit<SceneDetails, "target">> & { target?: number | string | null };
+
+/** A scene's story time as Python resolved it (core/timeline.py): the effective value, never computed here. */
+export interface WhenInfo {
+  value: string;           // effective time without the era ("" = none)
+  label: string;           // same, with the project's era label
+  source: "explicit" | "inherited" | "none";
+  raw: string;             // the scene's own `when:` text ("" = none)
+  invalid: boolean;        // `raw` is set but is not a story time
+}
+
+/** The mode sentence and the [timeline] settings. */
+export interface TimelineInfo {
+  mode: "chronological" | "reading-order"; scenes: number; sentence: string; era: string; unit: string;
+}
 
 export interface SceneSummary {
   id: string;            // project-relative path: manuscript/02-blue-hour.md
@@ -41,6 +57,7 @@ export interface SceneSummary {
   frontMatter: boolean;
   unplaced: boolean;
   details: SceneDetails;
+  when: WhenInfo;
 }
 
 /** A part of the book (a folder under manuscript/), in book order. */
@@ -113,6 +130,8 @@ export type EntityInfo =
   | {
     found: true; id: string; name: string; type: EntityType; aliases: string[];
     body: string; canon: string; summary: string; backlinks: Backlink[];
+    /** `born:` as written ("" = none); `ageNow` e.g. "age 24 at 2189" for the open scene ("" = none). */
+    born: string; bornInvalid: boolean; ageNow: string;
   };
 
 export type RenameScope = "scenes" | "entities" | "research" | "comments";
@@ -129,6 +148,7 @@ export interface Workspace {
   scenes: SceneSummary[];
   parts: PartSummary[];
   collections: CollectionSummary[];
+  timeline: TimelineInfo;
   /** Research notes (research/**.md) in folder order; the binder shows them as a tree. */
   research: ResearchSummary[];
   entities: EntitySummary[];

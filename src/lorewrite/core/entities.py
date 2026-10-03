@@ -2,6 +2,12 @@
 
 An entity note is a Markdown file with a small YAML frontmatter block
 (name, type, aliases) followed by free text. See SPEC.md §4.
+
+Any other frontmatter key (a writer's ``born:``, an Obsidian ``tags:``) is kept
+in ``Entity.extra`` and written back after the managed keys, in file order, so
+a save never deletes what it does not know. YAML *comments* inside the block
+are not preserved (the block is re-serialised from the parsed mapping); keys,
+values of any YAML type and their order are.
 """
 
 from __future__ import annotations
@@ -26,6 +32,8 @@ aliases: []
 
 """
 
+
+MANAGED_KEYS = ("name", "type", "aliases")
 
 MAX_SLUG = 60  # keeps file and folder names far below Windows' 255/260 limits
 
@@ -66,6 +74,8 @@ class Entity:
     aliases: list[str] = field(default_factory=list)
     body: str = ""
     path: Path | None = None
+    # frontmatter keys other than name/type/aliases, in file order (any YAML type)
+    extra: dict = field(default_factory=dict)
 
     @property
     def names(self) -> list[str]:
@@ -83,7 +93,11 @@ class Entity:
             "type": self.type,
             "aliases": self.aliases,
         }
-        return f"---\n{yaml.safe_dump(frontmatter, sort_keys=False, allow_unicode=True)}---\n\n{self.body}"
+        head = yaml.safe_dump(frontmatter, sort_keys=False, allow_unicode=True)
+        extra = {k: v for k, v in self.extra.items() if k not in MANAGED_KEYS}
+        if extra:  # long values stay on one line: no folding churn
+            head += yaml.safe_dump(extra, sort_keys=False, allow_unicode=True, width=10 ** 6)
+        return f"---\n{head}---\n\n{self.body}"
 
     @classmethod
     def from_markdown(cls, text: str, path: Path | None = None) -> Entity:
@@ -96,6 +110,8 @@ class Entity:
                 meta = yaml.safe_load(m.group(1)) or {}
             except yaml.YAMLError:
                 meta = {}
+            if not isinstance(meta, dict):
+                meta = {}
             body = text[m.end():].lstrip("\n")
         name = str(meta.get("name") or (path.stem if path else "Untitled"))
         etype = str(meta.get("type") or "character")
@@ -104,8 +120,9 @@ class Entity:
         aliases = meta.get("aliases") or []
         if isinstance(aliases, str):
             aliases = [aliases]
+        extra = {k: v for k, v in meta.items() if k not in MANAGED_KEYS}
         return cls(name=name, type=etype, aliases=[str(a) for a in aliases],
-                   body=body, path=path)
+                   body=body, path=path, extra=extra)
 
 
 def load_entity(path: Path) -> Entity:

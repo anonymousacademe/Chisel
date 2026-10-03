@@ -11,6 +11,8 @@ export function NotesPanel(props: {
   missingTarget: string | null;
   onOpenNote: (id: string) => void;
   onAddAlias: (name: string, alias: string) => void;
+  /** Save the character's `born:` story time (blank clears it). */
+  onSetBorn: (name: string, born: string) => void;
   onRename: (name: string, aliases: string[]) => void;
   onCreateNote: (target: string) => void;
   onOpenBacklink: (sourceId: string, row: number) => void;
@@ -55,6 +57,10 @@ export function NotesPanel(props: {
         <input className="lw-note__alias-input" value={alias} placeholder="Add alias" aria-label="Add alias"
           onChange={(e) => setAlias(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addAlias(); }} />
       </div>
+      {note.type === "character" && (
+        <BornField key={`${note.id}:${note.born}`} name={note.name} saved={note.born} invalid={note.bornInvalid}
+          ageNow={note.ageNow} onSave={props.onSetBorn} />
+      )}
       {note.body.trim()
         ? (
           <div className="lw-note__body">
@@ -81,5 +87,24 @@ export function NotesPanel(props: {
         ))}
       </div>
     </section>
+  );
+}
+
+/** The character's `born:` story time. Python says whether it is valid and what age it gives at the open scene. */
+function BornField({ name, saved, invalid, ageNow, onSave }: {
+  name: string; saved: string; invalid: boolean; ageNow: string; onSave: (name: string, born: string) => void;
+}) {
+  const [born, setBorn] = useState(saved);   // remounted (key) when the note or its saved value changes
+  const unchanged = born.trim() === saved.trim();
+  const save = () => { if (!unchanged) onSave(name, born.trim()); };
+  return (
+    <label className="lw-note__born">
+      <span className="lw-faint">Born</span>
+      <input className="lw-note__alias-input" value={born} placeholder="2187 or 2187-03-14" aria-label="Born"
+        aria-invalid={invalid && unchanged} onChange={(e) => setBorn(e.target.value)} onBlur={save}
+        onKeyDown={(e) => { if (e.key === "Enter") save(); }} />
+      {invalid && unchanged && <span className="lw-details__error">Not a story time. Kept as text.</span>}
+      {ageNow && <span className="lw-faint lw-note__age">{ageNow} (this scene)</span>}
+    </label>
   );
 }

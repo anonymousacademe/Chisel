@@ -59,7 +59,7 @@ from ..core import collections as coll
 from ..core import comments
 from ..core import research as research_notes
 from ..core import stats as writing_stats
-from ..core import drafts, rename as renaming, scenemeta, snapshots, sync
+from ..core import drafts, rename as renaming, scenemeta, snapshots, sync, timeline
 from ..core import export as exporting
 from ..core.export.manuscript import ExportOptions
 from ..core import atmosphere, fsutil, soundpacks
@@ -444,14 +444,16 @@ class Api:
             return {"entities": ws.entity_summaries(self._require(), self.entities)}
 
     @bridge
-    def get_entity(self, name: str) -> dict:
-        """The note behind a link target (name or alias), or found=false."""
+    def get_entity(self, name: str, scene_id: str | None = None) -> dict:
+        """The note behind a link target (name or alias), or found=false. With
+        *scene_id* (the open scene) the payload's ``ageNow`` is the age there."""
         with self._lock:
             project = self._require()
             entity = ent.resolve(name, self.entities)
             if entity is None or entity.path is None:
                 return {"found": False, "name": name}
-            return {"found": True, **ws.entity_payload(project, entity, self.index)}
+            return {"found": True,
+                    **ws.entity_payload(project, entity, self.index, scene_id)}
 
     def _entities_changed(self) -> None:
         """Names/aliases changed: earlier scenes may now mention them."""
@@ -488,6 +490,36 @@ class Api:
             ent.add_alias(entity, alias, self.entities)
             self._entities_changed()
             return {}
+
+    @bridge
+    def set_entity_born(self, name: str, born: str) -> dict:
+        """Set (or, blank, clear) a note's ``born:`` story time. A value that is
+        not a story time is kept as text and reported (``invalid``)."""
+        with self._lock:
+            project = self._require()
+            entity = ent.resolve(name, self.entities)
+            if entity is None or entity.path is None:
+                raise LookupError(f"no note named {name!r}")
+            text = " ".join(str(born or "").split())
+            if text:
+                entity.extra["born"] = timeline.stored_value(text)
+            else:
+                entity.extra.pop("born", None)
+            ent.save_entity(entity, entity.path)
+            self.reload_entities()
+            era = project.timeline_settings()["era"]
+            return {"born": text, "invalid": bool(text) and timeline.parse_story_time(text, era) is None}
+
+    @bridge
+    def check_story_time(self, text: str) -> dict:
+        """Is *text* a story time (year, optional month and day, project era)?
+        Blank is valid (it means "none")."""
+        with self._lock:
+            era = self._require().timeline_settings()["era"]
+        text = " ".join(str(text or "").split())
+        when = timeline.parse_story_time(text, era) if text else None
+        return {"valid": not text or when is not None,
+                "normalized": when.format(era) if when else ""}
 
     # -- rename everywhere (core/rename.py): preview, apply, undo ----------------------
 

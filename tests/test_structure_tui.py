@@ -264,3 +264,26 @@ async def test_unit_switch_label_names_the_switch(tmp_path: Path):
         hits = [str(h.display) async for h in ActionProvider(app.screen).discover()]
         assert "Action · Call them scenes" in hits
         assert not any("Toggle" in h and "label" in h or "chapter/chapter" in h for h in hits)
+
+
+async def test_details_form_sets_and_clears_story_time(tmp_path: Path):
+    p = _book(tmp_path)
+    app = LorewriteApp(p)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        scene = p.manuscript_dir / "01-the-recall" / "01-a.md"
+        original = scene.read_text()
+        app.open_file(scene)
+        app.edit_details()
+        await pilot.pause()
+        app.screen.query_one("#detail-when", Input).value = "2187-03-14"
+        app.screen.action_save()
+        await pilot.pause()
+        assert scenemeta.details(scene.read_text())["when"] == "2187-03-14"
+        app.edit_details()
+        await pilot.pause()
+        assert app.screen.query_one("#detail-when", Input).value == "2187-03-14"
+        app.screen.query_one("#detail-when", Input).value = ""
+        app.screen.action_save()
+        await pilot.pause()
+        assert scene.read_text() == original

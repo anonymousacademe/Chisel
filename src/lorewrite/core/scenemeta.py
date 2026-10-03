@@ -5,6 +5,7 @@
     place: Lower Meridian
     purpose: First contact with Elias's signal
     status: revising
+    when: 2187-03-14
     target: 2400
     collections: [Needs continuity pass]
     ---
@@ -16,7 +17,8 @@ title. Unknown keys (an Obsidian ``tags:`` line, say) survive edits.
 
 The block is *not* prose: it is excluded from word counts, spelling, mention
 scanning, continuity evidence and style sampling. The one exception is that a
-``pov`` / ``place`` value naming an entity counts as a mention (backlinks).
+``pov`` / ``place`` value naming an entity counts as a mention (backlinks);
+``when`` (story time) never does.
 """
 
 from __future__ import annotations
@@ -26,8 +28,9 @@ from dataclasses import dataclass
 
 import yaml
 
-FIELDS = ("pov", "place", "purpose", "status", "target", "collections")
-TEXT_FIELDS = ("pov", "place", "purpose", "status")
+FIELDS = ("pov", "place", "purpose", "status", "when", "target", "collections")
+# ``when`` is an optional story time (core/timeline.py); an invalid value is kept as text
+TEXT_FIELDS = ("pov", "place", "purpose", "status", "when")
 SUGGESTED_STATUS = ("idea", "draft", "revising", "done")
 MENTION_FIELDS = ("pov", "place")
 
@@ -131,6 +134,9 @@ def _normalize(key: str, value: object):
         names = [str(v).strip() for v in value or [] if str(v).strip()]
         return names or None
     text = " ".join(_as_text(value).split())
+    if key == "when" and text:
+        from .timeline import stored_value  # (timeline imports this module)
+        return stored_value(text)
     return text or None
 
 

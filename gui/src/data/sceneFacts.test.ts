@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { kickerOf, wordsLabel } from "./sceneFacts";
 
-const d = { pov: "", place: "", purpose: "", status: "", target: null as number | null, collections: [] };
+const d = { pov: "", place: "", purpose: "", status: "", when: "", target: null as number | null, collections: [] };
 
 describe("sceneFacts", () => {
   it("words with and without a target", () => {
