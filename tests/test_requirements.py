@@ -39,7 +39,7 @@ def _requirements() -> set[str]:
 def test_every_import_is_declared():
     modules = set().union(*(PROVIDES[n] for n in _requirements() if n in PROVIDES))
     missing = {}
-    for path in (ROOT / "src" / "lorewrite").rglob("*.py"):
+    for path in (ROOT / "src" / "chisel").rglob("*.py"):
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if isinstance(node, ast.Import):
                 tops = [a.name.split(".")[0] for a in node.names]
@@ -48,7 +48,7 @@ def test_every_import_is_declared():
             else:
                 continue
             for top in tops:
-                if top in sys.stdlib_module_names or top in ("lorewrite", "__future__") or top in modules:
+                if top in sys.stdlib_module_names or top in ("chisel", "__future__") or top in modules:
                     continue
                 missing.setdefault(top, set()).add(path.name)
     assert not missing, f"imported but not in requirements.txt: {missing}"

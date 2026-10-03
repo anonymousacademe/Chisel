@@ -3,12 +3,12 @@
 import threading
 from types import SimpleNamespace
 
-from lorewrite.ai import usage
-from lorewrite.ai.client import usage_extra_body
-from lorewrite.ai.usage import LEDGER, UsageLedger, record_response
-from lorewrite.core.project import Project
-from lorewrite.tui import app as app_mod
-from lorewrite.tui.app import LorewriteApp
+from chisel.ai import usage
+from chisel.ai.client import usage_extra_body
+from chisel.ai.usage import LEDGER, UsageLedger, record_response
+from chisel.core.project import Project
+from chisel.tui import app as app_mod
+from chisel.tui.app import ChiselApp
 
 
 def test_ledger_math():
@@ -69,7 +69,7 @@ def test_usage_extra_body_merges_provider():
 
 
 def test_call_sites_request_usage_and_record(monkeypatch):
-    from lorewrite.ai.links import suggest_links
+    from chisel.ai.links import suggest_links
 
     seen = {}
 
@@ -100,9 +100,9 @@ async def test_status_bar_shows_session_total(tmp_path, monkeypatch):
     monkeypatch.setattr(app_mod, "suggest_links", fake_suggest)
     notified: list[str] = []
     monkeypatch.setattr(
-        LorewriteApp, "notify",
+        ChiselApp, "notify",
         lambda self, message, **kw: notified.append(str(message)))
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         assert "AI $" not in app._status_text

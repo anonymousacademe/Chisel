@@ -25,7 +25,7 @@ export interface AiPoll {
   cost: number | null;
 }
 
-/** Typed wrappers over the bridge; method names match lorewrite.gui.api.Api. */
+/** Typed wrappers over the bridge; method names match chisel.gui.api.Api. */
 export const api = {
   getWorkspace: () => call<{ workspace: Workspace | null }>("get_workspace"),
   readDocument: (id: string) => call<DocumentPayload>("read_document", id),

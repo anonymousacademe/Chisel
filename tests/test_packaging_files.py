@@ -6,20 +6,20 @@ from pathlib import Path
 
 import pytest
 
-import lorewrite
+import chisel
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_spec_and_entry_compile():
-    for name in ("packaging/lorewriter.spec", "packaging/entry.py", "packaging/build.py"):
+    for name in ("packaging/chisel.spec", "packaging/entry.py", "packaging/build.py"):
         ast.parse((ROOT / name).read_text(encoding="utf-8"), name)
 
 
 def test_inno_script_is_per_user_and_names_both_executables():
-    iss = (ROOT / "packaging/lorewriter.iss").read_text(encoding="utf-8")
+    iss = (ROOT / "packaging/chisel.iss").read_text(encoding="utf-8")
     assert "PrivilegesRequired=lowest" in iss
-    assert "Chisel.exe" in iss and "lorewrite.exe" in iss
+    assert "Chisel.exe" in iss and "chisel-tui.exe" in iss
     assert "windows-setup" in iss
 
 
@@ -28,7 +28,7 @@ def test_build_script_reads_the_one_version():
     spec = importlib.util.spec_from_file_location("lw_build", ROOT / "packaging/build.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    assert mod.version() == lorewrite.__version__
+    assert mod.version() == chisel.__version__
 
 
 def test_release_workflow_is_valid_yaml_with_pinned_actions():
@@ -57,7 +57,7 @@ def test_icons_exist_for_every_os():
 
 def test_window_icon_matches_the_platform():
     """pywebview's WinForms backend only accepts an .ico; the other backends take the PNG."""
-    gui = ROOT / "src/lorewrite/gui"
+    gui = ROOT / "src/chisel/gui"
     assert (gui / "icon.ico").read_bytes()[:4] == b"\x00\x00\x01\x00"   # an ICO header, not a renamed PNG
     assert (gui / "icon.png").read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
     src = (gui / "app.py").read_text(encoding="utf-8")
@@ -107,6 +107,33 @@ def test_workflow_downloads_nothing_unpinned():
 def test_render_env_is_set_only_on_the_linux_job():
     text = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
     head, linux_on = text.split("  linux:", 1)
-    assert "LOREWRITE_SELFTEST_RENDER" not in head                    # not workflow-wide
-    assert "LOREWRITE_SELFTEST_RENDER" in linux_on.split("  windows:", 1)[0]
-    assert "LOREWRITE_SELFTEST_RENDER" not in linux_on.split("  windows:", 1)[1]
+    assert "CHISEL_SELFTEST_RENDER" not in head                    # not workflow-wide
+    assert "CHISEL_SELFTEST_RENDER" in linux_on.split("  windows:", 1)[0]
+    assert "CHISEL_SELFTEST_RENDER" not in linux_on.split("  windows:", 1)[1]
+
+
+def test_old_command_and_import_names_are_gone():
+    """The rename to Chisel: no old name in the build metadata, no old command aliases."""
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'name = "chisel-writer"' in pyproject
+    assert 'chisel = "chisel.tui.app:main"' in pyproject
+    assert 'chisel-gui = "chisel.gui.app:main"' in pyproject
+    assert not re.search(r"lore[-_ ]?writ", pyproject, re.I)
+    paths = sorted((ROOT / ".github").rglob("*.yml")) + [
+        ROOT / name for name in ("MANIFEST.in", ".gitignore", "packaging/chisel.spec",
+                                 "packaging/chisel.iss", "packaging/build.py",
+                                 "packaging/entry.py", "gui/vite.config.ts")]
+    for path in paths:
+        assert not re.search(r"lore[-_ ]?writ", path.read_text(encoding="utf-8"), re.I), path.name
+    assert not (ROOT / "src" / "lorewrite").exists()
+    assert not (ROOT / "packaging/lorewriter.spec").exists()
+    assert not (ROOT / "packaging/lorewriter.iss").exists()
+
+
+def test_terminal_executable_does_not_collide_with_the_desktop_one():
+    """chisel.exe and Chisel.exe are one file on Windows/macOS: the terminal app is chisel-tui."""
+    spec = (ROOT / "packaging/chisel.spec").read_text(encoding="utf-8")
+    names = re.findall(r'name="([^"]+)", console=', spec)
+    assert names == ["Chisel", "chisel-tui"]
+    assert len({n.lower() for n in names}) == len(names)
+    assert 'name == "chisel-tui"' in (ROOT / "packaging/entry.py").read_text(encoding="utf-8")

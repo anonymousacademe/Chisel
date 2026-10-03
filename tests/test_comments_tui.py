@@ -4,11 +4,11 @@ from pathlib import Path
 
 from textual.widgets.text_area import Selection
 
-from lorewrite.core import comments as cm
-from lorewrite.core.project import Project
-from lorewrite.tui.app import ConfirmScreen, LorewriteApp, NamePrompt
-from lorewrite.tui.commands import ActionProvider
-from lorewrite.tui.commentscreens import CommentsScreen
+from chisel.core import comments as cm
+from chisel.core.project import Project
+from chisel.tui.app import ConfirmScreen, ChiselApp, NamePrompt
+from chisel.tui.commands import ActionProvider
+from chisel.tui.commentscreens import CommentsScreen
 
 BODY = "the rain fell on the spur and the market held its breath"
 
@@ -29,7 +29,7 @@ def test_palette_lists_the_comment_actions():
 
 async def test_add_underline_list_resolve_edit_delete(tmp_path: Path):
     p, scene = _project(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -88,7 +88,7 @@ async def test_add_underline_list_resolve_edit_delete(tmp_path: Path):
 async def test_jump_selects_the_passage_and_saving_refreshes_anchors(tmp_path: Path):
     p, scene = _project(tmp_path)
     c = cm.add(p.root, scene, scene.read_text(), *(lambda t: (t.index("market"), t.index("market") + 6))(scene.read_text()), "x")
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)

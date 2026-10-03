@@ -4,10 +4,10 @@ from pathlib import Path
 import pytest
 
 from tests.export_helpers import make_structured
-from lorewrite.core.export.manuscript import (
+from chisel.core.export.manuscript import (
     Break, ExportOptions, Paragraph, Run, assemble, parse_blocks, parse_inline, roman,
 )
-from lorewrite.core.project import Project
+from chisel.core.project import Project
 
 EXAMPLE = Path(__file__).resolve().parent.parent / "examples" / "residual"
 

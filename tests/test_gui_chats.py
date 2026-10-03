@@ -1,7 +1,7 @@
 """Api: chat history, attachments and Save to notes (Wave 3.4). AI is mocked at the function boundary."""
 
-from lorewrite.core import comments
-from lorewrite.gui import api as api_module
+from chisel.core import comments
+from chisel.gui import api as api_module
 from tests.test_gui_api import open_api
 
 A = "manuscript/01-arrival.md"

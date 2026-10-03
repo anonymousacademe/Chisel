@@ -7,11 +7,11 @@ from pathlib import Path
 import pytest
 from textual.widgets import Input
 
-from lorewrite.core import sync
-from lorewrite.core.project import Project
-from lorewrite.tui.app import ConfirmScreen, LorewriteApp
-from lorewrite.tui.commands import ActionProvider
-from lorewrite.tui.syncscreens import MessagePrompt
+from chisel.core import sync
+from chisel.core.project import Project
+from chisel.tui.app import ConfirmScreen, ChiselApp
+from chisel.tui.commands import ActionProvider
+from chisel.tui.syncscreens import MessagePrompt
 
 
 @pytest.fixture(autouse=True)
@@ -50,7 +50,7 @@ async def _settle(app, pilot):
 
 async def test_no_repository_only_init_is_offered(tmp_path):
     p = _project(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await _settle(app, pilot)
         assert app._sync is None
@@ -62,7 +62,7 @@ async def test_no_repository_only_init_is_offered(tmp_path):
 
 async def test_init_asks_first_then_creates_a_repo(tmp_path):
     p = _project(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await _settle(app, pilot)
         app.sync_init_confirm()
@@ -76,7 +76,7 @@ async def test_init_asks_first_then_creates_a_repo(tmp_path):
         await pilot.press("y")
         await _settle(app, pilot)
         assert (p.root / ".git").is_dir()
-        assert ".lorewrite/" in (p.root / ".gitignore").read_text()
+        assert ".chisel/" in (p.root / ".gitignore").read_text()
         assert app._sync is not None and "changes" in app._status_text
         assert "sync_init_confirm" not in _entries(app)
         assert "sync_commit_prompt" in _entries(app)
@@ -85,7 +85,7 @@ async def test_init_asks_first_then_creates_a_repo(tmp_path):
 async def test_commit_prefills_the_message_and_commits_only_on_enter(tmp_path):
     p = _project(tmp_path)
     sync.init(p.root)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await _settle(app, pilot)
         assert app._sync.state == "changes"
@@ -93,7 +93,7 @@ async def test_commit_prefills_the_message_and_commits_only_on_enter(tmp_path):
         await pilot.pause()
         assert isinstance(app.screen, MessagePrompt)
         field = app.screen.query_one(Input)
-        assert field.value.startswith("lorewrite: ") and field.value.endswith("scenes changed")
+        assert field.value.startswith("chisel: ") and field.value.endswith("scenes changed")
         await pilot.press("escape")                 # cancel: nothing committed
         await _settle(app, pilot)
         assert subprocess.run(["git", "rev-parse", "HEAD"], cwd=p.root,
@@ -112,7 +112,7 @@ async def test_status_line_follows_saves_but_saving_never_commits(tmp_path):
     sync.init(p.root)
     sync.commit(p.root, "first")
     scene = p.manuscript_dir / "02-two.md"
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await _settle(app, pilot)
         assert "Synced" in app._status_text
@@ -133,7 +133,7 @@ async def test_push_names_the_remote_asks_first_and_pushes(tmp_path):
     sync.init(p.root)
     sync.commit(p.root, "first")
     git(p.root, "remote", "add", "origin", str(bare))
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await _settle(app, pilot)
         assert "Ahead 1" in app._status_text
@@ -157,7 +157,7 @@ async def test_push_is_not_listed_without_a_remote(tmp_path):
     p = _project(tmp_path)
     sync.init(p.root)
     sync.commit(p.root, "first")
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await _settle(app, pilot)
         assert "sync_push_confirm" not in _entries(app)
@@ -169,7 +169,7 @@ async def test_push_is_not_listed_without_a_remote(tmp_path):
 async def test_git_errors_are_reported_not_raised(tmp_path, monkeypatch):
     p = _project(tmp_path)
     sync.init(p.root)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await _settle(app, pilot)
         monkeypatch.setattr(sync, "commit", lambda *a: (_ for _ in ()).throw(sync.GitError("boom")))

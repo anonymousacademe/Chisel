@@ -2,7 +2,7 @@
 
     PYTHONPATH=src python docs/user-guide/build/rich_project.py DEST STATE_DIR [--git]
 
-DEST must not exist; STATE_DIR is a temporary LOREWRITE_STATE_DIR. The copy has
+DEST must not exist; STATE_DIR is a temporary CHISEL_STATE_DIR. The copy has
 front matter and two parts, one unplaced scene, scene details on two scenes,
 snapshots (including the end-of-draft ones of "Start new draft"), a collection,
 two comments (one of them detached), two research notes, a saved chat and 35
@@ -21,17 +21,17 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
 dest, state = Path(sys.argv[1]), Path(sys.argv[2])
-os.environ["LOREWRITE_STATE_DIR"] = str(state)
+os.environ["CHISEL_STATE_DIR"] = str(state)
 state.mkdir(parents=True, exist_ok=True)
 
-import lorewrite  # noqa: E402
+import chisel  # noqa: E402
 
-assert Path(lorewrite.__file__).resolve().is_relative_to(REPO), lorewrite.__file__
+assert Path(chisel.__file__).resolve().is_relative_to(REPO), chisel.__file__
 
-from lorewrite.core import (  # noqa: E402
+from chisel.core import (  # noqa: E402
     chats, collections, comments, research, scenemeta, snapshots, stats, sync,
 )
-from lorewrite.core.project import Project  # noqa: E402
+from chisel.core.project import Project  # noqa: E402
 
 shutil.copytree(REPO / "examples" / "residual", dest)
 p = Project.open(dest)
@@ -145,8 +145,8 @@ p.trash_research(old_note)
 # ---- inspiration pictures (with --inspiration): the real sample plus two mock pictures
 if "--inspiration" in sys.argv:
     import yaml
-    from lorewrite.core import inspiration
-    from lorewrite.gui.mockai import placeholder_png
+    from chisel.core import inspiration
+    from chisel.gui.mockai import placeholder_png
     here = Path(__file__).resolve().parent
     meta = yaml.safe_load((here / "sample-inspiration.md").read_text().split("---")[1])
     scene_rel = s2.relative_to(dest).as_posix()

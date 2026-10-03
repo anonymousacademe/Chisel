@@ -2,7 +2,7 @@
 
     PYTHONPATH=src .venv-gui/bin/python docs/user-guide/build/gui_server.py PROJECT_COPY
 
-This is `python -m lorewrite.gui.devserver --project COPY --mock-ai` with one
+This is `python -m chisel.gui.devserver --project COPY --mock-ai` with one
 difference: after `mockai.install()` it replaces the generic canned answers by
 ones written for the Residual story (the same slips the TUI figures show), and
 it records the prices of a few canned calls. Everything is local; no network
@@ -17,21 +17,21 @@ from pathlib import Path
 from types import SimpleNamespace
 
 REPO = Path(__file__).resolve().parents[3]
-import lorewrite  # noqa: E402
+import chisel  # noqa: E402
 
-assert Path(lorewrite.__file__).resolve().is_relative_to(REPO), lorewrite.__file__
+assert Path(chisel.__file__).resolve().is_relative_to(REPO), chisel.__file__
 
-from lorewrite.ai.client import ModelInfo  # noqa: E402
-from lorewrite.ai.continuity import CanonUpdate  # noqa: E402
-from lorewrite.ai.links import Suggestion  # noqa: E402
-from lorewrite.ai.usage import LEDGER  # noqa: E402
-from lorewrite.core.continuity import Contradiction  # noqa: E402
-from lorewrite.core.style import learned_note, style_markdown, sample_manuscript  # noqa: E402
-from lorewrite.ai.style import build_proposal  # noqa: E402
-from lorewrite.gui import api as api_module  # noqa: E402
-from lorewrite.gui import mockai  # noqa: E402
-from lorewrite.gui.api import Api  # noqa: E402
-from lorewrite.gui.devserver import serve  # noqa: E402
+from chisel.ai.client import ModelInfo  # noqa: E402
+from chisel.ai.continuity import CanonUpdate  # noqa: E402
+from chisel.ai.links import Suggestion  # noqa: E402
+from chisel.ai.usage import LEDGER  # noqa: E402
+from chisel.core.continuity import Contradiction  # noqa: E402
+from chisel.core.style import learned_note, style_markdown, sample_manuscript  # noqa: E402
+from chisel.ai.style import build_proposal  # noqa: E402
+from chisel.gui import api as api_module  # noqa: E402
+from chisel.gui import mockai  # noqa: E402
+from chisel.gui.api import Api  # noqa: E402
+from chisel.gui.devserver import serve  # noqa: E402
 
 mockai.install(api_module)
 

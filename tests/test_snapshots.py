@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from lorewrite.core import drafts, snapshots
-from lorewrite.core.project import Project
+from chisel.core import drafts, snapshots
+from chisel.core.project import Project
 from tests.gui_helpers import make_book, make_project
 
 

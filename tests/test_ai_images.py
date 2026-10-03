@@ -5,10 +5,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from lorewrite.ai import images
-from lorewrite.ai.client import (DEFAULT_IMAGE_MODEL, MODEL_DEFAULTS, parse_models, resolve_model)
-from lorewrite.ai.usage import LEDGER
-from lorewrite.core import settings as user_settings
+from chisel.ai import images
+from chisel.ai.client import (DEFAULT_IMAGE_MODEL, MODEL_DEFAULTS, parse_models, resolve_model)
+from chisel.ai.usage import LEDGER
+from chisel.core import settings as user_settings
 
 JPEG = b"\xff\xd8\xff\xe0" + b"j" * 30
 PNG = b"\x89PNG\r\n\x1a\n" + b"p" * 30

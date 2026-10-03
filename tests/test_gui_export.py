@@ -4,8 +4,8 @@ import time
 
 import pytest
 
-from lorewrite.core import export as exporting
-from lorewrite.gui.api import Api
+from chisel.core import export as exporting
+from chisel.gui.api import Api
 from tests.export_helpers import make_structured
 
 

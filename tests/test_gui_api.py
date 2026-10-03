@@ -3,8 +3,8 @@
 import threading
 
 from tests.gui_helpers import make_project
-from lorewrite.core.project import Project
-from lorewrite.gui.api import Api
+from chisel.core.project import Project
+from chisel.gui.api import Api
 
 
 def open_api(tmp_path):
@@ -23,7 +23,7 @@ def test_no_project_open():
 
 def test_open_missing_project_errors(tmp_path):
     r = Api().open_project(str(tmp_path / "nope"))
-    assert r["ok"] is False and "not a lorewrite project" in r["error"]
+    assert r["ok"] is False and "not a Chisel project" in r["error"]
 
 
 def test_open_and_workspace(tmp_path):
@@ -60,7 +60,7 @@ def test_document_ids_cannot_escape(tmp_path):
     api, root = open_api(tmp_path)
     (tmp_path / "secret.md").write_text("x")
     for bad in ("../secret.md", "project.toml", "manuscript/../../secret.md",
-                "/etc/passwd", "manuscript/nope.md", ".lorewrite/index.sqlite"):
+                "/etc/passwd", "manuscript/nope.md", ".chisel/index.sqlite"):
         assert api.read_document(bad)["ok"] is False, bad
 
 
@@ -270,7 +270,7 @@ def test_new_project_without_folder_goes_to_default_location(tmp_path, monkeypat
 
 
 def test_default_project_path_helper(tmp_path):
-    from lorewrite.core.project import default_project_path
+    from chisel.core.project import default_project_path
 
     assert default_project_path("Neon Requiem", tmp_path) == tmp_path / "neon-requiem"
     assert default_project_path("  ") is None

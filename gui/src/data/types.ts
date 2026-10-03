@@ -1,4 +1,4 @@
-// Shape of the data the UI renders. Produced by lorewrite.gui.workspace (Python)
+// Shape of the data the UI renders. Produced by chisel.gui.workspace (Python)
 // or, for `npm run dev` without a core, by backend/mock.ts. Keep in sync with
 // workspace.py; data/fixtures/workspace.json is checked on both sides.
 
@@ -193,7 +193,7 @@ export interface StatsSummary {
   sprint: SprintState | null;
 }
 
-/** What the "Your style" card shows (lorewrite.core.style.style_info). */
+/** What the "Your style" card shows (chisel.core.style.style_info). */
 export interface StyleStatus {
   exists: boolean; learned: string | null; sampledWords: number | null;
   manuscriptWordsThen: number | null; manuscriptWords: number; scenes: number; stale: boolean;

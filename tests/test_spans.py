@@ -1,8 +1,8 @@
 """core.spans: what an editor needs to decorate a text."""
 
-from lorewrite.core import drafts
-from lorewrite.core.entities import Entity
-from lorewrite.core.spans import compute_spans, to_utf16
+from chisel.core import drafts
+from chisel.core.entities import Entity
+from chisel.core.spans import compute_spans, to_utf16
 
 MARA = Entity(name="Mara Vale", type="character", aliases=["Mara"])
 MERIDIAN = Entity(name="Lower Meridian", type="place")

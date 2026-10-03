@@ -6,9 +6,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from lorewrite.ai import writing
-from lorewrite.core import chats
-from lorewrite.gui import api as api_module
+from chisel.ai import writing
+from chisel.core import chats
+from chisel.gui import api as api_module
 from tests.test_gui_api import open_api
 
 SCENE = "manuscript/01-arrival.md"
@@ -19,7 +19,7 @@ def no_network(monkeypatch):
     def boom(*a, **k):
         raise RuntimeError("No OpenRouter API key (network is blocked in tests)")
 
-    monkeypatch.setattr("lorewrite.ai.client.make_client", boom)
+    monkeypatch.setattr("chisel.ai.client.make_client", boom)
 
 
 class FakeClient:
@@ -136,18 +136,18 @@ def test_chats_keep_the_ideas_of_a_brainstorm_reply(tmp_path):
 # -- the terminal app ----------------------------------------------------------------------
 
 async def test_tui_brainstorm_lists_ideas_saves_and_drafts(tmp_path, monkeypatch):
-    from lorewrite.core.project import Project
-    from lorewrite.tui import app as app_module
-    from lorewrite.tui.app import LorewriteApp
-    from lorewrite.tui.brainstormscreen import BrainstormScreen
-    from lorewrite.tui.promptscreen import PromptScreen
+    from chisel.core.project import Project
+    from chisel.tui import app as app_module
+    from chisel.tui.app import ChiselApp
+    from chisel.tui.brainstormscreen import BrainstormScreen
+    from chisel.tui.promptscreen import PromptScreen
 
     p = Project.create(tmp_path / "novel", "Novel")
     (p.manuscript_dir / "01-opening.md").write_text("# Opening\n\nMara waited at the stop.\n")
     seen = []
     monkeypatch.setattr(app_module, "brainstorm_ideas",
                         lambda context, model: seen.append(context) or ["Idea one.", "Idea two.", "Idea three."])
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.brainstorm()
@@ -173,5 +173,5 @@ async def test_tui_brainstorm_lists_ideas_saves_and_drafts(tmp_path, monkeypatch
 
 
 def test_palette_lists_brainstorm():
-    from lorewrite.tui.commands import ActionProvider
+    from chisel.tui.commands import ActionProvider
     assert any(a[0] == "Brainstorm" for a in ActionProvider.ACTIONS)

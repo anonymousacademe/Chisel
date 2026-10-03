@@ -4,11 +4,11 @@ from pathlib import Path
 
 from textual.widgets import Input, ListView, Static
 
-from lorewrite.core import drafts, snapshots
-from lorewrite.core.project import Project
-from lorewrite.tui.app import LorewriteApp
-from lorewrite.tui.commands import ActionProvider
-from lorewrite.tui.snapshotscreens import CompareScreen, LabelPrompt, SnapshotsScreen, unified
+from chisel.core import drafts, snapshots
+from chisel.core.project import Project
+from chisel.tui.app import ChiselApp
+from chisel.tui.commands import ActionProvider
+from chisel.tui.snapshotscreens import CompareScreen, LabelPrompt, SnapshotsScreen, unified
 
 
 def _mk(path: Path, title: str, body: str) -> Path:
@@ -42,7 +42,7 @@ def test_unified_marks_removed_and_added_without_brackets():
 
 async def test_snapshot_scene_then_list_compare_restore(tmp_path: Path):
     p, scene = _project(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -84,7 +84,7 @@ async def test_snapshot_scene_then_list_compare_restore(tmp_path: Path):
 async def test_delete_snapshot_asks_first(tmp_path: Path):
     p, scene = _project(tmp_path)
     snapshots.create(p, scene, "keep")
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -105,7 +105,7 @@ async def test_delete_snapshot_asks_first(tmp_path: Path):
 
 async def test_snapshot_all_scenes(tmp_path: Path):
     p, scene = _project(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.snapshot_all_prompt()
@@ -119,7 +119,7 @@ async def test_snapshot_all_scenes(tmp_path: Path):
 
 async def test_escape_cancels_the_label_prompt(tmp_path: Path):
     p, scene = _project(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -134,7 +134,7 @@ async def test_first_save_of_the_day_takes_an_auto_snapshot(tmp_path: Path):
     snapshots._daily_done.clear()
     p, scene = _project(tmp_path)
     before = scene.read_text()
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -149,11 +149,11 @@ async def test_first_save_of_the_day_takes_an_auto_snapshot(tmp_path: Path):
 
 
 async def test_auto_snapshot_setting_off(tmp_path: Path):
-    from lorewrite.core import settings as user_settings
+    from chisel.core import settings as user_settings
     snapshots._daily_done.clear()
     user_settings.set("auto_snapshot", False)
     p, scene = _project(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -168,7 +168,7 @@ async def test_accept_all_drafts_snapshots_first(tmp_path: Path):
     p, scene = _project(tmp_path)
     text = '# Rain\n\nthe rain <!--ai-->poured<!--/ai--> down\n'
     scene.write_text(text)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -184,7 +184,7 @@ async def test_accept_all_drafts_snapshots_first(tmp_path: Path):
 async def test_start_new_draft_confirms_snapshots_and_counts_up(tmp_path: Path):
     from textual.widgets import Label
     p, scene = _project(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -210,7 +210,7 @@ def test_palette_has_start_new_draft():
 
 
 def test_word_deltas_use_one_form():
-    from lorewrite.core.stats import signed
-    from lorewrite.tui.snapshotscreens import delta_text
+    from chisel.core.stats import signed
+    from chisel.tui.snapshotscreens import delta_text
     assert [signed(n) for n in (0, 12, -5, 1240)] == ["\u00b10", "+12", "\u22125", "+1,240"]
     assert delta_text(0) == "\u00b10" and delta_text(-5) == "\u22125"

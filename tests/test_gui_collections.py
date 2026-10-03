@@ -1,6 +1,6 @@
 """Api: collections (Wave 3.1)."""
 
-from lorewrite.core import scenemeta
+from chisel.core import scenemeta
 from tests.test_gui_api import open_api
 
 A = "manuscript/01-arrival.md"

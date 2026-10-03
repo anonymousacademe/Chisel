@@ -1,20 +1,20 @@
-"""Inspiration images in the terminal app. AI mocked at lorewrite.tui.app; nothing is opened."""
+"""Inspiration images in the terminal app. AI mocked at chisel.tui.app; nothing is opened."""
 
 from pathlib import Path
 
 import pytest
 from textual.widgets import Checkbox, Input, TextArea
 
-from lorewrite.ai.usage import LEDGER
-from lorewrite.core import inspiration as store
-from lorewrite.core import settings as user_settings
-from lorewrite.core.project import Project
-from lorewrite.tui import app as app_module
-from lorewrite.tui.app import ConfirmScreen, LorewriteApp
-from lorewrite.tui.commands import ActionProvider
-from lorewrite.tui.inspirationscreens import InspirationListScreen, InspirationPromptScreen
-from lorewrite.tui.settingscreen import ModelPicker, SettingsScreen
-from lorewrite.tui.structurescreens import TrashScreen
+from chisel.ai.usage import LEDGER
+from chisel.core import inspiration as store
+from chisel.core import settings as user_settings
+from chisel.core.project import Project
+from chisel.tui import app as app_module
+from chisel.tui.app import ConfirmScreen, ChiselApp
+from chisel.tui.commands import ActionProvider
+from chisel.tui.inspirationscreens import InspirationListScreen, InspirationPromptScreen
+from chisel.tui.settingscreen import ModelPicker, SettingsScreen
+from chisel.tui.structurescreens import TrashScreen
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"p" * 30
 JPEG = b"\xff\xd8\xff\xe0" + b"j" * 30
@@ -30,7 +30,7 @@ def _project(tmp_path: Path) -> Project:
 def opened(monkeypatch):
     """Record every 'open in the desktop' request instead of starting a viewer."""
     seen = []
-    monkeypatch.setattr(LorewriteApp, "open_external", lambda self, path: seen.append(Path(path)) or True)
+    monkeypatch.setattr(ChiselApp, "open_external", lambda self, path: seen.append(Path(path)) or True)
     return seen
 
 
@@ -46,7 +46,7 @@ def test_palette_lists_the_inspiration_actions():
     got = {m: t for t, m, _ in ActionProvider.ACTIONS}
     assert got["inspiration_prompt"] == "Inspiration image…"
     assert {"open_inspiration", "open_last_inspiration", "open_inspiration_folder"} <= set(got)
-    assert all(hasattr(LorewriteApp, m) for m in got if "inspiration" in m)
+    assert all(hasattr(ChiselApp, m) for m in got if "inspiration" in m)
 
 
 async def test_describe_then_generate_saves_pinned_images_and_reports_the_path(tmp_path, monkeypatch, opened):
@@ -65,7 +65,7 @@ async def test_describe_then_generate_saves_pinned_images_and_reports_the_path(t
 
     monkeypatch.setattr(app_module, "suggest_image_prompt", fake_suggest)
     monkeypatch.setattr(app_module, "generate_image", fake_generate)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.inspiration_prompt()
@@ -89,13 +89,13 @@ async def test_describe_then_generate_saves_pinned_images_and_reports_the_path(t
 
 async def test_generate_needs_a_description_and_failure_keeps_it(tmp_path, monkeypatch, opened):
     p = _project(tmp_path)
-    from lorewrite.ai.images import ImageError
+    from chisel.ai.images import ImageError
 
     def boom(prompt, model, client=None, style=None):
         raise ImageError("The model did not return an image: nope")
 
     monkeypatch.setattr(app_module, "generate_image", boom)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.inspiration_prompt()
@@ -114,7 +114,7 @@ async def test_generate_needs_a_description_and_failure_keeps_it(tmp_path, monke
 async def test_not_pinning_and_no_scene(tmp_path, monkeypatch, opened):
     p = _project(tmp_path)
     monkeypatch.setattr(app_module, "generate_image", lambda prompt, model, client=None, style=None: [(PNG, "png")])
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.inspiration_prompt()
@@ -132,7 +132,7 @@ async def test_list_open_pin_and_trash(tmp_path, opened):
     scene = "manuscript/01-opening.md"
     a = store.save(p, JPEG, "jpg", {"prompt": "one", "scene": scene, "created": "2026-10-01T10:00:00"})
     b = store.save(p, PNG, "png", {"prompt": "two", "created": "2026-10-02T10:00:00"})
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_inspiration()
@@ -165,7 +165,7 @@ async def test_open_last_and_open_folder_use_the_viewer_only_when_chosen(tmp_pat
     p = _project(tmp_path)
     a = store.save(p, JPEG, "jpg", {"prompt": "old", "created": "2026-10-01T10:00:00"})
     b = store.save(p, PNG, "png", {"prompt": "new", "created": "2026-10-03T10:00:00"})
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         assert opened == []
@@ -178,7 +178,7 @@ async def test_trash_screen_lists_and_restores_images(tmp_path, opened):
     p = _project(tmp_path)
     a = store.save(p, JPEG, "jpg", {"prompt": "A tunnel"})
     p.trash_inspiration(a.id)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_trash()
@@ -192,7 +192,7 @@ async def test_trash_screen_lists_and_restores_images(tmp_path, opened):
 
 async def test_settings_has_the_image_model_and_style(tmp_path):
     p = _project(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_settings()
@@ -207,7 +207,7 @@ async def test_settings_has_the_image_model_and_style(tmp_path):
 
 
 async def test_image_picker_lists_only_image_models(tmp_path, monkeypatch):
-    from lorewrite.ai.client import ModelInfo
+    from chisel.ai.client import ModelInfo
 
     seen = {}
 
@@ -215,9 +215,9 @@ async def test_image_picker_lists_only_image_models(tmp_path, monkeypatch):
         seen.update(structured_only=structured_only, output_modality=output_modality)
         return [ModelInfo("g/img", "Img", 0.1, 30.0, 32000, ("image", "text"), 0.03)]
 
-    monkeypatch.setattr("lorewrite.tui.settingscreen.list_models", fake)
+    monkeypatch.setattr("chisel.tui.settingscreen.list_models", fake)
     p = _project(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.push_screen(ModelPicker("", structured_only=False, output_modality="image"))

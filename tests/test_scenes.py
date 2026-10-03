@@ -2,9 +2,9 @@
 
 from pathlib import Path
 
-from lorewrite.core.project import Project, retitle_text
-from lorewrite.tui.app import LorewriteApp
-from lorewrite.tui.commands import ActionProvider, SceneProvider
+from chisel.core.project import Project, retitle_text
+from chisel.tui.app import ChiselApp
+from chisel.tui.commands import ActionProvider, SceneProvider
 
 
 def _three_scene_project(tmp_path: Path) -> Project:
@@ -66,7 +66,7 @@ def test_delete_scene(tmp_path: Path):
 async def test_palette_discover_shows_actions(tmp_path: Path):
     """Regression: ctrl+p opened to a blank search bar."""
     proj = _three_scene_project(tmp_path)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         action_hits = [
@@ -88,7 +88,7 @@ async def test_palette_discover_shows_actions(tmp_path: Path):
 async def test_palette_ui_populates_on_open(tmp_path: Path):
     """End-to-end: pressing ctrl+p shows options without typing."""
     proj = _three_scene_project(tmp_path)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         await pilot.press("ctrl+p")
@@ -106,7 +106,7 @@ async def test_palette_ui_populates_on_open(tmp_path: Path):
 
 async def test_palette_search_empty_query_matches_all(tmp_path: Path):
     proj = _three_scene_project(tmp_path)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         hits = [h async for h in ActionProvider(app.screen).search("")]
@@ -121,7 +121,7 @@ async def test_palette_search_empty_query_matches_all(tmp_path: Path):
 
 async def test_palette_search_still_filters(tmp_path: Path):
     proj = _three_scene_project(tmp_path)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         hits = [h async for h in ActionProvider(app.screen).search("rename")]
@@ -134,7 +134,7 @@ async def test_palette_search_still_filters(tmp_path: Path):
 
 async def test_rename_scene_flow(tmp_path: Path):
     proj = _three_scene_project(tmp_path)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(proj.manuscript_dir / "02-second.md")
@@ -153,7 +153,7 @@ async def test_rename_scene_flow(tmp_path: Path):
 
 async def test_delete_scene_flow(tmp_path: Path):
     proj = _three_scene_project(tmp_path)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(proj.manuscript_dir / "02-second.md")
@@ -169,7 +169,7 @@ async def test_delete_scene_flow(tmp_path: Path):
 
 async def test_move_scene_flow(tmp_path: Path):
     proj = _three_scene_project(tmp_path)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(proj.manuscript_dir / "02-second.md")

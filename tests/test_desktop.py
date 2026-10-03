@@ -3,7 +3,7 @@
 import os
 import sys
 
-from lorewrite.core import desktop
+from chisel.core import desktop
 
 
 def _popen(monkeypatch, seen, fail=False):

@@ -3,7 +3,7 @@
 import json
 from datetime import date, datetime, timedelta
 
-from lorewrite.core import stats
+from chisel.core import stats
 
 
 class Clock:
@@ -120,7 +120,7 @@ def test_persists_in_state_dir_keyed_by_project(tmp_path, monkeypatch):
 
 
 def test_state_dir_env_override(tmp_path, monkeypatch):
-    monkeypatch.setenv("LOREWRITE_STATE_DIR", str(tmp_path / "envstate"))
+    monkeypatch.setenv("CHISEL_STATE_DIR", str(tmp_path / "envstate"))
     t = stats.Tracker(tmp_path / "book")
     assert t.path.parent == tmp_path / "envstate" / "stats"
     assert stats.get_target() == 500

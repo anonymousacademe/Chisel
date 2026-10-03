@@ -606,7 +606,7 @@ collections: [Needs continuity pass]
         "scene's part preselected, so you can rename, move or delete any "
         "part whatever is open.",
         "**The Trash and `_unplaced` are not hidden from version "
-        "control.** Only `.lorewrite/` (the index cache) is ignored by the "
+        "control.** Only `.chisel/` (the index cache) is ignored by the "
         "project's own ignore list, so a version-control sync includes "
         "the Trash, the parked scenes and the draft sidecars.",
         "**Shared editing.** If the terminal and desktop applications "

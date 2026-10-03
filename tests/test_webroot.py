@@ -2,8 +2,8 @@
 
 import pytest
 
-from lorewrite.gui import app, devserver, webroot
-from lorewrite.gui.api import Api
+from chisel.gui import app, devserver, webroot
+from chisel.gui.api import Api
 
 
 def _fake(tmp_path, name):
@@ -32,8 +32,8 @@ def test_missing_build_is_a_clear_error(tmp_path, monkeypatch):
     monkeypatch.setattr(webroot, "REPO_DIST", tmp_path / "b")
     assert webroot.find_dist() is None
     with pytest.raises(SystemExit, match="not built"):
-        webroot.require_dist("lorewrite-gui")
+        webroot.require_dist("chisel-gui")
     with pytest.raises(SystemExit, match="not built"):
         devserver.serve(Api())
-    with pytest.raises(SystemExit, match="lorewrite-gui: the UI is not built"):
+    with pytest.raises(SystemExit, match="chisel-gui: the UI is not built"):
         app.main([])

@@ -6,9 +6,9 @@ from types import SimpleNamespace
 import pytest
 from textual.widgets.text_area import Selection
 
-import lorewrite.tui.app as app_mod
-from lorewrite.ai.usage import LEDGER
-from lorewrite.ai.writing import (
+import chisel.tui.app as app_mod
+from chisel.ai.usage import LEDGER
+from chisel.ai.writing import (
     CURSOR,
     ENTITY_CHARS,
     ENTITY_TOTAL_CHARS,
@@ -16,11 +16,11 @@ from lorewrite.ai.writing import (
     clean_output,
     generate,
 )
-from lorewrite.core import drafts
-from lorewrite.core import entities as ent
-from lorewrite.core.project import Project
-from lorewrite.tui.app import LorewriteApp
-from lorewrite.tui.promptscreen import PromptScreen
+from chisel.core import drafts
+from chisel.core import entities as ent
+from chisel.core.project import Project
+from chisel.tui.app import ChiselApp
+from chisel.tui.promptscreen import PromptScreen
 
 BORIN = ent.Entity(name="Borin", type="character", aliases=["the old smith"],
                    body="Borin is a smith.")
@@ -197,7 +197,7 @@ async def test_ctrl_g_draft_mode_inserts_pending_span_at_cursor(project, monkeyp
     calls = []
     monkeypatch.setattr(app_mod, "generate", _fake(calls))
     scene = _scene(project, "# S\n\nFirst para.\n\nSecond para.\n")
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await _open(app, pilot, scene)
         app.editor.move_cursor((3, 0))  # blank line between paragraphs
@@ -226,7 +226,7 @@ async def test_ctrl_g_draft_mode_inserts_pending_span_at_cursor(project, monkeyp
 async def test_draft_mid_line_gets_a_space_inside_the_draft(project, monkeypatch):
     monkeypatch.setattr(app_mod, "generate", _fake([], "Then more."))
     scene = _scene(project, "# S\n\nEnd of line.\n")
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await _open(app, pilot, scene)
         app.editor.move_cursor((2, 12))
@@ -246,7 +246,7 @@ async def test_ctrl_g_prompt_escape_cancels(project, monkeypatch):
     calls = []
     monkeypatch.setattr(app_mod, "generate", _fake(calls))
     scene = _scene(project, "# S\n\ntext\n")
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await _open(app, pilot, scene)
         before = app.editor.text
@@ -269,7 +269,7 @@ async def test_ctrl_g_expand_marker_replaces_and_reject_restores(project, monkey
     monkeypatch.setattr(app_mod, "generate", _fake(calls, "The rain hammered."))
     body = "# S\n\nBefore {{expand: describe the rain}} after.\n"
     scene = _scene(project, body)
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await _open(app, pilot, scene)
         app.editor.move_cursor((2, 12))
@@ -304,7 +304,7 @@ async def test_ctrl_g_rewrite_selection(project, monkeypatch):
     monkeypatch.setattr(app_mod, "generate", _fake(calls, "Rewritten line."))
     body = "# S\n\nKeep this. Change this bit. Keep that.\n"
     scene = _scene(project, body)
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await _open(app, pilot, scene)
         line = body.split("\n")[2]
@@ -339,10 +339,10 @@ async def test_generation_failure_notifies_and_changes_nothing(project, monkeypa
 
     monkeypatch.setattr(app_mod, "generate", boom)
     notified: list[str] = []
-    monkeypatch.setattr(LorewriteApp, "notify",
+    monkeypatch.setattr(ChiselApp, "notify",
                         lambda self, message, **kw: notified.append(str(message)))
     scene = _scene(project, "# S\n\nA {{expand: x}} B\n")
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await _open(app, pilot, scene)
         before = app.editor.text
@@ -357,13 +357,13 @@ async def test_style_tip_shown_once_and_writing_model_used(project, monkeypatch)
     calls = []
     monkeypatch.setattr(app_mod, "generate", _fake(calls))
     notified: list[str] = []
-    monkeypatch.setattr(LorewriteApp, "notify",
+    monkeypatch.setattr(ChiselApp, "notify",
                         lambda self, message, **kw: notified.append(str(message)))
     scene = _scene(project, "# S\n\nA {{expand: x}} B {{expand: y}} C\n")
-    from lorewrite.core import settings as user_settings
+    from chisel.core import settings as user_settings
 
     user_settings.set("writing_model", "vendor/prose")
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await _open(app, pilot, scene)
         app.editor.move_cursor((2, 5))
@@ -384,7 +384,7 @@ async def test_style_guide_and_canon_flow_into_context(project, monkeypatch):
     note = project.entities_dir / "characters" / "borin.md"
     note.write_text(note.read_text() + "Borin has one arm.\n")
     scene = _scene(project, "# S\n\nBorin waits. {{expand: a sound}}\n")
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await _open(app, pilot, scene)
         app.editor.move_cursor((2, 25))
@@ -397,7 +397,7 @@ async def test_style_guide_and_canon_flow_into_context(project, monkeypatch):
 async def test_generate_needs_a_scene(project, monkeypatch):
     calls = []
     monkeypatch.setattr(app_mod, "generate", _fake(calls))
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(project.entities_dir / "characters" / "borin.md")
@@ -416,7 +416,7 @@ async def test_scene_changed_while_drafting_discards(project, monkeypatch):
         return "late"
 
     monkeypatch.setattr(app_mod, "generate", fake)
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await _open(app, pilot, scene)
         app.editor.move_cursor((2, 5))

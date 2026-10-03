@@ -85,7 +85,7 @@ def build(s, R):
         "already written is put back.",
         "**Undo.** Scenes come back from their snapshots; the other "
         "files and the note come back from a small record kept in the "
-        "project's hidden `.lorewrite` folder, which survives a restart. "
+        "project's hidden `.chisel` folder, which survives a restart. "
         "A file you edited after the rename is left alone and listed, so "
         "your newer work is never overwritten.",
     ])

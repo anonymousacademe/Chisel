@@ -1,11 +1,12 @@
-# Lorewrite — Design Spec
+# Chisel — Design Spec
 
 **Status:** Living design document. Released: 0.4.0 (2026-10-03), which includes the hardening, menu-aware
 AI, context-budget, story-time and logo work listed in CHANGELOG.md. See section 14 for what is done and
 what is planned next.
-**Name:** users see the app as **Chisel**. The Python package (`lorewrite`), its commands (`lorewrite`,
-`lorewrite-gui`), the state folders, the `LOREWRITE_*` environment variables and the repository name
-(`lorewriter`) keep the old name on purpose, and so does this document's title.
+**Name:** the app, the Python package (`chisel`; the PyPI distribution is `chisel-writer`), the commands
+(`chisel`, `chisel-gui`), the state folders, the `CHISEL_*` environment variables and the repository
+(`anonymousacademe/Chisel`) are all called Chisel. It was called LoreWriter (`lorewrite`) until after 0.4.0;
+see "Migration from the LoreWriter names" in section 13.
 **Started:** 2026-09-27
 
 ## 1. Vision
@@ -57,7 +58,7 @@ my-novel/
         └── thornwick.md
 ```
 
-Cache (gitignored, rebuildable): `.lorewrite/index.sqlite`
+Cache (gitignored, rebuildable): `.chisel/index.sqlite`
 
 **Scene file** — plain Markdown, first `#` heading is the scene title:
 
@@ -124,9 +125,9 @@ This is the original M1 sketch, kept for orientation. The current module-by-modu
 `ai/relevance.py` and the `gui/` backend.
 
 ```
-lorewrite/
+Chisel/
 ├── pyproject.toml
-├── src/lorewrite/
+├── src/chisel/
 │   ├── core/               # pure Python, no Textual — unit-testable
 │   │   ├── project.py      # project discovery, create, open
 │   │   ├── links.py        # [[...]] parsing, span detection, cursor-in-link
@@ -136,7 +137,7 @@ lorewrite/
 │   │   ├── client.py       # OpenRouter via openai SDK (stub in M1)
 │   │   └── prompts.py
 │   └── tui/
-│       ├── app.py          # LorewriteApp
+│       ├── app.py          # ChiselApp
 │       ├── editor.py       # LinkedTextArea(TextArea) — link highlighting
 │       ├── sidebar.py      # scene list + entity list
 │       ├── panels.py       # entity preview + backlinks panel
@@ -156,7 +157,7 @@ lorewrite/
 
 ### M1 — Editor + wiki-links (the approved MVP)
 
-- **Launch screen** (added in polish): recent projects (stored in `<state dir>/recent.json` — `platformdirs.user_state_dir("lorewrite")`, i.e. `~/.local/state/lorewrite` on Linux — `LOREWRITE_STATE_DIR` override), open folder, new project (title + location, slug-prefilled). `lorewrite` bare → launch screen; `--project PATH` opens directly; `--new TITLE` creates.
+- **Launch screen** (added in polish): recent projects (stored in `<state dir>/recent.json` — `platformdirs.user_state_dir("chisel")`, i.e. `~/.local/state/chisel` on Linux — `CHISEL_STATE_DIR` override), open folder, new project (title + location, slug-prefilled). `chisel` bare → launch screen; `--project PATH` opens directly; `--new TITLE` creates.
 - Create/open project; three-pane layout: scene list | editor | entity panel
 - Markdown `TextArea` with **tree-sitter Markdown highlighting**, soft wrap, autosave (atomic temp-file-rename writes) + explicit `ctrl+s`, saved/modified **status bar** (file, words, cursor, link hint)
 - `[[...]]` parsing; links highlighted in editor (theme-aware colors); unresolved links styled distinctly
@@ -182,7 +183,7 @@ the distinguishing mechanic — entity notes become a living story bible.
 Implemented via parallel agents per docs/dev/specification-guide.md.*
 
 - "Check scene for continuity issues" (palette): strong model (default `anthropic/claude-sonnet-4.5`, override `[ai] strong_model`), optional **Jev pre-screen gate** (`core/jev_interface.py`; used only if the Jev CLI is installed, fail-open) so only canon-bearing entities flagged as plausible get the expensive call
-- Structured report (type/severity/entity/evidence/fix) validated app-side; evidence located to a line; **ContinuityScreen**: `space` waives (persisted in `.lorewrite/waivers.json` by stable content key, with the scene it was waived in; never re-reported unless restored via the palette action "Restore waived continuity issues (this scene)"), `enter` jumps to the offending line and closes the report
+- Structured report (type/severity/entity/evidence/fix) validated app-side; evidence located to a line; **ContinuityScreen**: `space` waives (persisted in `.chisel/waivers.json` by stable content key, with the scene it was waived in; never re-reported unless restored via the palette action "Restore waived continuity issues (this scene)"), `enter` jumps to the offending line and closes the report
 - **Note accumulation (additions only)**: "Update story bible from scene" (palette) → the AI is sent each entity's existing canon (capped 1500 chars) and proposes only NEW facts (`{entity, new_facts[], evidence}`); unknown entities, empty facts and facts already in the canon (case-insensitive) are dropped app-side → review modal shows every fact in full, grouped by entity with existing canon dimmed, each fact toggleable with `space` → accepted facts are appended as `- fact` bullets to the managed `## Canon (auto)` section (created if missing). Existing lines are never removed or rewritten; author text outside the section is never touched
 - Error classes: physical attributes, timeline, character knowledge, object custody, present/absent, spelling drift
 - Deferred: whole-manuscript check, cross-scene retrieval layer
@@ -192,13 +193,13 @@ Implemented via parallel agents per docs/dev/specification-guide.md.*
 *Expanded from vault notes: AI-written text is always visually marked and
 review-gated.*
 
-- **Style guide** ✅: `<project>/style.md` — plain Markdown at the project root (**not** `.lorewrite/`: it is author content, hand-editable, and the cache is disposable). Sections: Voice, Rhythm & syntax, Diction, Dialogue, Avoid, Exemplars (2–3 paragraphs quoted verbatim, each with its source scene filename). "AI: learn style guide from manuscript" (palette) samples ~6000 words spread across all scenes (`core/style.py`), the **writing** model describes the author's habits and picks exemplar paragraphs (indexes validated app-side; the app quotes them, the model never writes them), and a read-only review modal shows the proposed file (`enter` save — an existing guide is kept as `style.md.bak` — / `esc` discard). "Open style guide" edits it in the editor (stub template if missing). Used as context for all generative features.
+- **Style guide** ✅: `<project>/style.md` — plain Markdown at the project root (**not** `.chisel/`: it is author content, hand-editable, and the cache is disposable). Sections: Voice, Rhythm & syntax, Diction, Dialogue, Avoid, Exemplars (2–3 paragraphs quoted verbatim, each with its source scene filename). "AI: learn style guide from manuscript" (palette) samples ~6000 words spread across all scenes (`core/style.py`), the **writing** model describes the author's habits and picks exemplar paragraphs (indexes validated app-side; the app quotes them, the model never writes them), and a read-only review modal shows the proposed file (`enter` save — an existing guide is kept as `style.md.bak` — / `esc` discard). "Open style guide" edits it in the editor (stub template if missing). Used as context for all generative features.
 - **Generate (`ctrl+g`, one key, three modes)** ✅ — uses the **writing** model (plain-text output, no JSON schema) with context from `ai/writing.py::build_context`: the full style guide (which carries the exemplar paragraphs), ±500 words around the cursor (cut at word boundaries, `<<CURSOR>>` marks the spot), and the notes/canon of entities the scene mentions (1200 chars each, 6000 total); pending AI text is stripped from the context. Post-processing removes code fences, leading labels and wrapping quotes; empty replies are errors.
   - **Selection present → Rewrite**: prompt window prefilled "Rewrite this in my style." (editable); the result replaces the selection as an `<!--ai id=…-->` draft (reject restores it byte-for-byte).
   - **Cursor on `{{expand: instruction}}` → Expand**: no modal; the marker's instruction is the prompt; the result replaces the marker (reject restores the marker). Markers are faded in the editor.
   - **Otherwise → Draft**: hotkey prompt window ("Give me one paragraph describing the busy street… stressed mood"), a small multi-line box submitted with `ctrl+g` (enter inserts a newline; `ctrl+enter` never reaches terminals), `esc` cancels. The result is inserted at the cursor as `<!--ai-->…<!--/ai-->` (a leading space goes *inside* the draft when the cursor follows a word, so reject leaves the text exactly as it was).
   - Runs in a worker ("Drafting… (model)"); failures notify without touching the scene; if the author flips scenes or the marked text changed meanwhile, the draft is discarded rather than misplaced. A missing style guide still works, with a one-time "learn a style guide first" tip. Cost is recorded (§8).
-- **Pending AI text** ✅ (the marking mechanism for every generated span): stored *in the scene file* so it survives saves, reopening and external editors (Obsidian hides HTML comments): `<!--ai-->text<!--/ai-->` for pure insertions, or `<!--ai id="k3f9q2"-->text<!--/ai-->` for a draft that replaced something (id = 6 lowercase base36 chars, unique in the project). The replaced original lives in the sidecar `<project>/.drafts/<project-relative-path-with-/-as-__>.json` (e.g. `manuscript__02-ghost__01-a.md.json`; pre-parts sidecars named by filename alone are renamed when a project is opened) (`{"k3f9q2": "original text"}`, written atomically) — author data, not cache: never under `.lorewrite/`, never git-ignored. Entries are deleted on accept/reject, the file when empty, and the sidecar is renamed/moved/trashed together with its scene (`core/structure.py`). **If an id's original is missing, reject refuses** with a notice and changes nothing (prose is never deleted on a failed lookup); accept still works. No encoded blobs appear in the prose. The editor shows the body in italics on a subtle background tint (theme `selection`) with a hue chosen by `theme.distinct_color` — the candidate farthest in RGB from the foreground, link and unresolved-link colors, with built-in fallback hues when the theme has nothing distinct (matte-black is all reds and ambers) — and the marker comments faded. `f7` accepts the draft under the cursor (markers removed, body is normal text), `f8` rejects it (original restored exactly from the sidecar, or the insertion removed); palette: accept/reject all in the scene. The status bar hints `AI draft — f7 accept · f8 reject` while the cursor is inside one. Word counts, backlinks/index, continuity checks, story-bible updates, the alias finder and style sampling all ignore pending bodies (index and alias finder blank the draft to same-length whitespace, so line numbers stay true) — unaccepted AI text is not canon. `f7` is TextArea's select-all; select-all moves to `f5`. Nested/malformed markers are treated as plain text. Core: `core/drafts.py`.
+- **Pending AI text** ✅ (the marking mechanism for every generated span): stored *in the scene file* so it survives saves, reopening and external editors (Obsidian hides HTML comments): `<!--ai-->text<!--/ai-->` for pure insertions, or `<!--ai id="k3f9q2"-->text<!--/ai-->` for a draft that replaced something (id = 6 lowercase base36 chars, unique in the project). The replaced original lives in the sidecar `<project>/.drafts/<project-relative-path-with-/-as-__>.json` (e.g. `manuscript__02-ghost__01-a.md.json`; pre-parts sidecars named by filename alone are renamed when a project is opened) (`{"k3f9q2": "original text"}`, written atomically) — author data, not cache: never under `.chisel/`, never git-ignored. Entries are deleted on accept/reject, the file when empty, and the sidecar is renamed/moved/trashed together with its scene (`core/structure.py`). **If an id's original is missing, reject refuses** with a notice and changes nothing (prose is never deleted on a failed lookup); accept still works. No encoded blobs appear in the prose. The editor shows the body in italics on a subtle background tint (theme `selection`) with a hue chosen by `theme.distinct_color` — the candidate farthest in RGB from the foreground, link and unresolved-link colors, with built-in fallback hues when the theme has nothing distinct (matte-black is all reds and ambers) — and the marker comments faded. `f7` accepts the draft under the cursor (markers removed, body is normal text), `f8` rejects it (original restored exactly from the sidecar, or the insertion removed); palette: accept/reject all in the scene. The status bar hints `AI draft — f7 accept · f8 reject` while the cursor is inside one. Word counts, backlinks/index, continuity checks, story-bible updates, the alias finder and style sampling all ignore pending bodies (index and alias finder blank the draft to same-length whitespace, so line numbers stay true) — unaccepted AI text is not canon. `f7` is TextArea's select-all; select-all moves to `f5`. Nested/malformed markers are treated as plain text. Core: `core/drafts.py`.
 - **Style rewrite** ✅ (vault): author selects a section that "feels off" and presses `ctrl+g`; the rewrite appears in place as a pending draft (the original rides along in the marker) — `f7` approves, `f8` rolls back to the original. (No side-by-side diff view; the original is restored on reject.)
 - Optional inline completion via `TextArea.suggestion` ghost text, off by default
 
@@ -208,12 +209,12 @@ review-gated.*
 rejection — the author explicitly wants a lightweight version.*
 
 - **Spell check** ✅ (implemented; **spelling only — the author decided against grammar checking**). Offline, no AI: `pyspellchecker` (bundled English dictionary) behind `core/spelling.py`, so the engine can be swapped (e.g. Hunspell). Scenes only (entity notes and `style.md` are not checked).
-  - *What is never flagged* (`accepted_terms`): entity names and aliases (each word and the whole name), the project dictionary `<project>/dictionary.txt`, the personal dictionary `<state dir>/dictionary.txt` (all projects; honours `LOREWRITE_STATE_DIR`), and words ignored this session (memory only). Dictionary files are plain UTF-8, one word or phrase per line, `#` comments allowed; they are author data (not in `.lorewrite/`, not a scene, not an entity, not indexed). An entry with a space is a *phrase*: the words inside every occurrence of it (any case/whitespace) are accepted even if a word alone would be flagged. A lowercase entry matches any capitalisation; a capitalised one (`Kessler`) only capitalised forms.
+  - *What is never flagged* (`accepted_terms`): entity names and aliases (each word and the whole name), the project dictionary `<project>/dictionary.txt`, the personal dictionary `<state dir>/dictionary.txt` (all projects; honours `CHISEL_STATE_DIR`), and words ignored this session (memory only). Dictionary files are plain UTF-8, one word or phrase per line, `#` comments allowed; they are author data (not in `.chisel/`, not a scene, not an entity, not indexed). An entry with a space is a *phrase*: the words inside every occurrence of it (any case/whitespace) are accepted even if a word alone would be flagged. A lowercase entry matches any capitalisation; a capitalised one (`Kessler`) only capitalised forms.
   - *Tokenizing*: possessives (`Rook's`, `Rook’s`, `dogs'`) and contractions are handled (never `str.strip("'s")`), hyphenated words are checked part by part, and these are skipped: frontmatter, fenced and inline code, URLs and e-mail addresses, tokens with digits, single letters, short ALL-CAPS tokens (`NYPD`, `K-V`), `<!--…-->` comments, `{{expand: …}}` markers, `[[Name]]` link targets (but not the display text of `[[Name|text]]`) and non-Latin scripts. Pending AI drafts are checked (the author reviews that text); only their marker comments are skipped.
   - *Terminal app*: red underline (lowest-priority span in `LinkedTextArea`, computed in a worker thread on a 0.6 s debounce; stale underlines are dropped as you type); `f6` jumps to the next misspelling after the cursor (wrapping) and opens a small window: `1`–`5`/`enter` replace, `a` add to the project dictionary, `p` add to the personal dictionary, `i` ignore this session, `esc` cancel. `f6` was TextArea's select-line, which the editor now overrides (like `f7`). Setting `spellcheck` (default on; Settings checkbox "Underline misspellings", palette *Action · Toggle spell check*); palette *Add selection to dictionary* (word or phrase, project) and *Open project dictionary*.
   - *Desktop GUI*: wavy red underline; click a misspelled word, right-click it, or press `ctrl+.` for a popover (suggestions replace as a normal undoable edit, **Add to dictionary**, **Add to my dictionary (all projects)**, **Ignore**); with a multi-word selection the popover (or the toolbar button) offers **Add phrase to dictionary**. Same `spellcheck` setting (Settings dialog); status bar `N spelling` jumps to the next one; the binder lists `Dictionary` next to the Style Guide so `dictionary.txt` can be edited by hand.
 - **Focus timer** ✅ (Wave 4.2, sprint state in `core/stats.Tracker`). A sprint is 15 / 25 / 45 / custom (1-240) minutes. The countdown is in the status bar (`SPRINT 24:05 (+120)` in the terminal, a timer button in the desktop app); starting can switch writer mode / focus mode on (and the end switches it off again only if the sprint turned it on). When time is up there is a quiet notice (no sound) with the sprint's words, the last words are saved first, and the sprint is **recorded in the day's stats** (`sprints: [{at, minutes, elapsed, words, completed}]`, shown under the Session stats page). *Stop* ends it early (`completed: false`, words so far kept); quitting with a sprint running records it as stopped unless under a minute with no words. Sprint words = the author's net words saved since it began (accepted AI drafts excluded). One sprint at a time; the desktop countdown runs in the page from the server's end time, so a reload resumes it. Desktop: status-bar timer button (dialog: length chips, custom field, "hide everything but the page" checkbox, remembered in the browser). Terminal: palette *Action · Focus sprint*.
-- **Session stats page** ✅ (Wave 4.1, `core/stats.py`). Read-only summary, not a dashboard. Personal data, so it lives in the user state dir, **not** the project: `<state>/stats/<project-id>.json` (project id = first 16 hex characters of the SHA-1 of the resolved project path; `LOREWRITE_STATE_DIR` honoured), `{version: 1, project, days: {"YYYY-MM-DD": {words, ai_words, seconds, sessions, sprints: [...]}}}`.
+- **Session stats page** ✅ (Wave 4.1, `core/stats.py`). Read-only summary, not a dashboard. Personal data, so it lives in the user state dir, **not** the project: `<state>/stats/<project-id>.json` (project id = first 16 hex characters of the SHA-1 of the resolved project path; `CHISEL_STATE_DIR` honoured), `{version: 1, project, days: {"YYYY-MM-DD": {words, ai_words, seconds, sessions, sprints: [...]}}}`.
   - *Words* = net change of the author's own prose per scene, counted when a scene is **saved** (baseline taken when it is opened or replaced from disk, so opening, snapshot restore and reload count nothing; the first save of a scene never seen counts nothing). It can be negative on a day of cutting. Pending `<!--ai-->` drafts are not prose (`drafts.count_words`). **Accepted AI drafts** are counted as `ai_words` instead and the baseline moves with them, so they are never also the author's. Scene details frontmatter is not counted.
   - *Active minutes*: each typing ping adds the gap since the previous one if it is at most 2 minutes. A *session* starts at the first activity after 30 idle minutes (or in a new process); sessions are counted on the day they start. Per-day totals and "this session" (since the tracker started or the last 30 idle minutes) are both shown.
   - *Two apps on one project*: each process remembers what it added since its last write and merges that into the file on disk when it writes, so the terminal and desktop apps do not overwrite each other's numbers.
@@ -279,7 +280,7 @@ character / place / object note or a notebook note), and the author can **add th
   local), `cost` (USD, split between the pictures of one call), `pinned` (true = shown with that item;
   needs a `for`), `title` (optional name), `source` (`upload` for a picture the author added: no prompt,
   no cost, model `upload`); the body is the author's notes. The files stay in `inspiration/` (not beside
-  the note). Plain author data in the project folder, not git-ignored, never in `.lorewrite/`. An
+  the note). Plain author data in the project folder, not git-ignored, never in `.chisel/`. An
   image's id is its file stem; ids cross the bridge, so `_sidecar` / `_picture` refuse anything that
   is not a plain id and `read_file` refuses a symlink pointing out of the folder. Operations: `save`,
   `save_batch`, `get`, `list_images(item=None)`, `pinned_for`, `update` (pin / unpin, item, title,
@@ -324,7 +325,7 @@ character / place / object note or a notebook note), and the author can **add th
 ### Manuscript structure ✅ (Wave 1, implemented 2026-10-01; plan: docs/dev/plan-workspace.md)
 
 *Parts, unplaced scenes, trash, scene details and drag-to-reorder. All plain files
-(§2); the index and `.lorewrite/` stay a rebuildable cache. Existing flat projects
+(§2); the index and `.chisel/` stay a rebuildable cache. Existing flat projects
 open and behave exactly as before.*
 
 - **Parts.** A part is a folder under `manuscript/` (`02-ghost-frequency/`) holding
@@ -397,13 +398,13 @@ open and behave exactly as before.*
 
 ### History and drafts ✅ (Wave 2, implemented 2026-10-01; plan: docs/dev/plan-workspace.md)
 
-*Snapshots, the draft counter and git sync. Plain files again; `.lorewrite/` stays a cache.*
+*Snapshots, the draft counter and git sync. Plain files again; `.chisel/` stays a cache.*
 
 - **Snapshots** (2.1, `core/snapshots.py`). `<project>/.snapshots/<scene's project-relative path,
   "/" as "__">/<YYYYMMDD-HHMMSS>[-n][--label].md` is a verbatim copy of the scene file
   (frontmatter included); if the scene had pending-draft originals they sit beside it as
   `<same stem>.json`. Author data like `.drafts/`: committed with the project, never under
-  `.lorewrite/`. Labels are made file-safe (no `/ \ : * ? " < > |`, 60 characters); `-n`
+  `.chisel/`. Labels are made file-safe (no `/ \ : * ? " < > |`, 60 characters); `-n`
   disambiguates snapshots taken in the same second; nothing is ever overwritten. The folder
   travels with its scene on every rename / move / part swap (`Structure._apply_renames`,
   `move_part`) and into the Trash (`.trash/<name>.md.snapshots/`, restored with the scene,
@@ -454,7 +455,7 @@ open and behave exactly as before.*
   offers the palette action.
   - Actions, **only on an explicit click / palette pick** (GUI: status-bar menu; terminal: palette
     *Commit changes*, *Push* — listed only when a remote is configured — and *Initialize git for this
-    project*): **Commit changes** — message prefilled `lorewrite: 2026-10-01 — 3 scenes changed`
+    project*): **Commit changes** — message prefilled `chisel: 2026-10-01 — 3 scenes changed`
     (files when no scene changed), editable, multi-line allowed; stages and commits the project folder
     only (`git add -A -- .` then `git commit -- .`, so a project inside a bigger repository never
     commits anything outside itself and files staged elsewhere stay staged; the dialog names the
@@ -462,7 +463,7 @@ open and behave exactly as before.*
     and its URL; plain `git push` (or `-u <remote> <branch>` the first time); never `--force`, never
     automatic, `GIT_TERMINAL_PROMPT=0` and `ssh -o BatchMode=yes` so it fails instead of waiting for a
     password. A diverged remote is refused with git's message. **Initialize git** — `git init` plus a
-    `.gitignore` containing `.lorewrite/` (appended if missing, never duplicated); refuses inside an
+    `.gitignore` containing `.chisel/` (appended if missing, never duplicated); refuses inside an
     existing repository; commits nothing. Everything under `.snapshots/`, `.drafts/`, `.trash/` and
     `style.md` is committed (none is ignored). Errors are git's own words, shown as a notice.
   - Not done: pull / fetch / merge (the status shows `behind` internally but nothing acts on it),
@@ -471,7 +472,7 @@ open and behave exactly as before.*
 ### Notes around the manuscript ✅ (Wave 3, implemented 2026-10-01; plan: docs/dev/plan-workspace.md)
 
 *Collections, comments, research and the assistant's conversation history. All plain files
-(§2); nothing here lives only in `.lorewrite/`, and none of it is git-ignored.*
+(§2); nothing here lives only in `.chisel/`, and none of it is git-ignored.*
 
 - **Collections** (3.1, `core/collections.py`). Named groups of scenes ("Needs continuity pass",
   "Mara's arc"). *Definitions* are a `[collections]` table in `project.toml`, name → colour, one of
@@ -501,7 +502,7 @@ open and behave exactly as before.*
   `<project>/.comments/<scene's project-relative path, "/" as "__">.json` is a JSON list of
   `{id, quote, prefix, suffix, body, created, resolved}` (id = 8 hex characters; created =
   local ISO time; body ≤ 5000 characters, quote ≤ 2000). Author data like `.drafts/`: committed,
-  never under `.lorewrite/`, and carried with its scene on every rename / move / part swap and into
+  never under `.chisel/`, and carried with its scene on every rename / move / part swap and into
   the Trash (`.trash/<name>.md.comments.json`, restored with the scene, removed by *delete forever*).
   - *Anchoring.* The quote plus up to 40 characters of context each side. `locate` finds the
     passage again in this order: the quote itself (several matches: the one whose context matches
@@ -633,7 +634,7 @@ Deterministic (no AI). Core `core/rename.py`; GUI: Notes tab -> **Rename everywh
   listed but **unticked**; the markers and `.drafts` originals are never touched. A name that is also an
   ordinary word ("Will") is handled by unticking.
 - **Apply:** refuses (before any write) if a file changed since the preview; then snapshots every scene about
-  to change (label `before-rename`), writes an undo journal (`.lorewrite/rename-undo/<id>.json`: the
+  to change (label `before-rename`), writes an undo journal (`.chisel/rename-undo/<id>.json`: the
   other files' texts, the scene snapshot names, digests of what was written), rewrites the ticked
   occurrences atomically, keeps comments anchored to the same passages, renames the note (name, aliases,
   file name from the new slug) and rebuilds the index. A failure puts every written file back.
@@ -665,7 +666,7 @@ Deterministic (no AI). Core `core/rename.py`; GUI: Notes tab -> **Rename everywh
 - **Formats:** *PDF* with three layouts, *DOCX*, *EPUB* (one file per scene, per part when there
   are parts, with a title page), *Markdown* (one combined `.md`), *LaTeX source* (pandoc `.tex`).
   DOCX / EPUB / LaTeX need `pandoc`; without it they are greyed out with "install pandoc". PDF needs
-  ReportLab (`pip install 'lorewrite[export]'`, which also brings `pyphen` for hyphenation).
+  ReportLab (`pip install 'chisel-writer[export]'`, which also brings `pyphen` for hyphenation).
   The Markdown given to pandoc is escaped and read with raw HTML / TeX off, so nothing in a scene
   becomes markup and pandoc has nothing to fetch (pandoc's `--sandbox` stops this pandoc from
   finding its own templates, so it is not used).
@@ -716,10 +717,10 @@ both edit the same plain-Markdown projects.
 - **Logo.** The app logo (the Chisel icon: an open book, half stone, with a chisel) is `gui/src/assets/logo.svg`; it replaces the
   "LW" avatar in the rail while no author is set, heads the launch screen, and
   `gui/scripts/make-icons.sh` regenerates the favicon, the packaging icons (`gui/src-tauri/icons/*`) and
-  the window icon (`src/lorewrite/gui/icon.png`) from it. The artwork's sources are in `docs/brand/`. The window icon is `icon.ico` on Windows
+  the window icon (`src/chisel/gui/icon.png`) from it. The artwork's sources are in `docs/brand/`. The window icon is `icon.ico` on Windows
   (pywebview's WinForms backend rejects a PNG) and `icon.png` elsewhere (`gui/app.py`).
-- **Shell.** `lorewrite-gui` (`src/lorewrite/gui/app.py`) opens a frameless
-  1600×1000 window on the built UI (`src/lorewrite/gui/web/`, found by `gui/webroot.py`; falls back to `gui/dist`) and hands it a bridge object. The UI calls the
+- **Shell.** `chisel-gui` (`src/chisel/gui/app.py`) opens a frameless
+  1600×1000 window on the built UI (`src/chisel/gui/web/`, found by `gui/webroot.py`; falls back to `gui/dist`) and hands it a bridge object. The UI calls the
   Python core **in-process** through pywebview's `js_api`; there is no server in
   the real app. Tauri is not used (`gui/src-tauri/` is kept untouched for a
   possible later packaging path).
@@ -819,7 +820,7 @@ both edit the same plain-Markdown projects.
 
 - `core/` is pure Python: full unit tests, no TUI needed (parsing, index, backlinks, entity resolution)
 - TUI: `pytest` + `pytest-asyncio` + Textual `Pilot` headless tests (open project, type a link, jump, create note, backlinks update)
-- GUI: the `Api`/`workspace`/`spans` layers are plain pytest (temp projects, AI mocked at `lorewrite.gui.api.<fn>`, `make_client` booby-trapped); the React side uses `vitest` for pure logic (decoration mapping, save state machine, transports, draft anchoring) and headless Chromium against `devserver --mock-ai` for screenshots and interaction checks
+- GUI: the `Api`/`workspace`/`spans` layers are plain pytest (temp projects, AI mocked at `chisel.gui.api.<fn>`, `make_client` booby-trapped); the React side uses `vitest` for pure logic (decoration mapping, save state machine, transports, draft anchoring) and headless Chromium against `devserver --mock-ai` for screenshots and interaction checks
 - AI: responses mocked at the `openai` client boundary; golden-file tests for prompt assembly and offset validation
 
 ## 10. Risks
@@ -842,7 +843,7 @@ both edit the same plain-Markdown projects.
 
 ### M1.5 — UX polish (from independent GLM review, docs/dev/ux-review-glm.md)
 
-- **First-run tour**: 4-page modal (project layout, writing, links, finding things), shown once; `tour_seen` in `~/.local/state/lorewrite/settings.json`
+- **First-run tour**: 4-page modal (project layout, writing, links, finding things), shown once; `tour_seen` in `~/.local/state/chisel/settings.json`
 - **Palette categorization**: every hit prefixed `Scene · / Entity · / Link · / Action ·`
 - **Writer mode** (`f11`): hides sidebar/panel/header/footer, pads editor; status bar stays
 - **Scene navigation**: `alt+left/right` prev/next scene (`ctrl+[` is Escape in terminals; `ctrl+enter` unreachable)
@@ -872,25 +873,37 @@ links, etc.). Off-Omarchy it returns None and the built-in Textual theme is
 used. Live theme-switching while running: deferred (relaunch picks up changes;
 could later use a `theme-set` hook or file watch).
 
-**Launcher:** `omarchy tui install "Lorewrite" "lorewrite --project <path>" <window-style> <icon>`
-creates a desktop launcher; `omarchy launch or focus tui --app-id=lorewrite ...`
+**Launcher:** `omarchy tui install "Chisel" "chisel --project <path>" <window-style> <icon>`
+creates a desktop launcher; `omarchy launch or focus tui --app-id=chisel ...`
 gives launch-or-focus behavior.
 
-**Top bar ✅ (2026-09):** user shell plugin `~/.config/omarchy/plugins/<user>.lorewrite/`
+**Top bar ✅ (2026-09):** user shell plugin `~/.config/omarchy/plugins/<user>.chisel/`
 (manifest + Panel.qml — a `BarWidget` with one pencil button) registered in the
 right section of `~/.config/omarchy/shell.json`. Click runs
-`omarchy launch or focus tui --app-id=lorewrite <repo>/.venv/bin/lorewrite` —
+`omarchy launch or focus tui --app-id=chisel <repo>/.venv/bin/chisel` —
 launch-or-focus, so a running window gets focused instead of duplicated.
 
 ## 13. Installable apps (Phase B)
 
 Releases ship ready-to-run apps for Windows (Inno Setup installer + portable zip), macOS (DMG, arm64 and
 x86_64) and Linux (AppImage), built by `.github/workflows/release.yml` with PyInstaller (`packaging/`).
-Each bundle holds both apps: `Chisel` (desktop, windowed) and `lorewrite` (terminal). The Linux
+Each bundle holds both apps: `Chisel` (desktop, windowed) and `chisel-tui` (terminal; not `chisel`, because `chisel.exe` and `Chisel.exe`
+are the same file on Windows and macOS). The Linux
 bundle uses pywebview's Qt backend (QtWebEngine); everything else uses the system webview. Unsigned for
-now. `lorewrite-gui --self-test` / `lorewrite --self-test` check the bundled data with no window and no
-network and are run on every built bundle. The version has a single source (`lorewrite.__version__`).
+now. `chisel-gui --self-test` / `chisel-tui --self-test` (bundles) check the bundled data with no window and no
+network and are run on every built bundle. The version has a single source (`chisel.__version__`).
 Details: docs/dev/packaging.md.
+
+### Migration from the LoreWriter names
+`core/migrate.py` (pure, called early by both apps and wrapped so it can never block start-up) moves the
+old `lorewrite` names to `chisel` without deleting anything: (1) the per-user state and data folders
+(`platformdirs` app name `lorewrite` -> `chisel`) are copied once when the new one does not exist (nothing is
+copied when `CHISEL_STATE_DIR` / `CHISEL_DATA_DIR`, or the deprecated `LOREWRITE_STATE_DIR` /
+`LOREWRITE_DATA_DIR`, is set); (2) the OpenRouter key is read from keyring service `chisel`, else from the old
+service `lorewrite` and copied to the new one; (3) `Project.open` renames `.lorewrite/` to `.chisel/` (falling
+back to a fresh `.chisel/` if the rename fails) and appends `.chisel/` to a `.gitignore` that listed
+`.lorewrite/`; `core/sync.py` treats either line as "cache ignored". `core/envvars.py: get_env` implements the
+env aliases (the new name wins).
 
 ## 14. Roadmap and status
 

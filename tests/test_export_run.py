@@ -6,10 +6,10 @@ from pathlib import Path
 import pytest
 
 from tests.export_helpers import make_structured
-from lorewrite.core import desktop, export
-from lorewrite.core.export import markdown, pandoc
-from lorewrite.core.export.manuscript import ExportOptions, assemble
-from lorewrite.core.project import Project
+from chisel.core import desktop, export
+from chisel.core.export import markdown, pandoc
+from chisel.core.export.manuscript import ExportOptions, assemble
+from chisel.core.project import Project
 
 NOW = datetime(2026, 10, 1, 14, 30)
 has_pandoc = pytest.mark.skipif(shutil.which("pandoc") is None, reason="pandoc not installed")
@@ -52,7 +52,7 @@ def test_nothing_to_export_and_bad_input(tmp_path):
 
 
 def test_markdown_escaping_survives_pandoc_input():
-    from lorewrite.core.export.manuscript import parse_blocks, Book, Part, Chapter
+    from chisel.core.export.manuscript import parse_blocks, Book, Part, Chapter
     blocks = parse_blocks("1. not a list\n\n- nor this\n\nPrice is $5 # [x] <b> a_b @me")
     book = Book(title="T", author="", options=ExportOptions(), parts=[Part(None, chapters=[Chapter("C", blocks=blocks)])])
     md = markdown.to_markdown(book, pandoc=True)
@@ -94,7 +94,7 @@ def test_open_in_desktop_hands_the_path_to_the_desktop(monkeypatch, tmp_path):
 def test_pdf_run_reports_pages_and_font_fallback(tmp_path, monkeypatch):
     project, res = run(tmp_path, format="pdf", layout="book")
     assert res.pages >= 6 and res.path.suffix == ".pdf" and res.path.name.startswith("test-novel-book-")
-    from lorewrite.core.export import pdfkit
+    from chisel.core.export import pdfkit
     # the manuscript layout wants Liberation Serif; without it, the bundled Noto Serif (not the mono)
     monkeypatch.setattr(pdfkit, "fonts_present", lambda: frozenset({"noto-serif", "liberation-mono"}))
     res2 = export.run_export(project, ExportOptions(format="pdf", layout="manuscript"), now=NOW)

@@ -5,10 +5,10 @@ from pathlib import Path
 
 import pytest
 
-import lorewrite.tui.app as app_mod
-from lorewrite.core import drafts
-from lorewrite.core.project import Project
-from lorewrite.tui.app import LorewriteApp
+import chisel.tui.app as app_mod
+from chisel.core import drafts
+from chisel.core.project import Project
+from chisel.tui.app import ChiselApp
 
 
 @pytest.fixture
@@ -44,7 +44,7 @@ def _mk(project: Project, name="02-scene.md") -> Path:
 async def test_rewrite_uses_short_id_and_sidecar_then_reject_restores(project, monkeypatch):
     scene = _mk(project)
     before = scene.read_text()
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -67,7 +67,7 @@ async def test_rewrite_uses_short_id_and_sidecar_then_reject_restores(project, m
 
 async def test_accept_removes_marker_and_sidecar_entry(project, monkeypatch):
     scene = _mk(project)
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -85,9 +85,9 @@ async def test_accept_removes_marker_and_sidecar_entry(project, monkeypatch):
 async def test_missing_original_reject_refuses_and_changes_nothing(project, monkeypatch):
     scene = _mk(project)
     notified = []
-    monkeypatch.setattr(LorewriteApp, "notify",
+    monkeypatch.setattr(ChiselApp, "notify",
                         lambda self, message, **kw: notified.append(str(message)))
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -111,9 +111,9 @@ async def test_missing_original_reject_refuses_and_changes_nothing(project, monk
         assert "Rewritten line." in app.editor.text and "<!--" not in app.editor.text
 
 
-async def test_nothing_written_under_lorewrite_cache(project, monkeypatch):
+async def test_nothing_written_under_chisel_cache(project, monkeypatch):
     scene = _mk(project)
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -122,7 +122,7 @@ async def test_nothing_written_under_lorewrite_cache(project, monkeypatch):
         app.save_current()
     assert _sidecar(project, scene).is_file()
     assert not any("drafts" in str(p) or p.suffix == ".json" and p.name == scene.name + ".json"
-                   for p in (project.root / ".lorewrite").rglob("*"))
+                   for p in (project.root / ".chisel").rglob("*"))
     gi = (project.root / ".gitignore").read_text()
     assert ".drafts" not in gi
 
@@ -175,7 +175,7 @@ def test_rename_scene_title_keeps_sidecar(project):
 
 
 def test_word_count_and_context_use_sidecar(project):
-    from lorewrite.ai.writing import CURSOR, build_context
+    from chisel.ai.writing import CURSOR, build_context
 
     text = "one two " + drafts.wrap("ghost ghost", "abc123") + " three"
     originals = {"abc123": "REAL WORDS"}

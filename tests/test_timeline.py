@@ -5,10 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from lorewrite.core import drafts, scenemeta, timeline
-from lorewrite.core import entities as ent
-from lorewrite.core.project import Project
-from lorewrite.core.timeline import FactTag, StoryTime, parse_fact_tags, parse_story_time
+from chisel.core import drafts, scenemeta, timeline
+from chisel.core import entities as ent
+from chisel.core.project import Project
+from chisel.core.timeline import FactTag, StoryTime, parse_fact_tags, parse_story_time
 
 T = StoryTime
 

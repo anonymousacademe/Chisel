@@ -7,11 +7,11 @@ from pathlib import Path
 
 import pytest
 
-from lorewrite.ai.usage import LEDGER
-from lorewrite.core import inspiration as store
-from lorewrite.core.project import Project
-from lorewrite.gui import api as api_module
-from lorewrite.gui import inspiration as insp_api
+from chisel.ai.usage import LEDGER
+from chisel.core import inspiration as store
+from chisel.core.project import Project
+from chisel.gui import api as api_module
+from chisel.gui import inspiration as insp_api
 from tests.gui_helpers import make_book, make_project
 from tests.test_gui_api import open_api
 

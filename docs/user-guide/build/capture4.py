@@ -3,7 +3,7 @@
     LW_SCRATCH=<tmp> PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src .venv/bin/python docs/user-guide/build/capture4.py
 
 Builds a rich copy of examples/residual (build/rich_project.py) in a temp dir
-with a temp LOREWRITE_STATE_DIR, patches every AI function with a canned
+with a temp CHISEL_STATE_DIR, patches every AI function with a canned
 answer, and saves screens through Textual Pilot into build/shots/ (merged into
 crops.json). Nothing touches the network or the real state folder.
 """
@@ -15,15 +15,15 @@ HERE = Path(__file__).resolve().parent
 OUT = HERE / "shots"
 REPO = HERE.parents[2]
 
-import lorewrite  # noqa: E402
+import chisel  # noqa: E402
 
-assert Path(lorewrite.__file__).resolve().is_relative_to(REPO), lorewrite.__file__
+assert Path(chisel.__file__).resolve().is_relative_to(REPO), chisel.__file__
 
 TMP = Path(tempfile.mkdtemp(prefix="lwshots4-", dir=os.environ.get("LW_SCRATCH")))
 PROJ = TMP / "proj"
 STATE = TMP / "state"
 STATE.mkdir()
-os.environ["LOREWRITE_STATE_DIR"] = str(STATE)
+os.environ["CHISEL_STATE_DIR"] = str(STATE)
 os.environ.pop("OPENROUTER_API_KEY", None)
 os.environ.update(GIT_AUTHOR_NAME="Residual Author", GIT_AUTHOR_EMAIL="author@example.com",
                   GIT_COMMITTER_NAME="Residual Author", GIT_COMMITTER_EMAIL="author@example.com",
@@ -35,12 +35,12 @@ def build_project():
                    check=True, env={**os.environ, "PYTHONPATH": str(REPO / "src")})
 
 
-from lorewrite.core import research as research_notes, settings as user_settings  # noqa: E402
-from lorewrite.core.project import Project  # noqa: E402
+from chisel.core import research as research_notes, settings as user_settings  # noqa: E402
+from chisel.core.project import Project  # noqa: E402
 
-import lorewrite.tui.app as app_mod  # noqa: E402
-from lorewrite.ai.usage import LEDGER  # noqa: E402
-from lorewrite.tui.app import LorewriteApp  # noqa: E402
+import chisel.tui.app as app_mod  # noqa: E402
+from chisel.ai.usage import LEDGER  # noqa: E402
+from chisel.tui.app import ChiselApp  # noqa: E402
 
 app_mod.omarchy_textual_theme = lambda *a, **k: None
 
@@ -77,7 +77,7 @@ CROPS = json.loads((OUT / "crops.json").read_text()) if (OUT / "crops.json").exi
 
 
 def mk(project):
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     app.theme = "textual-light"
     app.animation_level = "none"
     return app
@@ -123,8 +123,8 @@ def reset_state():
 
 
 async def main():
-    from lorewrite.tui.snapshotscreens import CompareScreen, SnapshotsScreen
-    from lorewrite.tui.structurescreens import TrashScreen
+    from chisel.tui.snapshotscreens import CompareScreen, SnapshotsScreen
+    from chisel.tui.structurescreens import TrashScreen
 
     build_project()
     reset_state()
@@ -245,7 +245,7 @@ def canned_describe(context, model, client=None):
 
 
 def canned_image(prompt, model, client=None, style=None):
-    from lorewrite.gui.mockai import placeholder_png
+    from chisel.gui.mockai import placeholder_png
     LEDGER.record("mock/image", "image", 0.0336)
     return [(placeholder_png(prompt), "png")]
 

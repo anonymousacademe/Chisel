@@ -5,18 +5,18 @@ from pathlib import Path
 
 import pytest
 
-import lorewrite.tui.app as app_mod
-from lorewrite.ai.links import (
+import chisel.tui.app as app_mod
+from chisel.ai.links import (
     Suggestion,
     alias_form,
     build_prompt,
     parse_suggestions,
     validate_suggestions,
 )
-from lorewrite.core import entities as ent
-from lorewrite.core.project import Project
-from lorewrite.tui.app import LorewriteApp
-from lorewrite.tui.linkreview import AliasReviewScreen, LinkReviewScreen
+from chisel.core import entities as ent
+from chisel.core.project import Project
+from chisel.tui.app import ChiselApp
+from chisel.tui.linkreview import AliasReviewScreen, LinkReviewScreen
 
 ELARA = ent.Entity(name="Elara Vance", aliases=["the captain"])
 BORIN = ent.Entity(name="Borin", aliases=["the old smith"])
@@ -156,7 +156,7 @@ def test_alias_form_lowercases_leading_article_only():
 
 
 def test_apply_suggestions_is_gone():
-    import lorewrite.ai.links as links_mod
+    import chisel.ai.links as links_mod
 
     assert not hasattr(links_mod, "apply_suggestions")
 
@@ -197,7 +197,7 @@ async def test_find_aliases_accept_adds_alias_and_leaves_scene_untouched(
     proj, scene = _tavern(tmp_path)
     before = scene.read_bytes()
 
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -222,7 +222,7 @@ async def test_find_aliases_cancel_changes_nothing(tmp_path: Path, monkeypatch):
     note_path = proj.entities_dir / "characters" / "borin.md"
     note_before = note_path.read_text()
 
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -240,7 +240,7 @@ async def test_alias_review_row_shows_context_and_toggle_excludes(
         tmp_path: Path, monkeypatch):
     monkeypatch.setattr(app_mod, "suggest_links", _suggestions_for)
     proj, scene = _tavern(tmp_path)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)
@@ -265,10 +265,10 @@ async def test_find_aliases_failure_notifies(tmp_path: Path, monkeypatch):
     proj = Project.create(tmp_path / "novel", title="AI")
     proj.create_entity("Borin")
 
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     notified: list[str] = []
     monkeypatch.setattr(
-        LorewriteApp, "notify",
+        ChiselApp, "notify",
         lambda self, message, **kwargs: notified.append(str(message)),
     )
     async with app.run_test(size=(120, 40)) as pilot:
@@ -280,4 +280,4 @@ async def test_find_aliases_failure_notifies(tmp_path: Path, monkeypatch):
 
 def test_old_names_still_resolve():
     assert LinkReviewScreen is AliasReviewScreen
-    assert LorewriteApp.action_link_mentions is LorewriteApp.action_find_aliases
+    assert ChiselApp.action_link_mentions is ChiselApp.action_find_aliases

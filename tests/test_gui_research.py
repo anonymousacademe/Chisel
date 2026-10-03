@@ -1,6 +1,6 @@
 """Api: research notes as documents, the binder group, and the Research question (Wave 3.3)."""
 
-from lorewrite.gui import api as api_module
+from chisel.gui import api as api_module
 from tests.test_gui_api import open_api
 
 

@@ -8,9 +8,9 @@ import zipfile
 import pytest
 
 from tests.export_helpers import make_structured
-from lorewrite.core import export
-from lorewrite.core.export import markdown, pdfkit
-from lorewrite.core.export.manuscript import ExportOptions, assemble
+from chisel.core import export
+from chisel.core.export import markdown, pdfkit
+from chisel.core.export.manuscript import ExportOptions, assemble
 
 needs = lambda tool: pytest.mark.skipif(shutil.which(tool) is None, reason=f"{tool} not installed")
 

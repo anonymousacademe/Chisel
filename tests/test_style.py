@@ -6,18 +6,18 @@ from types import SimpleNamespace
 
 import pytest
 
-import lorewrite.tui.app as app_mod
-from lorewrite.ai.style import (
+import chisel.tui.app as app_mod
+from chisel.ai.style import (
     StyleProposal,
     build_proposal,
     learn_style,
     parse_reply,
     validate_indexes,
 )
-from lorewrite.core import style as style_mod
-from lorewrite.core.project import Project
-from lorewrite.tui.app import LorewriteApp
-from lorewrite.tui.stylereview import StyleReviewScreen
+from chisel.core import style as style_mod
+from chisel.core.project import Project
+from chisel.tui.app import ChiselApp
+from chisel.tui.stylereview import StyleReviewScreen
 
 
 def para(tag: str, words: int = 30) -> str:
@@ -146,7 +146,7 @@ def _client(content: str, cost=0.01):
 
 
 def test_learn_style_with_fake_client_does_not_require_structured_outputs():
-    from lorewrite.ai.usage import LEDGER
+    from chisel.ai.usage import LEDGER
 
     samples = [("manuscript/01-a.md", para("a"))]
     reply = json.dumps({"voice": "v", "rhythm": "r", "diction": "d",
@@ -204,7 +204,7 @@ def _fake_learn(samples, model, **kw):
 
 async def test_open_style_guide_creates_stub_without_mention_highlighting(proj):
     proj.create_entity("Borin")
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         assert not (proj.root / "style.md").exists()
@@ -225,7 +225,7 @@ async def test_learn_style_flow_saves_with_backup(proj, monkeypatch):
     _scene(proj, "01-a.md", [para("a"), para("b")])
     (proj.root / "style.md").write_text("OLD GUIDE\n")
     monkeypatch.setattr(app_mod, "learn_style", _fake_learn)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.action_learn_style()
@@ -243,7 +243,7 @@ async def test_learn_style_flow_saves_with_backup(proj, monkeypatch):
 async def test_learn_style_discard_writes_nothing(proj, monkeypatch):
     _scene(proj, "01-a.md", [para("a")])
     monkeypatch.setattr(app_mod, "learn_style", _fake_learn)
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.action_learn_style()
@@ -259,9 +259,9 @@ async def test_learn_style_without_prose_warns(proj, monkeypatch):
     monkeypatch.setattr(app_mod, "learn_style",
                         lambda *a, **k: called.append(1))
     notified: list[str] = []
-    monkeypatch.setattr(LorewriteApp, "notify",
+    monkeypatch.setattr(ChiselApp, "notify",
                         lambda self, message, **kw: notified.append(str(message)))
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.action_learn_style()
@@ -277,9 +277,9 @@ async def test_learn_style_failure_notifies(proj, monkeypatch):
 
     monkeypatch.setattr(app_mod, "learn_style", boom)
     notified: list[str] = []
-    monkeypatch.setattr(LorewriteApp, "notify",
+    monkeypatch.setattr(ChiselApp, "notify",
                         lambda self, message, **kw: notified.append(str(message)))
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.action_learn_style()
@@ -288,7 +288,7 @@ async def test_learn_style_failure_notifies(proj, monkeypatch):
 
 
 async def test_style_actions_in_palette(proj):
-    from lorewrite.tui.commands import ActionProvider
+    from chisel.tui.commands import ActionProvider
 
     titles = [t for t, _, _ in ActionProvider.ACTIONS]
     assert "AI: learn style guide from manuscript" in titles
@@ -299,7 +299,7 @@ async def test_style_review_renders_bullet_lists_at_natural_height(proj):
     # a bare `Horizontal { height: 1fr }` app rule once inflated Markdown list
     # items so only the first bullet of the preview was visible
     md = "# Style guide\n\n## Voice\n\n- one\n- two\n- three\n\n## Diction\n\n- four\n"
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.push_screen(StyleReviewScreen(md, False))

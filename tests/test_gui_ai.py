@@ -1,4 +1,4 @@
-"""Api AI features. AI is mocked at the function boundary (lorewrite.gui.api.<fn>);
+"""Api AI features. AI is mocked at the function boundary (chisel.gui.api.<fn>);
 make_client is booby-trapped so nothing can reach the network."""
 
 import threading
@@ -6,11 +6,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from lorewrite.ai.continuity import CanonUpdate
-from lorewrite.ai.links import Suggestion
-from lorewrite.core import drafts
-from lorewrite.core.continuity import Contradiction
-from lorewrite.gui import api as api_module
+from chisel.ai.continuity import CanonUpdate
+from chisel.ai.links import Suggestion
+from chisel.core import drafts
+from chisel.core.continuity import Contradiction
+from chisel.gui import api as api_module
 from tests.test_gui_api import open_api
 
 SCENE = "manuscript/01-arrival.md"
@@ -21,8 +21,8 @@ def no_network(monkeypatch):
     def boom(*a, **k):
         raise RuntimeError("No OpenRouter API key (network is blocked in tests)")
 
-    monkeypatch.setattr("lorewrite.ai.client.make_client", boom)
-    monkeypatch.setattr("lorewrite.ai.client.list_models", boom)
+    monkeypatch.setattr("chisel.ai.client.make_client", boom)
+    monkeypatch.setattr("chisel.ai.client.list_models", boom)
 
 
 def test_ai_status_and_unmocked_calls_fail_cleanly(tmp_path, monkeypatch):
@@ -303,7 +303,7 @@ def test_subject_notebook_note_and_scene_subject(tmp_path, monkeypatch):
 
 
 def test_subject_text_is_capped_like_an_attachment(tmp_path, monkeypatch):
-    from lorewrite.core import attach
+    from chisel.core import attach
 
     api, root, nb, seen = _subject_api(tmp_path, monkeypatch)
     (root / nb).write_text("# Tide tables\n\n" + "tide " * 5000, encoding="utf-8")
@@ -337,7 +337,7 @@ def test_unknown_or_unsuitable_subject_fails_cleanly_without_an_ai_call(tmp_path
 
 
 def test_subject_goes_through_the_job_runner_and_chat_context_has_no_images(tmp_path, monkeypatch):
-    from lorewrite.core import inspiration as store
+    from chisel.core import inspiration as store
 
     api, root, nb, seen = _subject_api(tmp_path, monkeypatch)
     store.save(api.project, b"\xff\xd8\xff\xe0IMAGEBYTES", "jpg", {"prompt": "A tall woman", "for": MARA})

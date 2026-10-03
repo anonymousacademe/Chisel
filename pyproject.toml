@@ -3,7 +3,7 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "lorewriter"
+name = "chisel-writer"
 dynamic = ["version"]
 description = "A desktop and terminal fiction-writing app: plain Markdown projects, wiki-linked characters and places, AI that only suggests"
 readme = "README.md"
@@ -55,23 +55,23 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/anonymousacademe/lorewriter"
-Issues = "https://github.com/anonymousacademe/lorewriter/issues"
+Homepage = "https://github.com/anonymousacademe/Chisel"
+Issues = "https://github.com/anonymousacademe/Chisel/issues"
 
 [project.scripts]
-lorewrite = "lorewrite.tui.app:main"
-lorewrite-gui = "lorewrite.gui.app:main"
+chisel = "chisel.tui.app:main"
+chisel-gui = "chisel.gui.app:main"
 
 [tool.setuptools.dynamic]
-version = { attr = "lorewrite.__version__" }
+version = { attr = "chisel.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
 # the built UI (npm run build in gui/) and the vendored export fonts
-"lorewrite.gui" = ["web/*", "web/**/*", "icon.png", "icon.ico"]
-"lorewrite.core.export" = ["fonts/*"]
+"chisel.gui" = ["web/*", "web/**/*", "icon.png", "icon.ico"]
+"chisel.core.export" = ["fonts/*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

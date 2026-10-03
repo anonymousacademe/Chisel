@@ -1,4 +1,4 @@
-"""Capture real Lorewrite screens headlessly (Textual Pilot) for the guide.
+"""Capture real Chisel screens headlessly (Textual Pilot) for the guide.
 
 Captures the code of the repository this script lives in:
 
@@ -6,8 +6,8 @@ Captures the code of the repository this script lives in:
         .venv/bin/python docs/user-guide/build/capture.py
 
 (build_guide.py --capture does exactly that.) The script refuses to run unless
-`lorewrite.__file__` points into this repository. It works on COPIES of
-examples/residual under a temp dir with a temp LOREWRITE_STATE_DIR, and every
+`chisel.__file__` points into this repository. It works on COPIES of
+examples/residual under a temp dir with a temp CHISEL_STATE_DIR, and every
 AI or network function is monkeypatched with canned results: nothing goes out.
 """
 import asyncio, json, os, re, shutil, sys, tempfile
@@ -19,17 +19,17 @@ OUT = HERE / "shots"
 REPO = HERE.parents[2]
 REAL_DEMO = REPO / "examples" / "residual"
 
-import lorewrite  # noqa: E402
+import chisel  # noqa: E402
 
-assert Path(lorewrite.__file__).resolve().is_relative_to(REPO), lorewrite.__file__
-print("capturing from", lorewrite.__file__)
+assert Path(chisel.__file__).resolve().is_relative_to(REPO), chisel.__file__
+print("capturing from", chisel.__file__)
 
 TMP = Path(tempfile.mkdtemp(prefix="lwshots-", dir=os.environ.get("LW_SCRATCH")))
 DEMO = TMP / "demo"
 shutil.copytree(REAL_DEMO, DEMO)
 STATE = TMP / "state"
 STATE.mkdir()
-os.environ["LOREWRITE_STATE_DIR"] = str(STATE)
+os.environ["CHISEL_STATE_DIR"] = str(STATE)
 os.environ.pop("OPENROUTER_API_KEY", None)
 
 
@@ -43,20 +43,20 @@ def reset_state(tour_seen=True):
     ]))
 
 
-from lorewrite.core.project import Project  # noqa: E402
+from chisel.core.project import Project  # noqa: E402
 
 Project.create(TMP / "the-salt-road", title="The Salt Road")
 
-import lorewrite.tui.app as app_mod  # noqa: E402
-import lorewrite.ai.continuity as ai_cont  # noqa: E402
-import lorewrite.tui.settingscreen as sset  # noqa: E402
-from lorewrite.ai.links import Suggestion  # noqa: E402
-from lorewrite.ai.client import ModelInfo  # noqa: E402
-from lorewrite.ai.style import build_proposal  # noqa: E402
-from lorewrite.ai.usage import LEDGER  # noqa: E402
-from lorewrite.core.continuity import Contradiction  # noqa: E402
-from lorewrite.ai.continuity import CanonUpdate  # noqa: E402
-from lorewrite.tui.app import LorewriteApp  # noqa: E402
+import chisel.tui.app as app_mod  # noqa: E402
+import chisel.ai.continuity as ai_cont  # noqa: E402
+import chisel.tui.settingscreen as sset  # noqa: E402
+from chisel.ai.links import Suggestion  # noqa: E402
+from chisel.ai.client import ModelInfo  # noqa: E402
+from chisel.ai.style import build_proposal  # noqa: E402
+from chisel.ai.usage import LEDGER  # noqa: E402
+from chisel.core.continuity import Contradiction  # noqa: E402
+from chisel.ai.continuity import CanonUpdate  # noqa: E402
+from chisel.tui.app import ChiselApp  # noqa: E402
 
 # no Omarchy theme: a neutral light theme prints better in grayscale
 app_mod.omarchy_textual_theme = lambda *a, **k: None
@@ -151,7 +151,7 @@ def canned_learn_style(samples, model, client=None, manuscript=None):
     data = dict(STYLE_FIELDS, exemplar_indexes=picks)
     learned = None
     if manuscript is not None:   # the provenance line, as the real call writes it
-        from lorewrite.core.style import learned_note
+        from chisel.core.style import learned_note
         learned = learned_note(sum(len(p.split()) for _, p in samples),
                                manuscript, "2026-10-01")
     return build_proposal(data, samples, learned)
@@ -189,7 +189,7 @@ SIZE = (100, 32)
 
 
 def mk(project):
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     app.theme = "textual-light"
     app.animation_level = "none"
     return app
@@ -250,15 +250,15 @@ def cursor_to_offset(app, off):
 
 
 async def main():
-    import lorewrite.tui.launch as launch_mod
-    from lorewrite.core.recents import Recent
-    from lorewrite.tui.app import ConfirmScreen, HELP_TEXT
-    from lorewrite.tui.linkreview import AliasReviewScreen
-    from lorewrite.tui.promptscreen import PromptScreen
-    from lorewrite.tui.stylereview import StyleReviewScreen
-    from lorewrite.tui.noteupdates import NoteUpdateScreen
-    from lorewrite.tui.continuityscreen import ContinuityScreen
-    from lorewrite.core import drafts
+    import chisel.tui.launch as launch_mod
+    from chisel.core.recents import Recent
+    from chisel.tui.app import ConfirmScreen, HELP_TEXT
+    from chisel.tui.linkreview import AliasReviewScreen
+    from chisel.tui.promptscreen import PromptScreen
+    from chisel.tui.stylereview import StyleReviewScreen
+    from chisel.tui.noteupdates import NoteUpdateScreen
+    from chisel.tui.continuityscreen import ContinuityScreen
+    from chisel.core import drafts
 
     (OUT / "help_text.txt").write_text(HELP_TEXT, encoding="utf-8")
 
@@ -533,7 +533,7 @@ async def main():
         await pilot.pause()
         await pilot.press("escape")
         await pilot.pause()
-        from lorewrite.tui.settingscreen import KeyPrompt
+        from chisel.tui.settingscreen import KeyPrompt
         app.push_screen(KeyPrompt())
         await pilot.pause()
         await pilot.press(*"sk-or-v1-example")
@@ -543,7 +543,7 @@ async def main():
 
 async def spell_shots():
     """Spell check (TUI): the underline, the f6 window, the project dictionary."""
-    from lorewrite.tui.spellscreen import SpellScreen
+    from chisel.tui.spellscreen import SpellScreen
     shutil.rmtree(DEMO)
     shutil.copytree(REAL_DEMO, DEMO)
     reset_state()

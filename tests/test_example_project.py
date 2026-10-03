@@ -2,9 +2,9 @@
 
 from pathlib import Path
 
-from lorewrite.core.index import Index
-from lorewrite.core.links import find_all_links
-from lorewrite.core.project import Project
+from chisel.core.index import Index
+from chisel.core.links import find_all_links
+from chisel.core.project import Project
 
 EXAMPLE = Path(__file__).resolve().parent.parent / "examples" / "residual"
 
@@ -45,8 +45,8 @@ def test_example_project_has_none_of_the_wave_3_data_and_reading_it_creates_none
     """Collections, comments, research and chats are opt-in: the example opens exactly as before."""
     import shutil
 
-    from lorewrite.core import attach, chats, collections, comments, research
-    from lorewrite.gui import workspace as ws
+    from chisel.core import attach, chats, collections, comments, research
+    from chisel.gui import workspace as ws
 
     copy = tmp_path / "residual"
     shutil.copytree(EXAMPLE, copy)

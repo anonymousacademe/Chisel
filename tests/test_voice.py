@@ -3,12 +3,12 @@ status, and the author's own prose sent as examples when drafting."""
 
 from pathlib import Path
 
-from lorewrite.ai.style import build_proposal
-from lorewrite.ai.writing import build_context
-from lorewrite.core import drafts
-from lorewrite.core import entities as ent
-from lorewrite.core.project import Project
-from lorewrite.core.style import (
+from chisel.ai.style import build_proposal
+from chisel.ai.writing import build_context
+from chisel.core import drafts
+from chisel.core import entities as ent
+from chisel.core.project import Project
+from chisel.core.style import (
     learned_note,
     manuscript_stats,
     save_style,
@@ -16,7 +16,7 @@ from lorewrite.core.style import (
     style_info,
     style_markdown,
 )
-from lorewrite.gui import api as api_module
+from chisel.gui import api as api_module
 from tests.test_gui_api import open_api
 
 FILLER = "The rain kept on against the glass while the city hummed below them"

@@ -4,12 +4,12 @@ from pathlib import Path
 
 from textual.widgets import Checkbox, Input, ListView
 
-import lorewrite.tui.settingscreen as settingscreen_mod
-from lorewrite.core import settings as user_settings
-from lorewrite.core.project import Project
-from lorewrite.tui.app import LorewriteApp
-from lorewrite.tui.launch import LaunchScreen
-from lorewrite.tui.settingscreen import SettingsScreen
+import chisel.tui.settingscreen as settingscreen_mod
+from chisel.core import settings as user_settings
+from chisel.core.project import Project
+from chisel.tui.app import ChiselApp
+from chisel.tui.launch import LaunchScreen
+from chisel.tui.settingscreen import SettingsScreen
 
 
 def _project(tmp_path: Path, name: str, title: str) -> Project:
@@ -44,7 +44,7 @@ def test_update_editor_settings_writes_toml(tmp_path: Path):
 async def test_settings_screen_shows_key_status(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(settingscreen_mod, "get_api_key", lambda: "sk-or-xyz1234abcd")
     proj = _project(tmp_path, "n", "T")
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.action_settings()
@@ -59,7 +59,7 @@ async def test_settings_screen_shows_key_status(tmp_path: Path, monkeypatch):
 async def test_settings_save_models_and_editor_prefs(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(settingscreen_mod, "get_api_key", lambda: None)
     proj = _project(tmp_path, "n", "T")
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.action_settings()
@@ -86,7 +86,7 @@ async def test_settings_save_models_and_editor_prefs(tmp_path: Path, monkeypatch
 async def test_settings_without_project(tmp_path: Path, monkeypatch):
     """From the launch screen: AI section only, no editor section."""
     monkeypatch.setattr(settingscreen_mod, "get_api_key", lambda: None)
-    app = LorewriteApp()
+    app = ChiselApp()
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         assert isinstance(app.screen, LaunchScreen)
@@ -100,12 +100,12 @@ async def test_settings_without_project(tmp_path: Path, monkeypatch):
 
 
 async def test_main_menu_switch_projects(tmp_path: Path):
-    from lorewrite.core.recents import add_recent
+    from chisel.core.recents import add_recent
 
     proj_a = _project(tmp_path, "a", "Book A")
     proj_b = _project(tmp_path, "b", "Book B")
     add_recent(proj_b.root, proj_b.title)  # B is an older recent
-    app = LorewriteApp(proj_a)
+    app = ChiselApp(proj_a)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         assert app.project.title == "Book A"
@@ -124,12 +124,12 @@ async def test_main_menu_switch_projects(tmp_path: Path):
         await pilot.press("enter")
         await pilot.pause()
         assert app.project.title == "Book B"
-        assert "Welcome to lorewrite" in app.editor.text
+        assert "Welcome to chisel" in app.editor.text
 
 
 async def test_main_menu_cancel_stays(tmp_path: Path):
     proj = _project(tmp_path, "a", "Book A")
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.action_main_menu()
@@ -148,8 +148,8 @@ async def test_key_prompt_ctrl_v_pastes_system_clipboard(tmp_path: Path, monkeyp
     monkeypatch.setattr(settingscreen_mod, "read_system_clipboard",
                         lambda: "sk-or-v1-secret\n")
     stored = []
-    monkeypatch.setattr("lorewrite.tui.app.set_api_key", stored.append)
-    app = LorewriteApp(_project(tmp_path, "k", "K"))
+    monkeypatch.setattr("chisel.tui.app.set_api_key", stored.append)
+    app = ChiselApp(_project(tmp_path, "k", "K"))
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.set_api_key()
@@ -168,7 +168,7 @@ async def test_key_prompt_ctrl_v_pastes_system_clipboard(tmp_path: Path, monkeyp
 
 
 def test_parse_models_keeps_structured_output_models_sorted():
-    from lorewrite.ai.client import parse_models
+    from chisel.ai.client import parse_models
 
     payload = {"data": [
         {"id": "z/zeta", "name": "Zeta", "supported_parameters": ["structured_outputs"],
@@ -186,7 +186,7 @@ def test_parse_models_keeps_structured_output_models_sorted():
 
 
 def _fake_models(structured_only=True):
-    from lorewrite.ai.client import ModelInfo
+    from chisel.ai.client import ModelInfo
 
     models = [
         ModelInfo("anthropic/claude-sonnet-4.5", "Anthropic: Claude Sonnet 4.5",
@@ -202,7 +202,7 @@ def _fake_models(structured_only=True):
 
 async def test_model_picker_filters_and_fills_field(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(settingscreen_mod, "list_models", _fake_models)
-    app = LorewriteApp(_project(tmp_path, "m", "M"))
+    app = ChiselApp(_project(tmp_path, "m", "M"))
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.push_screen(SettingsScreen(app.project))
@@ -227,7 +227,7 @@ async def test_model_picker_load_failure_is_reported(tmp_path: Path, monkeypatch
         raise OSError("offline")
 
     monkeypatch.setattr(settingscreen_mod, "list_models", _boom)
-    app = LorewriteApp(_project(tmp_path, "f", "F"))
+    app = ChiselApp(_project(tmp_path, "f", "F"))
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.push_screen(settingscreen_mod.ModelPicker())
@@ -244,7 +244,7 @@ async def test_settings_opens_after_saving_empty_model_fields(tmp_path: Path):
     # Save with blank model fields writes null; reopening used to crash the app
     user_settings.set("fast_model", None)
     user_settings.set("strong_model", None)
-    app = LorewriteApp(_project(tmp_path, "z", "Z"))
+    app = ChiselApp(_project(tmp_path, "z", "Z"))
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.action_settings()
@@ -255,7 +255,7 @@ async def test_settings_opens_after_saving_empty_model_fields(tmp_path: Path):
 
 async def test_settings_opens_after_saving_empty_writing_model(tmp_path: Path):
     user_settings.set("writing_model", None)
-    app = LorewriteApp(_project(tmp_path, "w", "W"))
+    app = ChiselApp(_project(tmp_path, "w", "W"))
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.action_settings()
@@ -265,7 +265,7 @@ async def test_settings_opens_after_saving_empty_writing_model(tmp_path: Path):
 
 async def test_settings_writing_model_round_trip(tmp_path: Path):
     user_settings.set("writing_model", "vendor/prose-1")
-    app = LorewriteApp(_project(tmp_path, "r", "R"))
+    app = ChiselApp(_project(tmp_path, "r", "R"))
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.action_settings()
@@ -274,10 +274,10 @@ async def test_settings_writing_model_round_trip(tmp_path: Path):
 
 
 def test_model_precedence_project_over_user_over_default(tmp_path: Path):
-    from lorewrite.ai.client import DEFAULT_WRITING_MODEL
+    from chisel.ai.client import DEFAULT_WRITING_MODEL
 
     proj = _project(tmp_path, "p", "P")
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     assert app._ai_model("writing") == DEFAULT_WRITING_MODEL
     user_settings.set("writing_model", "user/writer")
     assert app._ai_model("writing") == "user/writer"
@@ -287,7 +287,7 @@ def test_model_precedence_project_over_user_over_default(tmp_path: Path):
 
 
 def test_parse_models_structured_only_flag():
-    from lorewrite.ai.client import parse_models
+    from chisel.ai.client import parse_models
 
     payload = {"data": [
         {"id": "a/plain", "name": "Plain", "supported_parameters": ["tools"]},
@@ -303,7 +303,7 @@ def test_list_models_caches_raw_payload_and_filters_per_call(monkeypatch):
     import io
     import json
 
-    from lorewrite.ai import client
+    from chisel.ai import client
 
     payload = {"data": [
         {"id": "a/plain", "name": "Plain", "supported_parameters": []},
@@ -326,7 +326,7 @@ def test_list_models_caches_raw_payload_and_filters_per_call(monkeypatch):
 
 async def test_writing_picker_shows_non_structured_models(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(settingscreen_mod, "list_models", _fake_models)
-    app = LorewriteApp(_project(tmp_path, "wp", "WP"))
+    app = ChiselApp(_project(tmp_path, "wp", "WP"))
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.push_screen(SettingsScreen(app.project))

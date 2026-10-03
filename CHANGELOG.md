@@ -5,6 +5,27 @@ All notable changes to Chisel are listed here, newest first. The format follows
 
 ## Unreleased
 
+### Changed
+- **Renamed internals and commands to match the app's name.** The commands are now `chisel` (terminal) and
+  `chisel-gui` (desktop); the Python package is `chisel` (installed as `chisel-writer`); the repository is
+  `anonymousacademe/Chisel`. The old command names (`lorewrite`, `lorewrite-gui`) are gone and have no aliases.
+- The per-user folders are now named `chisel` (for example `%LOCALAPPDATA%\chisel`), the keyring entry is
+  `chisel`, and a project's hidden cache folder is `.chisel/` instead of `.lorewrite/`.
+- Environment variables are `CHISEL_STATE_DIR`, `CHISEL_DATA_DIR` (the old `LOREWRITE_STATE_DIR` and
+  `LOREWRITE_DATA_DIR` still work, as deprecated aliases) and, for builds and tests, `CHISEL_SELFTEST_RENDER`,
+  `CHISEL_TARGET_ARCH`, `CHISEL_REGEN_FIXTURE`.
+- The terminal program in the installers is `chisel-tui` (`chisel-tui.exe`), because `chisel.exe` and `Chisel.exe`
+  cannot share a folder on Windows or macOS. The Start-menu entry is still "Chisel (terminal)". The macOS bundle
+  identifier is now `io.github.anonymousacademe.chisel`; the Windows installer keeps its identity and upgrades
+  in place.
+
+### Migration notes
+- On first start the app copies your old `lorewrite` settings and sound-pack folders to the new `chisel` ones
+  (never overwriting, never deleting the old ones), copies the OpenRouter key from the old keyring entry to the
+  new one, and renames each project's `.lorewrite/` to `.chisel/` when you open it, adding `.chisel/` to a
+  `.gitignore` that listed `.lorewrite/`. See "Upgrading from LoreWriter" in the README.
+- After upgrading from source: `pip install -e .` again and `pip uninstall lorewriter`.
+
 ## 0.4.0 - 2026-10-03
 
 ### Added

@@ -4,11 +4,11 @@ from pathlib import Path
 
 from textual.widgets import Input, ListView
 
-from lorewrite.core import entities as ent
-from lorewrite.core import snapshots
-from lorewrite.core.project import Project
-from lorewrite.tui.commands import ActionProvider
-from lorewrite.tui.renamescreens import RenameFormScreen, RenamePreviewScreen
+from chisel.core import entities as ent
+from chisel.core import snapshots
+from chisel.core.project import Project
+from chisel.tui.commands import ActionProvider
+from chisel.tui.renamescreens import RenameFormScreen, RenamePreviewScreen
 
 
 def _project(tmp_path: Path):
@@ -29,11 +29,11 @@ def test_palette_entries_are_entity_actions():
 
 
 async def test_rename_flow_untick_apply_undo(tmp_path: Path):
-    from lorewrite.tui.app import LorewriteApp
+    from chisel.tui.app import ChiselApp
 
     snapshots._daily_done.clear()
     p, a, b = _project(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(p.entities_dir / "characters" / "mara.md")  # the open note is the target
@@ -67,10 +67,10 @@ async def test_rename_flow_untick_apply_undo(tmp_path: Path):
 
 
 async def test_cancel_changes_nothing(tmp_path: Path):
-    from lorewrite.tui.app import LorewriteApp
+    from chisel.tui.app import ChiselApp
 
     p, a, b = _project(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(p.entities_dir / "characters" / "mara.md")

@@ -4,8 +4,8 @@ from pathlib import Path
 
 from textual.command import CommandList, CommandPalette
 
-from lorewrite.core.project import Project
-from lorewrite.tui.app import LorewriteApp
+from chisel.core.project import Project
+from chisel.tui.app import ChiselApp
 
 
 def _visible_rows(app, palette) -> tuple:
@@ -17,7 +17,7 @@ def _visible_rows(app, palette) -> tuple:
 async def test_palette_results_are_on_screen_for_menu_and_query(tmp_path: Path):
     proj = Project.create(tmp_path / "novel", title="Palette")
     proj.create_entity("Borin")
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         await pilot.press("ctrl+p")
@@ -41,7 +41,7 @@ async def test_palette_results_are_on_screen_for_menu_and_query(tmp_path: Path):
 
 async def test_palette_input_row_is_not_stretched(tmp_path: Path):
     proj = Project.create(tmp_path / "novel", title="Palette")
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         await pilot.press("ctrl+p")

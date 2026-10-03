@@ -12,7 +12,7 @@ features write notes, `style.md` and `.drafts/`):
 
 ```bash
 cp -r examples/residual /tmp/residual
-.venv/bin/lorewrite --project /tmp/residual
+.venv/bin/chisel --project /tmp/residual
 ```
 
 Things to try:

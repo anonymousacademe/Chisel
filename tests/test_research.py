@@ -2,7 +2,7 @@
 
 import pytest
 
-from lorewrite.core import research as rs
+from chisel.core import research as rs
 from tests.gui_helpers import make_project
 
 
@@ -129,7 +129,7 @@ def test_trash_lists_scenes_and_research_together_and_empties_both(tmp_path):
 
 
 def test_open_migrates_research_folder_to_notebook(tmp_path):
-    from lorewrite.core.project import Project
+    from chisel.core.project import Project
     project = Project.create(tmp_path / "novel", "N")
     (project.root / "research" / "tides").mkdir(parents=True)
     (project.root / "research" / "tides" / "almanac.md").write_text("# Almanac\n", encoding="utf-8")
@@ -142,7 +142,7 @@ def test_open_migrates_research_folder_to_notebook(tmp_path):
 
 
 def test_migration_never_overwrites_and_keeps_reading_both(tmp_path):
-    from lorewrite.core.project import Project
+    from chisel.core.project import Project
     project = Project.create(tmp_path / "novel", "N")
     (project.root / "notebook").mkdir()
     (project.root / "notebook" / "a.md").write_text("# New A\n", encoding="utf-8")

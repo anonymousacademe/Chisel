@@ -1,7 +1,7 @@
 import type { DiffSegment } from "./types";
 import { signedWords } from "./stats";
 
-/** "just now", "12 min ago", "3 h ago", "2 days ago", else the date (mirrors lorewrite.core.snapshots.ago). */
+/** "just now", "12 min ago", "3 h ago", "2 days ago", else the date (mirrors chisel.core.snapshots.ago). */
 export function agoText(iso: string, now: Date = new Date()): string {
   const when = new Date(iso);
   if (Number.isNaN(when.getTime())) return "";

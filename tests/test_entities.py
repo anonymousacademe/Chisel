@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from lorewrite.core import entities as ent
+from chisel.core import entities as ent
 
 
 def test_slugify():

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Capture the desktop-GUI figures headlessly (no window ever opens on the desktop).
 
-    ~/lorewrite/.venv-gui/bin/python docs/user-guide/build/gui_capture.py
+    ~/chisel/.venv-gui/bin/python docs/user-guide/build/gui_capture.py
 
 For each stage it copies examples/residual to a temp dir, starts
 build/gui_server.py (the headless devserver with canned, local AI) on a free
@@ -92,7 +92,7 @@ def main() -> None:
                     {"path": str(novels / "the-salt-road"), "title": "The Salt Road", "opened_at": 1789000000.0}]))
             else:
                 args.append(str(project))
-            env = {**os.environ, "LOREWRITE_STATE_DIR": str(state),
+            env = {**os.environ, "CHISEL_STATE_DIR": str(state),
                    "OPENROUTER_API_KEY": "sk-mock",
                    "PYTHON_KEYRING_BACKEND": "keyring.backends.null.Keyring",
                    "PYTHONDONTWRITEBYTECODE": "1", "PYTHONPATH": str(REPO / "src")}

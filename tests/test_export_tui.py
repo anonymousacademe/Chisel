@@ -5,10 +5,10 @@ from pathlib import Path
 
 from textual.widgets import Checkbox, Select
 
-from lorewrite.core import export as exporting
-from lorewrite.tui.app import LorewriteApp
-from lorewrite.tui.commands import ActionProvider
-from lorewrite.tui.exportscreen import ExportScreen
+from chisel.core import export as exporting
+from chisel.tui.app import ChiselApp
+from chisel.tui.commands import ActionProvider
+from chisel.tui.exportscreen import ExportScreen
 from tests.export_helpers import make_structured
 
 
@@ -27,7 +27,7 @@ def test_palette_has_the_export_actions(tmp_path: Path):
 
 async def test_export_form_writes_a_markdown_file(tmp_path: Path):
     project = make_structured(tmp_path / "p")
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 50)) as pilot:
         await pilot.pause()
         app.export_manuscript()
@@ -48,10 +48,10 @@ async def test_export_form_writes_a_markdown_file(tmp_path: Path):
 
 
 async def test_form_cancel_and_unavailable_format(tmp_path: Path, monkeypatch):
-    from lorewrite.core.export import pandoc
+    from chisel.core.export import pandoc
     monkeypatch.setattr(pandoc, "find", lambda: None)
     project = make_structured(tmp_path / "p")
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 50)) as pilot:
         await pilot.pause()
         app.export_manuscript()
@@ -71,7 +71,7 @@ async def test_open_exports_folder_opens_only_on_request(tmp_path: Path, monkeyp
     seen = []
     monkeypatch.setattr(exporting, "open_in_desktop", seen.append)
     project = make_structured(tmp_path / "p")
-    app = LorewriteApp(project)
+    app = ChiselApp(project)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         assert seen == []

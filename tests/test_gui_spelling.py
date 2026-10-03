@@ -1,8 +1,8 @@
 """Api: spelling spans (UTF-16), suggestions, dictionaries, ignore, settings."""
 
-from lorewrite.core import settings as user_settings
-from lorewrite.core import spelling
-from lorewrite.gui.api import Api
+from chisel.core import settings as user_settings
+from chisel.core import spelling
+from chisel.gui.api import Api
 from tests.gui_helpers import make_project
 
 SCENE = "01-arrival.md"

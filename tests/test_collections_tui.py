@@ -4,12 +4,12 @@ from pathlib import Path
 
 from textual.widgets import Input, ListView
 
-from lorewrite.core import collections as coll
-from lorewrite.core import scenemeta
-from lorewrite.core.project import Project
-from lorewrite.tui.app import ConfirmScreen, LorewriteApp, NamePrompt
-from lorewrite.tui.collectionscreens import CollectionsScreen
-from lorewrite.tui.commands import ActionProvider
+from chisel.core import collections as coll
+from chisel.core import scenemeta
+from chisel.core.project import Project
+from chisel.tui.app import ConfirmScreen, ChiselApp, NamePrompt
+from chisel.tui.collectionscreens import CollectionsScreen
+from chisel.tui.commands import ActionProvider
 
 
 def _project(tmp_path: Path) -> tuple[Project, Path, Path]:
@@ -29,7 +29,7 @@ def test_palette_lists_collections_under_scene():
 
 async def test_new_tick_rename_delete(tmp_path: Path):
     p, a, b = _project(tmp_path)
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(a)
@@ -76,7 +76,7 @@ async def test_sidebar_hash_filter_lists_members_only(tmp_path: Path):
     p, a, b = _project(tmp_path)
     coll.create(p, "Needs continuity pass", "amber")
     coll.toggle(p, b, "Needs continuity pass")
-    app = LorewriteApp(p)
+    app = ChiselApp(p)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         sidebar = app.sidebar

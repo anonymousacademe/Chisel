@@ -424,7 +424,7 @@ def build(s, R):
     s.h2("How Pictures Are Stored", idx=["inspiration folder", "sidecar file|pictures", "files|inspiration"])
     s.p("Pictures are ordinary files in the `inspiration/` folder of your "
         "project, in the project itself and not in the hidden "
-        "`.lorewrite/` folder. Each picture is two files with the same "
+        "`.chisel/` folder. Each picture is two files with the same "
         "name: the image (`.jpg`, `.png` or `.webp`, whichever the model "
         "returned) and a Markdown //sidecar// file with the details. The "
         "name is the date and time followed by the first words of the "

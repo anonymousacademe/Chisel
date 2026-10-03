@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from lorewrite.tui.theme import (
+from chisel.tui.theme import (
     current_theme_slug,
     load_omarchy_colors,
     omarchy_textual_theme,
@@ -73,7 +73,7 @@ def test_theme_none_off_omarchy(tmp_path: Path):
 
 
 def test_link_color_skips_hues_equal_to_foreground():
-    from lorewrite.tui.theme import link_color
+    from chisel.tui.theme import link_color
 
     assert link_color({"foreground": "#bebebe", "cyan": "#BEBEBE",
                        "blue": "#e68e0d", "orange": "#c63d3d"}) == "#e68e0d"
@@ -94,7 +94,7 @@ MATTE_BLACK = {
 
 
 def test_distinct_color_on_matte_black_is_far_from_everything_it_could_blend_with():
-    from lorewrite.tui.theme import distinct_color, link_color, rgb_distance
+    from chisel.tui.theme import distinct_color, link_color, rgb_distance
 
     link = link_color(MATTE_BLACK)
     avoid = [MATTE_BLACK["foreground"], link, MATTE_BLACK["orange"]]
@@ -105,7 +105,7 @@ def test_distinct_color_on_matte_black_is_far_from_everything_it_could_blend_wit
 
 
 def test_distinct_color_keeps_a_theme_hue_when_it_is_distinct():
-    from lorewrite.tui.theme import distinct_color
+    from chisel.tui.theme import distinct_color
 
     colors = {"foreground": "#ffffff", "orange": "#ff8800", "cyan": "#00ffff",
               "magenta": "#cc00cc", "green": "#00cc00"}
@@ -114,14 +114,14 @@ def test_distinct_color_keeps_a_theme_hue_when_it_is_distinct():
 
 
 def test_distinct_color_survives_empty_and_bad_palettes():
-    from lorewrite.tui.theme import FALLBACK_HUES, distinct_color
+    from chisel.tui.theme import FALLBACK_HUES, distinct_color
 
     assert distinct_color({}, []) in FALLBACK_HUES
     assert distinct_color({"green": "not-a-color"}, [None, "zzz"]) in FALLBACK_HUES
 
 
 def test_draft_tint_prefers_selection_then_lighter_background():
-    from lorewrite.tui.theme import draft_tint
+    from chisel.tui.theme import draft_tint
 
     assert draft_tint(MATTE_BLACK) == "#2a2a2a"
     assert draft_tint({"lighter_background": "#1e1e1e"}) == "#1e1e1e"
@@ -129,17 +129,17 @@ def test_draft_tint_prefers_selection_then_lighter_background():
 
 
 async def test_editor_draft_style_uses_distinct_hue_and_tint(tmp_path, monkeypatch):
-    import lorewrite.tui.app as app_mod
-    from lorewrite.core import drafts
-    from lorewrite.core.project import Project
-    from lorewrite.tui.app import LorewriteApp
-    from lorewrite.tui.theme import link_color, rgb_distance
+    import chisel.tui.app as app_mod
+    from chisel.core import drafts
+    from chisel.core.project import Project
+    from chisel.tui.app import ChiselApp
+    from chisel.tui.theme import link_color, rgb_distance
 
     monkeypatch.setattr(app_mod, "load_omarchy_colors", lambda: MATTE_BLACK)
     proj = Project.create(tmp_path / "n", title="T")
     scene = proj.manuscript_dir / "02-s.md"
     scene.write_text("# S\n\nStart " + drafts.wrap("ghost prose") + " end.\n")
-    app = LorewriteApp(proj)
+    app = ChiselApp(proj)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.open_file(scene)

@@ -5,8 +5,8 @@ import threading
 import urllib.error
 import urllib.request
 
-from lorewrite.gui import devserver
-from lorewrite.gui.api import Api, bridge
+from chisel.gui import devserver
+from chisel.gui.api import Api, bridge
 
 
 def test_bridge_wraps_results_and_errors():
@@ -89,8 +89,8 @@ def test_facade_exposes_only_bridge_methods(tmp_path):
 def test_mock_ai_matches_the_real_call_signatures(tmp_path, monkeypatch):
     """devserver --mock-ai must keep working when an Api call gains arguments
     (learn_style gained `manuscript`, and the mock was left behind)."""
-    from lorewrite.gui import api as api_module
-    from lorewrite.gui import mockai
+    from chisel.gui import api as api_module
+    from chisel.gui import mockai
     from tests.test_gui_api import open_api
 
     import inspect
@@ -120,8 +120,8 @@ def test_mock_ai_matches_the_real_call_signatures(tmp_path, monkeypatch):
 
 
 def test_mock_research_answers_from_notes(tmp_path, monkeypatch):
-    from lorewrite.gui import api as api_module
-    from lorewrite.gui import mockai
+    from chisel.gui import api as api_module
+    from chisel.gui import mockai
     from tests.test_gui_api import open_api
 
     for name in ("suggest_links", "check_scene", "propose_canon_updates", "learn_style", "generate_text",
