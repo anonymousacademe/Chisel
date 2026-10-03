@@ -113,7 +113,7 @@ def _snapshot(path: Path) -> Snapshot | None:
         return None
     try:
         text = path.read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, ValueError):  # unreadable or not UTF-8: not listed
         return None
     return Snapshot(path.stem, path, parsed[0], parsed[1],
                     drafts.count_words(text, _originals(path)))
@@ -127,6 +127,7 @@ def create(project, scene: Path, label: str = "", text: str | None = None,
     """Copy *scene* (or *text*, the editor's unsaved buffer) into its snapshot
     folder, with the draft originals beside it. Never overwrites."""
     if text is None:
+        fsutil.ensure_utf8(scene)  # a snapshot is text; lossy copies are no backup
         text = scene.read_text(encoding="utf-8")
     when = when or datetime.now()
     folder = scene_dir(project.root, scene)
@@ -190,6 +191,7 @@ def restore(project, scene: Path, name: str, current_text: str | None = None) ->
     buffer if given, else the file) is snapshotted first, labelled
     ``before-restore``, so a restore can itself be undone. Returns the text."""
     path = _file(project.root, scene, name)
+    fsutil.ensure_utf8(scene)  # restoring would overwrite bytes we cannot snapshot
     text = path.read_text(encoding="utf-8")
     create(project, scene, "before-restore", current_text)
     _write(scene, text)
@@ -201,6 +203,8 @@ def snapshot_all(project, label: str = "") -> int:
     """One snapshot per scene of the project (book and Unplaced), same label."""
     count = 0
     for scene in project.all_scene_files():
+        if not fsutil.is_valid_utf8(scene):
+            continue  # cannot be snapshotted as text
         create(project, scene, label)
         count += 1
     return count
@@ -225,8 +229,8 @@ def ensure_daily(project, scene: Path, new_text: str) -> Snapshot | None:
         return None
     try:
         disk = scene.read_text(encoding="utf-8")
-    except OSError:
-        return None  # a new file has no earlier state to keep
+    except (OSError, ValueError):
+        return None  # a new file has no earlier state; a non-UTF-8 one is refused by the save
     if disk == new_text:
         return None
     _daily_done[key] = today
@@ -234,8 +238,11 @@ def ensure_daily(project, scene: Path, new_text: str) -> Snapshot | None:
     if latest is not None and latest.strftime("%Y%m%d") == today:
         return None
     snaps = list_snapshots(project, scene)
-    if snaps and snaps[0].path.read_text(encoding="utf-8") == disk:
-        return None
+    try:
+        if snaps and snaps[0].path.read_text(encoding="utf-8") == disk:
+            return None
+    except (OSError, ValueError):
+        pass
     return create(project, scene, AUTO_LABEL, disk)
 
 

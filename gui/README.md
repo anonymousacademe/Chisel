@@ -1,6 +1,6 @@
-# LoreWriter — desktop GUI
+# Chisel — desktop GUI
 
-A React/TypeScript UI (from the `LoreWriter_1.fig` design, "The Meridian Archive
+A React/TypeScript UI (from the `Chisel_1.fig` design, "The Meridian Archive
 workspace") shown in a native **pywebview** window. The UI talks to the Python core
 in-process through pywebview's `js_api`; all project logic lives in `core/` and `ai/`
 (see the "Desktop GUI" section of [SPEC.md](../SPEC.md)).
@@ -46,7 +46,7 @@ src/
   components/            TitleBar ActivityRail Binder Editor EditorPane Assistant NotesPanel
                          StatusBar Launch QuickSwitcher SettingsDialog ReviewDialogs Dialogs Toast
                          SpellMenu (misspelling popover; the check itself is core/spelling.py)
-  components/placeholder.ts   the one "Not in LoreWriter yet" treatment
+  components/placeholder.ts   the one "Not in Chisel yet" treatment
   styles/tokens.css      colours, fonts, radii from the Figma file
 src-tauri/               the original Tauri shell from the handoff: kept, unused, not built
 design/figma-reference.png
@@ -54,15 +54,15 @@ design/figma-reference.png
 
 ## Placeholders
 
-Anything the design shows that LoreWriter does not do yet is rendered as designed but
-dimmed, with `aria-disabled` and the tooltip "Not in LoreWriter yet", via
+Anything the design shows that Chisel does not do yet is rendered as designed but
+dimmed, with `aria-disabled` and the tooltip "Not in Chisel yet", via
 `placeholderProps` / `<Placeholder>` / `IconButton placeholder` / `Tag placeholder`.
 Never fake data; never a silent button. Search the source for `placeholder` to list them.
 
 ## Notes from the design
 
 - The two empty navigation slots on the activity rail are left empty, as in Figma.
-- The assistant disclaimer reads "LoreWriter can be wrong. Review changes before applying."
+- The assistant disclaimer reads "Chisel can be wrong. Review changes before applying."
   (the handoff said "Muse").
 - The design's marker icons in the right gutter of the page were mock annotations and
   are not drawn; comments are a placeholder button in the toolbar.

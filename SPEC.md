@@ -634,7 +634,7 @@ Deterministic (no AI). Core `core/rename.py`; GUI: Notes tab -> **Rename everywh
 
 An Obsidian-style desktop front end over the same `core/` and `ai/`: a native
 window (pywebview, WebKitGTK) showing a React/TypeScript UI built from the
-"LoreWriter" Figma design (`gui/`). The TUI stays fully supported and unchanged;
+"Chisel" Figma design (`gui/`). The TUI stays fully supported and unchanged;
 both edit the same plain-Markdown projects.
 
 - **Formatted text (October 2026).** The editor is a live preview of the Markdown on disk:
@@ -681,8 +681,8 @@ both edit the same plain-Markdown projects.
   draft/expand/rewrite text only ever arrives as a pending `<!--ai-->` draft
   whose replaced original is stored in `.drafts/` **before** the marker is written;
   chat (`ask`) answers in the panel only, with *Insert as draft*.
-- **Placeholders.** Parts of the design that LoreWriter does not do yet are drawn
-  as designed but dimmed, non-interactive, tooltip "Not in LoreWriter yet"
+- **Placeholders.** Parts of the design that Chisel does not do yet are drawn
+  as designed but dimmed, non-interactive, tooltip "Not in Chisel yet"
   (`gui/src/components/placeholder.ts`): nothing is left as a placeholder since Wave 4 (the Draft
   badge and status item, Snapshots, Sync and the History button became real in Wave 2; the Research
   row, Collections, the comment button, the Research quick action, conversation history, attach-context
@@ -790,7 +790,7 @@ launch-or-focus, so a running window gets focused instead of duplicated.
 
 Releases ship ready-to-run apps for Windows (Inno Setup installer + portable zip), macOS (DMG, arm64 and
 x86_64) and Linux (AppImage), built by `.github/workflows/release.yml` with PyInstaller (`packaging/`).
-Each bundle holds both apps: `LoreWriter` (desktop, windowed) and `lorewrite` (terminal). The Linux
+Each bundle holds both apps: `Chisel` (desktop, windowed) and `lorewrite` (terminal). The Linux
 bundle uses pywebview's Qt backend (QtWebEngine); everything else uses the system webview. Unsigned for
 now. `lorewrite-gui --self-test` / `lorewrite --self-test` check the bundled data with no window and no
 network and are run on every built bundle. The version has a single source (`lorewrite.__version__`).

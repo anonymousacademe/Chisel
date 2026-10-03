@@ -12,7 +12,7 @@ from bisect import bisect_right
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import drafts
+from . import drafts, fsutil
 from . import entities as ent
 from . import scenemeta
 from .links import find_all_links
@@ -74,7 +74,7 @@ class Index:
         cur = self._conn.cursor()
         cur.execute("DELETE FROM links WHERE source = ?", (rel_path,))
         text = drafts.blank_pending(text)
-        lines = [ln.rstrip() for ln in text.splitlines()]
+        lines = [ln.rstrip() for ln in text.split("\n")]  # "\n" only: matches line_starts
         line_starts = [0]  # offset of each line, for O(log n) offset -> row
         for i, ch in enumerate(text):
             if ch == "\n":
@@ -87,7 +87,7 @@ class Index:
             line = lines[row] if row < len(lines) else ""
             cur.execute(
                 "INSERT INTO links (source, target, row, line) VALUES (?, ?, ?, ?)",
-                (rel_path, link.target, row, line),
+                (rel_path, ent.fold(link.target), row, line),
             )
         self._conn.commit()
 
@@ -113,7 +113,7 @@ class Index:
         """Every line linking to or mentioning *entity* (by name or alias)."""
         if self._closed:
             return []
-        names = entity.names
+        names = [ent.fold(n) for n in entity.names]
         placeholders = ",".join("?" for _ in names)
         rows = self._conn.execute(
             f"SELECT DISTINCT source, row, line FROM links"
@@ -137,5 +137,5 @@ class Index:
         scenes = set(project.all_scene_files())
         for path in project.all_markdown_files():
             rel = path.relative_to(project.root).as_posix()
-            self.update_file(rel, path.read_text(encoding="utf-8"),
+            self.update_file(rel, fsutil.read_text_lenient(path),
                              names if path in scenes else None)

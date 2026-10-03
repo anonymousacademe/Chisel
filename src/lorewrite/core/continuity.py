@@ -220,7 +220,7 @@ def locate_evidence(scene_text: str, evidence: str) -> int | None:
     snippet = " ".join(evidence.split())[:80]
     if not snippet:
         return None
-    for i, line in enumerate(scene_text.splitlines()):
+    for i, line in enumerate(scene_text.split("\n")):
         if snippet[:40] in " ".join(line.split()):
             return i
     words = snippet[:40].split()

@@ -19,7 +19,7 @@ def test_spec_and_entry_compile():
 def test_inno_script_is_per_user_and_names_both_executables():
     iss = (ROOT / "packaging/lorewriter.iss").read_text(encoding="utf-8")
     assert "PrivilegesRequired=lowest" in iss
-    assert "LoreWriter.exe" in iss and "lorewrite.exe" in iss
+    assert "Chisel.exe" in iss and "lorewrite.exe" in iss
     assert "windows-setup" in iss
 
 

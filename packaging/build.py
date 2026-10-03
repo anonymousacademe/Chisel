@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Build the installable LoreWriter apps. One entry point for CI and for local use.
+"""Build the installable Chisel apps. One entry point for CI and for local use.
 
-    python packaging/build.py bundle     # PyInstaller onedir -> dist/LoreWriter[.app]
+    python packaging/build.py bundle     # PyInstaller onedir -> dist/Chisel[.app]
     python packaging/build.py selftest   # run --self-test on the built bundle
     python packaging/build.py package    # installer / DMG / AppImage / zip -> dist/release/
     python packaging/build.py all        # the three above
@@ -32,7 +32,7 @@ PKG = ROOT / "packaging"
 DIST = ROOT / "dist"
 WORK = ROOT / "build" / "pyinstaller"
 RELEASE = DIST / "release"
-BUNDLE = DIST / "LoreWriter"
+BUNDLE = DIST / "Chisel"
 ICON_PNG = ROOT / "gui" / "src-tauri" / "icons" / "icon.png"
 # Pinned release of appimagetool (never the moving "continuous" channel) and the SHA-256
 # of its x86_64 AppImage. To update: pick a new tagged release, download the asset, check
@@ -68,7 +68,7 @@ def mac_arch() -> str:
 def bundle() -> None:
     if not (ROOT / "src" / "lorewrite" / "gui" / "web" / "index.html").is_file():
         sys.exit("the web UI is not built: run `npm ci && npm run build` in gui/ first")
-    for folder in (DIST / "LoreWriter", DIST / "LoreWriter.app", WORK):
+    for folder in (DIST / "Chisel", DIST / "Chisel.app", WORK):
         if folder.exists():
             shutil.rmtree(folder)
     run([sys.executable, "-m", "PyInstaller", PKG / "lorewriter.spec", "--noconfirm", "--clean",
@@ -79,9 +79,9 @@ def bundle_exes() -> tuple[Path, Path]:
     """(desktop executable, terminal executable) inside the built bundle."""
     exe = ".exe" if sys.platform == "win32" else ""
     if sys.platform == "darwin":
-        macos = DIST / "LoreWriter.app" / "Contents" / "MacOS"
-        return macos / "LoreWriter", macos / "lorewrite"
-    return BUNDLE / f"LoreWriter{exe}", BUNDLE / f"lorewrite{exe}"
+        macos = DIST / "Chisel.app" / "Contents" / "MacOS"
+        return macos / "Chisel", macos / "lorewrite"
+    return BUNDLE / f"Chisel{exe}", BUNDLE / f"lorewrite{exe}"
 
 
 # -- self test ---------------------------------------------------------------------
@@ -132,7 +132,7 @@ def zip_dir(src: Path, out: Path, top: str) -> None:
 
 def package_windows() -> None:
     ver = version()
-    zip_dir(BUNDLE, RELEASE / f"LoreWriter-{ver}-windows-portable.zip", "LoreWriter")
+    zip_dir(BUNDLE, RELEASE / f"Chisel-{ver}-windows-portable.zip", "Chisel")
     iscc = shutil.which("iscc") or next(
         (p for p in (r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
                      r"C:\Program Files\Inno Setup 6\ISCC.exe") if Path(p).is_file()), None)
@@ -149,16 +149,16 @@ def package_macos() -> None:
     if stage.exists():
         shutil.rmtree(stage)
     stage.mkdir(parents=True)
-    run(["ditto", DIST / "LoreWriter.app", stage / "LoreWriter.app"])
+    run(["ditto", DIST / "Chisel.app", stage / "Chisel.app"])
     (stage / "Applications").symlink_to("/Applications")
     (stage / "READ ME FIRST.txt").write_text(
-        "LoreWriter is not signed yet.\n\nDrag LoreWriter.app to Applications. The first time, "
+        "Chisel is not signed yet.\n\nDrag Chisel.app to Applications. The first time, "
         "right-click (or control-click) it and choose Open, then Open again.\nIf macOS still "
-        "refuses: xattr -dr com.apple.quarantine /Applications/LoreWriter.app\n",
+        "refuses: xattr -dr com.apple.quarantine /Applications/Chisel.app\n",
         encoding="utf-8")
-    out = RELEASE / f"LoreWriter-{ver}-macos-{arch}.dmg"
+    out = RELEASE / f"Chisel-{ver}-macos-{arch}.dmg"
     out.unlink(missing_ok=True)
-    run(["hdiutil", "create", "-volname", "LoreWriter", "-srcfolder", stage, "-ov",
+    run(["hdiutil", "create", "-volname", "Chisel", "-srcfolder", stage, "-ov",
          "-format", "UDZO", out])
 
 
@@ -193,23 +193,23 @@ def appimagetool() -> Path:
 
 
 APPRUN = """#!/bin/sh
-# LoreWriter AppImage launcher: the desktop app by default; the terminal app when run
-# through a link named "lorewrite" or as `LoreWriter.AppImage --terminal [options]`.
+# Chisel AppImage launcher: the desktop app by default; the terminal app when run
+# through a link named "lorewrite" or as `Chisel.AppImage --terminal [options]`.
 HERE="$(dirname "$(readlink -f "$0")")"
-APP="$HERE/usr/lib/LoreWriter"
+APP="$HERE/usr/lib/Chisel"
 case "$(basename "${ARGV0:-}")" in
   lorewrite) exec "$APP/lorewrite" "$@" ;;
 esac
 if [ "$1" = "--terminal" ]; then shift; exec "$APP/lorewrite" "$@"; fi
-exec "$APP/LoreWriter" "$@"
+exec "$APP/Chisel" "$@"
 """
 
 DESKTOP = """[Desktop Entry]
 Type=Application
-Name=LoreWriter
+Name=Chisel
 GenericName=Fiction writing
 Comment=Write fiction in plain Markdown, with linked characters and places
-Exec=LoreWriter %F
+Exec=Chisel %F
 Icon=lorewriter
 Terminal=false
 Categories=Office;TextEditor;
@@ -220,25 +220,25 @@ X-AppImage-Version={version}
 
 def package_linux() -> None:
     ver = version()
-    appdir = ROOT / "build" / "LoreWriter.AppDir"
+    appdir = ROOT / "build" / "Chisel.AppDir"
     if appdir.exists():
         shutil.rmtree(appdir)
     (appdir / "usr" / "lib").mkdir(parents=True)
-    shutil.copytree(BUNDLE, appdir / "usr" / "lib" / "LoreWriter", symlinks=True)
+    shutil.copytree(BUNDLE, appdir / "usr" / "lib" / "Chisel", symlinks=True)
     apprun = appdir / "AppRun"
     apprun.write_text(APPRUN, encoding="utf-8", newline="\n")
     apprun.chmod(0o755)
-    (appdir / "LoreWriter.desktop").write_text(DESKTOP.format(version=ver), encoding="utf-8",
+    (appdir / "Chisel.desktop").write_text(DESKTOP.format(version=ver), encoding="utf-8",
                                                newline="\n")
     shutil.copy(ICON_PNG, appdir / "lorewriter.png")
     (appdir / ".DirIcon").symlink_to("lorewriter.png")
     share = appdir / "usr" / "share"
     (share / "applications").mkdir(parents=True)
-    shutil.copy(appdir / "LoreWriter.desktop", share / "applications" / "LoreWriter.desktop")
+    shutil.copy(appdir / "Chisel.desktop", share / "applications" / "Chisel.desktop")
     icons = share / "icons" / "hicolor" / "512x512" / "apps"
     icons.mkdir(parents=True)
     shutil.copy(ICON_PNG, icons / "lorewriter.png")
-    out = RELEASE / f"LoreWriter-{ver}-x86_64.AppImage"
+    out = RELEASE / f"Chisel-{ver}-x86_64.AppImage"
     out.unlink(missing_ok=True)
     env = dict(os.environ, ARCH="x86_64", APPIMAGE_EXTRACT_AND_RUN="1")
     run([appimagetool(), "--appimage-extract-and-run", appdir, out], env=env)

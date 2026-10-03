@@ -126,9 +126,9 @@ jobs:
         shell: pwsh
         run: |
           $setup = Get-ChildItem dist/release -Filter "*-windows-setup.exe" | Select-Object -First 1
-          $dir = Join-Path $env:RUNNER_TEMP "LoreWriterInstalled"
+          $dir = Join-Path $env:RUNNER_TEMP "ChiselInstalled"
           Start-Process -FilePath $setup.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/CURRENTUSER","/DIR=$dir" -Wait
-          python packaging/build.py selftest --gui "$dir\LoreWriter.exe" --tui "$dir\lorewrite.exe"
+          python packaging/build.py selftest --gui "$dir\Chisel.exe" --tui "$dir\lorewrite.exe"
           Start-Process -FilePath "$dir\unins000.exe" -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES" -Wait
       - uses: actions/upload-artifact@v4
         with:
@@ -177,7 +177,7 @@ jobs:
           }
           attach
           status=0
-          python packaging/build.py selftest --gui "$mnt/LoreWriter.app/Contents/MacOS/LoreWriter" --tui "$mnt/LoreWriter.app/Contents/MacOS/lorewrite" || status=$?
+          python packaging/build.py selftest --gui "$mnt/Chisel.app/Contents/MacOS/Chisel" --tui "$mnt/Chisel.app/Contents/MacOS/lorewrite" || status=$?
           detach
           exit $status
       - uses: actions/upload-artifact@v4
@@ -229,7 +229,7 @@ jobs:
           }
           attach
           status=0
-          python packaging/build.py selftest --gui "$mnt/LoreWriter.app/Contents/MacOS/LoreWriter" --tui "$mnt/LoreWriter.app/Contents/MacOS/lorewrite" || status=$?
+          python packaging/build.py selftest --gui "$mnt/Chisel.app/Contents/MacOS/Chisel" --tui "$mnt/Chisel.app/Contents/MacOS/lorewrite" || status=$?
           detach
           exit $status
       - uses: actions/upload-artifact@v4
@@ -275,5 +275,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${GITHUB_REF_NAME}" release/* --repo "${GITHUB_REPOSITORY}" \
-            --draft --title "LoreWriter ${GITHUB_REF_NAME#v}" \
+            --draft --title "Chisel ${GITHUB_REF_NAME#v}" \
             --notes "Installers for Windows, macOS (Apple silicon, and Intel when it built) and Linux. Unsigned: see the README's Install section for the first-launch steps."

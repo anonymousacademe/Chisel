@@ -1,4 +1,4 @@
-// CodeMirror 6 setup for a LoreWriter document: plain Markdown on disk, drawn
+// CodeMirror 6 setup for a Chisel document: plain Markdown on disk, drawn
 // with the design's prose styling. Live preview: [[link]] brackets and the
 // <!--ai--> markers are hidden, mentions are coloured, pending drafts tinted.
 import { Compartment, EditorState, Prec, Facet, StateEffect, StateField, type Extension, type Range } from "@codemirror/state";
@@ -329,7 +329,7 @@ export function editorExtensions(kind: string, meta: string, reflow: boolean, ho
       ...(hooks.extraKeys ?? []).map((k) => ({ key: k.key, run: () => k.run() })),
       ...defaultKeymap, ...historyKeymap,
     ]),
-    // LoreWriter checks spelling itself (core.spelling), so the browser must not
+    // Chisel checks spelling itself (core.spelling), so the browser must not
     EditorView.contentAttributes.of({ spellcheck: "false", autocorrect: "off" }),
     EditorView.updateListener.of((u) => {
       if (u.docChanged) hooks.onChange(u.state.doc.toString());

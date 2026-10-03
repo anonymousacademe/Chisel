@@ -442,7 +442,7 @@ def build_story(st) -> list:
         "LW00-0001-3.", style="notice")
     s.p("This edition applies to Version 0.2.0 of Lorewrite, including the "
         "terminal application (`lorewrite`), the desktop application "
-        "(`lorewrite-gui`, whose window is titled LoreWriter), and the "
+        "(`lorewrite-gui`, whose window is titled Chisel), and the "
         "features added to both since the Third Edition: parts, the "
         "Trash and scene details; snapshots, drafts and git sync; "
         "collections, comments, research notes and saved assistant "
@@ -499,7 +499,7 @@ def build_story(st) -> list:
         "comes in two forms that work on the same files: a //terminal "
         "application//, started with `lorewrite`, and a //desktop "
         "application//, started with `lorewrite-gui`, whose window is "
-        "titled LoreWriter. The book explains what Lorewrite does, how to "
+        "titled Chisel. The book explains what Lorewrite does, how to "
         "install and start it, how to write and organize scenes, how to "
         "keep track of your characters and places, how to keep a history "
         "of your work, how to check your spelling, how to use its optional "
@@ -612,7 +612,7 @@ def build_story(st) -> list:
     s.h2("Names and Terms")
     s.p("The program is called Lorewrite; its commands are `lorewrite` "
         "(terminal) and `lorewrite-gui` (desktop). The desktop window and "
-        "its assistant call themselves //LoreWriter//; it is the same "
+        "its assistant call themselves //Chisel//; it is the same "
         "program. A //project// is one book: a folder of plain files. The "
         "Glossary at the back defines the other terms.")
 
@@ -1046,7 +1046,7 @@ the-salt-road/
         "one dark appearance of its own.")
     s.p("On Omarchy, both applications can be started from the desktop "
         "rather than from a terminal. On the computer this edition was "
-        "prepared on, the application menu has an entry named //LoreWriter// "
+        "prepared on, the application menu has an entry named //Chisel// "
         "that starts the desktop application (or, if its window is already "
         "open, brings that window to the front instead of opening a second "
         "copy), and the top-bar pencil button does the same on a left "
@@ -1268,7 +1268,7 @@ the-salt-road/
     s.gfigure("fig_gcork", "corkboard", "The corkboard view", width=300)
 
     s.h2("The Assistant", idx=["assistant panel"])
-    s.p("The panel at the right is called LoreWriter and carries a green "
+    s.p("The panel at the right is called Chisel and carries a green "
         "//Project aware// tag, meaning that it reads your notes. Close "
         "it with the button at its top right or with the title bar's "
         "panel button. The clock button opens your saved conversations "
@@ -1382,7 +1382,7 @@ the-salt-road/
     s.h2("What Is Still Planned", idx=["planned features"])
     s.p("An earlier edition of this book listed parts of the window that "
         "were drawn dimmed and did nothing, with the tooltip //Not in "
-        "LoreWriter yet//. All of them now work: the draft badge, "
+        "Chisel yet//. All of them now work: the draft badge, "
         "snapshots, sync, streak, the parts of the binder, collections, "
         "comments, the details strip and the status tag, the word target, "
         "Brainstorm, Research, conversation history and attaching. No "
@@ -2596,10 +2596,10 @@ sweet rot""")
     s.table("t_stylecard", "What the Your style card says",
             ["State", "The card says", "Buttons"], [
         ["No style guide, fewer than 300 words in your scenes",
-         "//Write a few hundred words first; then LoreWriter can learn "
+         "//Write a few hundred words first; then Chisel can learn "
          "your voice from them.//", "**Learn my style**, dimmed"],
         ["No style guide, 300 words or more",
-         "//LoreWriter writes in a generic voice until it learns yours "
+         "//Chisel writes in a generic voice until it learns yours "
          "from your scenes.// The card is outlined to catch your eye.",
          "**Learn my style**"],
         ["A guide you wrote or edited by hand, with no provenance line",
@@ -4518,7 +4518,7 @@ GLOSSARY = [
     ("corkboard", "A view of the desktop editor that shows each scene as a "
      "card."),
     ("desktop application", "`lorewrite-gui`: the windowed form of "
-     "Lorewrite. Its window is titled LoreWriter."),
+     "Lorewrite. Its window is titled Chisel."),
     ("dictionary", "A plain text file of words and phrases that spell check "
      "never flags. There is one for each project (`dictionary.txt`) and one "
      "personal one."),

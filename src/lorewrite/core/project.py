@@ -11,7 +11,7 @@ from pathlib import Path
 from . import drafts, research
 from . import entities as ent
 from . import scenemeta, snapshots
-from .structure import Structure
+from .structure import Structure, recover_staged
 from . import fsutil
 
 MANUSCRIPT_DIR = "manuscript"
@@ -27,9 +27,14 @@ TYPE_SUBDIRS = {
 }
 
 PROJECT_TEMPLATE = """\
-title = "{title}"
+title = {title}
 author = ""
 """
+
+
+def toml_string(value: str) -> str:
+    """*value* as a TOML basic string (quotes, backslashes, newlines escaped)."""
+    return json.dumps(value, ensure_ascii=False).replace("\x7f", "\\u007f")
 
 SAMPLE_SCENE = """\
 # Opening
@@ -54,6 +59,7 @@ Everything is plain Markdown on disk — your project folder *is* the novel.
 
 def write_atomic(path: Path, text: str) -> None:
     """Write *text* to *path* via a temp file + rename (never a torn file)."""
+    fsutil.ensure_utf8(path)  # never replace non-UTF-8 bytes with lenient text
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(text, encoding="utf-8", newline="\n")
     fsutil.replace(tmp, path)
@@ -95,7 +101,7 @@ class Project(Structure):
         (root / MANUSCRIPT_DIR).mkdir(parents=True, exist_ok=True)
         for sub in TYPE_SUBDIRS.values():
             (root / ENTITIES_DIR / sub).mkdir(parents=True, exist_ok=True)
-        (root / PROJECT_FILE).write_text(PROJECT_TEMPLATE.format(title=title),
+        (root / PROJECT_FILE).write_text(PROJECT_TEMPLATE.format(title=toml_string(title)),
                                          encoding="utf-8", newline="\n")
         sample = root / MANUSCRIPT_DIR / "01-opening.md"
         if not sample.exists():
@@ -112,6 +118,10 @@ class Project(Structure):
             raise FileNotFoundError(f"no {PROJECT_FILE} in {root}")
         with (root / PROJECT_FILE).open("rb") as f:
             meta = tomllib.load(f)
+        try:
+            recover_staged(root)  # a rename that died midway left .mv* files
+        except OSError:
+            pass
         drafts.migrate_sidecars(root)  # pre-parts sidecars -> path-keyed names
         research.migrate_folder(root)  # research/ -> notebook/ (Notebook rename)
         return cls(root=root, title=str(meta.get("title", "Untitled")), meta=meta)
@@ -267,7 +277,7 @@ class Project(Structure):
     def scene_title(self, path: Path) -> str:
         """First '# ' heading, else the filename stem."""
         try:
-            text = path.read_text(encoding="utf-8")
+            text = fsutil.read_text_lenient(path)
             for line in text[scenemeta.body_offset(text):].splitlines():
                 if line.startswith("# "):
                     return line[2:].strip()
@@ -277,6 +287,7 @@ class Project(Structure):
 
     def rename_scene(self, path: Path, new_title: str) -> None:
         """Set a scene's title (its first '# ' heading), atomically."""
+        fsutil.ensure_utf8(path)
         write_atomic(path, retitle_text(path.read_text(encoding="utf-8"), new_title))
 
     # -- entities ------------------------------------------------------------
@@ -294,7 +305,20 @@ class Project(Structure):
     def create_entity(self, name: str, etype: str = "character") -> tuple[ent.Entity, Path]:
         """Create a new entity note from the template. Returns (entity, path)."""
         entity = ent.Entity(name=name, type=etype)
+        want = ent.fold(name)
+        for other in self.load_entities():  # already an alias of a note
+            if other.path is not None and any(
+                    ent.fold(a).casefold() == want.casefold() for a in other.aliases):
+                return other, other.path
         path = self.entity_path(entity)
-        if not path.exists():
-            ent.save_entity(entity, path)
+        n = 1
+        while path.exists():
+            # same file: the same name returns that note; a different name
+            # (Wren vs wren, Elan vs Elan with an accent) gets its own file
+            existing = ent.load_entity(path)
+            if ent.fold(existing.name) == want:
+                return existing, path
+            n += 1
+            path = path.with_name(f"{ent.slugify(name)}-{n}.md")
+        ent.save_entity(entity, path)
         return ent.load_entity(path), path

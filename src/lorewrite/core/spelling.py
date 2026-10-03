@@ -21,6 +21,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Iterable
 
+from . import fsutil
 from .project import write_atomic
 from .recents import default_state_dir
 
@@ -147,6 +148,7 @@ def add_to_dictionary(path: Path, term: str) -> bool:
     term = _norm(term)
     if not term or term.startswith("#"):
         return False
+    fsutil.ensure_utf8(path)
     if term in load_dictionary(path):
         return False
     try:
@@ -162,6 +164,7 @@ def add_to_dictionary(path: Path, term: str) -> bool:
 
 def remove_from_dictionary(path: Path, term: str) -> bool:
     term = _norm(term)
+    fsutil.ensure_utf8(path)
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except OSError:

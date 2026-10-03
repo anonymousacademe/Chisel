@@ -62,13 +62,26 @@ def make_handler(api: Api, dist: Path):
             # a CORS preflight (never answered), so a web page cannot drive this API.
             if (self.headers.get("Content-Type") or "").split(";")[0].strip() != "application/json":
                 return self._send(415, b'{"ok": false, "error": "JSON only"}', "application/json")
-            length = int(self.headers.get("Content-Length") or 0)
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+                if length < 0:
+                    raise ValueError("negative length")
+            except ValueError:
+                return self._send(400, b'{"ok": false, "error": "invalid Content-Length"}',
+                                  "application/json")
             try:
                 payload = json.loads(self.rfile.read(length) or b"{}")
-                args = payload.get("args", [])
-            except (json.JSONDecodeError, AttributeError):
-                args = []
-            result = getattr(api, name)(*args)
+            except ValueError:  # includes JSONDecodeError and UnicodeDecodeError
+                return self._send(400, b'{"ok": false, "error": "invalid JSON"}',
+                                  "application/json")
+            args = payload.get("args", []) if isinstance(payload, dict) else None
+            if not isinstance(args, list):
+                return self._send(200, b'{"ok": false, "error": "args must be a list"}',
+                                  "application/json")
+            try:
+                result = getattr(api, name)(*args)
+            except TypeError as exc:  # wrong number of arguments
+                result = {"ok": False, "error": str(exc)}
             self._send(200, json.dumps(result).encode("utf-8"), "application/json")
 
     return Handler

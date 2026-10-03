@@ -1,5 +1,5 @@
 """Entry point of the frozen apps. One bundle holds two executables built from
-this script: ``LoreWriter`` (the desktop app, windowed) and ``lorewrite`` (the
+this script: ``Chisel`` (the desktop app, windowed) and ``lorewrite`` (the
 terminal app, console). The executable's own name picks which one starts."""
 
 import os

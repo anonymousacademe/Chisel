@@ -71,6 +71,7 @@ class RenamePlan:
     occurrences: list[Occurrence] = field(default_factory=list)
     digests: dict[str, str] = field(default_factory=dict)  # file/sidecar -> sha256
     kinds: dict[str, str] = field(default_factory=dict)    # file -> scene|entity|research
+    skipped: dict[str, str] = field(default_factory=dict)  # file -> why it is left out
 
     def default_ids(self) -> list[str]:
         return [o.id for o in self.occurrences if o.default_on]
@@ -116,10 +117,11 @@ def _rel(project, path: Path) -> str:
 
 
 def _read(path: Path) -> str:
-    return path.read_text(encoding="utf-8")
+    return fsutil.read_text_lenient(path)  # callers that write back check ensure_utf8
 
 
 def _write(path: Path, text: str) -> None:
+    fsutil.ensure_utf8(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(text, encoding="utf-8", newline="\n")
@@ -292,6 +294,9 @@ def plan_rename(project, entity: ent.Entity, new_name: str, *,
 
     def add(path: Path, kind: str, text: str, hits: list[tuple], draft_hits: list[tuple] = ()) -> None:
         rel = _rel(project, path)
+        if not fsutil.is_valid_utf8(path):  # rewriting it would destroy its bytes
+            plan.skipped[rel] = str(fsutil.NotUtf8Error(path))
+            return
         plan.digests[rel] = _digest(text)
         plan.kinds[rel] = kind
         for h in hits:
@@ -327,6 +332,7 @@ def plan_rename(project, entity: ent.Entity, new_name: str, *,
                 plan.digests[f"comments:{rel}"] = _digest(_read(side))
     # the note itself is always part of the rename, even with nothing in it
     own = plan.entity_file
+    fsutil.ensure_utf8(entity.path)
     if own not in plan.digests:
         plan.digests[own] = _digest(_read(entity.path))
         plan.kinds[own] = "entity"
@@ -387,6 +393,7 @@ def apply_rename(project, plan: RenamePlan, accepted_ids, index=None) -> RenameR
     # the files to rewrite, each checked against the preview
     originals: dict[str, str] = {}
     for rel in {*text_edits, plan.entity_file}:
+        fsutil.ensure_utf8(root / rel)
         text = _read(root / rel)
         if _digest(text) != plan.digests.get(rel):
             raise ValueError(f"{rel} changed since the preview; preview again")
@@ -587,9 +594,13 @@ def undo_rename(project, undo_id: str, index=None) -> UndoResult:
         if old_rel != new_rel:
             (root / new_rel).unlink(missing_ok=True)
         restored.append(old_rel)
+    elif old_rel != new_rel and not (root / new_rel).exists() and (root / old_rel).is_file() \
+            and _read(root / old_rel) == j["entity_original"]:
+        restored.append(old_rel)  # an earlier, partial undo already put it back
     else:
         skipped.append(new_rel)
-    jpath.unlink(missing_ok=True)
+    if restored and not skipped:
+        jpath.unlink(missing_ok=True)  # otherwise keep it: a later undo can finish
     if index is not None:
         index.rebuild(project)
     return UndoResult(restored, skipped, old_rel if old_rel in restored else new_rel)

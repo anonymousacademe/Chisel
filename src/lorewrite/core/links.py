@@ -12,11 +12,14 @@ mentions). Files are never rewritten to add brackets.
 from __future__ import annotations
 
 import re
+import unicodedata
 from bisect import bisect_left
 from dataclasses import dataclass
 from functools import lru_cache
 
-WIKILINK_RE = re.compile(r"\[\[([^\[\]|]+?)(?:\|([^\[\]]+?))?\]\]")
+from .entities import _QUOTES
+
+WIKILINK_RE =re.compile(r"\[\[([^\[\]|]+?)(?:\|([^\[\]]+?))?\]\]")
 
 
 @dataclass(frozen=True)
@@ -50,11 +53,31 @@ def find_links(text: str) -> list[Link]:
 MIN_MENTION_LENGTH = 2
 
 
+def _nfd(text: str) -> str:
+    """Matching form: curly quotes straight, canonically decomposed."""
+    return unicodedata.normalize("NFD", text.translate(_QUOTES))
+
+
+def _norm_with_map(text: str) -> tuple[str, list[int] | None]:
+    """(matching form of *text*, normalized index -> original index). The map
+    has len+1 entries; it is None when the text needs no normalizing."""
+    if text.isascii():
+        return text, None
+    out: list[str] = []
+    idx: list[int] = []
+    for i, ch in enumerate(text):
+        piece = ch if ch.isascii() else _nfd(ch)
+        out.append(piece)
+        idx.extend([i] * len(piece))
+    idx.append(len(text))
+    return "".join(out), idx
+
+
 @lru_cache(maxsize=16)
 def _mention_re(names: tuple[str, ...]) -> re.Pattern | None:
     variants: set[str] = set()
     for name in names:
-        name = name.strip()
+        name = _nfd(name.strip())
         if len(name) < MIN_MENTION_LENGTH:
             continue
         variants.add(name)
@@ -65,7 +88,8 @@ def _mention_re(names: tuple[str, ...]) -> re.Pattern | None:
     # Zero-width lookahead so overlapping candidates are all reported.
     alternation = "|".join(
         re.escape(v) for v in sorted(variants, key=len, reverse=True))
-    return re.compile(rf"(?=(?<!\w)({alternation})(?!\w))")
+    word = r"[\ẁ-ͯ]"  # combining accents belong to their letter
+    return re.compile(rf"(?=(?<!{word})({alternation})(?!{word}))")
 
 
 def find_mentions(text: str, names: list[str]) -> list[Link]:
@@ -83,8 +107,12 @@ def find_mentions(text: str, names: list[str]) -> list[Link]:
     # one interval starting last before the candidate's end (was O(n^2)).
     taken = sorted((l.start, l.end) for l in find_links(text))
     starts = [s for s, _ in taken]
+    norm, idx = _norm_with_map(text)
+    spans = ((m.start(1), m.end(1)) for m in pattern.finditer(norm))
+    if idx is not None:  # report offsets against the ORIGINAL text
+        spans = ((idx[s], idx[e - 1] + 1) for s, e in spans)
     candidates = sorted(
-        ((m.start(1), m.end(1)) for m in pattern.finditer(text)),
+        spans,
         key=lambda span: (span[0] - span[1], span[0]),  # longest, then leftmost
     )
     chosen = []

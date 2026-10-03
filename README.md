@@ -1,13 +1,13 @@
-# LoreWriter
+# Chisel
 
 A fiction-writing app for your desktop and your terminal. Your novel is a folder
 of plain Markdown files; characters and places are notes that link both ways; and
 AI helps you keep the story consistent, but it only ever **suggests** — it never
 changes your prose unless you accept the change.
 
-![LoreWriter: binder, live-preview editor and assistant panel](docs/screenshots/lorewriter.png)
+![Chisel: binder, live-preview editor and assistant panel](docs/screenshots/lorewriter.png)
 
-LoreWriter runs on Windows, macOS and Linux. The desktop app (`lorewrite-gui`)
+Chisel runs on Windows, macOS and Linux. The desktop app (`lorewrite-gui`)
 and the terminal app (`lorewrite`) open the same projects, so you can use either,
 or both.
 
@@ -71,16 +71,16 @@ or both.
 
 Download the installer for your system from the
 [Releases page](https://github.com/anonymousacademe/lorewriter/releases). Every
-download contains **both** apps: the desktop app (LoreWriter) and the terminal app
+download contains **both** apps: the desktop app (Chisel) and the terminal app
 (`lorewrite`). Replace `<version>` with the number of the release.
 
 | System | Download | Notes |
 |---|---|---|
-| Windows 10 / 11 (64-bit) | `LoreWriter-<version>-windows-setup.exe` | Installs for you only (no administrator rights), adds a Start-menu entry and, if you tick it, a desktop shortcut; remove it from Settings > Apps. |
-| Windows, no install | `LoreWriter-<version>-windows-portable.zip` | Unzip anywhere and run `LoreWriter\LoreWriter.exe`. |
-| macOS, Apple silicon (M1 or newer) | `LoreWriter-<version>-macos-arm64.dmg` | Open it, drag LoreWriter to Applications. |
-| macOS, Intel | `LoreWriter-<version>-macos-x86_64.dmg` | Best effort: built when the Intel build runner works, so a release may not have it. Otherwise install from source. |
-| Linux (x86-64) | `LoreWriter-<version>-x86_64.AppImage` | `chmod +x` it and run it. |
+| Windows 10 / 11 (64-bit) | `Chisel-<version>-windows-setup.exe` | Installs for you only (no administrator rights), adds a Start-menu entry and, if you tick it, a desktop shortcut; remove it from Settings > Apps. |
+| Windows, no install | `Chisel-<version>-windows-portable.zip` | Unzip anywhere and run `Chisel\Chisel.exe`. |
+| macOS, Apple silicon (M1 or newer) | `Chisel-<version>-macos-arm64.dmg` | Open it, drag Chisel to Applications. |
+| macOS, Intel | `Chisel-<version>-macos-x86_64.dmg` | Best effort: built when the Intel build runner works, so a release may not have it. Otherwise install from source. |
+| Linux (x86-64) | `Chisel-<version>-x86_64.AppImage` | `chmod +x` it and run it. |
 | Any system with Python | `pipx install lorewriter` (PyPI) | coming; see "From source" for now. |
 
 `SHA256SUMS.txt` on the release page lets you check a download.
@@ -88,15 +88,15 @@ download contains **both** apps: the desktop app (LoreWriter) and the terminal a
 The apps are **not signed** yet, so the first launch needs one extra step:
 
 - **Windows**: SmartScreen says "Windows protected your PC". Click **More info**, then **Run anyway**.
-- **macOS**: Gatekeeper refuses an unsigned app. **Right-click** (or control-click) LoreWriter in Applications,
+- **macOS**: Gatekeeper refuses an unsigned app. **Right-click** (or control-click) Chisel in Applications,
   choose **Open**, then **Open** again. If macOS still refuses, run
-  `xattr -dr com.apple.quarantine /Applications/LoreWriter.app` in Terminal once.
-- **Linux**: `chmod +x LoreWriter-*.AppImage && ./LoreWriter-*.AppImage`. To start the terminal app from the
-  same file: `./LoreWriter-*.AppImage --terminal` (or link the file as `lorewrite`). The AppImage carries its
+  `xattr -dr com.apple.quarantine /Applications/Chisel.app` in Terminal once.
+- **Linux**: `chmod +x Chisel-*.AppImage && ./Chisel-*.AppImage`. To start the terminal app from the
+  same file: `./Chisel-*.AppImage --terminal` (or link the file as `lorewrite`). The AppImage carries its
   own web engine (Qt WebEngine), so it needs no extra packages; it does need FUSE 2 to mount itself, or run it
   with `--appimage-extract-and-run`.
-- **Terminal app on Windows / macOS**: it is `lorewrite.exe` next to `LoreWriter.exe` in the install folder
-  (Start menu: "LoreWriter (terminal)"), and `LoreWriter.app/Contents/MacOS/lorewrite` on macOS.
+- **Terminal app on Windows / macOS**: it is `lorewrite.exe` next to `Chisel.exe` in the install folder
+  (Start menu: "Chisel (terminal)"), and `Chisel.app/Contents/MacOS/lorewrite` on macOS.
 
 Your settings, recent projects and writing stats live in a per-user folder (never in your project):
 `%LOCALAPPDATA%\lorewrite` on Windows, `~/Library/Application Support/lorewrite` on macOS,
@@ -197,7 +197,7 @@ strong_model = "anthropic/claude-sonnet-4.5"
 writing_model = "anthropic/claude-sonnet-4.5"
 ```
 
-**Costs.** You pay OpenRouter's per-model prices directly; LoreWriter adds nothing.
+**Costs.** You pay OpenRouter's per-model prices directly; Chisel adds nothing.
 The status bar shows the running total for the session (for example `AI $0.0123`)
 and each AI call reports its own cost. An inspiration image costs about $0.03 with
 the default image model, and images are only ever generated when you click.
@@ -228,7 +228,7 @@ A SQLite index under `.lorewrite/` powers backlinks. It is a rebuildable cache
 ## Privacy
 
 - Your project never leaves your machine unless you use an AI feature, push with
-  git, or copy it yourself. LoreWriter has no accounts and no telemetry.
+  git, or copy it yourself. Chisel has no accounts and no telemetry.
 - AI calls go to OpenRouter (and from there to the model you chose) **only when
   you trigger them**. What is sent depends on the feature: the alias finder and the
   continuity check send the scene you have open and the relevant character and place

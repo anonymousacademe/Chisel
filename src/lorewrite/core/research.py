@@ -23,6 +23,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 from . import fsutil
+from .entities import MAX_SLUG
 
 TEMPLATES = {
     "blank": ("Blank", ""),
@@ -173,7 +174,8 @@ def read(project, path: Path) -> str:
 
 
 def _slug(title: str) -> str:
-    return re.sub(r"[\W_]+", "-", title.casefold()).strip("-") or "note"
+    slug = re.sub(r"[\W_]+", "-", title.casefold())[:MAX_SLUG].strip("-")
+    return slug or "note"
 
 
 def _free_path(folder: Path, slug: str) -> Path:
@@ -249,6 +251,7 @@ def append_assistant_note(project, prompt: str, reply: str, when: datetime | Non
     folder = research_dir(project)
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / ASSISTANT_NOTES
+    fsutil.ensure_utf8(path)
     try:
         existing = path.read_text(encoding="utf-8")
     except OSError:
@@ -276,6 +279,7 @@ def append_clipping(project, text: str, source: str = "", when: datetime | None 
     folder = research_dir(project)
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / CLIPPINGS
+    fsutil.ensure_utf8(path)
     try:
         existing = path.read_text(encoding="utf-8")
     except OSError:

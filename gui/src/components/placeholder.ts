@@ -1,5 +1,5 @@
 /** The one tooltip every not-yet-implemented control shows. */
-export const PLACEHOLDER_TIP = "Not in LoreWriter yet";
+export const PLACEHOLDER_TIP = "Not in Chisel yet";
 
 /**
  * Spread onto any element to give it the shared placeholder treatment: drawn

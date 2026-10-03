@@ -11,7 +11,7 @@ labels: bug
 **Steps to reproduce**
 
 **Environment**
-- LoreWriter version (`pip show lorewriter`) and how you installed it:
+- Chisel version (`pip show lorewriter`) and how you installed it:
 - App: desktop (`lorewrite-gui`) / terminal (`lorewrite`)
 - OS and Python version:
 

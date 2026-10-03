@@ -22,7 +22,7 @@ const SCENES = [
   ["The Other Mara", ""], ["Meridian Zero", ""],
 ].map(([title, body], i) => {
   const n = String(i + 1).padStart(2, "0");
-  const text = `# ${title}\n\n${body || "(Mock scene — connect the LoreWriter core to see real prose.)"}\n`;
+  const text = `# ${title}\n\n${body || "(Mock scene — connect the Chisel core to see real prose.)"}\n`;
   return { id: `manuscript/${n}-${slug(title)}.md`, number: n, title, text };
 });
 
@@ -207,6 +207,6 @@ export function mockCall(method: string, args: unknown[]): object {
     case "open_project": case "new_project": workspace = buildWorkspace(); return { ok: true };
     case "choose_folder": return { ok: true, path: null };
     case "minimize": case "toggle_maximize": case "close": return { ok: true };
-    default: return { ok: false, error: `${method} is not available without the LoreWriter core` };
+    default: return { ok: false, error: `${method} is not available without the Chisel core` };
   }
 }

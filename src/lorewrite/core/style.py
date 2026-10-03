@@ -49,6 +49,7 @@ def save_style(project, text: str, backup: bool = True) -> Path:
     """Write style.md atomically (temp + rename). An existing guide is first
     copied to style.md.bak."""
     path = style_path(project)
+    fsutil.ensure_utf8(path)
     if backup and path.is_file():
         shutil.copyfile(path, project.root / BACKUP_FILE)
     tmp = path.with_suffix(path.suffix + ".tmp")

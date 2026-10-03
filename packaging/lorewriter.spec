@@ -1,7 +1,7 @@
-# PyInstaller spec for LoreWriter (one spec, OS branches). Run it through
-# packaging/build.py. Output: dist/LoreWriter/ (onedir) holding two executables,
-# LoreWriter (desktop, no console window) and lorewrite (terminal), and on macOS
-# dist/LoreWriter.app.
+# PyInstaller spec for Chisel (one spec, OS branches). Run it through
+# packaging/build.py. Output: dist/Chisel/ (onedir) holding two executables,
+# Chisel (desktop, no console window) and lorewrite (terminal), and on macOS
+# dist/Chisel.app.
 import os
 import pkgutil
 import sys
@@ -123,12 +123,12 @@ if WINDOWS:
   kids=[
     StringFileInfo([StringTable('040904B0', [
       StringStruct('CompanyName', 'Mishkin'),
-      StringStruct('FileDescription', 'LoreWriter'),
+      StringStruct('FileDescription', 'Chisel'),
       StringStruct('FileVersion', '{__version__}'),
-      StringStruct('InternalName', 'LoreWriter'),
+      StringStruct('InternalName', 'Chisel'),
       StringStruct('LegalCopyright', 'Copyright (c) 2026 Mishkin. MIT licence.'),
-      StringStruct('OriginalFilename', 'LoreWriter.exe'),
-      StringStruct('ProductName', 'LoreWriter'),
+      StringStruct('OriginalFilename', 'Chisel.exe'),
+      StringStruct('ProductName', 'Chisel'),
       StringStruct('ProductVersion', '{__version__}')])]),
     VarFileInfo([VarStruct('Translation', [1033, 1200])])
   ]
@@ -138,19 +138,19 @@ if WINDOWS:
 icon = str(ICONS / "icon.ico") if WINDOWS else str(ICONS / "icon.icns") if MACOS else None
 arch = os.environ.get("LOREWRITE_TARGET_ARCH") or None  # macOS: arm64 / x86_64 / universal2
 
-gui_exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="LoreWriter", console=False,
+gui_exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="Chisel", console=False,
               icon=icon, version=version_file, target_arch=arch, upx=False)
 tui_exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="lorewrite", console=True,
               icon=icon, version=version_file, target_arch=arch, upx=False)
-coll = COLLECT(gui_exe, tui_exe, a.binaries, a.datas, name="LoreWriter", upx=False)
+coll = COLLECT(gui_exe, tui_exe, a.binaries, a.datas, name="Chisel", upx=False)
 
 if MACOS:
     app = BUNDLE(
-        coll, name="LoreWriter.app", icon=icon, bundle_identifier=BUNDLE_ID, version=__version__,
+        coll, name="Chisel.app", icon=icon, bundle_identifier=BUNDLE_ID, version=__version__,
         info_plist={
-            "CFBundleName": "LoreWriter",
-            "CFBundleDisplayName": "LoreWriter",
-            "CFBundleExecutable": "LoreWriter",
+            "CFBundleName": "Chisel",
+            "CFBundleDisplayName": "Chisel",
+            "CFBundleExecutable": "Chisel",
             "CFBundleShortVersionString": __version__,
             "CFBundleVersion": __version__,
             "NSHighResolutionCapable": True,

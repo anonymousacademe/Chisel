@@ -52,8 +52,7 @@ from ..core import stats as writing_stats
 from ..core import drafts, rename as renaming, scenemeta, snapshots, sync
 from ..core import export as exporting
 from ..core.export.manuscript import ExportOptions
-from ..core import atmosphere, soundpacks
-from ..core import atmosphere, soundpacks
+from ..core import atmosphere, fsutil, soundpacks
 from ..core import settings as user_settings
 from ..core.desktop import open_path as desktop_open_path
 from ..core import spelling
@@ -86,7 +85,7 @@ from .exports import ExportJobs
 # Errors the core raises on purpose, with a message written for the author:
 # shown as-is. Anything else keeps its class name (it is a bug worth reporting).
 USER_ERRORS = (ValueError, FileNotFoundError, FileExistsError, LookupError, IndexError, RuntimeError,
-               sync.GitError)
+               sync.GitError, fsutil.NotUtf8Error)
 
 
 def bridge(fn: Callable[..., dict]) -> Callable[..., dict]:
@@ -330,6 +329,7 @@ class Api:
         with self._lock:
             project = self._require()
             path, kind = self.resolve_document(doc_id)  # FileNotFoundError if gone
+            fsutil.ensure_utf8(path)  # never overwrite non-UTF-8 bytes with lenient text
             current = str(path.stat().st_mtime_ns)
             if not force and base_mtime is not None and current != str(base_mtime):
                 if path.read_text(encoding="utf-8") != text:
@@ -475,7 +475,7 @@ class Api:
             entity = ent.resolve(name, self.entities)
             if entity is None:
                 raise LookupError(f"no note named {name!r}")
-            ent.add_alias(entity, alias)
+            ent.add_alias(entity, alias, self.entities)
             self._entities_changed()
             return {}
 
@@ -484,7 +484,7 @@ class Api:
     def _rename_title(self, project: Project, rel: str, kind: str) -> str:
         path = project.root / rel
         try:
-            text = path.read_text(encoding="utf-8")
+            text = fsutil.read_text_lenient(path)
         except OSError:
             return rel
         if kind == "scene":
@@ -623,7 +623,7 @@ class Api:
             project = self._require()
             path = self._scene_path(doc_id)
             project.rename_scene(path, title)
-            self._index_file(path, "scene", path.read_text(encoding="utf-8"))
+            self._index_file(path, "scene", fsutil.read_text_lenient(path))
             return {"id": doc_id}
 
     @bridge
@@ -1014,7 +1014,7 @@ class Api:
         return rows
 
     def _comment_text(self, path: Path, text: str | None) -> str:
-        return text if text is not None else path.read_text(encoding="utf-8")
+        return text if text is not None else fsutil.read_text_lenient(path)
 
     @bridge
     def list_comments(self, doc_id: str, text: str | None = None) -> dict:
@@ -1565,16 +1565,19 @@ class Api:
         added = 0
         with self._lock:
             self._require()
-            for item in items:
-                entity = ent.resolve(str(item.get("entity", "")), self.entities)
-                if entity is None:
-                    continue
-                alias = alias_form(str(item.get("surface", "")))
-                if alias and all(alias.casefold() != n.casefold() for n in entity.names):
-                    ent.add_alias(entity, alias)
-                    added += 1
-            if added:
-                self._entities_changed()
+            try:
+                for item in items:
+                    entity = ent.resolve(str(item.get("entity", "")), self.entities)
+                    if entity is None:
+                        continue
+                    alias = alias_form(str(item.get("surface", "")))
+                    if alias and all(alias.casefold() != n.casefold() for n in entity.names) \
+                            and ent.alias_owner(alias, entity, self.entities) is None:
+                        ent.add_alias(entity, alias)  # NotUtf8Error: the note is left alone
+                        added += 1
+            finally:
+                if added:
+                    self._entities_changed()
         return {"added": added}
 
     @bridge
@@ -1800,7 +1803,7 @@ class Api:
             model = resolve_model("writing", project.meta)
             if scope == "project" or not doc_id:
                 context = build_project_context(
-                    [ws.split_title(p.read_text(encoding="utf-8"))[0] or p.stem
+                    [ws.split_title(fsutil.read_text_lenient(p))[0] or p.stem
                      for p in project.list_scenes()], entities, canon, style_md)
             else:
                 inp = self._scene_inputs(doc_id, text)
@@ -1827,7 +1830,7 @@ class Api:
             model = resolve_model("writing", project.meta)
             if not doc_id:
                 context = build_project_context(
-                    [ws.split_title(p.read_text(encoding="utf-8"))[0] or p.stem
+                    [ws.split_title(fsutil.read_text_lenient(p))[0] or p.stem
                      for p in project.list_scenes()], entities, canon, style_md)
             else:
                 inp = self._scene_inputs(doc_id, text)

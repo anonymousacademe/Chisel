@@ -33,7 +33,7 @@ from ..ai.writing import (
     research_answer,
     research_context,
 )
-from ..core import chats, inspiration
+from ..core import chats, fsutil, inspiration
 from ..core import collections as coll
 from ..core import research as research_notes
 from ..core import comments
@@ -802,7 +802,7 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
         total = 0
         for path in self.project.counted_scenes():  # front matter isn't the book
             try:
-                text = path.read_text(encoding="utf-8")
+                text = fsutil.read_text_lenient(path)
                 total += _word_count(text, self._originals(text, path))
             except OSError:
                 continue
@@ -885,7 +885,7 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
         self._dirty = False
         self._sync_mention_names()
         self._refresh_snapshot_time()
-        text = path.read_text(encoding="utf-8")
+        text = fsutil.read_text_lenient(path)
         self._stats_seen(text)
         self._skip_touch = True
         self.editor.load_text(text)
@@ -896,6 +896,17 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
         self.editor.focus()
         self.update_status()
 
+    def _warn_not_utf8(self, exc: Exception) -> None:
+        """Tell the author (once per file) that a save was refused; never raise."""
+        warned = self.__dict__.setdefault("_utf8_warned", set())
+        if str(exc) in warned:
+            return
+        warned.add(str(exc))
+        try:
+            self.notify(str(exc), severity="error", timeout=10)
+        except Exception:
+            pass
+
     def _write_to_disk(self) -> None:
         if self.current_path is None or self._editor is None:
             return
@@ -905,7 +916,11 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
                 snapshots.ensure_daily(self.project, self.current_path, text)
             except Exception:
                 pass
-        write_atomic(self.current_path, text)
+        try:
+            write_atomic(self.current_path, text)
+        except fsutil.NotUtf8Error as exc:  # lenient text must never replace odd bytes
+            self._warn_not_utf8(exc)
+            return
         self._stats_record(text)
         if self._is_scene(self.current_path) and \
                 comments.sidecar_path(self.project.root, self.current_path).is_file():
@@ -1371,7 +1386,11 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
                 continue
             alias = alias_form(s.surface)
             if all(alias.casefold() != n.casefold() for n in entity.names):
-                ent.add_alias(entity, alias)
+                try:
+                    ent.add_alias(entity, alias)
+                except fsutil.NotUtf8Error as exc:
+                    self._warn_not_utf8(exc)
+                    continue
                 added += 1
         self._entities_changed()
         self.notify(f"Added {added} alias(es) to entity notes", timeout=2)
@@ -1633,7 +1652,11 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
     def _save_style_guide(self, markdown: str, ok: bool | None) -> None:
         if not ok or self.project is None:
             return
-        path = save_style(self.project, markdown)
+        try:
+            path = save_style(self.project, markdown)
+        except fsutil.NotUtf8Error as exc:
+            self._warn_not_utf8(exc)
+            return
         if self.current_path == path:  # open in the editor: show the new text
             self.editor.load_text(markdown)
             self._dirty = False
@@ -1883,6 +1906,9 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
 
         def _rename(title: str | None) -> None:
             if not title or title == current:
+                return
+            if not fsutil.is_valid_utf8(path):
+                self._warn_not_utf8(fsutil.NotUtf8Error(path))
                 return
             # retitle the editor buffer, then save — a disk-side rename would
             # be clobbered by the next autosave of the stale buffer
@@ -2878,7 +2904,7 @@ class LorewriteApp(AiMixin, InspirationMixin, RenameMixin, App):
         self.save_current()
         changed = run()
         if self.current_path in changed:  # re-read it; open_file would save the stale buffer over it
-            self.editor.load_text(self.current_path.read_text(encoding="utf-8"))
+            self.editor.load_text(fsutil.read_text_lenient(self.current_path))
             self._dirty = False
             self.editor.refresh_links()
         self.refresh_sidebar()

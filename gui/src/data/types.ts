@@ -14,7 +14,7 @@ export interface BinderNode {
   meta?: string;
   /** Dimmed rows (e.g. Front Matter, Trash). */
   muted?: boolean;
-  /** Shown as designed but not implemented: disabled, tooltip "Not in LoreWriter yet". */
+  /** Shown as designed but not implemented: disabled, tooltip "Not in Chisel yet". */
   placeholder?: boolean;
   children?: BinderNode[];
   expanded?: boolean;

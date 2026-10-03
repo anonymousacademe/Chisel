@@ -1,4 +1,4 @@
-; Inno Setup script for the LoreWriter Windows installer (per-user, no admin).
+; Inno Setup script for the Chisel Windows installer (per-user, no admin).
 ; Built by packaging/build.py, which passes: AppVersion, SourceDir (the PyInstaller
 ; onedir), OutputDir, IconFile, LicenseFile.
 #ifndef AppVersion
@@ -7,21 +7,21 @@
 
 [Setup]
 AppId={{6F1B7C1E-52A4-4C0D-9B58-3E7A1D0A4B21}
-AppName=LoreWriter
+AppName=Chisel
 AppVersion={#AppVersion}
-AppVerName=LoreWriter {#AppVersion}
+AppVerName=Chisel {#AppVersion}
 AppPublisher=Mishkin
 AppPublisherURL=https://github.com/anonymousacademe/lorewriter
 AppSupportURL=https://github.com/anonymousacademe/lorewriter/issues
-DefaultDirName={autopf}\LoreWriter
-DefaultGroupName=LoreWriter
+DefaultDirName={autopf}\Chisel
+DefaultGroupName=Chisel
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 DisableProgramGroupPage=yes
 OutputDir={#OutputDir}
-OutputBaseFilename=LoreWriter-{#AppVersion}-windows-setup
+OutputBaseFilename=Chisel-{#AppVersion}-windows-setup
 SetupIconFile={#IconFile}
-UninstallDisplayIcon={app}\LoreWriter.exe
+UninstallDisplayIcon={app}\Chisel.exe
 LicenseFile={#LicenseFile}
 Compression=lzma2
 SolidCompression=yes
@@ -37,9 +37,9 @@ Name: "desktopicon"; Description: "Create a &desktop shortcut"; Flags: unchecked
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
-Name: "{autoprograms}\LoreWriter"; Filename: "{app}\LoreWriter.exe"
-Name: "{autoprograms}\LoreWriter (terminal)"; Filename: "{app}\lorewrite.exe"
-Name: "{autodesktop}\LoreWriter"; Filename: "{app}\LoreWriter.exe"; Tasks: desktopicon
+Name: "{autoprograms}\Chisel"; Filename: "{app}\Chisel.exe"
+Name: "{autoprograms}\Chisel (terminal)"; Filename: "{app}\lorewrite.exe"
+Name: "{autodesktop}\Chisel"; Filename: "{app}\Chisel.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\LoreWriter.exe"; Description: "Start LoreWriter"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\Chisel.exe"; Description: "Start Chisel"; Flags: nowait postinstall skipifsilent

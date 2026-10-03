@@ -1,4 +1,4 @@
-# Contributing to LoreWriter
+# Contributing to Chisel
 
 Thanks for helping. Bug reports, fixes and small improvements are welcome; for a larger
 feature, please open an issue first so we can agree on the shape of it.

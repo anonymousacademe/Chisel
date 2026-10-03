@@ -1,6 +1,6 @@
 # Typing-sound packs
 
-LoreWriter can play a small sound as you type in the editor (off by default). It ships three
+Chisel can play a small sound as you type in the editor (off by default). It ships three
 synthesised packs (Typewriter, Mechanical - clicky, Mechanical - thocky). You can add your own: record
 a few key sounds, put them in a folder, and the pack shows up under **Sound -> Sound pack**.
 Packs are plain files, so they are easy to share.
@@ -33,7 +33,7 @@ volume = 0.8         # 0 to 1, a gain applied on top of the volume slider
 
 ## Where packs live
 
-`sounds/<pack>/` inside LoreWriter's data folder (Linux `~/.local/share/lorewrite`, macOS
+`sounds/<pack>/` inside Chisel's data folder (Linux `~/.local/share/lorewrite`, macOS
 `~/Library/Application Support/lorewrite`, Windows `%LOCALAPPDATA%\lorewrite`). **Sound -> Open sounds
 folder** opens it (and creates it). Packs there are listed automatically. Your own ambience loops go in
 `ambience/` next to it (wav/ogg/mp3/flac, up to 30 MB each).

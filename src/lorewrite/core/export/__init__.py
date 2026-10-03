@@ -181,7 +181,7 @@ def run_export(project, options: ExportOptions, progress: Progress | None = None
     note("Done", 1.0)
     try:
         save_options(project, options)
-    except OSError:
+    except (OSError, ValueError):  # ValueError: project.toml cannot be re-read
         pass  # remembering the options is a convenience
     return ExportResult(path=path, rel=path.relative_to(project.root).as_posix(),
                         format=opts.format, pages=pages, words=book.words, scenes=book.scenes,

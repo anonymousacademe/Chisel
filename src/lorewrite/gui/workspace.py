@@ -12,7 +12,7 @@ from pathlib import Path
 
 from ..core import collections as coll
 from ..core import research as research_notes
-from ..core import drafts, scenemeta
+from ..core import drafts, fsutil, scenemeta
 from ..core import entities as ent
 from ..core.continuity import get_canon
 from ..core.links import find_all_links
@@ -37,7 +37,7 @@ def rel_id(project: Project, path: Path) -> str:
 
 
 def read_text(project: Project, path: Path) -> tuple[str, dict[str, str]]:
-    text = path.read_text(encoding="utf-8")
+    text = fsutil.read_text_lenient(path)
     originals = (drafts.load_originals(project.root, path)
                  if '<!--ai id="' in text else {})
     return text, originals
@@ -142,7 +142,7 @@ def entity_payload(project: Project, entity: ent.Entity, index) -> dict:
     for b in (index.backlinks(entity) if index is not None else []):
         path = project.root / b.source
         try:
-            text = path.read_text(encoding="utf-8")
+            text = fsutil.read_text_lenient(path)
         except OSError:
             continue
         title, _ = split_title(text)

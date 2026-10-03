@@ -138,7 +138,7 @@ export function AtmospherePanel({ onClose, notify }: { onClose: () => void; noti
 
         <section className="lw-settings__section">
           <h3>Internet radio</h3>
-          <p className="lw-faint lw-atmo__note">Uses the internet, and nothing plays until you pick a station. No account, no tracking from LoreWriter. Addresses must start with http:// or https://.</p>
+          <p className="lw-faint lw-atmo__note">Uses the internet, and nothing plays until you pick a station. No account, no tracking from Chisel. Addresses must start with http:// or https://.</p>
           {stations.map((s) => (
             <StationRow key={s.url} s={s} active={a.station === s.url && st.station !== "idle"} status={statusText}
               onPlay={() => (a.station === s.url && st.station !== "idle" ? atmosphere.stopStation() : atmosphere.pickStation(s.url))}

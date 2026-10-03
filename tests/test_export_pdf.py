@@ -106,7 +106,7 @@ def test_manuscript_review_has_line_numbers_and_header(tmp_path):
 @needs("pdftotext")
 def test_continuous_book_has_no_chapter_headings(tmp_path):
     out, pages, _ = build(tmp_path, "book", continuous=True, toc=False)
-    assert "Rain on the Spur" not in text_of(out) and "* * *" in text_of(out)
+    assert "Rain on the Spur" not in text_of(out) and "***" in "".join(text_of(out).split())
 
 
 def test_fallback_font_prefers_the_same_kind_and_only_installed_ones(monkeypatch):

@@ -86,7 +86,7 @@ export function Assistant(props: {
       <div className="lw-assistant__header">
         <div className="lw-row lw-gap-8">
           <span className="lw-mark lw-mark--lg"><Icon icon={Sparkles} size={14} stroke={1.8} /></span>
-          <h2>LoreWriter</h2>
+          <h2>Chisel</h2>
           <Tag tone="success">Project aware</Tag>
         </div>
         <div className="lw-row lw-gap-4">
@@ -243,7 +243,7 @@ export function Assistant(props: {
             </button>
           </div>
         </div>
-        <p className="lw-disclaimer">LoreWriter can be wrong. Review changes before applying.</p>
+        <p className="lw-disclaimer">Chisel can be wrong. Review changes before applying.</p>
       </div>
     </aside>
   );
@@ -297,8 +297,8 @@ function StyleCard(props: { style: StyleStatus; busy: boolean; aiReady: boolean;
     line = "You have a style guide. Relearn it from your scenes, or edit it by hand.";
   } else {
     line = enough
-      ? "LoreWriter writes in a generic voice until it learns yours from your scenes."
-      : "Write a few hundred words first; then LoreWriter can learn your voice from them.";
+      ? "Chisel writes in a generic voice until it learns yours from your scenes."
+      : "Write a few hundred words first; then Chisel can learn your voice from them.";
   }
   return (
     <section className={"lw-insight" + (style.stale || !style.exists ? " lw-insight--nudge" : "")} aria-label="Your style">

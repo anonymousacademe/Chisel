@@ -41,7 +41,7 @@ export function Launch({ onOpened }: { onOpened: () => void }) {
       <div className="lw-launch__card">
         <div className="lw-row lw-gap-8">
           <Logo size={32} />
-          <h1 className="lw-launch__title">LoreWriter</h1>
+          <h1 className="lw-launch__title">Chisel</h1>
         </div>
         {recents.length > 0 && (
           <section className="lw-launch__section">

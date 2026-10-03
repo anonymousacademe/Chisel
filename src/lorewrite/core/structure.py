@@ -19,6 +19,7 @@ Everything is plain files; ``Project`` mixes this class in. Scenes carry a
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 from dataclasses import dataclass
@@ -36,6 +37,7 @@ UNPLACED_DIR = "_unplaced"
 PART_FILE = "_part.md"
 TRASH_DIR = ".trash"
 FRONT_SLUG = "front-matter"
+MAX_TRASH_NAME = 120  # of the original path part of a .trash/ name
 
 _PREFIX_RE = re.compile(r"(\d+)-(.+)")
 _TRASH_RE = re.compile(r"^(\d{8}-\d{6})(?:-(\d+))?-((?:manuscript|notebook|research|inspiration)__.+)$")
@@ -61,6 +63,41 @@ def _slug_of(name: str) -> str:
 
 def _num(n: int, width: int = 2) -> str:
     return f"{n:0{max(width, 2)}d}"
+
+
+def _rollback(done: list[tuple[Path, Path]]) -> None:
+    """Undo staged moves, newest first (best effort: a failed step is skipped
+    so the rest still go back)."""
+    for current, original in reversed(done):
+        try:
+            fsutil.replace(current, original)
+        except OSError:
+            pass
+
+
+_STAGED_RE = re.compile(r"^\.mv\d+-(.+)$")
+
+
+def recover_staged(root: Path) -> list[Path]:
+    """Move ``.mv<k>-<name>`` leftovers of a rename that died midway back to
+    ``<name>``, unless that name is taken (then they are left alone). Returns
+    the restored paths."""
+    restored: list[Path] = []
+    for top in ("manuscript", ".drafts", ".comments", ".snapshots"):
+        base = root / top
+        if not base.is_dir():
+            continue
+        for folder, dirs, files in os.walk(base):
+            for name in [*dirs, *files]:
+                m = _STAGED_RE.match(name)
+                if not m:
+                    continue
+                src, dst = Path(folder) / name, Path(folder) / m.group(1)
+                if not dst.exists():
+                    fsutil.rename(src, dst)
+                    restored.append(dst)
+            dirs[:] = [d for d in dirs if not _STAGED_RE.match(d)]
+    return restored
 
 
 @dataclass(frozen=True)
@@ -244,29 +281,45 @@ class Structure:
         swaps and cycles never collide. Creates destination folders."""
         pairs = [(a, b) for a, b in pairs if a != b]
         self.last_renames = dict(pairs)
-        staged = []
-        for k, (old, new) in enumerate(pairs):
-            tmp = old.with_name(f".mv{k}-{old.name}")
-            fsutil.rename(old, tmp)
-            side_old = drafts.sidecar_path(self.root, old)
-            side_tmp = None
-            if side_old.is_file():
-                side_tmp = side_old.with_name(f".mv{k}-{side_old.name}")
-                fsutil.replace(side_old, side_tmp)
-            snap_tmp = snapshots.stage(self.root, old, str(k))
-            note_tmp = comments.stage(self.root, old, str(k))
-            staged.append((tmp, new, side_tmp, snap_tmp, note_tmp))
-        for tmp, new, side_tmp, snap_tmp, note_tmp in staged:
-            new.parent.mkdir(parents=True, exist_ok=True)
-            fsutil.rename(tmp, new)
-            if side_tmp is not None:
-                side_new = drafts.sidecar_path(self.root, new)
-                side_new.parent.mkdir(parents=True, exist_ok=True)
-                fsutil.replace(side_tmp, side_new)
-            if snap_tmp is not None:
-                snapshots.unstage(self.root, snap_tmp, new)
-            if note_tmp is not None:
-                comments.unstage(self.root, note_tmp, new)
+        done: list[tuple[Path, Path]] = []  # (where it is now, where it was)
+        try:
+            staged = []
+            for k, (old, new) in enumerate(pairs):
+                tmp = old.with_name(f".mv{k}-{old.name}")
+                fsutil.rename(old, tmp)
+                done.append((tmp, old))
+                side_old = drafts.sidecar_path(self.root, old)
+                side_tmp = None
+                if side_old.is_file():
+                    side_tmp = side_old.with_name(f".mv{k}-{side_old.name}")
+                    fsutil.replace(side_old, side_tmp)
+                    done.append((side_tmp, side_old))
+                snap_tmp = snapshots.stage(self.root, old, str(k))
+                if snap_tmp is not None:
+                    done.append((snap_tmp, snapshots.scene_dir(self.root, old)))
+                note_tmp = comments.stage(self.root, old, str(k))
+                if note_tmp is not None:
+                    done.append((note_tmp, comments.sidecar_path(self.root, old)))
+                staged.append((tmp, new, side_tmp, snap_tmp, note_tmp))
+            for tmp, new, side_tmp, snap_tmp, note_tmp in staged:
+                new.parent.mkdir(parents=True, exist_ok=True)
+                fsutil.rename(tmp, new)
+                done.append((new, tmp))
+                if side_tmp is not None:
+                    side_new = drafts.sidecar_path(self.root, new)
+                    side_new.parent.mkdir(parents=True, exist_ok=True)
+                    fsutil.replace(side_tmp, side_new)
+                    done.append((side_new, side_tmp))
+                if snap_tmp is not None:
+                    snapshots.unstage(self.root, snap_tmp, new)
+                    done.append((snapshots.scene_dir(self.root, new), snap_tmp))
+                if note_tmp is not None:
+                    comments.unstage(self.root, note_tmp, new)
+                    done.append((comments.sidecar_path(self.root, new), note_tmp))
+        except BaseException:
+            _rollback(done)  # never leave a scene hidden under a .mv name
+            self.last_renames = {}
+            raise
         inspiration.remap_paths(self, self.last_renames)
 
     def move_scene(self, path: Path, delta: int) -> Path | None:
@@ -372,30 +425,45 @@ class Structure:
         staged = []
         snap_staged = []
         note_staged = []
-        for k, (old, new) in enumerate(moves):
-            side = drafts.sidecar_path(self.root, old)
-            if side.is_file():
-                tmp = side.with_name(f".mv{k}-{side.name}")
-                fsutil.replace(side, tmp)
-                staged.append((tmp, drafts.sidecar_path(self.root, new)))
-            snap = snapshots.stage(self.root, old, str(k))
-            if snap is not None:
-                snap_staged.append((snap, new))
-            note = comments.stage(self.root, old, str(k))
-            if note is not None:
-                note_staged.append((note, new))
         self.last_renames = {**dict(moves), a: new_a, b: new_b}
-        tmp_a = a.with_name(f".swap-{a.name}")
-        fsutil.rename(a, tmp_a)
-        fsutil.rename(b, new_b)
-        fsutil.rename(tmp_a, new_a)
-        for tmp, dest in staged:
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            fsutil.replace(tmp, dest)
-        for snap, new in snap_staged:
-            snapshots.unstage(self.root, snap, new)
-        for note, new in note_staged:
-            comments.unstage(self.root, note, new)
+        done: list[tuple[Path, Path]] = []  # (where it is now, where it was)
+        try:
+            for k, (old, new) in enumerate(moves):
+                side = drafts.sidecar_path(self.root, old)
+                if side.is_file():
+                    tmp = side.with_name(f".mv{k}-{side.name}")
+                    fsutil.replace(side, tmp)
+                    done.append((tmp, side))
+                    staged.append((tmp, drafts.sidecar_path(self.root, new)))
+                snap = snapshots.stage(self.root, old, str(k))
+                if snap is not None:
+                    done.append((snap, snapshots.scene_dir(self.root, old)))
+                    snap_staged.append((snap, new))
+                note = comments.stage(self.root, old, str(k))
+                if note is not None:
+                    done.append((note, comments.sidecar_path(self.root, old)))
+                    note_staged.append((note, new))
+            tmp_a = a.with_name(f".swap-{a.name}")
+            fsutil.rename(a, tmp_a)
+            done.append((tmp_a, a))
+            fsutil.rename(b, new_b)
+            done.append((new_b, b))
+            fsutil.rename(tmp_a, new_a)
+            done.append((new_a, tmp_a))
+            for tmp, dest in staged:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                fsutil.replace(tmp, dest)
+                done.append((dest, tmp))
+            for snap, new in snap_staged:
+                snapshots.unstage(self.root, snap, new)
+                done.append((snapshots.scene_dir(self.root, new), snap))
+            for note, new in note_staged:
+                comments.unstage(self.root, note, new)
+                done.append((comments.sidecar_path(self.root, new), note))
+        except BaseException:
+            _rollback(done)
+            self.last_renames = {}
+            raise
         inspiration.remap_paths(self, self.last_renames)
         return new_a
 
@@ -416,6 +484,9 @@ class Structure:
     def _trash_dest(self, path: Path) -> Path:
         """A free ``.trash/<stamp>-<project-relative path, "/" as "__">`` name."""
         rel = path.relative_to(self.root).as_posix().replace("/", "__")
+        if len(rel) > MAX_TRASH_NAME:  # keep the extension; the folders stay readable
+            stem, dot, ext = rel.rpartition(".")
+            rel = (stem or rel)[:MAX_TRASH_NAME].rstrip("-_ ") + (dot + ext if stem else "")
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         self.trash_dir.mkdir(exist_ok=True)
         dest, n = self.trash_dir / f"{stamp}-{rel}", 1

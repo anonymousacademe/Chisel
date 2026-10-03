@@ -47,7 +47,7 @@ def main(argv: list[str] | None = None) -> None:
     elif args.project is not None and hasattr(api, "open_project"):
         api.open_project(str(args.project))
     window = webview.create_window(
-        "LoreWriter",
+        "Chisel",
         url=args.dev or str(index),
         js_api=api.facade(),
         width=1600, height=1000, min_size=(1280, 760),

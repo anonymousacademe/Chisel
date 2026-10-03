@@ -27,11 +27,36 @@ aliases: []
 """
 
 
+MAX_SLUG = 60  # keeps file and folder names far below Windows' 255/260 limits
+
+_RESERVED = {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)),
+             *(f"lpt{i}" for i in range(1, 10))}
+_QUOTES = str.maketrans({"’": "'", "‘": "'", "“": '"', "”": '"'})
+
+
+def fold(text: str) -> str:
+    """Comparison form of a name: NFC, curly quotes made straight."""
+    return unicodedata.normalize("NFC", text.translate(_QUOTES))
+
+
 def slugify(name: str) -> str:
-    """'Elara Vance' -> 'elara-vance' (filesystem-safe note filename)."""
-    slug = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
-    slug = re.sub(r"[^\w\s-]", "", slug).strip().lower()
-    return re.sub(r"[\s_]+", "-", slug) or "untitled"
+    """'Elara Vance' -> 'elara-vance' (filesystem-safe note filename).
+
+    Unicode letters are kept (Latin accents are folded away), everything else
+    that is not a letter, digit, space or hyphen is dropped; capped at
+    MAX_SLUG characters; Windows device names get a suffix."""
+    decomposed = unicodedata.normalize("NFKD", name)
+    # strip Latin combining accents only (other scripts need their marks)
+    decomposed = "".join(c for c in decomposed if not "̀" <= c <= "ͯ")
+    text = unicodedata.normalize("NFC", decomposed)
+    text = "".join(c for c in text
+                   if c.isalnum() or c in "-_" or c.isspace()
+                   or unicodedata.category(c).startswith("M"))
+    slug = re.sub(r"[\s_]+", "-", text.strip().lower())
+    slug = slug[:MAX_SLUG].strip("-.")
+    if slug in _RESERVED:
+        slug += "-note"
+    return slug or "untitled"
 
 
 @dataclass
@@ -49,8 +74,8 @@ class Entity:
 
     def matches(self, term: str) -> bool:
         """Case-insensitive match against name or any alias."""
-        term = term.casefold()
-        return any(term == n.casefold() for n in self.names)
+        term = fold(term).casefold()
+        return any(term == fold(n).casefold() for n in self.names)
 
     def to_markdown(self) -> str:
         frontmatter = {
@@ -58,7 +83,7 @@ class Entity:
             "type": self.type,
             "aliases": self.aliases,
         }
-        return f"---\n{yaml.safe_dump(frontmatter, sort_keys=False)}---\n\n{self.body}"
+        return f"---\n{yaml.safe_dump(frontmatter, sort_keys=False, allow_unicode=True)}---\n\n{self.body}"
 
     @classmethod
     def from_markdown(cls, text: str, path: Path | None = None) -> Entity:
@@ -84,11 +109,12 @@ class Entity:
 
 
 def load_entity(path: Path) -> Entity:
-    return Entity.from_markdown(path.read_text(encoding="utf-8"), path=path)
+    return Entity.from_markdown(fsutil.read_text_lenient(path), path=path)
 
 
 def save_entity(entity: Entity, path: Path) -> None:
     """Write a note atomically (temp file + rename)."""
+    fsutil.ensure_utf8(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(entity.to_markdown(), encoding="utf-8", newline="\n")
@@ -109,13 +135,28 @@ def resolve(term: str, entities: list[Entity]) -> Entity | None:
     return None
 
 
-def add_alias(entity: Entity, alias: str) -> Entity:
-    """Add an alias to an entity note (deduped) and save it to disk."""
+def alias_owner(alias: str, entity: Entity, entities: list[Entity]) -> Entity | None:
+    """Another note (not *entity*) whose name or alias is *alias*, if any."""
+    for other in entities:
+        if other is entity or (other.path is not None and other.path == entity.path):
+            continue
+        if other.matches(alias):
+            return other
+    return None
+
+
+def add_alias(entity: Entity, alias: str, entities: list[Entity] | None = None) -> Entity:
+    """Add an alias to an entity note (deduped) and save it to disk.
+
+    With *entities* (the project's notes), an alias already used as another
+    note's name or alias is refused with ValueError."""
     alias = alias.strip()
     if not alias:
         return entity
+    if entities is not None and alias_owner(alias, entity, entities) is not None:
+        raise ValueError(f"{alias!r} is already a name or alias of another note")
     already = [entity.name, *entity.aliases]
-    if all(alias.casefold() != n.casefold() for n in already):
+    if all(fold(alias).casefold() != fold(n).casefold() for n in already):
         entity.aliases.append(alias)
         if entity.path is not None:
             save_entity(entity, entity.path)
