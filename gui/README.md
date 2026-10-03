@@ -50,11 +50,22 @@ src/
                          StatusBar Launch QuickSwitcher SettingsDialog ReviewDialogs Dialogs Toast
                          SentReport ("What was sent") InspirationPanel (pictures: generate, upload, link)
                          SpellMenu (misspelling popover; the check itself is core/spelling.py)
+  components/Logo.tsx    the Chisel logo (rail avatar while no author is set, launch screen)
   components/placeholder.ts   the one "Not in Chisel yet" treatment
+  assets/logo.svg        the logo the Logo component shows; same artwork as docs/brand/chisel-icon.svg
   styles/tokens.css      colours, fonts, radii from the Figma file
 src-tauri/               the original Tauri shell from the handoff: kept, unused, not built
 design/figma-reference.png
 ```
+
+## The logo and icons
+
+The `Logo` component draws `src/assets/logo.svg`, the Chisel icon (an open book, half stone, with a chisel).
+The vector and PNG sources of the artwork (the icon on its rounded square and the mark without a background)
+are in [`docs/brand/`](../docs/brand/README.md); `public/logo.svg` and `public/favicon.png` are copies for the
+page. `scripts/make-icons.sh` regenerates the installer icons in `src-tauri/icons/` from `src/assets/logo.svg`
+(needs `rsvg-convert` and Pillow). The desktop window's own icon is `src/lorewrite/gui/icon.ico` on Windows
+and `icon.png` elsewhere; see [docs/dev/packaging.md](../docs/dev/packaging.md#icons).
 
 ## Placeholders
 

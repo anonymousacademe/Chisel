@@ -36,6 +36,27 @@ pandoc is not bundled (licence, size); DOCX / EPUB / LaTeX export stay greyed ou
 until it is on the PATH. The unused `gui/src-tauri/` is an abandoned alternative shell;
 only its icons are used (`icon.ico`, `icon.icns`, `icon.png`).
 
+## Icons
+
+The artwork is the Chisel logo (supplied by the project author; vector and PNG sources in
+[`docs/brand/`](../brand/README.md)). Where each copy is used:
+
+| File | Used for |
+|---|---|
+| `gui/src-tauri/icons/icon.ico` | the Windows executable and installer |
+| `gui/src-tauri/icons/icon.icns` | the macOS `Chisel.app` |
+| `gui/src-tauri/icons/icon.png` and the sized PNGs beside it | the Linux AppImage and the other sizes |
+| `src/lorewrite/gui/icon.ico` | the desktop **window** icon on Windows (from source and bundled) |
+| `src/lorewrite/gui/icon.png` | the window icon on macOS and Linux |
+| `gui/src/assets/logo.svg` (copy: `gui/public/logo.svg`, `favicon.png`) | the logo inside the app |
+
+pywebview's WinForms backend loads the window icon with `System.Drawing.Icon`, which only accepts an
+`.ico`, so `src/lorewrite/gui/app.py` passes `icon.ico` when `sys.platform == "win32"` and `icon.png`
+otherwise. Both files are package data (`pyproject.toml`). `gui/scripts/make-icons.sh` regenerates the
+PNGs, `.ico` and `.icns` from `gui/src/assets/logo.svg` (needs `rsvg-convert` and Pillow); it does not write
+`src/lorewrite/gui/icon.ico`, so copy `gui/src-tauri/icons/icon.ico` over it afterwards.
+`tests/test_packaging_files.py` checks that the icons exist and that the window-icon rule holds.
+
 Artifacts in `dist/release/`: `Chisel-<version>-windows-setup.exe`, `Chisel-<version>-windows-portable.zip`,
 `Chisel-<version>-macos-arm64.dmg` (and `-x86_64.dmg`), `Chisel-<version>-x86_64.AppImage`, plus the sdist and
 wheel (`lorewriter-<version>...`, the Python package name).
@@ -80,7 +101,11 @@ desktop app from a test script.
    DMG is **best effort**: its job runs too, but the release job does not need it to succeed; the DMG is
    attached only if that job passed, and `SHA256SUMS.txt` covers whatever is attached. If it fails, rerun
    just that job, or ship without it.
-4. Look at the draft, download one file per system if you can, then publish it.
+4. Look at the draft, download one file per system if you can, then publish it. The workflow only ever
+   creates a **draft** (`gh release create --draft`); nothing is public until a person publishes it.
+5. The User's Guide PDF is built separately (`python docs/user-guide/build_guide.py`; the output is git-ignored).
+   The workflow copies any `docs/user-guide/*.pdf` that exists in the checkout into the release; a fresh
+   checkout has none, so attach the built PDF to the draft by hand before publishing.
 
 ## Not done yet
 

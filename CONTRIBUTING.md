@@ -35,6 +35,9 @@ AI calls are mocked at the function boundary — never call a real model in a te
 Naming: the app is called Chisel in anything a user reads. The package (`lorewrite`), its commands,
 state folders, `LOREWRITE_*` variables and the repository name stay as they are.
 
+Icons and the logo: the artwork and its sources are in [docs/brand/](docs/brand/README.md); which file is used
+where (the Windows window needs an `.ico`) is in [docs/dev/packaging.md](docs/dev/packaging.md#icons).
+
 Also: project logic lives in `core/` and `ai/` (pure Python, no UI), and both front ends
 use it. The desktop UI never re-implements logic in TypeScript.
 

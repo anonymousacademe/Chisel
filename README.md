@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/brand/chisel-icon-1024.png" alt="Chisel logo: an open book, half stone, with a chisel" width="128">
+</p>
+
 # Chisel
 
 A fiction-writing app for your desktop and your terminal. Your novel is a folder
@@ -256,18 +260,13 @@ A SQLite index under `.lorewrite/` powers backlinks. It is a rebuildable cache
 - The only other network request is the public OpenRouter model catalogue, fetched
   when you open a model picker.
 
-## Status and known issues
+## Status
 
 Chisel is pre-1.0: formats and
 screens can still change. Your files are plain Markdown, so you are never locked in. The name changed
 from LoreWriter to Chisel; commands, folders and settings keep the old `lorewrite` name. Next on the
 roadmap (see [SPEC.md](SPEC.md)): character relationships, talking as a character, local models,
 per-scene summaries and a timeline view.
-
-Known issues:
-- **Windows, from source:** `lorewrite-gui` passes a PNG icon to pywebview, whose Windows backend
-  expects an `.ico`, so the window may not open. Workaround: launch via a small wrapper that omits
-  the icon argument. The installers are not expected to be affected.
 
 ## Documentation
 

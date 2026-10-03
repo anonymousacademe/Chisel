@@ -44,7 +44,7 @@ def build(s, R):
         ["Markdown", "`.md`", "The whole book as one Markdown file, "
          "cleaned up as described below.", "nothing extra"],
         ["LaTeX source", "`.tex`", "A standalone LaTeX file, for authors "
-         "who typeset with TeX elsewhere. Lorewrite does not run LaTeX "
+         "who typeset with TeX elsewhere. Chisel does not run LaTeX "
          "itself.", "pandoc"],
     ], [0.22, 0.09, 0.51, 0.18])
     s.h3("What the Program Needs", idx=["pandoc", "ReportLab", "export|requirements"])
@@ -54,7 +54,7 @@ def build(s, R):
         "hyphenation helper that lets the Book layout break long words "
         "at line ends). DOCX, EPUB and LaTeX are written by a separate "
         "program, **pandoc**, which must be installed on your computer "
-        "and findable on its path. Lorewrite never downloads either.")
+        "and findable on its path. Chisel never downloads either.")
     s.p("When a tool is missing the format is still listed, but marked. "
         "In the terminal form the entry reads //PDF (install ReportLab: "
         "pip install 'lorewrite[export]')// or //Word (DOCX) (install "
@@ -69,7 +69,7 @@ def build(s, R):
            "for in the system font folders (`/usr/share/fonts`, "
            "`/usr/local/share/fonts`) and in `~/.local/share/fonts` and "
            "`~/.fonts`, and are embedded in the PDF so it looks the same "
-           "on any computer. If a font you chose is missing, Lorewrite "
+           "on any computer. If a font you chose is missing, Chisel "
            "falls back to the layout's next font and tells you (see "
            "Messages below); if none of them is installed the export "
            "stops.")
@@ -91,7 +91,7 @@ def build(s, R):
         ["The `front-matter` part", "Yes, first, if //Include front "
          "matter// is on. It has no numbers, no part page, and is not "
          "listed in the contents (Chapter 5)."],
-        ["Unplaced Scenes", "No."],
+        ["Parked scenes", "No."],
         ["The Trash", "No."],
         ["Research notes", "No."],
         ["Character and place notes", "No."],
@@ -181,7 +181,7 @@ def build(s, R):
     s.h3("Page Size and Font", idx=["page size", "font, export"])
     s.p("A layout only offers what suits it, and what you pick is kept "
         "when you change layout if the new layout offers it; otherwise "
-        "Lorewrite uses that layout's first choice. The Book layout "
+        "Chisel uses that layout's first choice. The Book layout "
         "offers Trade 6 x 9 in (the default), A5 and US Letter, in Noto "
         "Serif (the default) or Liberation Serif. Manuscript review is "
         "US Letter only, in Liberation Serif (the default) or Liberation "
@@ -387,13 +387,13 @@ exports/residual-md-20261001-1436.md
         "the middle part is the layout's name: `book`, `manuscript` or "
         "`plain`. For other formats it is the format: `docx`, `epub`, "
         "`md` or `tex`. If a file with that name already exists (two "
-        "exports in the same minute), Lorewrite adds `-2`, then `-3`, "
+        "exports in the same minute), Chisel adds `-2`, then `-3`, "
         "and so on. An export never replaces an earlier file.")
     s.p("The file is first written under a hidden temporary name and "
         "renamed only when complete. A failed export therefore leaves "
         "nothing behind: no half-written PDF to be confused for the "
         "real one.")
-    s.note("`exports` belongs to you. Lorewrite never reads it back, "
+    s.note("`exports` belongs to you. Chisel never reads it back, "
            "never indexes it and never deletes from it. If you keep "
            "your project under version control and do not want PDFs "
            "in it, add `exports/` to the ignore file. Delete old "
@@ -401,7 +401,7 @@ exports/residual-md-20261001-1436.md
 
     # ------------------------------------------------------------------
     s.h2("Remembered Options", idx=["project.toml|export", "export|remembered options"])
-    s.p("After a successful export, Lorewrite remembers the options you "
+    s.p("After a successful export, Chisel remembers the options you "
         "used, so the next export starts where this one left off. They "
         "are kept per project, in a small `[export]` section of "
         "`project.toml`:")
@@ -420,7 +420,7 @@ copyright = "First edition, 2026"
 """)
     s.p("An empty `font` means the layout's own default. You may edit "
         "the section by hand. If a stored value is not valid (a page "
-        "size that does not exist, say), Lorewrite ignores the whole "
+        "size that does not exist, say), Chisel ignores the whole "
         "section and starts from the standard defaults, rather than "
         "failing. Options are saved only after an export that "
         "succeeds; closing the dialog, or a failed export, saves "
@@ -488,7 +488,7 @@ copyright = "First edition, 2026"
         "scenes are read in the first moment, so changes made after "
         "that are not in the file.")
     s.p("DOCX, EPUB and LaTeX are made by handing the book to pandoc. "
-        "Lorewrite gives pandoc plain text with its special characters "
+        "Chisel gives pandoc plain text with its special characters "
         "escaped and with raw HTML, raw TeX and file includes switched "
         "off, so nothing in a scene can make pandoc fetch a file or "
         "run anything. pandoc has two minutes to finish. In these "
@@ -518,11 +518,11 @@ copyright = "First edition, 2026"
         "The Book layout hyphenates only when the `pyphen` helper is "
         "installed (it comes with `lorewrite[export]`).",
         "The look of the Word, EPUB and LaTeX files is pandoc's default; "
-        "Lorewrite does not offer styles for them. Open the file in "
+        "Chisel does not offer styles for them. Open the file in "
         "your own tool to restyle it.",
         "There is no export of a single scene or a selection, and no "
-        "export of the Unplaced Scenes. To export part of the book, "
-        "move the rest to Unplaced Scenes first.",
+        "export of the parked scenes. To export part of the book, "
+        "move the rest to Parked scenes first.",
     ])
 
 
@@ -540,7 +540,7 @@ GLOSSARY = [
      "double-spaced US Letter with line numbers on every page."),
     ("Plain proof", "A simple sans-serif PDF layout with 1.5 line "
      "spacing, for proofreading."),
-    ("pandoc", "A separate, free program that Lorewrite uses to write "
+    ("pandoc", "A separate, free program that Chisel uses to write "
      "DOCX, EPUB and LaTeX files. It must be installed to use those "
      "formats."),
     ("ReportLab", "The Python library that draws the PDF layouts. An "
@@ -610,9 +610,9 @@ PROBLEMS = [
      "export window again."],
     ["The PDF format is dimmed, or says “install ReportLab”.",
      "Install the export extras: `pip install 'lorewrite[export]'`, then "
-     "restart Lorewrite."],
+     "restart Chisel."],
     ["The export says there is nothing to export.", "Only placed scenes "
-     "are exported. Move scenes out of Unplaced Scenes and the Trash "
+     "are exported. Move scenes out of Parked scenes and the Trash "
      "into the manuscript (Chapter 5)."],
     ["My AI draft is missing from the PDF.", "Pending drafts are left "
      "out by default. Accept the draft in the scene, or turn on "

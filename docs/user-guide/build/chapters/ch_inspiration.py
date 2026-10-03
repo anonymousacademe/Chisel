@@ -12,6 +12,10 @@ def build(s, R):
         "shown beside the scene as visual reference. It is the kind of "
         "thing a writer pins above the desk.",
         idx=["inspiration images", "pictures", "images|inspiration"])
+    s.p("A picture can belong to a scene, a character, a place, an object "
+        "or a note in your notebook, and you can add pictures of your own "
+        "(a photograph, a sketch, a painting you found) as well as have "
+        "them drawn. Both kinds are covered below.")
     s.p("Three rules hold for every part of this feature.")
     s.bullets([
         "**Reference only.** A picture is never inserted into a scene. It "
@@ -192,6 +196,49 @@ def build(s, R):
               "**Delete forever** buttons.", width=330)
 
     # ------------------------------------------------------------------
+    s.h2("Pictures for Any Item, and Your Own Pictures",
+         idx=["pictures|any item", "upload|pictures", "Add picture",
+              "uploaded pictures"])
+    s.p("The Inspiration tab works for whatever is open in the binder: a "
+        "scene, a character, a place or an object, or a note in your "
+        "notebook. A picture made or pinned while a note is open belongs "
+        "to that note and is shown with it, just as a scene's pictures are "
+        "shown with the scene. The buttons follow what is open: **Describe "
+        "this scene** becomes **Describe this note** for a note, and the "
+        "description is written from the note's own text. Pin and Unpin "
+        "say //this scene// or //this note// to match. The link is kept "
+        "in the picture's sidecar (the `for` line in "
+        f"{R('t_insp_fields')}), so a picture follows its item when you "
+        "rename or move it.")
+    s.h3("Adding Your Own Picture")
+    s.p("To use a picture you already have, press **Add picture** in the "
+        "Inspiration tab and choose one or more files, or drop the files "
+        "onto the tab. The rules are these.")
+    s.bullets([
+        "**Formats.** JPG, PNG and WebP only. Chisel decides the format "
+        "from the file's contents, not its name; a file whose name says "
+        "one thing and whose contents say another is refused, and so are "
+        "GIF, SVG and everything else.",
+        "**Size.** At most 10 MB for each picture. An empty file is "
+        "refused.",
+        "**Where it goes.** A copy is saved in `inspiration/` with its "
+        "sidecar, like any other picture, and linked to the open item. "
+        "Your original is not touched, and the file's name becomes the "
+        "picture's display name (the stored file is named by the date "
+        "and time).",
+        "**It is marked.** A picture you added carries an //uploaded// "
+        "badge in the gallery. It has no description and no cost, so "
+        "**Regenerate** is not offered for it.",
+        "**It is never sent to an AI.** This is true of every picture in "
+        "this chapter, drawn or added: the pictures are for your eyes "
+        "only.",
+    ])
+    s.p("If a file cannot be added, a message names the file and says "
+        "why (for example, that it is not a JPG, PNG or WebP picture, or "
+        "that it is larger than 10 MB), and the other files you chose are "
+        "still added.")
+
+    # ------------------------------------------------------------------
     s.h2("Inspiration Images in the Terminal Application", idx=["inspiration images|terminal"])
     s.p("A terminal cannot show a picture well, so the terminal application "
         "does the work and leaves the looking to your own image viewer. "
@@ -211,7 +258,7 @@ def build(s, R):
         ["Action · Open inspiration folder", "Opens the project's "
          "`inspiration/` folder in your file manager."],
     ], [0.38, 0.62])
-    s.attention("Lorewrite starts your image viewer or file manager "
+    s.attention("Chisel starts your image viewer or file manager "
                 "(through `xdg-open`) only when you choose **Open last "
                 "inspiration image**, **Open inspiration folder** or open a "
                 "picture from the list. A new picture is never opened "
@@ -305,7 +352,7 @@ def build(s, R):
     s.h2("Settings", idx=["settings|image model", "image model", "image style|setting"])
     s.p("Two settings control the feature. Both are among your user "
         "settings, so they apply to every project and to both "
-        "applications (Chapter 15).")
+        "applications (Chapter 18).")
     s.table("t_insp_settings", "The image settings",
             ["Setting", "Terminal application", "Desktop application"], [
         ["Image model",
@@ -393,7 +440,7 @@ def build(s, R):
 prompt: A claustrophobic, futuristic capsule hotel room, barely larger
   than a coffin, with fiberglass walls the color of weak tea. ...
 model: google/gemini-3.1-flash-lite-image
-scene: manuscript/02-capsule-7-19.md
+for: manuscript/02-capsule-7-19.md
 created: '2026-10-01T18:28:21'
 cost: 0.033624
 pinned: true
@@ -404,14 +451,19 @@ pinned: true
         ["prompt", "The description you generated from (without the "
          "style)."],
         ["model", "The image model that made it."],
-        ["scene", "The scene it belongs to, as a path inside the project. "
-         "Optional."],
+        ["for", "The item it belongs to (a scene, a character, place or "
+         "object note, or a notebook note), as a path inside the project. "
+         "Optional. Sidecars written by an earlier version say `scene:`; "
+         "they are still read and are rewritten as `for:` the next time "
+         "the picture is saved."],
         ["created", "When it was made, in local time."],
         ["cost", "What the request cost in US dollars, if the model "
          "reported it."],
-        ["pinned", "`true` when the picture is shown with its scene. "
-         "Needs a scene."],
+        ["pinned", "`true` when the picture is shown with its item. "
+         "Needs a `for`."],
         ["title", "The name you gave it, if any."],
+        ["source", "`upload` for a picture you added yourself. It has no "
+         "prompt and no cost, and its model is `upload`."],
     ], [0.18, 0.82], mono_cols=(0,))
     s.p("The sidecar is plain text you may edit in any editor. Because "
         "the pictures are ordinary files, they are copied when you copy, "
@@ -419,12 +471,12 @@ pinned: true
         "never rebuilt from anything: if you delete the file, the picture "
         "is gone (unless it is in the Trash). Appendix A lists the folder "
         "among the project's files.")
-    s.p("If you rename or move a scene in the binder (Chapter 5), the "
-        "pictures that belong to it follow: their `scene` line is "
-        "rewritten for you. If you delete a scene, its pictures stay where "
-        "they are and are listed under **All**. If you later restore the "
-        "scene and it comes back with a different number, pin its "
-        "pictures to it again.")
+    s.p("If you rename or move a scene in the binder (Chapter 5), or "
+        "rename a character everywhere (Chapter 17), the pictures that "
+        "belong to it follow: their `for` line is rewritten for you. If "
+        "you delete an item, its pictures stay where they are and are "
+        "listed as //Unlinked// under **All**; restoring the item "
+        "reconnects them.")
 
     # ------------------------------------------------------------------
     s.h2("Limits and Quirks", idx=["inspiration images|limits"])
@@ -435,13 +487,13 @@ pinned: true
         "model must be one that outputs images; an ordinary text model "
         "will return words and no picture.",
         "**A request can come back without a picture.** The model may "
-        "refuse, or answer only in words. Lorewrite then shows “The model "
+        "refuse, or answer only in words. Chisel then shows “The model "
         "did not return an image.” followed by whatever the model said "
         "(up to 300 characters). The terminal application reopens the "
         "form with your description so you can change it and try again. "
         "You are charged whatever the provider charges, even for a "
         "request that gave no picture.",
-        "**Only embedded pictures are kept.** Lorewrite saves pictures "
+        "**Only embedded pictures are kept.** Chisel saves pictures "
         "that arrive inside the reply. It never downloads a picture from a "
         "web address the model gives it. Kinds other than JPEG, PNG and "
         "WebP are skipped.",

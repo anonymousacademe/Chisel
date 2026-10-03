@@ -1,9 +1,9 @@
-"""Typesetting engine for the Lorewrite User's Guide (ReportLab platypus).
+"""Typesetting engine for the Chisel User's Guide (ReportLab platypus).
 
 A small "manual" toolkit: chapter-page numbering (3-4), roman front matter,
 running headers, callouts, captioned tables and figures, a railroad (syntax)
 diagram flowable, a table of contents and a back-of-book index. Content lives
-in build_guide.py; this file knows nothing about Lorewrite.
+in build_guide.py; this file knows nothing about Chisel.
 """
 from __future__ import annotations
 
@@ -24,8 +24,10 @@ from reportlab.platypus import (
     CondPageBreak, FrameBreak,
 )
 
-FONT_DIR = Path("/usr/share/fonts/liberation")
-for name, fn in {
+import os
+
+FONT_DIR = Path(os.environ.get("CHISEL_GUIDE_FONT_DIR", "/usr/share/fonts/liberation"))
+_LIBERATION = {
     "Body": "LiberationSerif-Regular.ttf",
     "Body-Bold": "LiberationSerif-Bold.ttf",
     "Body-Italic": "LiberationSerif-Italic.ttf",
@@ -38,8 +40,23 @@ for name, fn in {
     "Mono-Bold": "LiberationMono-Bold.ttf",
     "Mono-Italic": "LiberationMono-Italic.ttf",
     "Mono-BoldItalic": "LiberationMono-BoldItalic.ttf",
-}.items():
-    pdfmetrics.registerFont(TTFont(name, str(FONT_DIR / fn)))
+}
+# Metric-compatible Windows fonts, used when the Liberation fonts are not installed.
+_WINDOWS = {
+    "Body": "times.ttf", "Body-Bold": "timesbd.ttf", "Body-Italic": "timesi.ttf",
+    "Body-BoldItalic": "timesbi.ttf",
+    "Sans": "arial.ttf", "Sans-Bold": "arialbd.ttf", "Sans-Italic": "ariali.ttf",
+    "Sans-BoldItalic": "arialbi.ttf",
+    "Mono": "cour.ttf", "Mono-Bold": "courbd.ttf", "Mono-Italic": "couri.ttf",
+    "Mono-BoldItalic": "courbi.ttf",
+}
+if (FONT_DIR / _LIBERATION["Body"]).exists():
+    _FONTS = {k: FONT_DIR / v for k, v in _LIBERATION.items()}
+else:
+    _WIN_DIR = Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts"
+    _FONTS = {k: _WIN_DIR / v for k, v in _WINDOWS.items()}
+for name, path in _FONTS.items():
+    pdfmetrics.registerFont(TTFont(name, str(path)))
 for fam in ("Body", "Sans", "Mono"):
     pdfmetrics.registerFontFamily(
         fam, normal=fam, bold=fam + "-Bold", italic=fam + "-Italic",
@@ -55,8 +72,8 @@ GREY = colors.HexColor("#555555")
 LIGHT = colors.HexColor("#999999")
 HAIR = colors.HexColor("#BBBBBB")
 
-BOOK_TITLE = "Lorewrite User's Guide and Reference"
-DOC_NUMBER = "LW00-0001-4"
+BOOK_TITLE = "Chisel User's Guide and Reference"
+DOC_NUMBER = "LW00-0001-5"
 
 
 def S(name, **kw):
@@ -361,8 +378,8 @@ class GuideDoc(BaseDocTemplate):
     def __init__(self, path, state, **kw):
         super().__init__(path, pagesize=letter, leftMargin=LM, rightMargin=RM,
                          topMargin=TM, bottomMargin=BM,
-                         title="Lorewrite User's Guide and Reference",
-                         author="Lorewrite Publications",
+                         title="Chisel User's Guide and Reference",
+                         author="Chisel Publications",
                          subject="Version 0.2.0", **kw)
         global HOOK
         HOOK = self

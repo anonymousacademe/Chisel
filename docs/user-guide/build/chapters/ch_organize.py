@@ -28,12 +28,12 @@ def build(s, R):
         "numeric prefix, such as `01-the-recall`. Only one level of "
         "folders is recognized; a folder inside a part is ignored.",
         "**In `_unplaced`.** This special folder holds scenes you have "
-        "written but taken out of the book (see “Unplaced Scenes” below). "
+        "written but taken out of the book (see “Parked scenes” below). "
         "Because its name begins with an underscore it is not a part.",
     ])
     s.p("Files and folders whose names begin with `_` or `.` are never "
         "scenes or parts. Inside a part, an optional file `_part.md` holds "
-        "the part's title as its first heading (`# The Recall`). Lorewrite "
+        "the part's title as its first heading (`# The Recall`). Chisel "
         "creates it when you make a part. If the file is missing, the "
         "title is made from the folder name: `02-ghost-frequency` becomes "
         "//Ghost Frequency//.")
@@ -63,15 +63,15 @@ my-novel/
         "then each part in the order of its folder prefix, and the scenes "
         "of each part in the order of theirs.",
     ])
-    s.p("Unplaced scenes are not in the book at all. The next scene and "
+    s.p("Parked scenes are not in the book at all. The next scene and "
         "previous scene keys (`alt+right` and `alt+left` in the terminal "
-        "application) follow this order and skip the unplaced scenes.")
+        "application) follow this order and skip the parked scenes.")
     s.p("The number shown to the writer depends on whether the project "
         "has any parts. Without parts, a scene's number is simply its "
         "file prefix (`01`, `04`), so a gap in the files shows as a gap. "
         "Once any part exists, the number is the scene's //position in the "
         "book//, counting loose scenes and then the parts, two digits "
-        "(`03`). Front matter and unplaced scenes have no number. The "
+        "(`03`). Front matter and parked scenes have no number. The "
         "desktop application shows the number on corkboard cards "
         "(//SCENE 03//) and in the binder and outline; the terminal "
         "application shows only titles, and the status bar shows the file's "
@@ -99,12 +99,12 @@ my-novel/
         "(muted), a **Manuscript** folder for loose scenes (only when "
         "there are some, or when there are no other parts), each part, "
         "then **Characters**, **World Bible**, **Style Guide**, "
-        "**Dictionary**, **Research**, **Unplaced Scenes** and **Trash**, "
+        "**Dictionary**, **Research**, **Parked scenes** and **Trash**, "
         "with the **Collections** list underneath. The number beside the "
         "project's name is the word count of the book (see “Word "
         "Counts”). Clicking a part selects it and opens or closes it.")
     s.gfigure("fig_obinder", "g_binder", "The desktop binder: front "
-              "matter, two parts, the notes groups, Unplaced Scenes, the "
+              "matter, two parts, the notes groups, Parked scenes, the "
               "Trash and the Collections list", width=150,
               crop=(0, 1, 0, 0.8))
 
@@ -137,7 +137,7 @@ my-novel/
         "part: a picker titled //Rename which part?//, //Move which "
         "part?// or //Delete which (empty) part?// lists the parts, with "
         "the part of the open scene already chosen. It works with no "
-        "scene open, and with a note or an unplaced scene open. In the "
+        "scene open, and with a note or a parked scene open. In the "
         "desktop application the part actions work on the "
         "part you last clicked in the binder, or else the part of the "
         "open scene.",
@@ -145,7 +145,7 @@ my-novel/
         "`_part.md`). The folder keeps its old name for good, which is "
         "harmless.",
         "Moving a part swaps its folder prefix with its neighbor's. Both "
-        "must have numeric prefixes (`01-`, `02-`); otherwise Lorewrite "
+        "must have numeric prefixes (`01-`, `02-`); otherwise Chisel "
         "says the part is at the edge. Scenes follow their folder, and so "
         "do their snapshots, comments and pending drafts.",
         "Only an //empty// part can be deleted. Move its scenes out "
@@ -189,7 +189,7 @@ my-novel/
         "like this.")
     s.proc("To make front matter:", [
         "Make a part titled //Front matter// (see above). It is created "
-        "last, perhaps as `03-front-matter`; Lorewrite recognizes it by "
+        "last, perhaps as `03-front-matter`; Chisel recognizes it by "
         "that name at once.",
         "Move it first with **Move part up**, once for every part in "
         "front of it. Or, with the project closed, rename the folder to "
@@ -205,10 +205,12 @@ my-novel/
         "it first, but loose scenes still read before every part.")
 
     # ------------------------------------------------------------------
-    s.h2("Unplaced Scenes", idx=["unplaced scenes", "_unplaced"])
+    s.h2("Parked Scenes", idx=["parked scenes", "unplaced scenes", "_unplaced"])
     s.p("Sometimes you write a scene you are not ready to cut but do not "
         "want in the book: an alternate opening, a scene that may belong "
-        "to the sequel. **Unplaced** scenes are kept in `_unplaced`. "
+        "to the sequel. **Parked** scenes are kept in `_unplaced`. (The "
+        "terminal application calls them //Unplaced// scenes; the folder "
+        "is the same.) "
         "They are not in the reading order, have no scene number, and are "
         "not counted in the book. They are still real scenes: you can "
         "open and edit them, they are spell-checked, linked and indexed "
@@ -218,26 +220,29 @@ my-novel/
     s.table("t_unplaced", "Taking scenes out of the book and putting "
             "them back",
             ["Task", "Terminal application", "Desktop application"], [
-        ["Unplace the open scene", "**Action · Move scene to Unplaced**. "
+        ["Park the open scene", "**Action · Move scene to Unplaced**. "
          "Message //Moved to Unplaced scenes (not counted in the book)//.",
-         "**…** menu > **Move to Unplaced Scenes**. Toast //Moved to "
-         "Unplaced Scenes. It no longer counts in the book.// No "
+         "**…** menu > **Move to Parked scenes**. Toast //Moved to "
+         "Parked scenes. It no longer counts in the book.// No "
          "confirmation, and no Undo."],
         ["Put it back", "Open the unplaced scene, then **Action · Place "
          "scene in the book**; pick a part from //Place in which part?//.",
          "Open it; the **…** menu shows **Place in the book…** instead. "
          "Or drag its card into a part in the corkboard."],
         ["Find them", "Sidebar header //UNPLACED SCENES//, after the "
-         "last part.", "Binder group **Unplaced Scenes** (with a count); "
+         "last part.", "Binder group **Parked scenes** (with a count); "
          "the last group of the Corkboard and Outline."],
     ], [0.20, 0.38, 0.42])
+    s.p("In the desktop application the //Parked scenes// group is "
+        "hidden while it is empty; it appears in the binder, the "
+        "Corkboard and the Outline as soon as you park a scene.")
     s.p("A placed scene goes to the end of the part you choose. The "
-        "binder's breadcrumb for an unplaced scene reads //Unplaced "
-        "Scenes > Scene//.")
+        "binder's breadcrumb for a parked scene reads //Parked "
+        "scenes > Scene//.")
 
     # ------------------------------------------------------------------
     s.h2("The Trash", idx=["trash", ".trash", "delete scene", "restore"])
-    s.p("Lorewrite never deletes a scene outright. **Delete** moves it to "
+    s.p("Chisel never deletes a scene outright. **Delete** moves it to "
         "the Trash, a hidden `.trash` folder in the project, from which "
         "it can be restored or, deliberately, deleted forever. Deleted "
         "research notes (Chapter 9) go to the same place. The Trash lists "
@@ -276,11 +281,11 @@ my-novel/
     s.h3("Where a restored scene goes", idx=["restore|scene"])
     s.p("A scene returns to the end of the folder it was deleted from. If "
         "that part has since been deleted or renumbered away, the scene "
-        "goes to Unplaced Scenes instead, and the desktop application "
-        "says so: //Restored “Rain”: its part is gone, so it went to Unplaced "
+        "goes to Parked scenes instead, and the desktop application "
+        "says so: //Restored “Rain”: its part is gone, so it went to Parked "
         "Scenes.// When the part still exists the toast names it (//Restored "
-        "“Rain” to The Recall.//), and a scene that was unplaced to begin "
-        "with is reported as //Restored “Rain” to Unplaced Scenes.// It is given the next free number in that folder; its "
+        "“Rain” to The Recall.//), and a scene that was parked to begin "
+        "with is reported as //Restored “Rain” to Parked scenes.// It is given the next free number in that folder; its "
         "neighbors are not renumbered, so it may differ from its old "
         "number. Its snapshots, comments and pending AI drafts come back "
         "with it. A research note returns to `research/` under its "
@@ -297,14 +302,14 @@ my-novel/
         "empty again.")
     s.attention("**Empty Trash removes the whole `.trash` folder**, "
                 "including any file of your own that you put there. The "
-                "count it reports covers only items Lorewrite recognizes. "
+                "count it reports covers only items Chisel recognizes. "
                 "Deleting forever cannot be undone.")
 
     # ------------------------------------------------------------------
     s.h2("Scenes or Chapters", idx=["scene label", "chapter label",
                                     "unit|scene or chapter"])
     s.p("Some writers think in scenes, others in chapters. A single "
-        "setting decides which word Lorewrite uses for the units of the "
+        "setting decides which word Chisel uses for the units of the "
         "book. It changes //labels only//: no file or folder is renamed, "
         "and nothing on disk changes except one line of `project.toml`:")
     s.code("""\
@@ -323,7 +328,7 @@ unit = "chapter"        # "scene" (the default) or "chapter\"""")
         "kicker on a card reads //CHAPTER 03//, and the menus, dialogs "
         "and corkboard wording follow. There is no entry in Settings "
         "for it.")
-    s.p("Some texts do not change: the //Unplaced Scenes// group names, a "
+    s.p("Some texts do not change: the //Parked scenes// group names, a "
         "few messages such as //Open a scene first//, and the Trash's "
         "wording. The palette entry that switches the setting keeps a "
         "clear name of its own in both states.")
@@ -432,10 +437,10 @@ collections: [Needs continuity pass]
         "scenes by dragging.")
     s.p("The Corkboard "
         f"({R('fig_ocork')}) shows a card for each scene, with its "
-        "kicker (//SCENE 07//, //FRONT MATTER//, //UNPLACED//), title, "
+        "kicker (//SCENE 07//, //FRONT MATTER//, //PARKED//), title, "
         "an excerpt and its status, POV and words. The cards are in "
         "groups: loose scenes (titled only when parts exist), each part, "
-        "and last //Unplaced scenes//. A header gives each group's title "
+        "and last //Parked scenes//. A header gives each group's title "
         "and scene count.")
     s.gfigure("fig_ocork", "g_corkboard", "The Corkboard, with the cards "
               "in parts", width=380)
@@ -450,7 +455,7 @@ collections: [Needs continuity pass]
         "card to put the scene //before// that card, in that card's "
         "part; or onto the strip at the end of a group, "
         "//Drop here to put it at the end of// the part.",
-        f"Lorewrite always asks you to confirm ({R('fig_gdrag')}): "
+        f"Chisel always asks you to confirm ({R('fig_gdrag')}): "
         "//Move “//title//” to position //n// in //part//?// or, to "
         "another group, //Move “//title//” to //part//, position //n//?//. "
         "Press **Move**; **Cancel** is the default.",
@@ -459,7 +464,7 @@ collections: [Needs continuity pass]
     s.gfigure("fig_gdrag", "g_drag_confirm", "The confirmation before a "
               "scene is moved by dragging", width=300)
     s.p("Dropping a scene where it already is does nothing and asks "
-        "nothing. Dropping a card on the //Unplaced scenes// group takes "
+        "nothing. Dropping a card on the //Parked scenes// group takes "
         "it out of the book; dragging a card out of that group places it. "
         "The scene is saved before it moves and stays open. The binder "
         "itself does not accept drags of scenes.")
@@ -477,7 +482,7 @@ collections: [Needs continuity pass]
         "collection: //Needs continuity pass//, //Mara's arc//, "
         "//Ask Elena//. Collections cut across parts. A scene can be in "
         "any number of them, and putting it in one never moves it. "
-        "Unplaced scenes can be in collections; trashed scenes cannot.")
+        "Parked scenes can be in collections; trashed scenes cannot.")
     s.p("A collection has a name (up to 60 characters; names that differ "
         "only in capitals are the same name) and one of five colors: "
         "violet (the default for a new one), amber, green, red and "
@@ -542,34 +547,34 @@ collections: [Needs continuity pass]
     s.gfigure("fig_gscene", "g_scene_collections", "The Collections "
               "dialog for one scene", width=260)
     s.attention("Renaming or deleting a collection rewrites every scene "
-                "file that belongs to it. Lorewrite saves the open scene "
+                "file that belongs to it. Chisel saves the open scene "
                 "first. Deleting a collection removes the label from its "
                 "scenes; it never deletes a scene.")
 
     # ------------------------------------------------------------------
     s.h2("Word Counts: What Counts as the Book", idx=["word count",
                                                       "book words"])
-    s.p("Lorewrite is careful about what it calls your words. The "
+    s.p("Chisel is careful about what it calls your words. The "
         "//book// is every scene that is neither front matter nor "
-        "unplaced. The totals follow that rule, and the single-scene "
+        "parked. The totals follow that rule, and the single-scene "
         "counts follow the second column.")
     s.table("t_counts", "What each count includes",
             ["Count", "Includes", "Leaves out"], [
         ["Terminal status bar, //N words (M project)//",
          "N is the open file; M is the book.",
-         "Front matter and Unplaced Scenes from M; pending AI drafts and "
+         "Front matter and Parked scenes from M; pending AI drafts and "
          "the details block from both."],
         ["Desktop status bar //N project words// and binder total",
-         "The book.", "Front matter, Unplaced Scenes, pending AI "
+         "The book.", "Front matter, Parked scenes, pending AI "
          "drafts, details."],
         ["Part rows in the binder", "The words in each part. The front "
          "matter part shows its own muted count.", "The front matter "
          "count is not added to the total."],
         ["A scene's chip, card or outline row", "The scene's own words, "
-         "even for front matter and unplaced scenes.",
+         "even for front matter and parked scenes.",
          "Pending AI drafts and the details block."],
         ["Style learning, voice samples, statistics", "The book.",
-         "Front matter and Unplaced Scenes."],
+         "Front matter and Parked scenes."],
     ], [0.30, 0.34, 0.36])
     s.p("Text that an AI proposed and you have not yet accepted "
         "(Chapter 11) is never counted, because it is not yet part of "
@@ -592,7 +597,7 @@ collections: [Needs continuity pass]
         "one.",
         "**Where a new scene goes.** A new scene goes into the part of "
         "the scene you have open (or loose, if that one is loose). If "
-        "a note or an unplaced scene is open, it goes to the last part "
+        "a note or a parked scene is open, it goes to the last part "
         "that is not front matter, or to the top level if there is none.",
         "**Loose scenes always read first,** before every part, "
         "regardless of their numbers.",
@@ -603,16 +608,16 @@ collections: [Needs continuity pass]
         "**The Trash and `_unplaced` are not hidden from version "
         "control.** Only `.lorewrite/` (the index cache) is ignored by the "
         "project's own ignore list, so a version-control sync includes "
-        "the Trash, the unplaced scenes and the draft sidecars.",
+        "the Trash, the parked scenes and the draft sidecars.",
         "**Shared editing.** If the terminal and desktop applications "
         "are open on the same project and a file changes under the "
         "desktop editor, a banner offers **Reload from disk** or **Keep "
         "my version**. Edits you make in a file manager are picked up "
         "the next time you open the project; **Rebuild the link index** "
         "(`f9` in the terminal) refreshes the cache.",
-        "**Unplaced scenes and the AI.** The continuity check, like "
+        "**Parked scenes and the AI.** The continuity check, like "
         "every AI feature, looks only at the scene you have open, so it "
-        "runs on an unplaced scene if you open one. Unplaced scenes are "
+        "runs on a parked scene if you open one. Parked scenes are "
         "simply not part of the book's order or word totals.",
     ])
 
@@ -629,15 +634,15 @@ GLOSSARY = [
     ("loose scene", "A scene directly in the manuscript folder, outside "
      "any part. Loose scenes read before all parts."),
     ("book", "The scenes that count: every scene that is not front "
-     "matter and not unplaced."),
-    ("Unplaced Scenes", "Scenes kept in the _unplaced folder: still "
+     "matter and not parked."),
+    ("Parked scenes", "Scenes kept in the _unplaced folder: still "
      "editable and indexed, but not in the book's order or counts."),
     ("Trash", "The .trash folder, where deleted scenes and research "
      "notes wait to be restored or deleted forever."),
     ("scene details", "Status, POV, place, purpose and word target of a "
      "scene, stored as frontmatter and not counted as prose."),
     ("frontmatter", "A short block of keys between two --- lines at the "
-     "top of a file. Lorewrite uses it for scene details and "
+     "top of a file. Chisel uses it for scene details and "
      "collections."),
     ("collection", "A colored label you create and put on any number of "
      "scenes. Members are recorded in each scene's frontmatter."),
@@ -645,7 +650,7 @@ GLOSSARY = [
      "be dragged to reorder scenes."),
     ("outline", "A desktop view of the whole book as rows with the "
      "headings of each scene, which can be dragged to reorder."),
-    ("unit", "The word, scene or chapter, that Lorewrite uses for the "
+    ("unit", "The word, scene or chapter, that Chisel uses for the "
      "book's units. A label only."),
 ]
 
@@ -657,7 +662,7 @@ MSG_TUI = {
         ["Moved to //file name//", "Move current scene up or down worked."],
         ["Moved to Unplaced scenes (not counted in the book)",
          "The scene was taken out of the book."],
-        ["Placed in the book", "An unplaced scene went into a part."],
+        ["Placed in the book", "A parked scene went into a part."],
         ["Moved '//title//' to the Trash", "A scene was deleted to the "
          "Trash."],
         ["Restored to //path//", "A scene was restored from the Trash."],
@@ -711,17 +716,17 @@ MSG_GUI = [
     ["Moved “//title//”.  [Undo]", "A drag was confirmed; Undo is "
      "available for about nine seconds."],
     ["Moved back.", "Undo moved the scene back."],
-    ["Moved to Unplaced Scenes. It no longer counts in the book.",
-     "The scene was unplaced."],
-    ["Placed in the book.", "An unplaced scene went into a part."],
+    ["Moved to Parked scenes. It no longer counts in the book.",
+     "The scene was parked."],
+    ["Placed in the book.", "A parked scene went into a part."],
     ["Moved “//title//” to the Trash.", "A scene was deleted to the "
      "Trash."],
     ["Restored “//title//”.", "A scene was restored."],
     ["Restored “//title//” to //part//.", "A scene returned to its part."],
-    ["Restored “//title//” to Unplaced Scenes.", "A scene that was "
-     "unplaced went back to Unplaced Scenes."],
-    ["Restored “//title//”: its part is gone, so it went to Unplaced "
-     "Scenes.", "The scene's part no longer exists."],
+    ["Restored “//title//” to Parked scenes.", "A scene that was "
+     "parked went back to Parked scenes."],
+    ["Restored “//title//”: its part is gone, so it went to Parked "
+     "scenes.", "The scene's part no longer exists."],
     ["Emptied the Trash (//n//).", "Everything in the Trash is gone."],
     ["Labels now say “chapter”. Only the wording changes.",
      "The unit label was toggled."],
@@ -771,7 +776,7 @@ PALETTE = [
     ["Collections", "Tick the open scene's collections; add, rename, "
      "recolor or delete them (category Scene).", ""],
     ["Next / previous scene", "Walk the book in order, skipping "
-     "Unplaced scenes.", "alt+right / alt+left"],
+     "unplaced scenes.", "alt+right / alt+left"],
 ]
 
 PROBLEMS = [
@@ -790,7 +795,7 @@ PROBLEMS = [
      "Open the Trash (Action · Open Trash, or the binder's Trash row) and "
      "restore it."],
     ["Words I wrote are not in the book total.",
-     "Front matter and Unplaced Scenes are not counted, nor are details "
+     "Front matter and Parked scenes are not counted, nor are details "
      "or AI text you have not accepted."],
     ["I moved a scene by dragging and want it back.",
      "Press Undo in the toast within nine seconds, or move it again."],

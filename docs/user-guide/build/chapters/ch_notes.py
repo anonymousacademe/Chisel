@@ -9,7 +9,7 @@ def build(s, R):
         "reminders about particular sentences (check this against Chapter "
         "2, is this too much?), there are articles and photographs and "
         "tide tables, and there are the questions you ask along the way. "
-        "This chapter covers the three places Lorewrite keeps them: "
+        "This chapter covers the three places Chisel keeps them: "
         "//comments//, which are notes pinned to a passage of a scene; "
         "//research notes//, which are plain pages of reference material "
         "kept in a folder of their own; and //saved conversations//, the "
@@ -33,7 +33,7 @@ def build(s, R):
         "written into the scene's text, so you cannot export it by "
         "accident, read it aloud by accident, or lose it by deleting a "
         "line of prose.")
-    s.p("Comments apply to //scenes// only (including unplaced scenes and "
+    s.p("Comments apply to //scenes// only (including parked scenes and "
         "front matter). Character and place notes, research notes, the "
         "style guide and the dictionary cannot carry comments. A comment "
         "may be //open// or //resolved//. Open ones are the ones still "
@@ -56,15 +56,15 @@ def build(s, R):
     s.proc("To add a comment in the terminal application:", [
         "Open a scene and select the passage (hold `shift` and move the "
         "cursor, or drag with the mouse). If there is no selection, "
-        "Lorewrite says //Select the passage to comment on first//; with "
+        "Chisel says //Select the passage to comment on first//; with "
         "no scene open it says //Open a scene first//.",
         "Press `ctrl+p` and choose **Scene · Add comment on selection**.",
         "Type the note at the //Comment:// prompt and press `enter`. "
         "An empty note cancels.",
-        "Lorewrite answers //Comment added (it is kept beside the scene, "
+        "Chisel answers //Comment added (it is kept beside the scene, "
         "not in the text)//.",
     ])
-    s.p("If your project's unit is “chapter” (Chapter 15), the entry reads "
+    s.p("If your project's unit is “chapter” (Chapter 18), the entry reads "
         "**Chapter · Add comment on selection**. The same applies to every "
         "palette entry that begins with //Scene// in this chapter.")
     s.proc("To add a comment in the desktop application:", [
@@ -126,7 +126,7 @@ def build(s, R):
         ["r", "Resolve the comment, or reopen it if it is resolved."],
         ["e", "Edit the note (the //Comment:// prompt appears with the "
          "old note filled in)."],
-        ["d", "Delete the comment. Lorewrite asks //Delete this "
+        ["d", "Delete the comment. Chisel asks //Delete this "
          "comment?// and adds that the text it was about is not touched; "
          "the button is **Delete comment**."],
         ["esc", "Close the window."],
@@ -168,7 +168,7 @@ def build(s, R):
 
     s.h3("Anchoring and Detached Comments", idx=["comment|anchoring",
                                                   "detached comment"])
-    s.p("Lorewrite does not remember //where// a comment is, only //what// "
+    s.p("Chisel does not remember //where// a comment is, only //what// "
         "it was about: the words you selected and a little of the text "
         "around them. Every time it needs the comment, it looks for those "
         "words again. That is why you can keep writing above, below and "
@@ -177,7 +177,7 @@ def build(s, R):
         "If the words are still there (even if a line has been re-wrapped "
         "or the spacing changed), the comment is found. If the same words "
         "occur twice, the surrounding text decides which one is meant.",
-        "If you edit the middle of a long passage, Lorewrite can still "
+        "If you edit the middle of a long passage, Chisel can still "
         "find it by its beginning and its end. If you rewrite the whole "
         "passage but leave the text on both sides, the comment lands on "
         "whatever now stands between them.",
@@ -266,7 +266,7 @@ def build(s, R):
               "notes", width=150)
 
     s.h3("A Note from a Link", idx=["research notes|from a link"])
-    s.p("Lorewrite can start a note from a web address. It does not fetch "
+    s.p("Chisel can start a note from a web address. It does not fetch "
         "the page. It only saves the link, and a title made from the "
         "address, so that you remember to read it, or so that you can "
         "paste in the passages you want to keep. A link note looks like "
@@ -279,7 +279,7 @@ https://www.example.com/articles/tide-tables-explained.html
     s.p("The title is the name of the site (without a leading `www.`), a "
         "dash, and the last part of the address with the hyphens turned "
         "into spaces. The address must begin with `http://` or "
-        "`https://` and contain no spaces; otherwise Lorewrite says "
+        "`https://` and contain no spaces; otherwise Chisel says "
         "//that is not a web link (it should start with http:// or "
         "https://)//.")
     s.p("In the desktop application there are two quick ways to start a "
@@ -297,7 +297,7 @@ https://www.example.com/articles/tide-tables-explained.html
               "reminder that the page is not downloaded", width=300)
     s.p("In the terminal application there is no pasting or dropping; you "
         "use the palette entry and paste the address into its prompt. "
-        "Lorewrite answers //Saved the link as a research note (the page "
+        "Chisel answers //Saved the link as a research note (the page "
         "is not downloaded)//.")
 
     s.h3("Moving a Research Note to the Trash", idx=["research notes|Trash",
@@ -356,7 +356,7 @@ https://www.example.com/articles/tide-tables-explained.html
         "link).//")
 
     s.h3("How the Search Works", idx=["Research question|how it works"])
-    s.p("Lorewrite does not send your whole `research` folder to the AI. "
+    s.p("Chisel does not send your whole `research` folder to the AI. "
         "It first looks through the notes itself, on your computer, using "
         "plain keyword matching, and sends only the best few passages.")
     s.bullets([
@@ -367,7 +367,7 @@ https://www.example.com/articles/tide-tables-explained.html
         "Each note is scored by how often those words occur in it, "
         "counting rare words more than common ones, with a bonus when a "
         "word is in the note's title.",
-        "The best five notes are used. From each, Lorewrite picks the "
+        "The best five notes are used. From each, Chisel picks the "
         "single paragraph that matches best, up to 1,500 characters, and "
         "the sum of the excerpts is held to about 9,000 characters.",
         "The excerpts are numbered in the order they are listed, "
@@ -442,7 +442,7 @@ https://www.example.com/articles/tide-tables-explained.html
     s.p("Deleting a conversation does not delete anything you saved from "
         "it to your notes (“Saving an Answer to Your Notes” below). If "
         "some attached files of an old conversation no longer exist, "
-        "Lorewrite opens it without them and says //Some attachments of "
+        "Chisel opens it without them and says //Some attachments of "
         "this chat no longer exist and were left off.//")
 
     s.h3("In the Terminal Application", idx=["conversation|terminal"])
@@ -460,7 +460,7 @@ https://www.example.com/articles/tide-tables-explained.html
     s.table("t_chat_keys", "Keys in the assistant window (terminal)",
             ["Key", "Action"], [
         ["enter", "Send what you typed. While an answer is on its way "
-         "Lorewrite says //Wait for the current answer//."],
+         "Chisel says //Wait for the current answer//."],
         ["ctrl+r", "Switch between chat and research mode. The title "
          "changes between //Assistant// and //Research//."],
         ["ctrl+o", "Open a research note cited in the latest answer that "
@@ -471,7 +471,7 @@ https://www.example.com/articles/tide-tables-explained.html
         ["ctrl+t", "Open the Saved conversations window."],
         ["ctrl+n", "Start a new chat."],
         ["esc", "Close the window. The conversation stays in memory while "
-         "Lorewrite runs, and reopening the window shows it again."],
+         "Chisel runs, and reopening the window shows it again."],
     ], [0.2, 0.8], mono_cols=(0,))
     s.note("The history key is `ctrl+t`, not `ctrl+h`: many terminals send "
            "`ctrl+h` as the backspace key. The palette entry **Action · "
@@ -550,7 +550,7 @@ https://www.example.com/articles/tide-tables-explained.html
             ["Group", "What the AI receives"], [
         ["Scenes", "The prose of the scene only: the details block and "
          "any pending AI drafts are left out. Any scene may be attached, "
-         "including unplaced ones and front matter."],
+         "including parked ones and front matter."],
         ["Comments", "Listed only for scenes that have open comments. "
          "One line per open comment, giving the passage and your note. "
          "Resolved comments are not sent. The row shows //· N open//, "
@@ -572,7 +572,7 @@ https://www.example.com/articles/tide-tables-explained.html
         "you are over, says //Too much: remove something (at most 12 "
         "items).// and keeps **Attach** dim. The cut is made at a word "
         "boundary and marks the item with an ellipsis.")
-    s.p("When you send a question, Lorewrite reports anything it had to "
+    s.p("When you send a question, Chisel reports anything it had to "
         "shorten or leave out, in a message after the answer:")
     s.bullets([
         "//Shortened to fit: <titles>.// The named items were cut.",
@@ -649,7 +649,7 @@ She would count the stops before she looked up. ...
         ["`.assistant/chats/<id>.json`", "One saved conversation each."],
     ], [0.38, 0.62])
     s.p("A comment is stored like this (the date and the id are written "
-        "by Lorewrite):")
+        "by Chisel):")
     s.code("""\
 [
   {
@@ -665,7 +665,7 @@ She would count the stops before she looked up. ...
 """)
     s.p("The `quote`, `prefix` and `suffix` are how a comment finds its "
         "passage again. Files that are damaged or not in this shape are "
-        "read as empty; Lorewrite does not stop for them. A conversation "
+        "read as empty; Chisel does not stop for them. A conversation "
         "file keeps its messages (at most the last 400, each cut at "
         "20,000 characters), the research notes that answers cited, and "
         "in the desktop application the scope and attachments.")

@@ -1,8 +1,8 @@
 # Lorewrite — Design Spec
 
-**Status:** Living design document. Released: 0.3.1; the hardening, menu-aware AI, context-budget and
-story-time work is on the working branch and listed in CHANGELOG.md under Unreleased. See section 14 for
-what is done and what is planned next.
+**Status:** Living design document. Released: 0.4.0 (2026-10-03), which includes the hardening, menu-aware
+AI, context-budget, story-time and logo work listed in CHANGELOG.md. See section 14 for what is done and
+what is planned next.
 **Name:** users see the app as **Chisel**. The Python package (`lorewrite`), its commands (`lorewrite`,
 `lorewrite-gui`), the state folders, the `LOREWRITE_*` environment variables and the repository name
 (`lorewriter`) keep the old name on purpose, and so does this document's title.
@@ -713,10 +713,11 @@ both edit the same plain-Markdown projects.
   Lezer Markdown tree (`gui/src/editor/format.ts`), never a regex; nothing in the file changes and
   offsets are untouched, so spell check, mentions and comments are unaffected. The style guide
   (`style.md`) also renders bullets as dots and blockquotes without `>`.
-- **Logo.** The app mark (an open book and a quill, violet) is `gui/src/assets/logo.svg`; it replaces the
+- **Logo.** The app logo (the Chisel icon: an open book, half stone, with a chisel) is `gui/src/assets/logo.svg`; it replaces the
   "LW" avatar in the rail while no author is set, heads the launch screen, and
   `gui/scripts/make-icons.sh` regenerates the favicon, the packaging icons (`gui/src-tauri/icons/*`) and
-  the window icon (`src/lorewrite/gui/icon.png`) from it.
+  the window icon (`src/lorewrite/gui/icon.png`) from it. The artwork's sources are in `docs/brand/`. The window icon is `icon.ico` on Windows
+  (pywebview's WinForms backend rejects a PNG) and `icon.png` elsewhere (`gui/app.py`).
 - **Shell.** `lorewrite-gui` (`src/lorewrite/gui/app.py`) opens a frameless
   1600×1000 window on the built UI (`src/lorewrite/gui/web/`, found by `gui/webroot.py`; falls back to `gui/dist`) and hands it a bridge object. The UI calls the
   Python core **in-process** through pywebview's `js_api`; there is no server in
@@ -904,6 +905,7 @@ Done (see the sections named for details; the user-visible list is in CHANGELOG.
   desktop name for the Unplaced folder.
 - Context budget and the "What was sent" report (`ai/budget.py`, `ai/relevance.py`), optional `context_window`.
 - Entity frontmatter round trip and optional story time (`core/timeline.py`).
+- The Chisel logo and icons; the Windows window uses `icon.ico` (fixes the from-source start-up crash).
 
 Planned next, in this order (no dates; each is designed before it is built):
 1. **Character relationships**: a `## Relationships` section in character notes, derived inverses, AI
@@ -914,7 +916,3 @@ Planned next, in this order (no dates; each is designed before it is built):
    structured-output fallback, privacy copy).
 4. **Per-scene summaries** and a rolling story-so-far, used by the budget as compact context.
 5. **A timeline view** of scenes by story time.
-
-Known issue: on Windows, a from-source `lorewrite-gui` passes `icon.png` to pywebview, whose WinForms backend
-loads the icon with `System.Drawing.Icon` (expects `.ico`). Workaround: launch through a small wrapper that
-omits the icon argument. Packaged builds are not covered by this note.

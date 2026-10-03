@@ -7,14 +7,14 @@ def build(s, R):
               "on, and optional git for people who want to keep the "
               "manuscript somewhere else too.")
 
-    s.p("Writing is mostly changing your mind. Lorewrite keeps a quiet "
+    s.p("Writing is mostly changing your mind. Chisel keeps a quiet "
         "history of each scene so that changing your mind is never a "
         "risk: you can look at an earlier version, see exactly what is "
         "different from now, and put it back. This chapter covers three "
         "separate things that are easy to mix up:", idx=["history", "versions"])
     s.bullets([
         "**Snapshots**: saved copies of a single scene at a moment in "
-        "time, taken by you or by Lorewrite.",
+        "time, taken by you or by Chisel.",
         "**The draft number** (//Draft 2//): a counter for the whole "
         "book, which you advance when you finish a pass and begin the "
         "next.",
@@ -22,7 +22,7 @@ def build(s, R):
         "git repository and send it to another computer. It is off "
         "unless you use it.",
     ])
-    s.attention("The word //draft// has two meanings in Lorewrite. In "
+    s.attention("The word //draft// has two meanings in Chisel. In "
                 "this chapter a **draft** is a pass over the whole book "
                 "(//Draft 2//). In Chapters 10 and 11 an **AI draft** is a "
                 "piece of text the assistant wrote that you have not yet "
@@ -42,15 +42,15 @@ def build(s, R):
         "somewhere safe or use git sync (below) with a remote that "
         "lives on another machine.")
     s.p("Snapshots are only ever of //scenes// (the files of your "
-        "manuscript, including scenes in Unplaced). Notes, research "
+        "manuscript, including parked scenes). Notes, research "
         "notes, the style guide and the dictionary files have no "
         "history. If your project counts chapters instead of scenes "
-        "(Chapter 15), the desktop application and the palette say "
+        "(Chapter 18), the desktop application and the palette say "
         "//chapter// where this chapter says //scene//.")
 
     # ------------------------------------------------------------------
     s.h2("When Snapshots Are Taken", idx=["snapshot|automatic", "snapshot|manual"])
-    s.p(f"Some snapshots you ask for; others Lorewrite takes by itself "
+    s.p(f"Some snapshots you ask for; others Chisel takes by itself "
         f"at moments when you might want to go back. {R('t_snapwhen')} "
         "lists all of them with the name each is given in the history "
         "list.")
@@ -70,11 +70,13 @@ def build(s, R):
          "least one pending draft.", "No."],
         ["Before rejecting all AI drafts", "Likewise before //Reject "
          "all AI drafts in this scene//.", "No."],
+        ["before-rename", "Before //Rename everywhere// (Chapter 17) "
+         "rewrites a scene: one for each scene it changes.", "No."],
         ["End of draft //N//", "When you start a new draft: one for "
          "every scene.", "No."],
     ], [0.30, 0.46, 0.24])
     s.p("Accepting or rejecting a //single// AI draft takes no "
-        "snapshot. Lorewrite does not announce automatic snapshots; you "
+        "snapshot. Chisel does not announce automatic snapshots; you "
         "see them only when you open the history of a scene.")
     s.p("The daily snapshot is a gentle default. It skips a scene whose "
         "text did not actually change, a scene that already has a "
@@ -193,7 +195,7 @@ def build(s, R):
 
     s.h3("Restoring a Snapshot", idx=["snapshot|restore", "restore"])
     s.p(f"Restoring replaces the whole scene with the text of the "
-        f"snapshot. Lorewrite first takes a snapshot of the scene as "
+        f"snapshot. Chisel first takes a snapshot of the scene as "
         f"it is, named //Before a restore//, so a restore is never a "
         f"one-way trip: if you change your mind, restore that one. "
         f"The terminal application asks //Replace this scene with the "
@@ -214,7 +216,7 @@ def build(s, R):
 
     s.h3("Deleting a Snapshot", idx=["snapshot|delete"])
     s.p("Deleting asks for a confirmation (//Delete the snapshot? This "
-        "cannot be undone.//) and then removes the file. Lorewrite "
+        "cannot be undone.//) and then removes the file. Chisel "
         "never deletes snapshots by itself: there is no limit to how "
         "many a scene can have, and none are pruned. A scene edited "
         "every day for a year has about three hundred and sixty-five "
@@ -226,7 +228,7 @@ def build(s, R):
 
     s.h3("Snapshots Follow the Scene", idx=["snapshot|rename and move"])
     s.p("A scene keeps its history when you rename it, move it to "
-        "another part, send it to Unplaced or reorder the manuscript "
+        "another part, park it or reorder the manuscript "
         "(Chapter 5). If you delete a scene, its snapshots go to the "
         "Trash with it, and come back when you restore the scene from "
         "the Trash. Emptying the Trash removes them for good.")
@@ -249,14 +251,14 @@ def build(s, R):
     s.h2("Drafts of the Book: Draft N", idx=["draft|book-level", "Draft N",
                                             "start new draft"])
     s.p("A novel goes through drafts: the first rough pass, the "
-        "second, the one you send to a reader. Lorewrite lets you "
+        "second, the one you send to a reader. Chisel lets you "
         "mark the turning point. The project has a **draft number** "
         "that starts at 1 and appears in the status bar of the "
         "terminal application as //Draft 1//, and in the desktop "
         "application both as a tag in the title bar and as the first "
         "item at the left of the status bar.")
     s.p("**Starting a new draft** does exactly two things. It "
-        "snapshots every scene in the project (the book and Unplaced), "
+        "snapshots every scene in the project (the book and the parked scenes), "
         "labeled //End of draft N//, and then it raises the number to "
         "N+1. It does not change a word of your text. The old draft "
         "is therefore not a separate copy you open; it lives in each "
@@ -299,13 +301,13 @@ def build(s, R):
         "separate program that writers do not need but programmers "
         "love: it records the whole project folder as a series of "
         "commits, and can send them to a copy on another computer or "
-        "a hosting service. If you already use git, Lorewrite can "
+        "a hosting service. If you already use git, Chisel can "
         "show whether your project has unrecorded changes and can "
         "commit and push for you. If you do not, you can ignore this "
-        "section completely; nothing in Lorewrite depends on it.")
+        "section completely; nothing in Chisel depends on it.")
     s.p("The rules are deliberately cautious.")
     s.bullets([
-        "Lorewrite only //looks// at git by itself, to show the "
+        "Chisel only //looks// at git by itself, to show the "
         "status. It commits, pushes or initializes only when you "
         "choose to.",
         "A push always asks first, and is //never forced//. It cannot "
@@ -324,7 +326,7 @@ def build(s, R):
     s.p(f"For a project under git, the sync item shows one of three "
         f"states ({R('t_syncstatus')}). The terminal application "
         f"shows it as the third part of the status bar, after the "
-        f"scene and //Draft N//. Lorewrite checks it when the project "
+        f"scene and //Draft N//. Chisel checks it when the project "
         f"opens, a couple of seconds after each save, and after each "
         f"sync action.")
     s.table("t_syncstatus", "The sync status",
@@ -343,7 +345,7 @@ def build(s, R):
                 "folder inside the project. The desktop tooltip says so "
                 "(//Committed (no remote is configured, so nothing is "
                 "pushed).//). Also, Synced does not mean you are up to "
-                "date: Lorewrite never shows whether the remote has "
+                "date: Chisel never shows whether the remote has "
                 "commits you lack.")
     s.p("In the desktop application the item has a cloud icon: crossed "
         "out for a project not under git (it reads //Sync//), with a "
@@ -356,13 +358,13 @@ def build(s, R):
         "with a message. Everything in the folder is included: "
         "scenes, notes, research, `project.toml`, the `.snapshots/` "
         "and `.drafts/` folders, and your settings files. Only the "
-        "index cache, `.lorewrite/`, is left out, because Lorewrite "
+        "index cache, `.lorewrite/`, is left out, because Chisel "
         "puts a line for it in the project's `.gitignore`. Your name "
         "and e-mail address must already be set in git; if not, git's "
         "own complaint appears.")
     s.p(f"Choose //Action · Commit changes// in the terminal "
         f"application, or click the sync item and choose **Commit "
-        f"//N// changes…** in the desktop application. Lorewrite saves "
+        f"//N// changes…** in the desktop application. Chisel saves "
         f"the open scene first and offers a message such as "
         f"//lorewrite: 2026-10-01 — 3 scenes changed// (when no scene "
         f"changed it counts //files//), which you can edit "
@@ -380,14 +382,14 @@ def build(s, R):
 
     s.h3("Pushing", idx=["git|push"])
     s.p("A **push** sends your commits to a remote copy. For it to be "
-        "offered, three things must already be true, and Lorewrite "
+        "offered, three things must already be true, and Chisel "
         "cannot set up any of them for you:")
     s.bullets([
         "The repository has a **remote** (such as `origin`), added "
-        "with git outside Lorewrite.",
+        "with git outside Chisel.",
         "You are on a **branch** (not in the detached state that git "
         "uses when looking at an old commit).",
-        "Your **credentials work without being asked**. Lorewrite "
+        "Your **credentials work without being asked**. Chisel "
         "runs git with prompts turned off, so it cannot ask you for "
         "a password or a key's passphrase. Use a credential helper, "
         "an SSH agent, or a key that needs no passphrase. If a push "
@@ -411,13 +413,13 @@ def build(s, R):
     s.p("If the project folder is not under git, the terminal palette "
         "offers //Action · Initialize git for this project//, and the "
         "desktop sync menu offers **Initialize git for this "
-        "project…**. After a confirmation Lorewrite turns the folder "
+        "project…**. After a confirmation Chisel turns the folder "
         "into a repository and makes sure `.gitignore` hides "
         "`.lorewrite/`. It does not commit anything, add a remote or "
         "name a branch. The offer is not made for a project that is "
         "inside another repository.")
     s.p(f"The palette entries are listed in {R('t_histpalette')} "
-        "(Chapter 16 lists every command).")
+        "(Chapter 19 lists every command).")
     s.table("t_histpalette", "Palette actions for history and sync",
             ["Entry", "What it does"], [
         ["Scene · Snapshots", "Open the Snapshots screen."],
@@ -490,7 +492,7 @@ draft = 2
         "**Nothing is ever pruned.** Delete snapshots yourself if "
         "the folder grows larger than you like.",
         "**Spaces and old text.** Compare can be slow on a huge "
-        "scene that has been almost completely rewritten; Lorewrite "
+        "scene that has been almost completely rewritten; Chisel "
         "then shows the whole changed stretch as one replacement "
         "instead of word by word.",
         "**Git commits everything**, including research notes, "
@@ -510,7 +512,7 @@ GLOSSARY = [
      "removed words marked and added words marked."),
     ("restore", "Replace a scene with a snapshot. The scene as it was is "
      "snapshotted first as //Before a restore//."),
-    ("automatic snapshot", "A snapshot Lorewrite takes by itself: the "
+    ("automatic snapshot", "A snapshot Chisel takes by itself: the "
      "first edit of a day, before a restore, before accept all or reject "
      "all, and at the end of a draft."),
     ("draft number", "A counter for the whole book (//Draft 2//), kept "
@@ -518,7 +520,7 @@ GLOSSARY = [
     ("start new draft", "Snapshot every scene as //End of draft N// and "
      "count up to draft N+1. Text is unchanged."),
     ("git", "An outside program that records a folder's history; "
-     "optional with Lorewrite."),
+     "optional with Chisel."),
     ("commit", "In git, a recorded state of the project folder with a "
      "message."),
     ("push", "Send commits to a remote copy. Asks first; never forced."),

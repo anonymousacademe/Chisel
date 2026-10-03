@@ -17,7 +17,7 @@ def build(s, R):
 
     # ------------------------------------------------------------------
     s.h2("Session Stats", idx=["session stats|what is counted", "stats"])
-    s.p("Lorewrite keeps a quiet tally of your work: how many words you "
+    s.p("Chisel keeps a quiet tally of your work: how many words you "
         "wrote today, how long you were actually typing, and how many days "
         "in a row you have met your daily goal. The numbers are for you. "
         "They are not part of the book.")
@@ -46,18 +46,18 @@ def build(s, R):
          "do not count."],
         ["Sessions", "A session starts with your first activity after "
          "30 idle minutes (or the first activity after starting "
-         "Lorewrite). It is counted on the day it starts."],
+         "Chisel). It is counted on the day it starts."],
     ], [0.22, 0.78])
     s.p("Only //scenes// count. Writing in a character note, the style "
         "guide, a research note or the dictionary does not add to your "
         "words. Pending AI drafts and the scene-details block at the top "
         "of a scene are not prose and are left out. Opening a scene counts "
-        "nothing: Lorewrite notes how long the scene was when you opened "
+        "nothing: Chisel notes how long the scene was when you opened "
         "it, and counts only the change from there. The same is true when "
         "a scene is reloaded from disk or restored from a snapshot "
-        "(Chapter 8), and for the first save of a scene Lorewrite has "
+        "(Chapter 8), and for the first save of a scene Chisel has "
         "never seen.")
-    s.p("The word count follows the saves, not the keystrokes. Lorewrite "
+    s.p("The word count follows the saves, not the keystrokes. Chisel "
         "autosaves as you type, so the figure is never far behind, but a "
         "sentence you typed a second ago may not be counted yet.")
 
@@ -87,7 +87,7 @@ def build(s, R):
         "the target. A day meets it when its words are at least the "
         "target; with the target off, a day meets it with a single word. "
         "A day on which you cut more than you wrote never meets it. "
-        "Lorewrite counts backward from today. If you have not yet met the "
+        "Chisel counts backward from today. If you have not yet met the "
         "target //today//, it starts counting at yesterday, so your streak "
         "is not broken until the day is actually over.")
     s.note("The streak rule uses the target as it is //now//. If you raise "
@@ -155,7 +155,7 @@ def build(s, R):
         ["Today", "Net words, active minutes and sessions today, with "
          "“of 500” when a target is on, and the accepted AI words if there "
          "were any."],
-        ["This session", "Words and active minutes since Lorewrite "
+        ["This session", "Words and active minutes since Chisel "
          "started, or since the last gap of 30 idle minutes."],
         ["Streak", "Days in a row, and whether today is already met. The "
          "desktop tile says “500+ words a day” (or “any day with a "
@@ -164,8 +164,8 @@ def build(s, R):
         ["Per session", "Average words per session: the words of all "
          "your positive days divided by all recorded sessions."],
         ["Project", "The words now in the book (front matter and "
-         "Unplaced scenes are not counted), and how many of them were "
-         "written with Lorewrite."],
+         "Parked scenes are not counted), and how many of them were "
+         "written with Chisel."],
         ["Last 30 days", "The sparkline or chart. Days with no writing, "
          "or a negative total, show as the lowest bar."],
         ["Sprints today", "Each focus sprint of the day, with its words. "
@@ -188,12 +188,12 @@ def build(s, R):
     s.p("`seconds` is the active time (the page shows it in minutes). In a "
         "sprint, `minutes` is the length you chose, `elapsed` the seconds "
         "it actually ran, and `completed` is false for a sprint you "
-        "stopped. The file is written safely: Lorewrite writes a temporary "
+        "stopped. The file is written safely: Chisel writes a temporary "
         "copy and then swaps it in, so a crash cannot leave half a file. "
         "If both applications are open on the same project they each add "
         "their own figures to the file, so neither overwrites the other.")
     s.attention("Your stats belong to the project's //path//. If you "
-                "rename the project folder or move it, Lorewrite starts a "
+                "rename the project folder or move it, Chisel starts a "
                 "fresh stats file for the new path. The old file is not "
                 "lost, but it is no longer linked; there is no tool to "
                 "merge them.")
@@ -202,13 +202,13 @@ def build(s, R):
     s.h2("Focus Sprints", idx=["focus sprint", "sprint|timed writing"])
     s.p("A //focus sprint// is a timed stretch of writing: you choose 15, "
         "25 or 45 minutes (or your own length), a countdown appears in "
-        "the status bar, and when time is up Lorewrite tells you how many "
+        "the status bar, and when time is up Chisel tells you how many "
         "words you wrote. There is no sound and nothing is sent anywhere; "
         "the end is a quiet notice.")
     s.p("The words in a sprint are the net words of your own prose saved "
         "since the sprint began. Accepted AI drafts are not included. "
         "Typing that has not been saved counts once it is saved, which "
-        "autosave does for you; when the sprint ends, Lorewrite saves "
+        "autosave does for you; when the sprint ends, Chisel saves "
         "first, then counts. A sprint may be anything from 1 to 240 "
         "minutes, and only one can run at a time.")
     s.table("a_sprinttasks", "Running a focus sprint",
@@ -246,7 +246,7 @@ def build(s, R):
     s.p(f"{R('fig_sprint')} and {R('g_sprint')} show the first step in "
         "each application. In the terminal, writer mode and the focus "
         "mode of the desktop application (Chapter 4) are the same idea: "
-        "everything but the text is hidden. If you chose it, Lorewrite "
+        "everything but the text is hidden. If you chose it, Chisel "
         "turns it on for the sprint and turns it off again at the end, "
         "but only if the sprint was what turned it on. If you were "
         "already in writer or focus mode, it stays on.")
@@ -264,7 +264,7 @@ def build(s, R):
         ["Desktop", "`Sprint done: 25 minutes, +310 words.`",
          "`Sprint stopped: 12 minutes, +120 words.`"],
     ], [0.16, 0.42, 0.42], mono_cols=(1, 2))
-    s.p("Word changes are written the same way everywhere in Lorewrite: "
+    s.p("Word changes are written the same way everywhere in Chisel: "
         "//+310//, //\u22125// (with a true minus sign) and //\u00b10//, "
         "and thousands are separated, as in //+1,240//.")
     s.p("The terminal notice for a stopped sprint gives the length you "
@@ -273,7 +273,7 @@ def build(s, R):
         "keeps both. A sprint always lands in the stats of the day it "
         "ended, with its words, whether you finished it or stopped it. A "
         "sprint that was stopped has `completed` set to false. If you "
-        "quit Lorewrite while a sprint is running, the sprint is recorded "
+        "quit Chisel while a sprint is running, the sprint is recorded "
         "as stopped; the exception is a sprint of less than a minute "
         "with no words, which is thrown away.")
     s.p("The Session stats page lists today's sprints. Earlier days' "
@@ -289,7 +289,7 @@ def build(s, R):
         "does not fit, and, if one catches, either have the AI draft from "
         "it or save it to your notes. Brainstorm never writes into your "
         "scene by itself.")
-    s.p("It uses the //writing// model chosen in Settings (Chapter 15) "
+    s.p("It uses the //writing// model chosen in Settings (Chapter 18) "
         "and needs your OpenRouter key (Chapter 10). Each request costs a "
         "small amount, which is added to the AI spend shown in the status "
         "bar and recorded under //brainstorm//.")
@@ -385,7 +385,7 @@ The letter was opened before it reached her: the seal is a copy.
     s.p("The note is a normal research note (Chapter 9): you can open it, "
         "edit it, or move it to the Trash. With no scene open the heading "
         "is just //Brainstorm idea//.")
-    s.note("If the model returns something Lorewrite cannot read as a "
+    s.note("If the model returns something Chisel cannot read as a "
            "list, you see //the model returned no ideas// as a failure and "
            "nothing is shown. A reply with fewer than three ideas is "
            "still shown. A failed request says //Brainstorm failed: "
@@ -400,7 +400,7 @@ The letter was opened before it reached her: the seal is a copy.
         "folder and the numbers start again, as described above.",
         "**No reset.** There is no way in either application to clear a "
         "project's stats. The file is plain text, and you may delete it "
-        "from the state folder when Lorewrite is closed.",
+        "from the state folder when Chisel is closed.",
         "**Sprint history is for today only.** Older sprints stay in the "
         "file but the pages show only the current day's.",
         "**Not synced.** Because the stats live outside the project, "
@@ -417,7 +417,7 @@ The letter was opened before it reached her: the seal is a copy.
 
 
 GLOSSARY = [
-    ("session stats", "The words, active time and streak that Lorewrite "
+    ("session stats", "The words, active time and streak that Chisel "
      "keeps for each project, in the state folder, not in the project."),
     ("daily target", "The number of words you aim to write each day, "
      "set in Settings; 500 by default, 0 to turn it off."),
@@ -507,5 +507,5 @@ PROBLEMS = [
      "in Settings (Chapter 10); it is also dimmed while another AI "
      "request runs."],
     ["Brainstorm says it returned no ideas.", "Try again, or choose a "
-     "different writing model in Settings (Chapter 15)."],
+     "different writing model in Settings (Chapter 18)."],
 ]

@@ -5,7 +5,10 @@
     python3 docs/user-guide/build_guide.py --capture  # re-capture screens first
                                                       # (terminal: Textual Pilot; desktop: headless Chromium)
 
-Uses the system python3 (ReportLab + Pillow). Screens are captured headlessly
+Uses python3 with ReportLab, Pillow and pyphen. Fonts: the Liberation fonts in
+/usr/share/fonts/liberation (or CHISEL_GUIDE_FONT_DIR), else the Windows Times New Roman,
+Arial and Courier New. Figures whose screenshots have not been captured (they are
+git-ignored and need a Linux toolchain) are printed as a plain "not included" box. Screens are captured headlessly
 with the project venv (Textual Pilot) by build/capture.py, against a COPY of
 the demo project and canned AI results; nothing touches the network.
 
@@ -32,8 +35,10 @@ from reportlab.platypus import (  # noqa: E402
 from reportlab.platypus import Image as RLImage  # noqa: E402
 
 sys.path.insert(0, str(HERE / "build" / "chapters"))
-import ch_aids, ch_export, ch_history, ch_inspiration, ch_notes, ch_organize  # noqa: E402
-NEW_CHAPTERS = [ch_organize, ch_history, ch_notes, ch_aids, ch_inspiration, ch_export]
+import ch_aids, ch_aisees, ch_export, ch_history, ch_inspiration  # noqa: E402
+import ch_notes, ch_organize, ch_safety, ch_storytime, ch_comingnext  # noqa: E402
+NEW_CHAPTERS = [ch_organize, ch_history, ch_notes, ch_aids, ch_inspiration, ch_export,
+                ch_aisees, ch_storytime, ch_safety, ch_comingnext]
 
 
 def palette_rows():
@@ -82,7 +87,7 @@ from guidelib import (  # noqa: E402
 OUT = HERE / "lorewrite-users-guide.pdf"
 SHOTS = HERE / "build" / "shots"
 FIGS = HERE / "build" / "fig"
-VERSION = "0.2.0"
+VERSION = "0.4.0"
 
 # ---------------------------------------------------------------------------
 # inline markup:  `mono`   **bold**   //italic//
@@ -315,6 +320,21 @@ CROP_OVERRIDES = {
 }
 
 
+def _missing_figure(shot: str, width=None):
+    """Stand-in for a screenshot that was not captured (the captures need a Linux
+    toolchain and are git-ignored). It is plain text, not a picture of the program."""
+    w = min(width or MAX_FIG_W, MAX_FIG_W) if width else 300
+    para = Paragraph(
+        f"Screenshot not included in this build ({esc(shot)}). Screenshots "
+        "are captured separately with docs/user-guide/build/capture.py "
+        "and gui_capture.py; the caption below describes what the figure "
+        "shows.", ST["cell"])
+    tb = Table([[para]], colWidths=[w], rowHeights=[None])
+    tb.setStyle(TableStyle([("TOPPADDING", (0, 0), (-1, -1), 18),
+                            ("BOTTOMPADDING", (0, 0), (-1, -1), 18)]))
+    return tb
+
+
 def fig_image(shot: str, width=None):
     """Crop terminal window chrome (and, for dialogs, everything but the
     dialog), convert to grayscale, embed at a constant points-per-column."""
@@ -322,6 +342,8 @@ def fig_image(shot: str, width=None):
     FIGS.mkdir(parents=True, exist_ok=True)
     dst = FIGS / f"{shot}.png"
     src = SHOTS / f"{shot}.png"
+    if not src.exists() or not (SHOTS / "crops.json").exists():
+        return _missing_figure(shot, width)
     meta = json.loads((SHOTS / "crops.json").read_text())[shot]
     cols, rows = meta["cols"], meta["rows"]
     box = CROP_OVERRIDES.get(shot)
@@ -359,6 +381,8 @@ def gui_image(shot: str, width=None, scale=None, crop=None):
     src = GUISHOTS / f"{shot}.png"
     if not src.exists():
         src = HERE / "build" / "exportshots" / f"{shot}.png"
+    if not src.exists():
+        return _missing_figure(shot, width)
     dst = FIGS / f"g_{shot}.png"
     im = Image.open(src).convert("L")
     if crop:        # (left, right[, top, bottom]) as fractions of the size
@@ -389,7 +413,7 @@ class Cover(Flowable):
         c.setFillColor(GREY)
         c.drawString(0, h - 4, gl.DOC_NUMBER)
         c.setFont("Sans-Bold", 9)
-        c.drawRightString(w, h - 4, "Fifth Edition")
+        c.drawRightString(w, h - 4, "Sixth Edition")
         c.setStrokeColor(INK)
         c.setLineWidth(3)
         c.line(0, h - 22, w, h - 22)
@@ -405,7 +429,7 @@ class Cover(Flowable):
         c.line(0, h * 0.60 - 50, 150, h * 0.60 - 50)
         c.setFont("Sans", 14)
         c.setFillColor(GREY)
-        c.drawString(0, h * 0.60 - 78, f"Version 0.2")
+        c.drawString(0, h * 0.60 - 78, f"Version 0.4")
         # bottom
         c.setFillColor(INK)
         c.setLineWidth(0.6)
@@ -417,7 +441,7 @@ class Cover(Flowable):
                             "never edits")
         c.setFont("Sans-Bold", 9)
         c.setFillColor(INK)
-        c.drawRightString(w, 58, "Lorewrite Publications")
+        c.drawRightString(w, 58, "Chisel Publications")
         c.setFont("Sans", 9)
         c.setFillColor(GREY)
         c.drawRightString(w, 45, "October 2026")
@@ -437,38 +461,34 @@ def build_story(st) -> list:
 
     # ------------------------------------------------------------ notice
     s.front("Edition Notice", toc=False)
-    s.p("**Fifth Edition (October 2026)**", style="notice")
-    s.p("This edition replaces and makes obsolete the Fourth Edition, "
-        "LW00-0001-3.", style="notice")
-    s.p("This edition applies to Version 0.2.0 of Lorewrite, including the "
-        "terminal application (`lorewrite`), the desktop application "
-        "(`lorewrite-gui`, whose window is titled Chisel), and the "
-        "features added to both since the Third Edition: parts, the "
-        "Trash and scene details; snapshots, drafts and git sync; "
-        "collections, comments, research notes and saved assistant "
-        "conversations; session stats, focus sprints and Brainstorm; "
-        "export of the book to PDF, Word, EPUB and other formats; and AI "
-        "inspiration images. It "
-        "applies to all subsequent releases and modifications until "
-        "otherwise indicated in new editions. Make sure you are using the "
-        "correct edition for the level of the product. The version number "
-        "is shown in the title bar of the terminal application's main "
+    s.p("**Sixth Edition (October 2026)**", style="notice")
+    s.p("This edition replaces and makes obsolete the Fifth Edition, "
+        "LW00-0001-4.", style="notice")
+    s.p("This edition applies to Version 0.4.0 of Chisel, including the "
+        "terminal application (`lorewrite`) and the desktop application "
+        "(`lorewrite-gui`, whose window is titled Chisel). The program "
+        "was called Lorewrite in earlier editions of this book. The "
+        "commands, the Python package, the settings folder and the "
+        "`LOREWRITE_*` environment variables keep their old names, so "
+        "nothing you set up needs to change. It applies to all "
+        "subsequent releases and modifications until otherwise "
+        "indicated in new editions. Make sure you are using the correct "
+        "edition for the level of the product. The version number is "
+        "shown in the title bar of the terminal application's main "
         "window and at the top of its launch screen.",
         style="notice")
-    s.p("This book was written for Version 0.2.0, when the program was "
-        "called Lorewrite. The program is now called //Chisel//: where the "
-        "text says Lorewrite, read Chisel. Commands, folder names and "
-        "settings are unchanged (`lorewrite`, `lorewrite-gui`). In the "
-        "desktop application, //Unplaced Scenes// is now called //Parked "
-        "scenes// (the terminal application and the `_unplaced` folder keep "
-        "the old name). Later releases also added: the //About// chip, "
-        "which tells the assistant which open item you are asking about; "
-        "pictures linked to any item and picture upload; the //What was "
-        "sent// report under every AI result; relevance filtering and a "
-        "size check before an AI request is sent; and optional story time "
-        "(`when:` in scene details, `born:` in a character note). See "
-        "CHANGELOG.md in the repository for the full list; a later edition "
-        "will describe them in the chapters.",
+    s.p("Since the Fifth Edition (Version 0.2.0), both applications "
+        "gained: the new name and logo; an assistant that knows which "
+        "item is open, with a removable //About// chip; a //What was "
+        "sent// report and a size budget for every AI request; pictures "
+        "that can belong to any item, and picture upload; //Parked "
+        "scenes// (called //Unplaced scenes// in the terminal "
+        "application); optional story time; //Rename everywhere//; "
+        "protection for files that are not UTF-8; and notes that keep "
+        "frontmatter they do not use. They are described in Chapters 15 "
+        "to 17, in the sections of Chapters 5 and 13 that they "
+        "extend, and in Appendix D, which lists what is planned next. "
+        "See CHANGELOG.md in the repository for the complete list.",
         style="notice")
     s.p("Changes are made periodically to the information herein. Where this "
         "book and the program disagree, the program is right; please report "
@@ -481,8 +501,8 @@ def build_story(st) -> list:
     s.p("The example story used in the figures, //Residual//, is fiction; "
         "any resemblance of its characters, companies or places to real ones "
         "is coincidental. All screens in this book were captured from "
-        "Version 0.2.0 running against a sample project, the Residual "
-        "example that is supplied with Lorewrite. Screens of the terminal "
+        "Version 0.4.0 running against a sample project, the Residual "
+        "example that is supplied with Chisel. Screens of the terminal "
         "application come from a terminal; screens of the desktop "
         "application come from its interface in a headless browser, "
         "against the same code and the same sample project. The desktop "
@@ -492,7 +512,7 @@ def build_story(st) -> list:
         "were not obtained from any AI service.", style="notice")
     s.p("Product and company names that appear in this book, such as "
         "OpenRouter and Omarchy, belong to their owners and are mentioned "
-        "only to say what Lorewrite works with.", style="notice")
+        "only to say what Chisel works with.", style="notice")
     s.add(Paragraph("Your Comments Are Welcome", ST["notice_h"]))
     s.p("If you find an error in this book, or a place where it fails to "
         "explain something, please tell the maintainers of the project. "
@@ -510,11 +530,11 @@ def build_story(st) -> list:
 
     # ------------------------------------------------------------ about
     s.front("About This Book")
-    s.p("This book describes Lorewrite, a program for writing fiction. It "
+    s.p("This book describes Chisel, a program for writing fiction. It "
         "comes in two forms that work on the same files: a //terminal "
         "application//, started with `lorewrite`, and a //desktop "
         "application//, started with `lorewrite-gui`, whose window is "
-        "titled Chisel. The book explains what Lorewrite does, how to "
+        "titled Chisel. The book explains what Chisel does, how to "
         "install and start it, how to write and organize scenes, how to "
         "keep track of your characters and places, how to keep a history "
         "of your work, how to check your spelling, how to use its optional "
@@ -523,7 +543,7 @@ def build_story(st) -> list:
         "reference, which you can look things up in.")
     s.h2("Who Should Read This Book")
     s.p("This book is for people who write stories, not for programmers. "
-        "You do not need to know how Lorewrite works inside. You should be "
+        "You do not need to know how Chisel works inside. You should be "
         "comfortable opening a terminal window and typing a command, and "
         "you should know what a folder and a file are. Everything else is "
         "explained where it first matters. A small amount of technical "
@@ -536,11 +556,11 @@ def build_story(st) -> list:
         "the keys of the terminal application and the controls of the "
         "desktop application, side by side.")
     s.bullets([
-        "**Chapter 1, Introducing Lorewrite**, explains the ideas the "
+        "**Chapter 1, Introducing Chisel**, explains the ideas the "
         "program is built on: projects, scenes, entities, mentions, links "
         "and backlinks, and the rule that AI only suggests.",
         "**Chapter 2, Installing and Starting**, tells you how to install "
-        "Lorewrite, start either application, open or create a project, "
+        "Chisel, start either application, open or create a project, "
         "and what happens the first time you run it.",
         "**Chapter 3, The Desktop Application**, tours the window of "
         "`lorewrite-gui`: the binder, the editor, the assistant, the status "
@@ -549,10 +569,10 @@ def build_story(st) -> list:
         "status bar, writer mode, and creating, renaming, reordering and "
         "deleting scenes.",
         "**Chapter 5, Organizing the Manuscript**, covers parts and front "
-        "matter, unplaced scenes, the Trash, scene details, chapter labels, "
+        "matter, parked scenes, the Trash, scene details, chapter labels, "
         "dragging scenes into order, and collections.",
         "**Chapter 6, Characters, Places and Mentions**, explains how to "
-        "make notes for your characters and places and how Lorewrite "
+        "make notes for your characters and places and how Chisel "
         "recognizes them in your text.",
         "**Chapter 7, Spelling**, describes the spell checker, what it "
         "never flags, and the two dictionaries you can teach it.",
@@ -576,17 +596,27 @@ def build_story(st) -> list:
         "**Chapter 14, Exporting Your Book**, describes how to turn the "
         "manuscript into a typeset PDF, a Word file, an EPUB and other "
         "formats.",
-        "**Chapter 15, Settings Reference**, lists every setting, where it "
+        "**Chapter 15, What the AI Sees**, describes the open-item chip, "
+        "the //What was sent// report and the size budget of every AI "
+        "request.",
+        "**Chapter 16, Story Time**, describes the optional dates for "
+        "scenes and birth years for characters.",
+        "**Chapter 17, Renaming and Keeping Your Files Safe**, describes "
+        "Rename everywhere and how Chisel protects files it does not "
+        "fully understand.",
+        "**Chapter 18, Settings Reference**, lists every setting, where it "
         "is stored, and its default.",
-        "**Chapter 16, Command and Key Reference**, lists every key and "
+        "**Chapter 19, Command and Key Reference**, lists every key and "
         "every entry in the command palette and the desktop application's "
         "menus.",
         "**Appendix A, File Formats**, shows what is in your project folder "
-        "and describes every file Lorewrite reads and writes.",
+        "and describes every file Chisel reads and writes.",
         "**Appendix B, Messages and Problem Solving**, lists the messages "
         "the programs show and what to do about them.",
         "**Appendix C, Tutorial**, walks through the sample project, in "
         "the terminal application and in the desktop application.",
+        "**Appendix D, What's Coming**, lists the features that are "
+        "planned but not yet in the program.",
         "The **Glossary** defines the terms used in this book, and the "
         "**Index** helps you find things.",
     ])
@@ -601,7 +631,7 @@ def build_story(st) -> list:
         ["//Italic type//", "A term being defined, a title, or a value you "
          "replace with your own.", "//scene//, //PATH//"],
         ["`ctrl+j`", "Press and hold the first key, then press the second. "
-         "Keys are written the way Lorewrite writes them on its own help "
+         "Keys are written the way Chisel writes them on its own help "
          "screen.", "`ctrl+s` saves"],
         ["`alt+left`", "The Alt key together with the left arrow key. "
          "`alt+right` is the right arrow.", ""],
@@ -625,71 +655,80 @@ def build_story(st) -> list:
         "depend on your theme; figures of the desktop application are "
         "printed in shades of gray.")
     s.h2("Names and Terms")
-    s.p("The program is called Chisel (this edition calls it Lorewrite "
-        "in most places; see the Edition Notice); its commands are "
-        "`lorewrite` (terminal) and `lorewrite-gui` (desktop). The desktop "
-        "window and its assistant call themselves //Chisel//; it is the "
-        "same program. A //project// is one book: a folder of plain files. The "
-        "Glossary at the back defines the other terms.")
+    s.p("The program is called Chisel. Its commands keep their older "
+        "names: `lorewrite` (terminal) and `lorewrite-gui` (desktop). The "
+        "desktop window and its assistant call themselves //Chisel//; it "
+        "is the same program. A //project// is one book: a folder of "
+        "plain files. In the desktop application, scenes taken out of "
+        "the book are called //Parked scenes//; the terminal application "
+        "calls the same scenes //Unplaced//, and their folder is "
+        "`manuscript/_unplaced/`. The Glossary at the back defines the "
+        "other terms.")
 
     # ------------------------------------------------------------ changes
     s.front("Summary of Changes")
-    s.p("This Fifth Edition (LW00-0001-4) covers Version 0.2.0 of "
-        "Lorewrite as it is now on its main line. Two features have been "
-        "added to both applications since the Fourth Edition: export of "
-        "the book, and AI inspiration images. The changes are listed "
-        "below, with the chapter that describes each. Chapter 13 "
-        "(Inspiration Images) and Chapter 14 (Exporting Your Book) are "
-        "new, and the Fourth Edition's Chapters 13 and 14 (Settings "
-        "Reference, Command and Key Reference) are now Chapters 15 and "
-        "16. The corrections of the Fourth Edition's second printing are "
-        "included.")
+    s.p("This Sixth Edition (LW00-0001-5) covers Version 0.4.0 of "
+        "Chisel. The Fifth Edition covered Version 0.2.0, when the "
+        "program was called Lorewrite. The changes are listed below, "
+        "with the chapter that describes each. Chapters 15, 16 and 17 "
+        "are new, and the Fifth Edition's Chapters 15 and 16 (Settings "
+        "Reference, Command and Key Reference) are now Chapters 18 and "
+        "19. Appendix D is new.")
     s.table(None, None, ["Change", "Where described"], [
-        ["**Export.** The book can be written to `exports/` as a PDF "
-         "(Book, Manuscript review or Plain proof layout), a Word file, "
-         "an EPUB, one Markdown file or LaTeX source, from the desktop "
-         "dialog or the terminal form. Unplaced scenes, the Trash, notes, "
-         "comments and scene details are left out; unaccepted AI drafts "
-         "are left out unless you ask. Files are never overwritten.",
-         "Chapter 14"],
-        ["**Inspiration images.** Describe a place (or let the AI describe "
-         "the scene you are in) and have a reference picture made, "
-         "about $0.03 each, kept in `inspiration/`, pinned to a scene, "
-         "shown in a gallery and a large view, and never put into your "
-         "prose. A new //Inspiration// tab in the desktop assistant; "
-         "palette actions in the terminal.", "Chapter 13"],
-        ["**Settings.** A fourth model, the //image model//, and an "
-         "//image style// line; the remembered export options in "
-         "`[export]` of `project.toml`.", "Chapter 15, Appendix A"],
-        ["**Trash.** Inspiration pictures go to the Trash like scenes and "
-         "research notes.", "Chapters 5 and 13"],
-        ["**Files and folders.** `exports/`, `inspiration/` with a "
-         ".md sidecar for each picture, `[export]` and the image model "
-         "setting.", "Appendix A"],
-        ["**New palette entries, messages and problems; a tutorial "
-         "section** that exports the Residual book and makes a picture.",
-         "Chapter 16, Appendix B, Appendix C"],
-        ["**Corrected after the polish pass** (carried over from the "
-         "Fourth Edition's second printing): the restore toast, the "
-         "terminal Compare title, one form for word changes, the part "
-         "commands, //Call them chapters//, `ctrl+t` for saved "
-         "conversations, unplaced scenes and the continuity check.",
-         "Chapters 5, 8, 9, 12, 16"],
+        ["**The new name.** The program is called Chisel, with a new "
+         "logo. The commands (`lorewrite`, `lorewrite-gui`), your "
+         "settings folder and the `LOREWRITE_*` variables are "
+         "unchanged. Release files are named `Chisel-<version>-...`.",
+         "Edition Notice, Chapter 2"],
+        ["**An assistant that knows the open item.** The assistant, "
+         "Brainstorm and Describe this scene are told about the "
+         "character, place, object or note you have open, and a "
+         "removable //About// chip shows it.", "Chapter 15"],
+        ["**What was sent, and the context budget.** Every AI result "
+         "can show what the request carried, by name when anything was "
+         "left out; a request is fitted to the model's window, and one "
+         "that cannot fit is refused before anything is sent. The "
+         "optional `context_window` setting. Long books send the notes "
+         "that matter to the scene.", "Chapter 15"],
+        ["**Pictures for any item, and your own pictures.** An "
+         "inspiration picture can belong to a scene, a character, a "
+         "place, an object or a notebook note; JPG, PNG and WebP files "
+         "up to 10 MB can be added, and are never sent to an AI.",
+         "Chapter 13"],
+        ["**Parked scenes.** The desktop name for the unplaced scenes; "
+         "the group is hidden while it is empty. The terminal "
+         "application and the folder keep the old name.", "Chapter 5"],
+        ["**Optional story time.** `when:` for scenes, `born:` for "
+         "characters, ages in the notes, and a `[timeline]` era; the "
+         "book is never reordered.", "Chapter 16, Appendix A"],
+        ["**Rename everywhere,** with a preview, a snapshot of each "
+         "scene and an undo.", "Chapter 17, Chapter 8"],
+        ["**Safer files.** Files that are not UTF-8 open but are never "
+         "overwritten; frontmatter keys Chisel does not use are kept; "
+         "special characters in titles, accented names, interrupted "
+         "renames and aliases that would take over another name are "
+         "handled.", "Chapter 17, Appendix A"],
+        ["**Platform behavior.** The desktop window's controls follow "
+         "the platform, and on Windows the window starts when run from "
+         "source.", "Chapter 3"],
+        ["**What is planned.** Relationships, talking as a character, "
+         "local models, scene summaries and a timeline view.",
+         "Appendix D"],
     ], [0.78, 0.22])
 
     # ============================================================ CH 1
-    s.chapter("1", "Introducing Lorewrite",
-              "What Lorewrite is for, and the handful of ideas that "
+    s.chapter("1", "Introducing Chisel",
+              "What Chisel is for, and the handful of ideas that "
               "everything else in this book builds on.")
-    s.p("Lorewrite is a program for writing novels and other long fiction "
+    s.p("Chisel is a program for writing novels and other long fiction "
         "at a keyboard. You can use it in a terminal window or in a desktop "
         "window; both work on the same files, so you can switch between "
-        "them at will. You write your scenes in a plain editor. As you go, you tell Lorewrite about the people, "
+        "them at will. You write your scenes in a plain editor. As you go, you tell Chisel about the people, "
         "places, things and organizations in your story, and it helps you "
         "keep them straight: it shows you where each one appears, lets you "
         "jump to the notes you keep on each, and, if you choose, uses an AI "
         "service to look for slips in continuity.",
-        idx=["Lorewrite|purpose"])
+        idx=["Chisel|purpose"])
     s.p("It is deliberately modest. It does not format your book or "
         "publish it, and it writes only when you ask. It keeps your files "
         "plain, your notes close, and your story consistent.")
@@ -708,35 +747,47 @@ def build_story(st) -> list:
         "other chapter says what to press in the terminal application and "
         "what to click in the desktop one.")
 
-    s.h2("The Ideas Behind Lorewrite")
+    s.h2("The Ideas Behind Chisel")
+    s.p("Three promises shape every part of Chisel, and the rest of this "
+        "chapter explains each.")
+    s.bullets([
+        "**Your book is plain files.** Scenes and notes are ordinary "
+        "Markdown files in an ordinary folder that you own. Nothing is "
+        "locked in.",
+        "**The AI suggests; you decide.** Nothing the AI proposes "
+        "changes your prose until you accept it, and Chapter 15 shows "
+        "you what each request carried.",
+        "**The index is only a cache.** Anything Chisel keeps to be fast "
+        "can be thrown away and rebuilt from your files.",
+    ])
     s.h3("Your book is a folder of plain files", idx=["project", "plain text"])
-    s.p("A Lorewrite //project// is a folder. Inside it, each //scene// is "
+    s.p("A Chisel //project// is a folder. Inside it, each //scene// is "
         "an ordinary Markdown text file, and each note on a character or "
         "place is another. There is no hidden database that holds your "
         "writing. You can open the same files in any other editor, copy "
         "them to a memory stick, keep them under version control, or read "
-        "them in ten years' time. If Lorewrite disappeared tomorrow, your "
+        "them in ten years' time. If Chisel disappeared tomorrow, your "
         "book would still be there.")
     s.p("Markdown is a way of marking up plain text with a few simple "
-        "conventions. In Lorewrite you need only one: a line that begins "
+        "conventions. In Chisel you need only one: a line that begins "
         "with `# ` (a number sign and a space) is a heading, and the first "
         "such line in a scene is the scene's title.", idx=["Markdown"])
     s.figure_flow("fig_parts", _parts_diagram(),
-                  "The parts of a Lorewrite project")
+                  "The parts of a Chisel project")
     s.h3("Scenes", idx=["scene"])
     s.p("A //scene// is one file in the project's `manuscript` folder. "
         "Scenes are played in the order of their file names, which start "
         "with a number: `01-rain-on-the-spur.md`, `02-capsule-7-19.md`, and "
-        "so on. Lorewrite numbers new scenes for you and renumbers them "
+        "so on. Chisel numbers new scenes for you and renumbers them "
         "when you move one. You can gather scenes into //parts// (a folder "
-        "each), keep scenes you have written but not placed in the book "
-        "aside, and set details such as the point of view and a word "
+        "each), park scenes you have written but not placed in the book "
+        "(Parked scenes), and set details such as the point of view and a word "
         "target on each scene; Chapter 5 describes all of this.")
     s.h3("Entities and notes",
          idx=["entity", "note (entity)", "character", "place", "object",
               "faction"])
     s.p("An //entity// is anything in your story that you want to keep "
-        "track of by name. Lorewrite knows four kinds, listed in "
+        "track of by name. Chisel knows four kinds, listed in "
         f"{R('t_types')}. Each entity has a //note//: a small file with a "
         "few lines at the top (its name, its kind and its aliases) and, "
         "below them, whatever you want to write about it.")
@@ -754,22 +805,22 @@ def build_story(st) -> list:
         "//Rook// to his friends and //Tanaka// to the police. Each note "
         "can list //aliases//, other ways your text refers to the same "
         "entity. Whenever the name or an alias appears in a scene, "
-        "Lorewrite recognizes it as a //mention// and colors it so that you "
+        "Chisel recognizes it as a //mention// and colors it so that you "
         "can see, at a glance, that the program knows who or what you mean. "
         "You do not have to type anything special; see Chapter 6.")
     s.h3("Links and backlinks", idx=["link", "backlink"])
     s.p("You may also mark a name explicitly by wrapping it in double "
         "square brackets, like `[[Rook Tanaka]]`. This is a //link//. Links "
-        "were how earlier versions of Lorewrite worked; they are now "
+        "were how earlier versions of Chisel worked; they are now "
         "optional, but they still work and are useful in a few cases "
         "described in Chapter 6.")
     s.p("The other side of a link is a //backlink//. When the cursor is on "
-        "a name, Lorewrite shows the note for that entity and lists every "
+        "a name, Chisel shows the note for that entity and lists every "
         "line in your book that mentions it, so that you can jump straight "
         "to any of them.")
     s.h3("History and notes live beside your work",
          idx=["snapshot", "comment", "research note"])
-    s.p("Everything else Lorewrite keeps for you is plain files in the same "
+    s.p("Everything else Chisel keeps for you is plain files in the same "
         "folder, so it travels with the book. Snapshots of your scenes "
         "(Chapter 8), comments you attach to passages and conversations "
         "with the assistant (Chapter 9) each have a folder of their own, "
@@ -777,15 +828,15 @@ def build_story(st) -> list:
         "anywhere. Deleting a scene moves it to a Trash folder first. The "
         "only exceptions are your personal numbers (Chapter 12) and your "
         "personal dictionary, which belong to you rather than to a book "
-        "and live in Lorewrite's own state folder. Appendix A has a map "
+        "and live in Chisel's own state folder. Appendix A has a map "
         "of everything in a project folder.")
     s.h3("The index is a cache", idx=["index (cache)", "cache"])
-    s.p("To find mentions quickly, Lorewrite keeps a small search index in "
+    s.p("To find mentions quickly, Chisel keeps a small search index in "
         "a hidden folder inside the project. The index can always be "
         "thrown away and rebuilt from your files (press `f9`). Your files "
         "are the truth; the index is only a convenience.")
     s.h3("AI suggests; you decide", idx=["AI", "suggest-and-confirm"])
-    s.p("Lorewrite has optional features that use an AI service. Three "
+    s.p("Chisel has optional features that use an AI service. Three "
         "help you keep the story consistent: finding other names your "
         "prose uses for your characters and places, checking a scene "
         "against your notes for contradictions, and proposing new facts "
@@ -796,7 +847,7 @@ def build_story(st) -> list:
         "changed until you accept them. Text the AI writes goes into your "
         "scene as a clearly marked //pending draft// that stays marked "
         "until you accept it, and rejecting it puts back exactly what was "
-        "there. If you never set up an AI service, Lorewrite works "
+        "there. If you never set up an AI service, Chisel works "
         "exactly as described in Chapters 2 to 9 and makes no network "
         "connections while you write.")
     s.attention("Accepting a proposal does change your files: accepted "
@@ -823,15 +874,15 @@ def build_story(st) -> list:
 
     # ============================================================ CH 2
     s.chapter("2", "Installing and Starting",
-              "How to install Lorewrite, start it, and open or create a "
+              "How to install Chisel, start it, and open or create a "
               "project.")
-    s.h2("Installing Lorewrite", idx=["installing", "Python"])
-    s.p("Lorewrite is a Python program. It needs Python 3.11 or later. It "
+    s.h2("Installing Chisel", idx=["installing", "Python"])
+    s.p("Chisel is a Python program. It needs Python 3.11 or later. It "
         "uses four supporting packages, which the installer fetches for "
         "you: Textual (the terminal interface), PyYAML (for the header of "
         "note files), the OpenAI client library (used to talk to "
         "OpenRouter), and Keyring (to keep your API key safe).")
-    s.proc("To install Lorewrite:", [
+    s.proc("To install Chisel:", [
         "Open a terminal and change to the folder where you keep programs.",
         "Fetch the source: `git clone <repo-url> lorewrite`, where "
         "//repo-url// is the address you were given.",
@@ -853,7 +904,7 @@ def build_story(st) -> list:
         "come from your operating system, not from Python. Its page is "
         "built once with Node.js (version 20 or later).")
     s.proc("To install the desktop application:", [
-        "In the Lorewrite folder, create an environment that can see the "
+        "In the Chisel folder, create an environment that can see the "
         "system libraries: `python3 -m venv --system-site-packages "
         ".venv-gui`.",
         "Install: `.venv-gui/bin/pip install -e \".[dev,gui]\"`.",
@@ -870,8 +921,8 @@ def build_story(st) -> list:
         "start by name from any folder. On yours, do the same with `ln -s`, "
         "or put the environment's `bin` folder on your PATH.")
 
-    s.h2("Starting Lorewrite", idx=["lorewrite command", "command line"])
-    s.p(f"Start Lorewrite by typing the command name. {R('fig_syntax')} "
+    s.h2("Starting Chisel", idx=["lorewrite command", "command line"])
+    s.p(f"Start Chisel by typing the command name. {R('fig_syntax')} "
         "shows its syntax. Read the diagram from left to right, following "
         "the line. Items on the main line are required; items below the "
         "line are optional. Words in bold type are typed exactly as "
@@ -885,7 +936,7 @@ def build_story(st) -> list:
             ["Option", "Effect"], [
         ["--project PATH",
          "Open the project in the folder //PATH//. If //PATH// is not a "
-         "project (it has no `project.toml`), Lorewrite ignores it and "
+         "project (it has no `project.toml`), Chisel ignores it and "
          "shows the launch screen."],
         ["--new TITLE",
          "Create a new project called //TITLE// and open it. The project is "
@@ -893,7 +944,7 @@ def build_story(st) -> list:
          "folder if `--project` is not given."],
         ["-h, --help", "Print a summary of the options and stop."],
     ], [0.24, 0.76], mono_cols=(0,))
-    s.p("With no options, Lorewrite shows the launch screen.")
+    s.p("With no options, Chisel shows the launch screen.")
     s.attention("In the terminal application, `--new` creates the project "
                 "files directly in the folder named by `--project`, or in "
                 "the current folder. Run it from an empty folder, not from "
@@ -921,17 +972,17 @@ def build_story(st) -> list:
         ["-h, --help", "Print a summary of the options and stop."],
     ], [0.24, 0.76], mono_cols=(0,))
     s.p("Whichever command you use, the application finds the same list of "
-        "recent projects and the same settings (see “Where Lorewrite Keeps "
+        "recent projects and the same settings (see “Where Chisel Keeps "
         "Its Own Settings” below).")
 
     s.h2("The Launch Screen", idx=["launch screen", "recent projects"])
-    s.p(f"When you start Lorewrite without a project, the launch screen "
+    s.p(f"When you start Chisel without a project, the launch screen "
         f"({R('fig_launch')}) appears. It lists the projects you opened "
         "most recently, the newest first, up to ten. The first one is "
         "already highlighted, so pressing `enter` resumes your last book.")
     s.figure("fig_launch", "launch", "The launch screen")
     s.p("Only projects that still exist are listed. If you choose one "
-        "that has since been moved or deleted, Lorewrite removes it from "
+        "that has since been moved or deleted, Chisel removes it from "
         "the list and says that the folder is no longer a project. If you "
         "have not opened anything yet, the list reads //(none yet — press n "
         "to start a novel)//.")
@@ -943,8 +994,8 @@ def build_story(st) -> list:
         ["enter", "Resume the highlighted project."],
         ["o", "Open a folder: type the path of a project."],
         ["n", "Start a new project."],
-        ["s", "Open the Settings screen (Chapter 15)."],
-        ["q", "Quit Lorewrite. (If you reached the launch screen with "
+        ["s", "Open the Settings screen (Chapter 18)."],
+        ["q", "Quit Chisel. (If you reached the launch screen with "
          "//Return to main menu//, `q` instead returns to the project you "
          "were in.)"],
     ], [0.20, 0.80], mono_cols=(0,))
@@ -952,7 +1003,7 @@ def build_story(st) -> list:
     s.p("Press `o`. A box titled //Project folder:// asks for a path. "
         "Type it (a leading `~` stands for your home folder) and press "
         "`enter`. If the folder does not contain a `project.toml` file, "
-        "Lorewrite says //No lorewrite project in// followed by the path.")
+        "Chisel says //No lorewrite project in// followed by the path.")
     s.h3("The launch screen of the desktop application",
          idx=["launch screen|desktop"])
     s.p(f"The desktop application shows its launch screen "
@@ -991,18 +1042,18 @@ def build_story(st) -> list:
         "named after the title inside `novels` in your home folder.",
         "Press `enter` to move to the //Folder// line. Change it if you "
         "want the project somewhere else.",
-        "Press `enter` again. Lorewrite creates the project and opens it.",
+        "Press `enter` again. Chisel creates the project and opens it.",
     ])
     s.figure("fig_newproj", "newproject", "Creating a new project")
     s.p("Both the title and the folder are required; if one is empty, "
-        "Lorewrite says //Title and folder are both required//. If the "
-        "folder you name is already a Lorewrite project, it is opened "
+        "Chisel says //Title and folder are both required//. If the "
+        "folder you name is already a Chisel project, it is opened "
         "instead of being overwritten. If the folder cannot be created, "
         "you see //Could not create project:// and the reason.")
     s.add(CondPageBreak(150))
     s.p("A new project contains the following. Nothing is ever placed "
         "outside the project folder except the small state files "
-        "described under “Where Lorewrite Keeps Its Own Settings.”",
+        "described under “Where Chisel Keeps Its Own Settings.”",
         idx=["project|files created"])
     s.code("""\
 the-salt-road/
@@ -1024,30 +1075,41 @@ the-salt-road/
         "Pressing `space` on the last page also closes it.")
     s.figure("fig_tour", "tour4", "The first-run tour (page 4 of 5)")
     s.p("The tour belongs to the terminal application; the desktop "
-        "application has none. It is shown once. Lorewrite records that you have seen it in "
+        "application has none. It is shown once. Chisel records that you have seen it in "
         "its settings file (`tour_seen`). To see it again, open "
         "`settings.json` in the state folder (see below) and change "
         "`\"tour_seen\": true` to `false`.")
 
-    s.h2("Where Lorewrite Keeps Its Own Settings",
+    s.h2("Where Chisel Keeps Its Own Settings",
          idx=["state folder", "settings.json", "recent.json"])
-    s.p("Apart from your projects, Lorewrite keeps small files in "
-        "`~/.local/state/lorewrite`: `recent.json` (the list on the launch "
+    s.p("Apart from your projects, Chisel keeps small files in a "
+        "//state folder// of its own, whose place depends on your "
+        f"system ({R('t_statedir')}). The folder is named `lorewrite`: "
+        "the name did not change with the program's.")
+    s.table("t_statedir", "Where Chisel keeps its own settings",
+            ["System", "Folder"], [
+        ["Linux", "`~/.local/state/lorewrite`"],
+        ["macOS", "`~/Library/Application Support/lorewrite`"],
+        ["Windows", "`%LOCALAPPDATA%" + chr(92) + "lorewrite`"],
+    ], [0.20, 0.80])
+    s.p("In it are `recent.json` (the list on the launch "
         "screen), `settings.json` (whether you have seen the tour, your "
-        "chosen AI models, whether spelling is underlined, and the desktop "
+        "chosen AI models, the optional `context_window` of Chapter 15, "
+        "whether spelling is underlined, and the desktop "
         "window's text size, your daily word target and whether a snapshot is "
         "taken the first time a scene is edited each day), `stats/` (your "
         "writing numbers, Chapter 12) and, once you have made one, "
         "`dictionary.txt` "
         "(your personal dictionary; Chapter 7). The first two can be "
-        "deleted safely; Lorewrite recreates them. Both applications read "
+        "deleted safely; Chisel recreates them. Both applications read "
         "and write the same files. If you set the environment variable "
-        "`LOREWRITE_STATE_DIR` to a folder, Lorewrite keeps them there "
+        "`LOREWRITE_STATE_DIR` to a folder, Chisel keeps them there "
         "instead. This is handy for trying the program without disturbing "
-        "your real settings.")
+        "your real settings. Your API key is not in these files: it is in "
+        "the system keyring (Chapter 10).")
 
     s.h2("Omarchy: Theme and Launcher", idx=["Omarchy", "theme"])
-    s.p("Lorewrite was designed for the Omarchy Linux desktop, but it runs "
+    s.p("Chisel was designed for the Omarchy Linux desktop, but it runs "
         "anywhere Python and a terminal do. On Omarchy it takes its colors "
         "from your current system theme, so it matches the rest of your "
         "desktop. It reads the name of the current theme and that theme's "
@@ -1055,8 +1117,8 @@ the-salt-road/
         "takes precedence over the stock theme), and uses them for the "
         "interface, for the colors of links and mentions, and for the "
         "orange used for links that have no note. The theme is read when "
-        "Lorewrite starts; to pick up a new theme, quit and start it again. "
-        "Off Omarchy, Lorewrite uses the terminal toolkit's own built-in "
+        "Chisel starts; to pick up a new theme, quit and start it again. "
+        "Off Omarchy, Chisel uses the terminal toolkit's own built-in "
         "theme, and everything else is unchanged.")
     s.p("The desktop application does not read the Omarchy theme; it has "
         "one dark appearance of its own.")
@@ -1067,17 +1129,19 @@ the-salt-road/
         "open, brings that window to the front instead of opening a second "
         "copy), and the top-bar pencil button does the same on a left "
         "click; a right click starts the terminal application. These "
-        "launchers are set up through Omarchy, not by Lorewrite; see the "
+        "launchers are set up through Omarchy, not by Chisel; see the "
         "Omarchy documentation for the steps on your system. The entry is "
         "an ordinary desktop file that runs `lorewrite-gui`.",
         idx=["launcher"])
 
-    s.h2("Leaving Lorewrite", idx=["quitting", "ctrl+q"])
-    s.p("In the terminal application, press `ctrl+q`. Lorewrite saves the "
+    s.h2("Leaving Chisel", idx=["quitting", "ctrl+q"])
+    s.p("In the terminal application, press `ctrl+q`. Chisel saves the "
         "scene you are working on as it closes, so there is nothing to save "
         "first.")
-    s.p("In the desktop application, click the red dot at the left of the "
-        "title bar, or close the window with your window manager. The "
+    s.p("In the desktop application, click the close button of the title "
+        "bar (the red dot at the left on a Mac, the X at the far right on "
+        "Windows and Linux), or close the window with your window "
+        "manager. The "
         "application saves a moment after you stop typing and whenever the "
         "window loses focus, so closing it does not lose work; if you want "
         "to be sure, press `ctrl+s` first and wait for the title bar to say "
@@ -1087,7 +1151,7 @@ the-salt-road/
     s.chapter("3", "The Desktop Application",
               "A tour of the window of lorewrite-gui: where everything is, "
               "and what each control does.")
-    s.p("The desktop application is the same Lorewrite seen through a "
+    s.p("The desktop application is the same Chisel seen through a "
         "window. It shows the project you opened, lets you write in a "
         "page-like editor, and puts the notes and the AI assistant beside "
         "the page. Nothing in it changes the rules of Chapter 1: your "
@@ -1109,7 +1173,7 @@ the-salt-road/
         ["Activity rail (far left)", "Four views (Binder, Search, Assistant, "
          "Library) and, below, History and Settings."],
         ["Binder (left)", "The tree of your parts, scenes, notes, research "
-         "notes, unplaced scenes and Trash, with a button to make a new "
+         "notes, parked scenes and Trash, with a button to make a new "
          "scene, a menu of scene and part commands, and your collections."],
         ["Editor (center)", "A toolbar, the three views of the manuscript, "
          "and the page you write on. Under it, a strip with the scene's "
@@ -1191,7 +1255,7 @@ the-salt-road/
         "Chapter 11. **Dictionary** opens your project dictionary "
         "`dictionary.txt` (Chapter 7), creating it with a short comment if "
         "need be. Both open as plain text, without a title block.",
-        "**Research** holds your reference notes (Chapter 9); **Unplaced "
+        "**Research** holds your reference notes (Chapter 9); **Parked "
         "Scenes** holds scenes you kept out of the book; **Trash** holds "
         "what you deleted (Chapter 5). Each shows a count.",
     ])
@@ -1201,7 +1265,7 @@ the-salt-road/
         "title and makes a scene, like `ctrl+n`. The three-dots button "
         "opens the //scene and part options// menu, which has the commands "
         "for scenes, parts, research notes and the Trash; Chapters 5, 8 "
-        "and 9 describe them, and Chapter 16 lists them all.")
+        "and 9 describe them, and Chapter 19 lists them all.")
     s.p("The **Search** view puts a //Filter binder…// box above the tree; "
         "typing narrows it to titles that contain what you typed. The "
         "**Library** view shows only characters, world notes, the style "
@@ -1277,7 +1341,7 @@ the-salt-road/
     s.p("The **Corkboard** view shows each scene as a card with its "
         "number, title, the opening of its text, its status and POV, and "
         "its word count; the cards are grouped under the headings of your "
-        "parts, with front matter first and unplaced scenes last. Click "
+        "parts, with front matter first and parked scenes last. Click "
         "a card to open the scene. The **Outline** view lists the same "
         "groups as rows with their word counts, and under each scene any "
         "headings (lines beginning with `#`) that follow its title. In "
@@ -1306,10 +1370,15 @@ the-salt-road/
         ["Notes", "The note under the cursor (or the one you opened), with "
          "its aliases and backlinks (Chapter 6), and below it the "
          "comments on the open scene (Chapter 9)."],
-        ["Inspiration", "Reference pictures made from a description of a "
-         "place; the picture pinned to the open scene, and a gallery "
-         "(Chapter 13)."],
+        ["Inspiration", "Reference pictures, made from a description or "
+         "added by you, for the open scene or note; the pictures pinned "
+         "to it, and a gallery (Chapter 13)."],
     ], [0.20, 0.80])
+    s.p("Under the panel's header, a chip reading **About: …** shows that "
+        "the open character, place, object or note is being sent with "
+        "your question; the **x** on it stops that for the current "
+        "conversation (Chapter 15). Under each AI answer, a **What was "
+        "sent** line lists what the request carried.")
     s.p("The //Quick actions// are four buttons: **Brainstorm** asks for "
         "ideas to get unstuck (Chapter 12), **Rewrite** rewrites the "
         "selected passage (Chapter 11), **Continuity** checks the scene "
@@ -1355,7 +1424,7 @@ the-salt-road/
         ["+240 / 500 words today", "Words you wrote today across "
          "sessions, against your daily target. Click it for the stats."],
         ["1,502 project words", "Words in the book: all scenes except "
-         "front matter and unplaced scenes."],
+         "front matter and parked scenes."],
         ["AI $0.0269", "What the AI calls of this session cost, as "
          "reported by OpenRouter."],
         ["3 spelling", "Misspelled words in the open scene. Click it to "
@@ -1378,7 +1447,7 @@ the-salt-road/
         "rename (Chapter 4), new note (Chapter 6), the spelling popover "
         "(Chapter 7), the review of alias and story-bible suggestions and "
         "the style guide (Chapters 10 and 11), the prompt for drafting "
-        "(Chapter 11) and Settings (Chapter 15).")
+        "(Chapter 11) and Settings (Chapter 18).")
 
     s.h2("Saving and Conflicts", idx=["autosave|desktop", "conflict banner"])
     s.p("The window saves the open file 1.5 seconds after you stop typing, "
@@ -1419,7 +1488,7 @@ the-salt-road/
 
     s.h2("Keys in the Desktop Window", idx=["keys|desktop"])
     s.p(f"The desktop window has few keys of its own ({R('t_gkeys')}); "
-        "the full list for both applications is in Chapter 16.")
+        "the full list for both applications is in Chapter 19.")
     s.table("t_gkeys", "Keys of the desktop window",
             ["Key", "Action"], [
         ["ctrl+k", "Quick switcher."],
@@ -1466,13 +1535,13 @@ the-salt-road/
         ["Footer", "The most useful keys. What fits depends on the width "
          "of your window."],
     ], [0.25, 0.75])
-    s.p("Click an item in the sidebar to open it. Lorewrite opens your "
+    s.p("Click an item in the sidebar to open it. Chisel opens your "
         "first scene automatically when a project loads.")
 
     s.h2("Typing and Markdown", idx=["editor", "Markdown|headings"])
     s.p("The editor is an ordinary text editor with a few conveniences. "
         "It wraps long lines to the width of the window, shows line "
-        "numbers (which you can turn off; see Chapter 15), and colors "
+        "numbers (which you can turn off; see Chapter 18), and colors "
         "Markdown as you type: headings, //italic// text between single "
         "asterisks, and **bold** text between double asterisks.")
     s.p("Begin each scene with a heading line, for example "
@@ -1497,15 +1566,15 @@ the-salt-road/
          "`ctrl+k` deletes to the end of the line; `ctrl+shift+k` deletes "
          "the whole line."],
     ], [0.34, 0.66], mono_cols=())
-    s.note("These keys are provided by the terminal toolkit that Lorewrite "
+    s.note("These keys are provided by the terminal toolkit that Chisel "
            "is built on, so a few may differ in other versions of it.")
 
     s.h2("Saving Your Work", idx=["saving", "autosave", "ctrl+s"])
-    s.p("You never have to save. Lorewrite saves the open file "
+    s.p("You never have to save. Chisel saves the open file "
         "automatically (//autosave//) shortly after you stop typing (a little over half a "
         "second), whenever you open another scene or note, and when you "
         "quit. To save at once, press `ctrl+s`; a brief message says "
-        "//Saved//. Files are written safely: Lorewrite writes a temporary "
+        "//Saved//. Files are written safely: Chisel writes a temporary "
         "copy and then swaps it into place, so a power failure cannot leave "
         "a half-written scene.")
     s.p("The desktop application saves 1.5 seconds after you stop typing, "
@@ -1513,9 +1582,9 @@ the-salt-road/
         "state in the title bar (Chapter 3).")
     s.attention("The terminal application writes the contents of its "
                 "editor over the file on disk. If you change the scene you "
-                "have open using another program while Lorewrite is "
-                "running, your change is lost the next time Lorewrite "
-                "saves. Quit Lorewrite, or switch to a different scene, "
+                "have open using another program while Chisel is "
+                "running, your change is lost the next time Chisel "
+                "saves. Quit Chisel, or switch to a different scene, "
                 "before editing that file elsewhere. The desktop "
                 "application is more careful: it refuses to overwrite a "
                 "file that changed on disk and offers you the choice "
@@ -1543,7 +1612,7 @@ the-salt-road/
          "Words in the open file, and words in all scenes together. Words "
          "are runs of characters separated by spaces or line breaks. The "
          "project total is refreshed each time a file is saved. It counts "
-         "the book: front matter and unplaced scenes (Chapter 5), scene "
+         "the book: front matter and parked scenes (Chapter 5), scene "
          "details and text in pending AI drafts (Chapter 11) are not "
          "counted."],
         ["`+240 / 500 today`, `streak 8`", "Words you wrote today against "
@@ -1555,7 +1624,7 @@ the-salt-road/
          "to create// one. Inside a pending AI draft, the hint //AI draft "
          "— f7 accept · f8 reject// comes first."],
         ["`AI $0.0153`", "The cost of the AI calls made since you started "
-         "Lorewrite, as reported by OpenRouter. It appears after the "
+         "Chisel, as reported by OpenRouter. It appears after the "
          "first AI call that reports a cost and is not shown before."],
         ["`Snapshot 12 min ago`", "How long ago the open scene was last "
          "snapshotted; absent if it never was (Chapter 8)."],
@@ -1585,11 +1654,11 @@ the-salt-road/
         "have moved to. At the first or last scene, the message //No more "
         "scenes this way// appears. The keys follow the order of the book, "
         "so they carry you from the last scene of one part into the first "
-        "of the next (front matter comes first, and unplaced scenes are "
+        "of the next (front matter comes first, and parked scenes are "
         "skipped; Chapter 5). If you are looking at an entity note "
-        "when you press either key, Lorewrite takes you back to the first "
+        "when you press either key, Chisel takes you back to the first "
         "scene. You can also click a scene in the sidebar, or use the "
-        "command palette (Chapter 16) to open a scene by title.")
+        "command palette (Chapter 19) to open a scene by title.")
 
     s.h2("Creating a Scene", idx=["scene|creating", "new scene", "ctrl+n"])
     s.proc("To create a scene:", [
@@ -1597,7 +1666,7 @@ the-salt-road/
         "Type a title and press `enter`. (`esc` cancels.)",
     ])
     s.figure("fig_newscene", "newscene", "Creating a scene")
-    s.p("Lorewrite makes a new file at the end of the part you are working "
+    s.p("Chisel makes a new file at the end of the part you are working "
         "in (or at the end of the last part, or of the manuscript folder, "
         "if the project has no parts or the open file is not a scene), "
         "named with the next number and a version of the title, for example "
@@ -1620,7 +1689,7 @@ the-salt-road/
         "within their part. To "
         "move the open scene, choose **Action · Move current scene up** or "
         "**Action · Move current scene down** from the command palette. "
-        "Lorewrite swaps the numbers of the scene and its neighbor in the "
+        "Chisel swaps the numbers of the scene and its neighbor in the "
         "same part, so "
         "both files are renamed. A message says //Moved to// and the new "
         "file name. At the top or bottom of the part it says //Already at "
@@ -1632,7 +1701,7 @@ the-salt-road/
                 "version control, the change appears as two renames. A "
                 "scene whose file name does not start with a number (a "
                 "file you added yourself) cannot be moved; in that case "
-                "Lorewrite also says it is at the edge. "
+                "Chisel also says it is at the edge. "
                 "Rename such files yourself, following the pattern "
                 "`NN-name.md`.")
 
@@ -1650,7 +1719,7 @@ the-salt-road/
         "project's `.trash` folder together with its drafts, snapshots "
         "and comments, and **Action · Open Trash** brings it back, or "
         "deletes it for good, after a confirmation (Chapter 5). Afterward, "
-        "Lorewrite opens the first scene of the book and says //Moved "
+        "Chisel opens the first scene of the book and says //Moved "
         "'Title' to the Trash//.")
     s.attention("Only the Trash view deletes a scene for good, and it "
                 "asks first. An emptied Trash cannot be recovered; if your "
@@ -1704,7 +1773,7 @@ the-salt-road/
 
     # ============================================================ CH 4
     s.chapter("6", "Characters, Places and Mentions",
-              "How to tell Lorewrite about the people and places in your "
+              "How to tell Chisel about the people and places in your "
               "story, and how it recognizes them in your writing.")
     s.h2("Making a Note", idx=["note (entity)|creating", "ctrl+j"])
     s.p("The quickest way to introduce a character or place is to write "
@@ -1712,9 +1781,9 @@ the-salt-road/
     s.proc("To make a note for a name:", [
         f"In a scene, select the name with the mouse or with `shift` and "
         f"the arrow keys ({R('fig_selected')}). Select one line only.",
-        "Press `ctrl+j`. Lorewrite asks what kind of note to make: "
+        "Press `ctrl+j`. Chisel asks what kind of note to make: "
         f"**Character** or **Place** ({R('fig_type')}).",
-        "Choose one. Lorewrite creates the note, using exactly the text "
+        "Choose one. Chisel creates the note, using exactly the text "
         "you selected as its name, and opens it for you to write in.",
     ])
     s.figure("fig_selected", "selected_name",
@@ -1731,7 +1800,7 @@ the-salt-road/
         "`object` or `faction`, then press `f9`; the kind shown in the sidebar "
         "changes then. Any other value is treated as //character//.")
     s.note("When you press `ctrl+j` with nothing selected and the cursor "
-           "is not on a name, Lorewrite says //Select a name and press "
+           "is not on a name, Chisel says //Select a name and press "
            "ctrl+j to make a note for it//. A selection that spans more "
            "than one line is ignored.")
     s.h3("In the desktop application", idx=["note (entity)|desktop"])
@@ -1751,7 +1820,7 @@ the-salt-road/
     s.p(f"A note ({R('fig_note')}) is a text file in one of the folders "
         "under `entities`. It has two parts. The first, between two lines "
         "of three hyphens, is the //frontmatter//: three fields that "
-        "Lorewrite reads. The second, below it, is free text of your own.")
+        "Chisel reads. The second, below it, is free text of your own.")
     s.figure("fig_note", "entitynote", "An entity note open in the editor")
     s.table("t_front", "Frontmatter fields of a note",
             ["Field", "Meaning"], [
@@ -1770,8 +1839,8 @@ the-salt-road/
         "click it in the sidebar) and edit the `aliases:` line. Separate "
         "the aliases with commas. If an alias contains a colon, put it in "
         "quotation marks. When the note is saved (a moment after you "
-        "stop typing), Lorewrite reloads its list of names, recolors your "
-        "scenes and updates the backlinks. Lorewrite can also suggest "
+        "stop typing), Chisel reloads its list of names, recolors your "
+        "scenes and updates the backlinks. Chisel can also suggest "
         "aliases for you; see //Find Aliases// in Chapter 10.")
     s.p("In the desktop application you can also add an alias without "
         "opening the file: in the **Notes** tab, type it into the //Add "
@@ -1780,11 +1849,11 @@ the-salt-road/
     s.attention("The `name` field controls what is recognized. If you "
                 "change the name of an entity, its old name stops being "
                 "recognized in your scenes unless you add it to the "
-                "aliases. Lorewrite does not change the file's name or "
+                "aliases. Chisel does not change the file's name or "
                 "rewrite your scenes.")
 
     s.h2("How Mentions Are Recognized", idx=["mention|matching rules"])
-    s.p("Lorewrite looks for the name and every alias of every note in "
+    s.p("Chisel looks for the name and every alias of every note in "
         "your scenes. It follows a few simple rules, listed in "
         f"{R('t_rules')}, so that it finds what you mean without "
         "finding what you do not.")
@@ -1852,12 +1921,12 @@ the-salt-road/
         "[[", ("var", "name"), ("opt", ["|", ("var", "display text")]), "]]",
     ]), "Syntax of a link")
     s.p("The //name// may be an entity's name or one of its aliases; "
-        "capital letters do not matter here. Lorewrite never adds "
+        "capital letters do not matter here. Chisel never adds "
         "brackets to your text: not even the AI features do (Chapters 10 "
         "and 6).")
 
     s.h2("Opening a Note from Your Text", idx=["ctrl+j|opening a note"])
-    s.p("Put the cursor anywhere in a name and press `ctrl+j`. Lorewrite "
+    s.p("Put the cursor anywhere in a name and press `ctrl+j`. Chisel "
         "opens that name's note in the editor. The status bar tells you "
         "beforehand: //Rook Tanaka — ctrl+j to open//. Your scene is "
         "saved first. To return, click the scene in the sidebar, or press "
@@ -1895,16 +1964,16 @@ the-salt-road/
 
     s.h2("Rebuilding the Index", idx=["index (cache)|rebuilding", "f9", "rebuild index"])
     s.p("Backlinks come from the index, a cache kept in the project's "
-        "`.lorewrite` folder. Lorewrite updates it as you work. If you "
+        "`.lorewrite` folder. Chisel updates it as you work. If you "
         "add, edit or delete note files with another program, or if a "
-        "backlink list looks out of date, press `f9`. Lorewrite saves the "
+        "backlink list looks out of date, press `f9`. Chisel saves the "
         "open file, rebuilds the index from every scene and note, reloads "
         "the notes, and says //Index rebuilt//. It is always safe to "
         "press `f9`. In the desktop application use **More \u203a Rebuild the link "
         "index**; it says //Index rebuilt from the files.//")
 
     s.h2("Renaming or Deleting an Entity", idx=["entity|deleting", "entity|renaming"])
-    s.p("Lorewrite has no command for deleting a note. To remove an "
+    s.p("Chisel has no command for deleting a note. To remove an "
         "entity, delete its file (in `entities/characters`, "
         "`entities/places` and so on) with your file manager or a shell, "
         "then press `f9`. Its mentions stop being colored. To rename one, "
@@ -1915,8 +1984,8 @@ the-salt-road/
     # ============================================================ CH 6 (spelling)
     s.chapter("7", "Spelling",
               "Underlined misspellings, how to fix them, and how to teach "
-              "Lorewrite the words of your world.")
-    s.p("Lorewrite checks the spelling of your scenes as you write, in both "
+              "Chisel the words of your world.")
+    s.p("Chisel checks the spelling of your scenes as you write, in both "
         "applications, and underlines the words it does not know. It "
         "checks //spelling only//; it does not look at grammar, style or "
         "punctuation. It works entirely on your computer, with a built-in "
@@ -1938,7 +2007,7 @@ the-salt-road/
              "in the terminal application (here //maglev//, a word of the "
              "story's world)")
     s.p("A word is //not// underlined if any of these is true. They are the "
-        "things Lorewrite assumes you meant.")
+        "things Chisel assumes you meant.")
     s.table("t_nospell", "What is never flagged",
             ["Kind of text", "Notes"], [
         ["Names and aliases of your notes", "Every word of every entity "
@@ -1974,7 +2043,7 @@ the-salt-road/
         "(Chapter 11), because you are about to decide whether to keep it.")
 
     s.h2("Fixing a Word in the Terminal Application", idx=["f6", "spell check|terminal"])
-    s.p(f"Press `f6`. Lorewrite moves the cursor to the end of the next "
+    s.p(f"Press `f6`. Chisel moves the cursor to the end of the next "
         "misspelled word after the cursor (starting again at the top "
         "after the last one) and opens a small window "
         f"({R('fig_spellfix')}) with the word and up to five suggestions "
@@ -1989,10 +2058,10 @@ the-salt-road/
          "`ctrl+z` undoes it."],
         ["a", "Add the word to the project dictionary."],
         ["p", "Add the word to your personal dictionary."],
-        ["i", "Ignore the word until you quit Lorewrite."],
+        ["i", "Ignore the word until you quit Chisel."],
         ["esc", "Close the window and change nothing."],
     ], [0.22, 0.78], mono_cols=(0,))
-    s.p("If there is nothing to fix, Lorewrite says //No misspellings//; "
+    s.p("If there is nothing to fix, Chisel says //No misspellings//; "
         "in a note or the style guide it says //Spell check applies to "
         "scenes//. Press `f6` again for the next word. The three palette "
         f"actions of {R('t_spellact')} work on dictionaries from the "
@@ -2047,7 +2116,7 @@ the-salt-road/
     s.h2("The Two Dictionaries", idx=["dictionary", "dictionary.txt",
                                       "personal dictionary",
                                       "project dictionary"])
-    s.p("What you teach Lorewrite goes into one of two plain text files. "
+    s.p("What you teach Chisel goes into one of two plain text files. "
         "They have the same format and the same effect; they differ only "
         "in how far they reach.")
     s.table("t_dicts", "The two dictionaries",
@@ -2056,7 +2125,7 @@ the-salt-road/
          "beside `project.toml`.", "That project only. It travels with "
          "the project when you copy or back it up, and is kept by version "
          "control."],
-        ["Personal dictionary", "`dictionary.txt` in Lorewrite's state "
+        ["Personal dictionary", "`dictionary.txt` in Chisel's state "
          "folder (`~/.local/state/lorewrite`, or the folder named by "
          "`LOREWRITE_STATE_DIR`).", "Every project you open on this "
          "computer."],
@@ -2066,7 +2135,7 @@ the-salt-road/
         "wherever you write (a name you often use, a spelling you prefer) "
         "in the personal one. The format is one word or phrase per line. "
         "Blank lines and lines that begin with `#` are ignored. A file "
-        "that Lorewrite creates begins with a comment that says so:")
+        "that Chisel creates begins with a comment that says so:")
     s.code("""\
 # One word or phrase per line; these are never flagged as misspelled.
 # Lines starting with # and blank lines are ignored.
@@ -2090,7 +2159,7 @@ sweet rot""")
 
     s.h2("Turning It Off", idx=["spell check|turning off"])
     s.p("In the terminal application, tick or untick //Underline "
-        "misspellings// in Settings (Chapter 15), or choose **Action · "
+        "misspellings// in Settings (Chapter 18), or choose **Action · "
         "Toggle spell check**. In the desktop application, use the same "
         "box in the Settings dialog. The setting, `spellcheck`, is kept in "
         "`settings.json` and is shared: turning it off in one application "
@@ -2124,7 +2193,7 @@ sweet rot""")
               "you keep your story consistent. All are proposals you "
               "confirm.")
     s.h2("Overview", idx=["AI|overview"])
-    s.p("Lorewrite can use an AI service, called OpenRouter, to help with "
+    s.p("Chisel can use an AI service, called OpenRouter, to help with "
         "your story. This chapter describes how to set it up and the three "
         f"features summarized in {R('t_ai')}, which check and record "
         "consistency. The features that write prose are in Chapter 11. "
@@ -2175,24 +2244,24 @@ sweet rot""")
     s.p("OpenRouter is a service that gives access to many AI models with "
         "one account. You need your own account and an //API key// (a long "
         "secret string) from openrouter.ai. You pay OpenRouter directly for "
-        "what you use; Lorewrite does not.")
-    s.p("Lorewrite finds your key in this order: first the environment "
+        "what you use; Chisel does not.")
+    s.p("Chisel finds your key in this order: first the environment "
         "variable `OPENROUTER_API_KEY`, then your operating system's "
         "keyring (a secure store for passwords). To store a key in the "
-        "keyring from within Lorewrite:")
+        "keyring from within Chisel:")
     s.proc("To store your API key:", [
         "Press `ctrl+p` and choose **Action · Set OpenRouter API key** "
         "(or open **Settings** and press **Set API key…**).",
         f"Paste the key into the box ({R('fig_keyprompt')}) with `ctrl+v` "
         "and press `enter`. The characters are hidden as dots.",
-        "Lorewrite says //API key stored in the system keyring//.",
+        "Chisel says //API key stored in the system keyring//.",
     ])
     s.figure("fig_keyprompt", "keyprompt", "Entering the API key")
     s.idx("clipboard")
     s.p("`ctrl+v` reads your system clipboard (using `wl-paste`, `xclip` or "
         "`xsel`, whichever is installed). The terminal's own paste "
         "command, usually `ctrl+shift+v`, works too. If the keyring is "
-        "not available on your system, Lorewrite says //Keyring "
+        "not available on your system, Chisel says //Keyring "
         "unavailable// and the reason, and tells you to set "
         "`OPENROUTER_API_KEY` in the environment instead.")
     s.p("The Settings screen shows whether a key is found: //API key: set "
@@ -2215,7 +2284,7 @@ sweet rot""")
     s.h2("Choosing Models", idx=["model", "fast model", "strong model",
                                  "writing model", "model picker",
                                  "OpenRouter|models"])
-    s.p("Lorewrite starts with ready-made choices: "
+    s.p("Chisel starts with ready-made choices: "
         "`google/gemini-2.5-flash` for the fast model, "
         "`anthropic/claude-sonnet-4.5` for the strong model, and the same "
         "`anthropic/claude-sonnet-4.5` for the writing model. You can "
@@ -2224,7 +2293,7 @@ sweet rot""")
         f"beside it. Choose… opens the model picker ({R('fig_picker')}).")
     s.figure("fig_picker", "modelpicker_fast", "The model picker for the "
              "fast model, filtered by the word //gemini//")
-    s.p("Lorewrite asks OpenRouter for its current list of models (this "
+    s.p("Chisel asks OpenRouter for its current list of models (this "
         "needs a network connection but no key). Type to narrow the list; "
         "each row gives the model's name, its identifier, its price per "
         "million words of input and of output, and how much text it can "
@@ -2245,7 +2314,7 @@ sweet rot""")
     s.p("In the desktop Settings dialog the three rows are //Fast "
         "model//, //Strong model// and //Writing model//, each with a "
         "**Choose…** button that opens a searchable list of the same "
-        "catalog under the row (Chapter 15). An empty box means the "
+        "catalog under the row (Chapter 18). An empty box means the "
         "default, which is shown in the box in gray; a project that "
         "overrides a model in `project.toml` says so under the row.")
     s.table("t_models", "Which model is used",
@@ -2270,7 +2339,7 @@ sweet rot""")
                 "does not any more. Accepting a suggestion only adds "
                 "an alias to an entity's note.")
     s.proc("To find aliases:", [
-        "Open a scene, and press `ctrl+l`. Lorewrite says //Looking for "
+        "Open a scene, and press `ctrl+l`. Chisel says //Looking for "
         "aliases…//.",
         f"When the proposals arrive, a review appears ({R('fig_aliasrev')}). "
         "Each line shows the words, the entity they refer to, and the "
@@ -2278,12 +2347,12 @@ sweet rot""")
         "Press `up` and `down` to move, and `space` to tick or untick the "
         "highlighted line. Press `a` to tick them all again.",
         "Press `enter` to add the ticked aliases to the notes, or `esc` "
-        "to cancel and change nothing. Lorewrite says //Added N "
+        "to cancel and change nothing. Chisel says //Added N "
         "alias(es) to entity notes//.",
     ])
     s.figure("fig_aliasrev", "aliasreview", "Reviewing alias suggestions. "
              "The scene text is not changed")
-    s.p("Lorewrite checks each proposal against your text before showing "
+    s.p("Chisel checks each proposal against your text before showing "
         "it, and drops any that do not match the words actually on the "
         "page, that name an entity you do not have, that are pronouns, "
         "shorter than two or longer than forty characters, already a name "
@@ -2319,7 +2388,7 @@ sweet rot""")
         "are working on with the facts recorded in your notes and reports "
         "anything that contradicts them.")
     s.h3("What it compares", idx=["canon"])
-    s.p("For each entity, Lorewrite uses its //canon//. If the note has a "
+    s.p("For each entity, Chisel uses its //canon//. If the note has a "
         "`## Canon (auto)` section (see “Updating the Story Bible” below), "
         "that section is the canon. Otherwise the beginning of the note "
         "(up to 1,500 characters) is used. The scene is then compared with "
@@ -2341,12 +2410,12 @@ sweet rot""")
         "the line: `!` for an error, `?` for a warning and `-` for a note.")
     s.proc("To check a scene:", [
         "Open the scene. Press `ctrl+p` and choose **Action · Check scene "
-        "for continuity issues**. Lorewrite says //Checking continuity…//.",
+        "for continuity issues**. Chisel says //Checking continuity…//.",
         f"If problems are found, the report appears ({R('fig_cont')}). If "
         "not, you see //No continuity issues found//.",
         "Read each entry. It gives the kind of issue, the entity, the "
         "line of the scene, the exact words that conflict, and a suggested "
-        "fix (which is only a suggestion; Lorewrite never changes your "
+        "fix (which is only a suggestion; Chisel never changes your "
         "text).",
         "Press `enter` to jump to the line (the report closes), `space` to "
         "waive an issue, and `esc` when you are done.",
@@ -2361,7 +2430,7 @@ sweet rot""")
     s.p(f"Sometimes an apparent contradiction is deliberate: a character "
         "lies, or a narrator is unreliable. Press `space` to //waive// the "
         f"issue ({R('fig_waived')}); the entry is marked //(waived)// and "
-        "Lorewrite will not report that issue again. Pressing `space` "
+        "Chisel will not report that issue again. Pressing `space` "
         "again in the same report takes the waiver back. Waivers are "
         "saved at once, in the project's `.lorewrite/waivers.json` file, "
         "and identify an issue by its kind, the entity and the "
@@ -2369,9 +2438,9 @@ sweet rot""")
         "Once you close the report, a waived issue no longer appears in "
         "later checks. To bring a scene's waived issues back, open the "
         "scene and choose **Action · Restore waived continuity issues "
-        "(this scene)** from the command palette; Lorewrite says how many "
+        "(this scene)** from the command palette; Chisel says how many "
         "it restored, and the next check reports them again. Waivers made "
-        "with an earlier version of Lorewrite did not record a scene and "
+        "with an earlier version of Chisel did not record a scene and "
         "cannot be restored this way; to reinstate one, edit "
         "`.lorewrite/waivers.json` and remove its code from the list.")
     s.figure("fig_waived", "continuity_waived", "A waived issue")
@@ -2393,11 +2462,11 @@ sweet rot""")
               "assistant panel", width=240)
     s.idx("Jev")
     s.note("If the optional helper program Jev is installed on your "
-           "computer (as `~/.config/jev/jev.py`), Lorewrite first asks it "
+           "computer (as `~/.config/jev/jev.py`), Chisel first asks it "
            "a quick question about each entity, so that the more expensive "
            "model is asked only about entities the scene might "
            "contradict. If Jev is not installed, or fails, or answers in a "
-           "way Lorewrite cannot read, every entity is checked. In earlier "
+           "way Chisel cannot read, every entity is checked. In earlier "
            "versions this screening did not take effect even when Jev was "
            "installed; now it does. You can ignore this if you have never "
            "installed Jev.")
@@ -2405,14 +2474,14 @@ sweet rot""")
     s.h2("Updating the Story Bible", idx=["story bible", "canon|section",
                                           "Canon (auto)"])
     s.p("The canon that continuity checking relies on has to come from "
-        "somewhere. You can write it yourself, or you can ask Lorewrite "
+        "somewhere. You can write it yourself, or you can ask Chisel "
         "to propose new facts from a scene you have just written. The "
-        "update only //adds//: Lorewrite sends the AI each entity's "
+        "update only //adds//: Chisel sends the AI each entity's "
         "existing canon and asks for facts that are new, and nothing "
         "already in the canon is ever changed or removed.")
     s.proc("To update the story bible from a scene:", [
         "Open the scene. Press `ctrl+p` and choose **Action · Update story "
-        "bible from scene**. Lorewrite says //Reading the scene for new "
+        "bible from scene**. Chisel says //Reading the scene for new "
         "canon…//.",
         f"A review appears ({R('fig_bible')}). For each entity it shows, "
         "in order, the entity's name, its existing canon (dimmed), the "
@@ -2422,13 +2491,13 @@ sweet rot""")
         "Use `up` and `down` to move between facts, `space` to tick or "
         "untick the highlighted fact, `a` to tick all, `enter` to apply "
         "and `esc` to cancel. You accept facts one by one.",
-        "Lorewrite says //Added canon to N entity note(s)//.",
+        "Chisel says //Added canon to N entity note(s)//.",
     ])
     s.figure("fig_bible", "bible", "Reviewing proposed canon: each new fact "
              "is shown in full and accepted on its own")
     s.p("Each accepted fact is added as a line beginning with a hyphen at "
         "the end of the `## Canon (auto)` section of the entity's note. "
-        "Lorewrite creates the section at the end of the note if it is not "
+        "Chisel creates the section at the end of the note if it is not "
         "there. A fact that is already in the section (ignoring capitals "
         "and a final full stop) is skipped. Nothing outside that section "
         "is ever touched, so your own writing in the note is safe, and "
@@ -2449,22 +2518,22 @@ sweet rot""")
            "accepted does not become canon.")
 
     s.h2("Costs and Privacy", idx=["privacy", "cost"])
-    s.p("Lorewrite asks OpenRouter to report what each request cost. "
+    s.p("Chisel asks OpenRouter to report what each request cost. "
         "You see it in two places: the status bar shows the total for "
         "this session after the first call that reports a cost, as //AI "
         "$0.0153//, and the message that follows each AI call ends with "
         "that call's cost, for example //No new aliases found (AI "
         "$0.0008)// or //AI draft ready — f7 accept · f8 reject (AI "
         "$0.0042)//. The total starts again from nothing each time you "
-        "start Lorewrite. If the provider does not report a cost, nothing "
+        "start Chisel. If the provider does not report a cost, nothing "
         "is shown.")
-    s.p("If an AI service does not answer, Lorewrite gives up after 180 "
+    s.p("If an AI service does not answer, Chisel gives up after 180 "
         "seconds (three minutes) and tells you the request failed, and "
         "tries one more time before that if the connection drops; earlier "
         "it could wait for many minutes with nothing on the screen. You "
         "can then start the feature again.")
     s.bullets([
-        "**Nothing is sent unless you ask.** Lorewrite contacts an AI "
+        "**Nothing is sent unless you ask.** Chisel contacts an AI "
         "service only when you start one of the AI features, and "
         "contacts OpenRouter's public model list only when you open the "
         "model picker.",
@@ -2482,25 +2551,25 @@ sweet rot""")
         "scenes cost more.",
         "**Your key.** It is stored in your system keyring, or wherever "
         "you keep your environment variable. It is not written to your "
-        "project or to Lorewrite's settings file.",
+        "project or to Chisel's settings file.",
     ])
-    s.p("If a request fails, Lorewrite shows the reason in a message, for "
+    s.p("If a request fails, Chisel shows the reason in a message, for "
         "example //Alias search failed//, //Continuity check failed//, "
         "//Story-bible update failed//, //Style guide failed// or //AI "
         "writing failed//, followed by the error. Appendix B lists them.")
 
     # ============================================================ CH 6
     s.chapter("11", "Writing with AI",
-              "Teach Lorewrite your style, then have it draft, expand and "
+              "Teach Chisel your style, then have it draft, expand and "
               "rewrite prose. Everything it writes is a draft you accept "
               "or reject.")
     s.h2("How AI Writing Works", idx=["AI writing", "writing model"])
-    s.p("Lorewrite can write for you in three ways, all started with "
+    s.p("Chisel can write for you in three ways, all started with "
         "`ctrl+g`: it can draft new prose at the cursor, expand a short "
         "placeholder that you leave in the text, or rewrite a passage "
         "that you select. To write like //you//, it follows a //style "
         "guide// that it learns from your own scenes.")
-    s.p("The rule is the same as everywhere else in Lorewrite: the AI "
+    s.p("The rule is the same as everywhere else in Chisel: the AI "
         "never changes your prose on its own. What it writes is put into "
         "your scene as a //pending draft//, shown in color, and it stays "
         "a draft until you press `f7` to accept it or `f8` to reject it. "
@@ -2515,7 +2584,7 @@ sweet rot""")
         "will do, and the picker for this model lists the whole catalog. "
         "The writing model is also the one that learns your style guide. "
         "Its built-in default is `anthropic/claude-sonnet-4.5`; set "
-        "your own with **Choose…** in Settings (Chapter 15) or with "
+        "your own with **Choose…** in Settings (Chapter 18) or with "
         "`writing_model` in the `[ai]` section of `project.toml` "
         "(Appendix A). You need an API key first (Chapter 10).")
 
@@ -2548,7 +2617,7 @@ sweet rot""")
         "project folder, beside `project.toml`. It describes how you write, "
         f"in the six sections listed in {R('t_style')}. It is yours: you "
         "can read it, edit it, and keep it under version control like "
-        "your scenes. Lorewrite sends the whole file with every writing "
+        "your scenes. Chisel sends the whole file with every writing "
         "request.")
     s.table("t_style", "Sections of style.md",
             ["Section", "What it holds"], [
@@ -2563,12 +2632,12 @@ sweet rot""")
     ], [0.27, 0.73])
     s.h3("Learning a style guide from your manuscript",
          idx=["style guide|learning"])
-    s.p("You do not have to write the guide yourself. Lorewrite can "
+    s.p("You do not have to write the guide yourself. Chisel can "
         "read your scenes and describe your habits.")
     s.proc("To learn a style guide:", [
         "Write at least a few scenes. Open the command palette with "
         "`ctrl+p` and choose **Action · AI: learn style guide from "
-        "manuscript**. Lorewrite saves the open file and says //Learning "
+        "manuscript**. Chisel saves the open file and says //Learning "
         "your style from N paragraphs…//. If there is nothing to learn "
         "from, it says //Nothing to learn from yet — write some scenes "
         "first//.",
@@ -2576,16 +2645,16 @@ sweet rot""")
         f"({R('fig_stylerev')}). Scroll it with `up` and `down`. Nothing "
         "has been written yet.",
         "Press `enter` to save it as `style.md`, or `esc` to discard it. "
-        "Lorewrite says //Saved style.md//.",
+        "Chisel says //Saved style.md//.",
     ], idx=["learn style guide"])
     s.figure("fig_stylerev", "stylereview", "Reviewing a proposed style "
              "guide before it is saved")
-    s.p("Lorewrite gives the AI about six thousand words of your prose to "
+    s.p("Chisel gives the AI about six thousand words of your prose to "
         "read, taken from paragraphs spread through every scene. "
         "Headings, paragraphs shorter than 25 words and pending AI drafts "
         "are left out, so the guide describes //your// writing. The AI "
         "describes your voice, rhythm, diction and dialogue and names "
-        "the paragraphs that show them best; Lorewrite itself copies "
+        "the paragraphs that show them best; Chisel itself copies "
         "those paragraphs into the Exemplars section word for word, "
         "so the AI never writes your examples for you.")
     s.idx("style.md.bak")
@@ -2597,7 +2666,7 @@ sweet rot""")
     s.p("Choose **Action · Open style guide** from the command palette. "
         "The guide opens in the editor "
         f"({R('fig_styleguide')}) like a note, and autosaves like "
-        "one. If there is no `style.md` yet, Lorewrite first creates one "
+        "one. If there is no `style.md` yet, Chisel first creates one "
         "with the six headings and a hint under each. Edit it freely: add "
         "rules the AI could not know, delete ones that are wrong, or "
         "replace an exemplar with a paragraph you prefer. To return to "
@@ -2623,7 +2692,7 @@ sweet rot""")
         ["A guide you wrote or edited by hand, with no provenance line",
          "//You have a style guide. Relearn it from your scenes, or edit "
          "it by hand.//", "**Relearn my style**, **Open guide**"],
-        ["A guide learned by Lorewrite", "//Learned// and the date, //from// "
+        ["A guide learned by Chisel", "//Learned// and the date, //from// "
          "the number of words it was shown, //of your prose.//",
          "**Relearn my style**, **Open guide**"],
         ["The same, when the manuscript has since grown by half and by "
@@ -2634,7 +2703,7 @@ sweet rot""")
     ], [0.30, 0.46, 0.24])
     s.gfigure("fig_gstyle1", "stylecard_before", "The Your style card "
               "before a guide exists", width=230)
-    s.p("Click **Learn my style**. Lorewrite saves the open scene, reads "
+    s.p("Click **Learn my style**. Chisel saves the open scene, reads "
         "your scenes as described above, and says //Learning your "
         "style…//. When the answer arrives a dialog titled **Style guide "
         f"learned from your prose** ({R('fig_gstylerev')}) shows the "
@@ -2658,7 +2727,7 @@ sweet rot""")
         "learned and never calls it out of date. The terminal application "
         "writes the same line.")
     s.note("You can use `ctrl+g` without a style guide; the AI then "
-           "writes in a general style. The first time you do, Lorewrite "
+           "writes in a general style. The first time you do, Chisel "
            "shows the tip //learn a style guide first// once for that "
            "session.")
 
@@ -2683,14 +2752,14 @@ sweet rot""")
         "after the cursor, and the notes (or canon) of the characters "
         "and places the scene mentions (up to 1,200 characters each and "
         "6,000 in all). Pending AI drafts are removed from that text. "
-        "While it works Lorewrite says //Drafting… (model name)//, and "
+        "While it works Chisel says //Drafting… (model name)//, and "
         "you can keep writing. The reply is cleaned of code fences, "
         "labels such as //Here's the paragraph:// and quotation marks "
         "around the whole text, and an empty reply is an error.")
     s.h3("Your own prose as examples", idx=["voice samples"])
     s.p("A style guide describes your voice in words. To help the AI match "
         "it, every `ctrl+g` request now also carries about two thousand "
-        "words of your own writing as examples. Lorewrite picks whole "
+        "words of your own writing as examples. Chisel picks whole "
         "paragraphs from your //other// scenes (from the rest of the "
         "scene itself only if it is your only scene), preferring "
         "paragraphs that involve the same characters and places as the "
@@ -2717,7 +2786,7 @@ sweet rot""")
         "Press `ctrl+g` again to submit, or `esc` to cancel. An empty "
         "instruction does nothing.",
         f"After a moment the draft appears at the cursor "
-        f"({R('fig_draft')}) and Lorewrite says //AI draft ready — f7 "
+        f"({R('fig_draft')}) and Chisel says //AI draft ready — f7 "
         "accept · f8 reject//, followed by the cost.",
     ])
     s.figure("fig_promptdraft", "prompt_draft", "The prompt window for a "
@@ -2737,7 +2806,7 @@ sweet rot""")
               "a draft", width=300)
     s.gfigure("fig_gdraft", "draft", "A pending draft in the desktop "
               "application, with its Accept and Reject buttons", width=300)
-    s.p("If the cursor follows a word with no space, Lorewrite puts a "
+    s.p("If the cursor follows a word with no space, Chisel puts a "
         "space at the start of the draft so the sentences do not run "
         "together; the space is part of the draft, so rejecting it "
         "leaves your text exactly as it was.")
@@ -2747,13 +2816,13 @@ sweet rot""")
         "Meridian at 3 a.m., wet and humming}}//. Type it like any "
         "other text: two opening braces, the word //expand//, a colon, "
         "your instruction, and two closing braces. The instruction "
-        "cannot itself contain braces. Lorewrite fades placeholders so "
+        "cannot itself contain braces. Chisel fades placeholders so "
         "you can see them.")
     s.proc("To expand a placeholder:", [
         f"Put the cursor anywhere in the placeholder "
         f"({R('fig_expand')}). The edges count.",
         "Press `ctrl+g`. There is no prompt window: the placeholder's "
-        "own words are the instruction. If they are empty, Lorewrite "
+        "own words are the instruction. If they are empty, Chisel "
         "says //Empty {{expand: }} marker — say what to write//.",
         f"The placeholder is replaced by a pending draft "
         f"({R('fig_expanddraft')}). Press `f7` to keep the prose, or "
@@ -2794,7 +2863,7 @@ sweet rot""")
     s.gfigure("fig_grewd", "rewrite_draft", "A pending rewrite; Reject "
               "restores the original sentence", width=300)
     s.p("If you switch to another scene while the AI is working, the "
-        "draft is thrown away: Lorewrite says //Scene changed while "
+        "draft is thrown away: Chisel says //Scene changed while "
         "drafting — draft discarded//. The same happens to a rewrite or "
         "expansion if the words it was to replace have changed or cannot "
         "be found uniquely: //The text changed while drafting — draft "
@@ -2802,7 +2871,7 @@ sweet rot""")
 
     s.h2("Pending AI Text", idx=["pending draft", "AI draft"])
     s.h3("How it looks")
-    s.p("Pending text is shown in italics, in a color that Lorewrite "
+    s.p("Pending text is shown in italics, in a color that Chisel "
         "chooses to stand out from your prose, your links and the orange "
         "of links with no note, and on a slightly tinted background. The "
         "marker comments around it are faded. On Omarchy the color is "
@@ -2841,14 +2910,14 @@ the koi holo.<!--/ai-->""")
         "`.drafts` folder is part of your project, not a cache: do not "
         "delete it while drafts are pending, and keep it with the project "
         "when you copy or back it up. The `.gitignore` made for a new "
-        "project does not list it, so version control keeps it. Lorewrite "
+        "project does not list it, so version control keeps it. Chisel "
         "deletes each entry when you accept or reject the draft, removes "
         "the file when it is empty, and moves or deletes it together with "
         "its scene (Chapter 4).")
     s.h3("Accept and reject", idx=["accept draft", "reject draft", "f7", "f8"])
     s.p(f"Put the cursor inside a draft, or at either edge of it, and use "
         f"the keys in {R('t_draftkeys')}. If the cursor is not in a draft "
-        "Lorewrite says //No AI draft under the cursor//.")
+        "Chisel says //No AI draft under the cursor//.")
     s.p("In the desktop application, **AI menu \u203a Accept all drafts** and "
         "**Reject all drafts** apply to every draft in the open scene, and "
         "an answer in the assistant's conversation can be put into the "
@@ -2875,7 +2944,7 @@ the koi holo.<!--/ai-->""")
         "drafts, the //all// commands say //No AI drafts in this scene//.")
     s.attention("Reject refuses to act if the original text of a draft is "
                 "missing, for example because the `.drafts` file was "
-                "deleted or edited. Lorewrite will not delete your prose "
+                "deleted or edited. Chisel will not delete your prose "
                 "because a lookup failed. It says //Original text for this "
                 "draft is missing — accept it or edit by hand//, and "
                 "changes nothing. You can still accept the draft. With "
@@ -2889,7 +2958,7 @@ the koi holo.<!--/ai-->""")
            "rather than by deleting its markers.")
     s.h3("What pending text is kept out of", idx=["pending draft|excluded"])
     s.p("Unaccepted AI text is not your story yet, so the rest of "
-        "Lorewrite ignores it:")
+        "Chisel ignores it:")
     s.bullets([
         "**Word counts** in the status bar, for the scene and the "
         "project.",
@@ -2927,11 +2996,11 @@ the koi holo.<!--/ai-->""")
     s.h2("Walkthrough: Writing in the Residual Project",
          idx=["tutorial|writing"])
     s.p("This walkthrough uses the Residual example that is supplied with "
-        "Lorewrite (Appendix C says how to open a copy of it). You need "
+        "Chisel (Appendix C says how to open a copy of it). You need "
         "an API key set up (Chapter 10). The figures in this chapter were "
         "made with it, so what you see should look much like them, though "
         "the AI's words will differ.")
-    s.proc("Teach Lorewrite your style:", [
+    s.proc("Teach Chisel your style:", [
         "Open the project. Press `ctrl+p`, type //learn//, and choose "
         "**Action · AI: learn style guide from manuscript**.",
         f"Read the proposed guide ({R('fig_stylerev')}). Scroll to the "
@@ -2969,9 +3038,12 @@ the koi holo.<!--/ai-->""")
     ch_aids.build(s, R)
     ch_inspiration.build(s, R)
     ch_export.build(s, R)
+    ch_aisees.build(s, R)
+    ch_storytime.build(s, R)
+    ch_safety.build(s, R)
 
     # ============================================================ CH 7
-    s.chapter("15", "Settings Reference",
+    s.chapter("18", "Settings Reference",
               "Every setting, where it is kept, and what it does.")
     s.h2("The Settings Screen", idx=["Settings screen"])
     s.p(f"Open the Settings screen ({R('fig_settings')}) from the command "
@@ -3125,7 +3197,7 @@ the koi holo.<!--/ai-->""")
         "Appendix A.")
 
     # ============================================================ CH 8
-    s.chapter("16", "Command and Key Reference",
+    s.chapter("19", "Command and Key Reference",
               "Every key, every command-palette entry, and the keys of "
               "every dialog.")
     s.h2("Keys in the Main Window", idx=["keys|main window",
@@ -3199,9 +3271,9 @@ the koi holo.<!--/ai-->""")
     ], [0.16, 0.44, 0.40])
     s.p("Among the scenes and before the entities, the palette also lists "
         "a few general commands supplied by the terminal toolkit "
-        "Lorewrite is built on: //Keys// (help for the focused widget), "
+        "Chisel is built on: //Keys// (help for the focused widget), "
         "//Maximize//, //Quit//, //Screenshot// and //Theme// (change "
-        "the color theme). They are not part of Lorewrite and are not "
+        "the color theme). They are not part of Chisel and are not "
         "described further here.")
     s.add(CondPageBreak(160))
     s.table("t_actions", "Palette actions",
@@ -3325,8 +3397,8 @@ the koi holo.<!--/ai-->""")
             ["Menu (how to open it)", "Entries"], [
         ["Scene and part options (three dots at the top of the binder)",
          "**New scene**, **New part…**, **Rename scene…**, **Move up**, "
-         "**Move down**, **Move scene to part…**, **Move to Unplaced "
-         "Scenes** (**Place in the book…** for an unplaced scene), "
+         "**Move down**, **Move scene to part…**, **Move to Parked "
+         "scenes** (**Place in the book…** for a parked scene), "
          "**Collections…**, **History (snapshots)…**, **Delete scene…**; "
          "then, under //parts//: **Rename part…**, **Move part up**, "
          "**Move part down**, **Delete empty part…**; under //research//: "
@@ -3358,7 +3430,7 @@ the koi holo.<!--/ai-->""")
 
     # ============================================================ APP A
     s.chapter("A", "File Formats",
-              "What Lorewrite reads and writes on disk.")
+              "What Chisel reads and writes on disk.")
     s.h2("What Is in My Project Folder", idx=["project|layout",
                                               "manuscript folder",
                                               "entities folder",
@@ -3398,38 +3470,38 @@ residual/
     s.table("t_projmap", "What is in the project folder",
             ["Path", "What it holds", "Written by", "Edit by hand?"], [
         ["`project.toml`", "Title, author and settings of this project.",
-         "Lorewrite and you", "Yes"],
+         "Chisel and you", "Yes"],
         ["`manuscript/`", "Your scenes, directly or in parts.",
          "You", "Yes"],
         ["`manuscript/NN-name/`", "A part; `_part.md` inside holds its "
-         "title.", "Lorewrite (New part)", "Title and notes, yes"],
+         "title.", "Chisel (New part)", "Title and notes, yes"],
         ["`manuscript/_unplaced/`", "Scenes kept out of the book.",
-         "Lorewrite (Move to Unplaced)", "Yes"],
+         "Chisel (Park a scene)", "Yes"],
         ["`entities/`", "Notes on characters, places, objects and "
-         "factions.", "You and Lorewrite", "Yes"],
+         "factions.", "You and Chisel", "Yes"],
         ["`research/`", "Reference notes, plain Markdown, any "
-         "subfolders.", "You and Lorewrite", "Yes"],
+         "subfolders.", "You and Chisel", "Yes"],
         ["`style.md`, `dictionary.txt`", "Your style guide; the words "
-         "spell check accepts.", "You and Lorewrite", "Yes"],
+         "spell check accepts.", "You and Chisel", "Yes"],
         ["`.drafts/`", "The original text behind each pending AI draft.",
-         "Lorewrite", "No"],
+         "Chisel", "No"],
         ["`.snapshots/`", "Verbatim copies of scenes (history).",
-         "Lorewrite", "No; delete in the History screen"],
-        ["`.comments/`", "Your comments on passages.", "Lorewrite",
+         "Chisel", "No; delete in the History screen"],
+        ["`.comments/`", "Your comments on passages.", "Chisel",
          "Possible, not needed"],
-        ["`.trash/`", "Deleted scenes and research notes.", "Lorewrite",
+        ["`.trash/`", "Deleted scenes and research notes.", "Chisel",
          "No; use the Trash screen"],
-        ["`.assistant/chats/`", "Saved conversations.", "Lorewrite",
+        ["`.assistant/chats/`", "Saved conversations.", "Chisel",
          "No"],
         ["`exports/`", "Files written by Export (Chapter 14); never "
-         "overwritten.", "Lorewrite", "They are yours; delete freely"],
-        ["`inspiration/`", "Inspiration pictures and their notes "
-         "(Chapter 13).", "Lorewrite and you", "Notes in the .md files, "
-         "yes"],
+         "overwritten.", "Chisel", "They are yours; delete freely"],
+        ["`inspiration/`", "Inspiration pictures, drawn or added by you, "
+         "and their notes (Chapter 13).", "Chisel and you", "Notes in "
+         "the .md files, yes"],
         ["`.lorewrite/`", "The link index and waived continuity issues.",
-         "Lorewrite", "No; safe to delete"],
+         "Chisel", "No; safe to delete"],
     ], [0.27, 0.37, 0.18, 0.18])
-    s.p("Lorewrite reads scenes from `manuscript/` (directly in it, in a "
+    s.p("Chisel reads scenes from `manuscript/` (directly in it, in a "
         "part folder directly under it, and in `_unplaced/`; only one "
         "level of folders counts), notes from `entities/*/*.md` (the "
         "note's folder name does not matter; its `type:` line does), "
@@ -3440,10 +3512,10 @@ residual/
         "of a new project; everything else is yours and is committed.")
     s.p("Not in the folder, because they are about you rather than the "
         "book, are your personal dictionary, your settings and your "
-        "writing numbers, which live in Lorewrite's state folder "
-        "(see “Lorewrite's State Files” below).")
+        "writing numbers, which live in Chisel's state folder "
+        "(see “Chisel's State Files” below).")
     s.h2("project.toml", idx=["project.toml", "TOML"])
-    s.p("A small file in TOML format. Lorewrite writes `title` and "
+    s.p("A small file in TOML format. Chisel writes `title` and "
         f"`author` when it creates the project; the other keys are "
         f"optional ({R('t_toml')}).")
     s.code("""\
@@ -3493,8 +3565,12 @@ page_size = "trade"
         ["[export]", "The options last used in the Export dialog or "
          "form: format, layout, page_size, font, numbering, toc, "
          "include_front_matter, include_drafts, continuous, copyright "
-         "(Chapter 14). Written by Lorewrite after each export; you may "
+         "(Chapter 14). Written by Chisel after each export; you may "
          "edit it.", "the defaults of the dialog"],
+        ["[timeline] era", "A label shown after story-time years, such "
+         "as `AE`. Optional (Chapter 16).", "empty"],
+        ["[timeline] unit", "The unit of story time. `year` is the only "
+         "one for now.", "year"],
         ["[manuscript] unit", "`\"scene\"` or `\"chapter\"`: what the "
          "program calls the units of the book. Wording only (Chapter 5).",
          "scene"],
@@ -3505,7 +3581,7 @@ page_size = "trade"
          "scenes belong to it is kept in the scenes themselves.",
          "none"],
     ], [0.27, 0.48, 0.25], mono_cols=(0,))
-    s.p("When you press **Save** in Settings, Lorewrite rewrites only the "
+    s.p("When you press **Save** in Settings, Chisel rewrites only the "
         "`[editor]` section and leaves the rest of the file as it was; "
         "the draft, the unit and the collections are written by the "
         "commands that change them. Everything else you put in the file "
@@ -3525,7 +3601,7 @@ The Meridian stacked its sleepers forty high under the spur, a
 honeycomb of fiberglass coffins lit the color of weak tea.
 
 Rook climbed the ladder and looked in.""")
-    s.h2("Parts, Unplaced Scenes and Front Matter",
+    s.h2("Parts, Parked scenes and Front Matter",
          idx=["part|folder", "_part.md", "_unplaced folder",
               "front matter"])
     s.p("A //part// is a folder directly under `manuscript/`. Its name "
@@ -3589,9 +3665,13 @@ collections: [Needs continuity pass]
         ["target", "A number of words."],
         ["collections", "The collections the scene belongs to, in square "
          "brackets, separated by commas."],
+        ["when", "The scene's story time: a year, optionally with month "
+         "and day (`2187`, `2187-03-14`). Optional (Chapter 16). Not "
+         "prose and not a mention."],
     ], [0.20, 0.80], mono_cols=(0,))
-    s.p("Keys that Lorewrite does not know (an Obsidian `tags:` line, for "
-        "instance) are kept when it rewrites the block. A block is "
+    s.p("Keys that Chisel does not know (an Obsidian `tags:` line, for "
+        "instance) are kept as you wrote them when it rewrites the "
+        "block (Chapter 17). A block is "
         "frontmatter only if it is a YAML mapping: a scene that begins "
         "with a horizontal rule of three hyphens is left alone. The block "
         "is not prose: it is not counted as words, not spell-checked, not "
@@ -3617,18 +3697,23 @@ favor and resents it.
 
 - Left arm is an old chrome prosthetic; right arm is flesh.
 - Voice like gravel. Works nights.""")
-    s.p("If the header is missing or damaged, Lorewrite still opens the "
+    s.p("If the header is missing or damaged, Chisel still opens the "
         "note, using the file name as the name and //character// as the "
         "type. The section headed `## Canon (auto)` runs to the next "
         "heading that begins with `## `, or to the end of the note. "
-        "Lorewrite only adds lines to the end of that section when you "
+        "Chisel only adds lines to the end of that section when you "
         "accept story-bible facts; it never removes or rewrites what is "
         "there.")
+    s.p("Chisel uses `name`, `type` and `aliases` from the header, and "
+        "optionally `born:` for a character (Chapter 16). Any other key, "
+        "such as an Obsidian `tags:` line, is kept exactly as written "
+        "every time the note is saved (Chapter 17). A note that is not "
+        "valid UTF-8 opens but is never overwritten.")
     s.h2("The Style Guide: style.md", idx=["style.md|format"])
     s.p("`style.md` is a plain Markdown file at the top of the project, "
         "created by //learn style guide// (Chapter 11) or, with the "
         "headings and a hint under each, by //Open style guide//. It is "
-        "yours to edit. Lorewrite reads it whole and sends it with every "
+        "yours to edit. Chisel reads it whole and sends it with every "
         "writing request; a file that is empty or only blanks counts as "
         "no guide. The sections are the headings below; the Exemplars are "
         "block quotes, each ending with the scene file it came from.")
@@ -3651,7 +3736,7 @@ favor and resents it.
 >
 > — 02-capsule-7-19.md""")
     s.p("(The middle headings are shown without their bullets here to save "
-        "space.) A guide that Lorewrite learned has one more line, directly "
+        "space.) A guide that Chisel learned has one more line, directly "
         "under the title: the //provenance line//, for example "
         "`<!-- learned 2026-10-01 from 1,099 sampled words; manuscript "
         "1,502 words in 4 scenes -->`. It is an HTML comment that records the date, the number of words of "
@@ -3676,7 +3761,7 @@ favor and resents it.
         "scene's path in the project, with each `/` written as `__`: "
         "`.drafts/manuscript__01-the-recall__02-tavern.md.json` for "
         "`manuscript/01-the-recall/02-tavern.md`. (Older projects kept "
-        "these under the file name alone; Lorewrite renames them when it "
+        "these under the file name alone; Chisel renames them when it "
         "opens the project.) The file is a JSON object from ids to "
         "original text:")
     s.code("""\
@@ -3749,7 +3834,7 @@ favor and resents it.
     "resolved": false
   }
 ]""")
-    s.p("Lorewrite finds the passage again by its words and what "
+    s.p("Chisel finds the passage again by its words and what "
         "surrounds them, not by its position, so the comment survives "
         "edits around it. If the words are gone it is //detached//: still "
         "in the file and still listed, never deleted. The file is removed "
@@ -3791,12 +3876,12 @@ https://www.example.com/articles/capsule-hotel-etiquette.html""")
     s.p("Two files of the same plain format hold the words that spell check "
         "never flags (Chapter 7). The project dictionary is "
         "`dictionary.txt` at the top of the project; the personal "
-        "dictionary is `dictionary.txt` in Lorewrite's state folder. Each "
+        "dictionary is `dictionary.txt` in Chisel's state folder. Each "
         "is UTF-8 text with one word or phrase per line; blank lines and "
         "lines that begin with `#` are ignored. A word with a capital "
         "letter is accepted only capitalized; a lower-case word is "
         "accepted in any capitalization; a line with a space is a phrase. "
-        "Lorewrite appends new terms to the end, keeps your comments, and "
+        "Chisel appends new terms to the end, keeps your comments, and "
         "writes the file safely (a temporary copy swapped into place). "
         "Neither file is a scene, a note or part of the index.")
     s.code("""\
@@ -3823,7 +3908,7 @@ maglev spur""")
         "folder so that version control ignores it. That includes "
         "`waivers.json`; copy it yourself, or edit `.gitignore`, if you "
         "want your waivers kept with the book.")
-    s.h2("Lorewrite's State Files", idx=["state folder|files"])
+    s.h2("Chisel's State Files", idx=["state folder|files"])
     s.code("""\
 ~/.local/state/lorewrite/
   recent.json      recent projects: path, title, time opened (max 10)
@@ -3850,10 +3935,10 @@ maglev spur""")
 
     # ============================================================ APP B
     s.chapter("B", "Messages and Problem Solving",
-              "The messages Lorewrite shows, in the words it uses, and "
+              "The messages Chisel shows, in the words it uses, and "
               "what to do about them.")
     s.h2("Messages", idx=["messages"])
-    s.p("Lorewrite reports what it has done with brief messages at the "
+    s.p("Chisel reports what it has done with brief messages at the "
         "bottom right of the window. They fade after a few seconds. "
         "Warnings and errors are colored differently. Text in italic "
         "type below stands for something that varies. The first three "
@@ -3988,7 +4073,7 @@ maglev spur""")
          "story-bible update."],
         ["Keyring unavailable (//reason//). Set the OPENROUTER_API_KEY "
          "environment variable instead.", "Your system has no usable "
-         "keyring. Set the variable before starting Lorewrite. (The "
+         "keyring. Set the variable before starting Chisel. (The "
          "Settings screen words it slightly differently: //Set "
          "OPENROUTER_API_KEY in the environment instead.//)"],
         ["Couldn't load models (//reason//). Type a model id in Settings "
@@ -4089,7 +4174,7 @@ maglev spur""")
     s.add(CondPageBreak(330))
     s.h2("Problem Solving", idx=["problem solving", "troubleshooting"])
     s.p("Use this table for troubleshooting the everyday problems. "
-        "Messages that Lorewrite itself shows are explained above.")
+        "Messages that Chisel itself shows are explained above.")
     s.table("t_problems", "Common problems",
             ["Problem", "What to try"], [
         ["A name I wrote is not colored.", "Check that its note exists "
@@ -4109,7 +4194,7 @@ maglev spur""")
          "edit it by hand, or restore the `.drafts` file from a backup."],
         ["`ctrl+g` does nothing in a note.", "It works in scenes only. "
          "Open a scene."],
-        ["Drafts are hard to see in my theme.", "Lorewrite picks the color "
+        ["Drafts are hard to see in my theme.", "Chisel picks the color "
          "from your Omarchy theme. The text is also italic, on a tint, "
          "with `<!--ai-->` markers at each end; the status bar says "
          "//AI draft// when the cursor is inside one."],
@@ -4118,7 +4203,7 @@ maglev spur""")
          "and **Previous scene** instead, or click in the sidebar."],
         ["AI features say the key is missing.", "Open Settings and check "
          "the //API key// line. Set the key, or set "
-         "`OPENROUTER_API_KEY` before starting Lorewrite."],
+         "`OPENROUTER_API_KEY` before starting Chisel."],
         ["The model picker is empty or lacks a model.", "For the fast and "
          "strong models it lists only models that can return the strict "
          "format those features need; the writing model's picker lists "
@@ -4131,7 +4216,7 @@ maglev spur""")
          "with another program (Chapter 4). Recover the file from a "
          "backup or version control."],
         ["The screen is garbled after a crash.", "Type `reset` in the "
-         "terminal. Your files are safe; Lorewrite saves as you work."],
+         "terminal. Your files are safe; Chisel saves as you work."],
         ["A word of my story's world is underlined.", "Add it to a "
          "dictionary (Chapter 7): `a` or `p` in the `f6` window, or **Add "
          "to dictionary** in the popover of the desktop application. "
@@ -4167,14 +4252,14 @@ maglev spur""")
               "A guided tour of the features using a small sample "
               "project, a cyberpunk mystery.")
     s.p("This tutorial follows the example project //Residual//, which "
-        "is supplied with Lorewrite in its `examples` folder and is the "
+        "is supplied with Chisel in its `examples` folder and is the "
         "project used for the figures in this book. It has four scenes "
         "and eight notes. The scenes follow Rook Tanaka, a data-forensics "
         "freelancer, and Wren, the AI construct that rides in his neural "
         "jack, as they are called to a dead body in a capsule hotel. "
         f"{R('t_residual')} lists the cast.")
     s.proc("To open a working copy of the example:", [
-        "In the terminal, change to the Lorewrite folder you installed "
+        "In the terminal, change to the Chisel folder you installed "
         "from (Chapter 2).",
         "Copy the example: `cp -r examples/residual /tmp/residual`.",
         "Open the copy: `lorewrite --project /tmp/residual` for the "
@@ -4184,7 +4269,7 @@ maglev spur""")
     s.p("Steps 1 to 8 use the terminal application. “The Same Story in "
         "the Desktop Application” at the end of this appendix repeats "
         "the tour in the desktop window.")
-    s.attention("Always open a //copy//. Lorewrite saves as you work, and "
+    s.attention("Always open a //copy//. Chisel saves as you work, and "
                 "the AI features write notes, `style.md` and `.drafts/` "
                 "into the project, so the original would no longer be "
                 "the clean example. If you start a second run, delete "
@@ -4204,7 +4289,7 @@ maglev spur""")
     ], [0.30, 0.20, 0.50])
     s.h2("Step 1. Open the Project")
     s.proc("Look at the project you opened:", [
-        f"Lorewrite adds the project to the list on the launch screen "
+        f"Chisel adds the project to the list on the launch screen "
         f"({R('fig_launch')}), so next time you can start with `lorewrite` "
         "alone and press `enter`.",
         "The main window opens on the first scene, //Rain on the "
@@ -4225,7 +4310,7 @@ maglev spur""")
         "the scenes that names her, whether as //Imogen Sallow//, "
         "//Sallow//, //Dr. Sallow// or //the architect//.",
         "Move the cursor into the backlinks list and press `enter` on "
-        "one. Lorewrite opens that scene at that line.",
+        "one. Chisel opens that scene at that line.",
     ])
     s.h2("Step 3. Make a Note")
     s.proc("Turn a name into an entity:", [
@@ -4233,7 +4318,7 @@ maglev spur""")
         "note. Select the word //Lin// in the sentence //It's "
         f"unattractive in a man who owes Lin four hundred// ({R('fig_selected')}).",
         f"Press `ctrl+j`. Choose **Character** ({R('fig_type')}).",
-        "Lorewrite creates `entities/characters/lin.md` and opens it. "
+        "Chisel creates `entities/characters/lin.md` and opens it. "
         "Type a line about Lin.",
         "Return to the scene (click it in the sidebar). //Lin// is now "
         "colored wherever it occurs, in every scene.",
@@ -4280,7 +4365,7 @@ maglev spur""")
         "the end of its **Canon (auto)** section; every older fact is "
         "still there above them.",
     ])
-    s.h2("Step 7. Teach Lorewrite Your Style")
+    s.h2("Step 7. Teach Chisel Your Style")
     s.proc("Learn a style guide from the four scenes:", [
         "Press `ctrl+p` and choose **Action · AI: learn style guide from "
         "manuscript**.",
@@ -4458,6 +4543,8 @@ maglev spur""")
         "today's numbers and the sprint are in it.",
     ])
 
+    ch_comingnext.build(s, R)
+
     # ============================================================ GLOSSARY
     s.chapter("G", "Glossary", mode="back", numbered=False)
     seen_terms = set()
@@ -4536,7 +4623,7 @@ GLOSSARY = [
     ("corkboard", "A view of the desktop editor that shows each scene as a "
      "card."),
     ("desktop application", "`lorewrite-gui`: the windowed form of "
-     "Lorewrite. Its window is titled Chisel."),
+     "Chisel. Its window is titled Chisel."),
     ("dictionary", "A plain text file of words and phrases that spell check "
      "never flags. There is one for each project (`dictionary.txt`) and one "
      "personal one."),
@@ -4556,7 +4643,7 @@ GLOSSARY = [
      "application, which opens any scene or note."),
     ("spell check", "Underlining of misspelled words in scenes; spelling "
      "only, never grammar."),
-    ("terminal application", "`lorewrite`: the form of Lorewrite that runs "
+    ("terminal application", "`lorewrite`: the form of Chisel that runs "
      "in a terminal window."),
     ("voice samples", "About two thousand words of your own paragraphs "
      "that `ctrl+g` sends as examples of your style."),
@@ -4570,13 +4657,13 @@ GLOSSARY = [
      "//the inspector// for Dace Kuroda. Every alias is recognized as a "
      "mention."),
     ("API key", "A secret string that identifies your OpenRouter account. "
-     "Lorewrite keeps it in your system keyring, or reads it from the "
+     "Chisel keeps it in your system keyring, or reads it from the "
      "OPENROUTER_API_KEY environment variable."),
-    ("autosave", "Lorewrite's saving of the open file a moment after you "
+    ("autosave", "Chisel's saving of the open file a moment after you "
      "stop typing."),
     ("backlink", "A line of your book that mentions an entity, listed in "
      "the entity panel when the cursor is on that entity's name."),
-    ("cache", "Information Lorewrite can rebuild from your files. The "
+    ("cache", "Information Chisel can rebuild from your files. The "
      "search index in `.lorewrite` is a cache."),
     ("AI draft", "See //pending draft//."),
     ("canon", "The established facts about an entity, kept in the "
@@ -4594,7 +4681,7 @@ GLOSSARY = [
      "of a note that give its name, kind and aliases."),
     ("index", "The cache of where each entity is mentioned, stored in "
      "`.lorewrite/index.sqlite`. Rebuilt with `f9`."),
-    ("launch screen", "The screen shown when Lorewrite starts without a "
+    ("launch screen", "The screen shown when Chisel starts without a "
      "project: recent projects, open, new (and, in the terminal "
      "application, settings)."),
     ("link", "A name wrapped in double square brackets, "
@@ -4604,7 +4691,7 @@ GLOSSARY = [
     ("mention", "A place in a scene where the name or an alias of an "
      "entity appears, with or without brackets."),
     ("note", "The file that describes one entity."),
-    ("OpenRouter", "The service through which Lorewrite reaches AI "
+    ("OpenRouter", "The service through which Chisel reaches AI "
      "models."),
     ("project", "A folder containing a `project.toml` file, your scenes "
      "and your notes: one book."),

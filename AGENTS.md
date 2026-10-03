@@ -98,6 +98,7 @@ docs/dev/               # internal design history: plan-*.md (one per feature wa
                         # explains this. packaging.md is current.
 docs/user-guide/        # sources + build scripts of the User's Guide (the PDF is a Release asset)
 docs/screenshots/       # README images
+docs/brand/             # the Chisel logo: icon (rounded square) and mark (no background), SVG + 1024 px PNG; README.md there
 requirements*.txt       # run / dev dependencies for a source checkout (pyproject mirrors them)
 ```
 
@@ -456,10 +457,21 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
 
 ## Current state
 
-Released: 0.3.1. On the working branch since then (see CHANGELOG.md, Unreleased): hardening of file handling
-and names, the rename of the app to Chisel in user-facing text, menu-aware AI (the "About:" chip), pictures
-linked to any item and picture upload, *Parked scenes* (desktop name of the Unplaced folder), the context
-budget with the "What was sent" report, entity frontmatter round trip, and optional story time.
+Released: 0.4.0 (2026-10-03; CHANGELOG.md has the user-facing list): hardening of file handling and names,
+the rename of the app to Chisel in user-facing text, menu-aware AI (the "About:" chip), pictures linked to any
+item and picture upload, *Parked scenes* (desktop name of the Unplaced folder), the context budget with the
+"What was sent" report, entity frontmatter round trip, optional story time, the Chisel logo and icons, and the
+Windows window-icon fix. The previous release was 0.3.1.
+
+**Icons and the logo** (artwork supplied by the project author; vector and PNG sources in `docs/brand/`, see
+its README). The rule: the desktop window icon is `src/lorewrite/gui/icon.ico` on Windows (pywebview's WinForms
+backend only accepts an `.ico`) and `src/lorewrite/gui/icon.png` everywhere else (`gui/app.py` picks by
+`sys.platform`; both are package data in `pyproject.toml`; `tests/test_packaging_files.py` checks it). The
+installers and bundles use `gui/src-tauri/icons/icon.ico` (Windows), `icon.icns` (macOS) and `icon.png`
+(Linux) plus the sized PNGs beside them. The in-app logo (rail, launch screen) is `gui/src/assets/logo.svg`
+(the `Logo` component; `gui/public/logo.svg` and `favicon.png` are copies). `gui/scripts/make-icons.sh`
+regenerates the PNGs, `.ico` and `.icns` from `gui/src/assets/logo.svg`; it does not write
+`src/lorewrite/gui/icon.ico`, so copy `gui/src-tauri/icons/icon.ico` over it after running it.
 
 Done before that: M1 (editor + links), M1.5 (UX polish), M2 (alias finder), M3 (continuity + Contextual
 Tracker), settings, bracket-free implicit mentions (SPEC §5), AI spend tracking, **M4** (style guide,
@@ -474,7 +486,5 @@ Planned next, in this order (SPEC §14 has the one-line descriptions): character
 character" with an as-of point (use `timeline.scenes_up_to`), local models (Ollama / OpenAI-compatible),
 per-scene summaries and a rolling story-so-far, a timeline view. Until local models land, AI is OpenRouter-only.
 
-Known issue: from source on Windows, `lorewrite-gui` passes `icon.png` to pywebview (`gui/app.py`), whose
-WinForms backend expects an `.ico`; workaround: a small wrapper that omits the icon argument. Not fixed here.
 Known concern: the author is unconvinced by the command palette as the primary UI (SPEC §11b) — the desktop
 GUI is the answer being tried.

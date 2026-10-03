@@ -8,4 +8,5 @@ Two terms changed since they were written: the app is now **Chisel** (the packag
 the name `lorewrite`), and **Unplaced Scenes** is **Parked scenes** in the desktop UI (the folder
 `manuscript/_unplaced/` and the terminal app still say Unplaced).
 
-[packaging.md](packaging.md) describes the current build and release process.
+[packaging.md](packaging.md) describes the current build and release process, including where the icons come
+from. The logo artwork is in [../brand/](../brand/README.md).

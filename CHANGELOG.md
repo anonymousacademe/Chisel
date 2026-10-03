@@ -1,12 +1,16 @@
 # Changelog
 
 All notable changes to Chisel are listed here, newest first. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The last release is 0.3.1; everything below
-is unreleased.
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## 0.4.0 - 2026-10-03
+
 ### Added
+- **A new logo and icons.** Chisel has its own mark, an open book that is half stone with a chisel working
+  on it. It is the window icon, the installer and app icons on every system, the favicon, and the logo in the
+  app and on the README. The artwork is in `docs/brand/`.
 - **Menu-aware AI.** The assistant, Brainstorm and *Describe this scene* now know which character, place,
   object or note you have open. A removable **About:** chip in the assistant header shows it whenever it is
   used; remove the chip and that chat is not about the open item.
@@ -36,6 +40,8 @@ is unreleased.
   sent, instead of failing at the provider.
 
 ### Fixed
+- **Windows window icon crash.** Running `lorewrite-gui` from source on Windows no longer fails to start the
+  window: Windows now gets an `.ico` icon, which is what its window toolkit accepts.
 - Scene and part titles that contain quotes, colons or other TOML-special characters no longer break
   `project.toml`.
 - A rename that is interrupted is rolled back, and leftover `.mv*` files from an earlier interruption are
@@ -50,8 +56,3 @@ is unreleased.
   will not save over them.
 - With AI features, only what the *What was sent* line shows leaves your machine; pictures are never sent;
   the *About:* note is sent only while the chip is on.
-
-### Known issues
-- From source on Windows, `lorewrite-gui` passes a PNG window icon to pywebview, whose Windows backend
-  expects an `.ico`, so the window may fail to start. Workaround: launch through a small wrapper that omits
-  the icon argument. Packaged builds are not expected to be affected, but have not been checked for this.
