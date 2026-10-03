@@ -57,7 +57,7 @@ def main(argv: list[str] | None = None) -> None:
     api._window = window
     if hasattr(api, "on_window_closing"):
         window.events.closing += api.on_window_closing
-    icon = Path(__file__).with_name("icon.png")
+    icon = Path(__file__).with_name("icon.ico" if sys.platform == "win32" else "icon.png")  # WinForms wants an .ico
     webview.start(http_server=args.dev is None, icon=str(icon) if icon.exists() else None)
 
 

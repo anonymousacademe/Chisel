@@ -55,6 +55,16 @@ def test_icons_exist_for_every_os():
         assert (icons / name).is_file()
 
 
+def test_window_icon_matches_the_platform():
+    """pywebview's WinForms backend only accepts an .ico; the other backends take the PNG."""
+    gui = ROOT / "src/lorewrite/gui"
+    assert (gui / "icon.ico").read_bytes()[:4] == b"\x00\x00\x01\x00"   # an ICO header, not a renamed PNG
+    assert (gui / "icon.png").read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+    src = (gui / "app.py").read_text(encoding="utf-8")
+    assert '"icon.ico" if sys.platform == "win32" else "icon.png"' in src
+    assert '"icon.ico"' in (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+
 def _build_module():
     import importlib.util
     spec = importlib.util.spec_from_file_location("lw_build", ROOT / "packaging/build.py")
