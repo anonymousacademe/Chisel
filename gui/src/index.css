@@ -79,6 +79,16 @@ button:disabled { cursor: default; opacity: 0.4; }
 .lw-traffic__dot.is-min { background: var(--lw-traffic-min); }
 .lw-traffic__dot.is-max { background: var(--lw-traffic-max); }
 .lw-traffic__dot:hover { filter: brightness(1.15); }
+/* Windows / Linux: flat buttons flush with the right edge (macOS keeps the dots on the left). */
+.lw-titlebar.is-right-controls { justify-content: flex-start; }
+.lw-titlebar.is-right-controls .lw-titlebar__identity { flex: 1; }
+.lw-wincontrols { display: flex; align-self: stretch; margin: 0 -12px 0 8px; }
+.lw-wincontrols__btn {
+  width: 46px; display: flex; align-items: center; justify-content: center;
+  background: none; border: 0; border-radius: 0; color: var(--lw-text-muted); cursor: default;
+}
+.lw-wincontrols__btn:hover { background: var(--lw-bg-hover, rgba(255, 255, 255, 0.08)); color: var(--lw-text); }
+.lw-wincontrols__btn.is-close:hover { background: var(--lw-traffic-close); color: #fff; }
 .lw-titlebar__identity { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .lw-titlebar__project { font-size: 13px; line-height: 16px; color: var(--lw-text); white-space: nowrap; }
 .lw-titlebar__sep { font-size: 11px; line-height: 13px; color: var(--lw-text-faint); }

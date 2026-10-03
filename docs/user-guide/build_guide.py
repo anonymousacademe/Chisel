@@ -1131,7 +1131,9 @@ the-salt-road/
                                             "activity rail"])
     s.gfigure("fig_gtitle", "titlebar", "The right half of the title bar",
               crop=(0.38, 1.0), width=418)
-    s.p("At the left are three colored dots: close, minimize and maximize. "
+    s.p("On a Mac, three colored dots at the left close, minimize and maximize "
+        "the window; on Windows and Linux the same three buttons are at the "
+        "far right. "
         "Next come the project's title and, after a slash, the open file "
         "(for a scene, //Scene 01 · Rain on the Spur//). The //Draft 2// "
         "badge says which draft of the book this is; click it to start "

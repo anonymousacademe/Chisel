@@ -1,6 +1,7 @@
-import { BookOpen, CloudCheck, CloudUpload, CloudAlert, Search, PanelRight, Ellipsis } from "lucide-react";
+import { BookOpen, CloudCheck, CloudUpload, CloudAlert, Search, PanelRight, Ellipsis, Minus, Square, X } from "lucide-react";
 import { Icon, IconButton } from "./primitives";
 import { api } from "../backend/api";
+import { IS_MAC } from "../data/platform";
 
 import type { SaveState } from "../editor/saveController";
 
@@ -16,12 +17,14 @@ export function TitleBar(props: {
   const SaveIcon = props.saveState === "saved" ? CloudCheck : props.saveState === "conflict" || props.saveState === "error" ? CloudAlert : CloudUpload;
   const saveColor = props.saveState === "saved" ? "var(--lw-success)" : props.saveState === "dirty" || props.saveState === "saving" ? "var(--lw-text-muted)" : "var(--lw-warning)";
   return (
-    <header className="lw-titlebar pywebview-drag-region">
-      <div className="lw-traffic">
-        <button className="lw-traffic__dot is-close" aria-label="Close window" onClick={props.onClose} />
-        <button className="lw-traffic__dot is-min" aria-label="Minimize window" onClick={() => api.minimize()} />
-        <button className="lw-traffic__dot is-max" aria-label="Maximize window" onClick={() => api.toggleMaximize()} />
-      </div>
+    <header className={`lw-titlebar pywebview-drag-region${IS_MAC ? "" : " is-right-controls"}`}>
+      {IS_MAC && (
+        <div className="lw-traffic">
+          <button className="lw-traffic__dot is-close" aria-label="Close window" onClick={props.onClose} />
+          <button className="lw-traffic__dot is-min" aria-label="Minimize window" onClick={() => api.minimize()} />
+          <button className="lw-traffic__dot is-max" aria-label="Maximize window" onClick={() => api.toggleMaximize()} />
+        </div>
+      )}
 
       <div className="lw-titlebar__identity pywebview-drag-region">
         <Icon icon={BookOpen} size={15} stroke={1.7} color="var(--lw-accent-text)" />
@@ -43,6 +46,20 @@ export function TitleBar(props: {
         <IconButton icon={PanelRight} label="Toggle assistant panel" active={props.assistantOpen} onClick={props.onToggleAssistant} />
         <IconButton icon={Ellipsis} label="More" onClick={(e) => props.onMore?.(e.currentTarget)} placeholder={!props.onMore} />
       </div>
+
+      {!IS_MAC && (
+        <div className="lw-wincontrols">
+          <button className="lw-wincontrols__btn" aria-label="Minimize window" title="Minimize" onClick={() => api.minimize()}>
+            <Icon icon={Minus} size={14} stroke={1.5} />
+          </button>
+          <button className="lw-wincontrols__btn" aria-label="Maximize window" title="Maximize" onClick={() => api.toggleMaximize()}>
+            <Icon icon={Square} size={12} stroke={1.5} />
+          </button>
+          <button className="lw-wincontrols__btn is-close" aria-label="Close window" title="Close" onClick={props.onClose}>
+            <Icon icon={X} size={15} stroke={1.5} />
+          </button>
+        </div>
+      )}
     </header>
   );
 }
