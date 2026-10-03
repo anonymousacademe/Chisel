@@ -1,17 +1,21 @@
 # Packaging: installable apps for Windows, macOS and Linux
 
-Plan: [plan-packaging.md](plan-packaging.md). Everything lives in `packaging/`;
+Plan: [plan-packaging.md](plan-packaging.md) (historical). Everything lives in `packaging/`;
 the workflow is `.github/workflows/release.yml`.
+
+Naming: the app is called Chisel, so the desktop executable, the bundle folder, `Chisel.app` and every
+release file are `Chisel*`. The packaging sources keep their old names (`lorewriter.spec`,
+`lorewriter.iss`), and the terminal executable, the package and the commands stay `lorewrite`.
 
 ## What a build contains
 
 PyInstaller (onedir) bundles the Python core, the terminal app and the desktop app.
-One spec (`packaging/lorewriter.spec`, OS branches) makes **two executables** from one
+One spec (`packaging/lorewriter.spec`, OS branches; the file name did not change) makes **two executables** from one
 entry script (`packaging/entry.py`) that share one set of libraries:
 
 | Executable | Starts | Console |
 |---|---|---|
-| `LoreWriter` (`LoreWriter.exe`) | the desktop app (`lorewrite.gui.app`) | none (windowed) |
+| `Chisel` (`Chisel.exe`) | the desktop app (`lorewrite.gui.app`) | none (windowed) |
 | `lorewrite` (`lorewrite.exe`) | the terminal app (`lorewrite.tui.app`) | yes |
 
 The entry script picks by the executable's own name. Bundled data: the built web UI
@@ -22,7 +26,7 @@ and Rich data, tree-sitter grammars, ReportLab data, the TLS roots, keyring back
 | OS | Webview | Package |
 |---|---|---|
 | Windows x64 | WebView2 (EdgeChromium, `pythonnet`) | Inno Setup installer + portable zip |
-| macOS | WKWebView (Cocoa, pyobjc), one build per CPU (arm64 required; x86_64 best effort) | `LoreWriter.app` in a DMG |
+| macOS | WKWebView (Cocoa, pyobjc), one build per CPU (arm64 required; x86_64 best effort) | `Chisel.app` in a DMG |
 | Linux x86-64 | **Qt WebEngine** (PySide6 + qtpy; WebKitGTK cannot be bundled reliably) | AppImage (`AppRun` also starts the terminal app: `--terminal`, or a link named `lorewrite`) |
 
 From-source Linux runs keep using GTK; only the bundle uses Qt (`PYWEBVIEW_GUI=qt`
@@ -31,6 +35,10 @@ is set by `entry.py` on Linux).
 pandoc is not bundled (licence, size); DOCX / EPUB / LaTeX export stay greyed out
 until it is on the PATH. The unused `gui/src-tauri/` is an abandoned alternative shell;
 only its icons are used (`icon.ico`, `icon.icns`, `icon.png`).
+
+Artifacts in `dist/release/`: `Chisel-<version>-windows-setup.exe`, `Chisel-<version>-windows-portable.zip`,
+`Chisel-<version>-macos-arm64.dmg` (and `-x86_64.dmg`), `Chisel-<version>-x86_64.AppImage`, plus the sdist and
+wheel (`lorewriter-<version>...`, the Python package name).
 
 ## The self-test
 
@@ -60,7 +68,7 @@ needs the system libraries QtWebEngine loads (see the `linux` job in the workflo
 downloads `appimagetool` into `build/`; Windows needs Inno Setup (`choco install innosetup`);
 macOS needs nothing extra (`LOREWRITE_TARGET_ARCH=arm64|x86_64` picks the CPU). Headless
 checks: `QT_QPA_PLATFORM=offscreen LOREWRITE_SELFTEST_RENDER=1 python packaging/build.py selftest`,
-and `LoreWriter-*.AppImage --appimage-extract-and-run --terminal --help`. Do not start the
+and `Chisel-*.AppImage --appimage-extract-and-run --terminal --help`. Do not start the
 desktop app from a test script.
 
 ## Cutting a release

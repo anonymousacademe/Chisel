@@ -1,7 +1,12 @@
 # Lorewrite — Design Spec
 
-**Status:** Draft v1 — pending approval before implementation
-**Date:** 2026-09-27
+**Status:** Living design document. Released: 0.3.1; the hardening, menu-aware AI, context-budget and
+story-time work is on the working branch and listed in CHANGELOG.md under Unreleased. See section 14 for
+what is done and what is planned next.
+**Name:** users see the app as **Chisel**. The Python package (`lorewrite`), its commands (`lorewrite`,
+`lorewrite-gui`), the state folders, the `LOREWRITE_*` environment variables and the repository name
+(`lorewriter`) keep the old name on purpose, and so does this document's title.
+**Started:** 2026-09-27
 
 ## 1. Vision
 
@@ -14,7 +19,7 @@ The niche is open: no existing TUI fiction app has wikilinks, and no wikilink to
 1. **Plain text, always.** A project is a folder of UTF-8 Markdown files. Greppable, git-diffable, opens in Obsidian. No database blobs (the #1 praised trait of novelWriter; the #1 complaint about bibisco/Scrivener).
 2. **The index is a cache, never the truth.** All metadata is derivable from the files. The index can be rebuilt from scratch (like novelWriter's F9) and must tolerate external edits (watch files; rebuild on demand).
 3. **AI suggests, never edits.** Links are proposed for accept/reject; lore checks produce a report; expansion only fires where the author placed an explicit marker. (Avoids the main Sudowrite criticism.)
-4. **Minimal machine-readability.** Entity notes are free text plus a small frontmatter block. No forms, no rigid sheets (avoids bibisco/Manuskript form fatigue).
+4. **Minimal machine-readability.** Entity notes are free text plus a small frontmatter block: `name`, `type`, `aliases`, plus any other keys, which are preserved verbatim and in order on every save (`born:` is the first of them; see "Story time"). No forms, no rigid sheets (avoids bibisco/Manuskript form fatigue).
 
 ## 3. Non-goals (v1)
 
@@ -41,7 +46,7 @@ my-novel/
 ├── .snapshots/               # verbatim copies of scenes, one folder per scene (History)
 ├── .comments/                # author notes anchored to passages, one JSON file per scene
 ├── notebook/                 # plain Markdown notes about anything but the manuscript (any subfolders; not entities); was research/
-├── inspiration/              # AI pictures of settings + a .md sidecar each (prompt, scene, notes)
+├── inspiration/              # pictures (AI-made or uploaded) + a .md sidecar each (prompt, `for:` link to any item, notes)
 ├── exports/                  # files written by Export (author's folder; add to .gitignore if unwanted)
 ├── .assistant/chats/         # saved assistant conversations, one JSON file per chat
 └── entities/
@@ -76,7 +81,7 @@ Former navy captain. Green eyes, scar on left cheek. Hates [[Borin]].
 First appears: manuscript/01-arrival.md
 ```
 
-Aliases in frontmatter drive both auto-linking and lore retrieval.
+Aliases in frontmatter drive both auto-linking and lore retrieval. Any other frontmatter key (`born: 2161-03-14`, an Obsidian `tags:`) is kept in `Entity.extra` and written back after the three managed keys, in file order, with values of any YAML type; a note with only managed keys serialises byte-identically to before. YAML *comments* inside the block are not preserved (the block is re-serialised from the parsed mapping).
 
 ## 5. Link syntax (minimal Obsidian subset)
 
@@ -113,6 +118,10 @@ Explicitly deferred: `[[Note#Section]]`, `![[embeds]]`, block refs.
 Rename handling: **Rename everywhere** (§7 "Rename a character everywhere") renames a note, updates its aliases and rewrites the text, as an explicit, previewable, undoable command.
 
 ## 6. App architecture
+
+This is the original M1 sketch, kept for orientation. The current module-by-module layout is in AGENTS.md
+("Repo layout"); later modules include `core/structure.py`, `core/timeline.py`, `ai/budget.py`,
+`ai/relevance.py` and the `gui/` backend.
 
 ```
 lorewrite/
@@ -365,7 +374,7 @@ open and behave exactly as before.*
 - **Scene details** are the scene's own YAML frontmatter (Obsidian-compatible), written only
   when the author sets a field (no field, no block; unknown keys such as `tags:` survive):
   `pov`, `place`, `purpose`, `status` (free text; suggested idea / draft / revising / done),
-  `target` (words), and `collections` (Wave 3.1, below). The `# heading` stays the title.
+  `when` (optional story time, see "Story time"), `target` (words), and `collections` (Wave 3.1, below). The `# heading` stays the title.
   `core/scenemeta.py` parses, edits and blanks the block. It is **not prose**: excluded from
   word counts, spelling, mention scanning, continuity evidence and style sampling — except that
   a `pov` / `place` value naming an entity counts as a mention (backlinks, retrieved context).
@@ -579,6 +588,36 @@ open and behave exactly as before.*
     `# Assistant notes`). It is an ordinary research note afterwards, so the Research action can
     find it again. Nothing is sent anywhere.
 
+### Story time (optional; `core/timeline.py`)
+The author's principle: time metadata is optional and the author's choice. With none, every feature falls
+back to **reading order** and says so; it is never forced and never guessed silently. Nothing reorders the
+book by story time.
+- **A story time** is a year, optionally with month and day: `2187`, `2187-03`, `2187-03-14`; negative and
+  zero years and years past 9999 are fine. It is its own comparable type (`StoryTime`), not a `datetime`
+  (months 1-12, days 1-31, nothing stricter, so invented calendars work); a missing month or day sorts before a
+  known one in the same year. A value that is not a story time is kept as text and reported ("not a story time").
+- **`when:`** in the scene details frontmatter (a bare year is written as a YAML number). Not prose: it is
+  stripped/blanked like the other keys, and (unlike `pov` / `place`) never a mention; the AI `SCENE DETAILS`
+  header does not include it. **Inheritance:** a scene without `when:` has the story time of the previous
+  scene in reading order that has one; scenes before the first explicit one have none. An invalid `when:` is
+  flagged, not explicit, and does not start inheritance.
+- **`born:`** in a character note's frontmatter (same grammar). The age at a story time is the whole years
+  between them (month and day count only when both are known); before the birth there is no age (reason
+  "before birth"), never a negative one.
+- **`[timeline]`** in `project.toml` (optional): `era = ""` (a label shown after years, "AE") and
+  `unit = "year"` (the only unit for now). A hand-written bad value reads as the default.
+- **Mode:** `timeline.mode(project)` is `chronological` when at least one book scene has an explicit valid
+  `when:` ("Using story time from N scenes"), else `reading-order` ("No story times set; using reading order").
+  `timeline.scenes_up_to(project, scene_id)` is the single door for "as of" filtering: by story time (scenes with
+  an earlier time, and equal-time scenes up to the target in reading order) in chronological mode, else by reading
+  order; it returns the mode used and the undated scenes it placed by reading order. Parked scenes are never in it.
+  `timeline.parse_fact_tags` recognises `(age 12)`, `(from age 15)`, `(until age 20)`, `(from 2185)`,
+  `(until 2190-06)` at the end of a canon line (not wired into any AI yet).
+- **GUI:** a *Story time* field in the scene details (faint "inherits 2187" hint, flagged when invalid), the mode
+  sentence under it, a *Born* field and an "age N at 2189 (this scene)" line in the Notes tab for characters
+  (`set_entity_born`, `check_story_time`, `get_entity(name, scene_id)`; scene summaries carry `when`, the workspace
+  `timeline`). **Terminal:** the details form has the field. There is no timeline view yet.
+
 ### Rename a character everywhere ✅ (feedback batch 2; plan: docs/dev/plan-feedback-2026-10.md)
 Deterministic (no AI). Core `core/rename.py`; GUI: Notes tab -> **Rename everywhere...**; terminal palette:
 `Entity · Rename everywhere...` (the open note, or the name under the cursor) and `Entity · Undo last rename`.
@@ -769,7 +808,7 @@ both edit the same plain-Markdown projects.
 
 ## 8. Cost & key management
 
-- BYOK via OpenRouter; `keyring` storage (Secret Service on Linux), config-file fallback `chmod 600`, env var for dev
+- BYOK via OpenRouter (today the only provider; local and OpenAI-compatible endpoints are planned, section 14); `keyring` storage (Secret Service on Linux), config-file fallback `chmod 600`, env var for dev
 - Estimated hobbyist cost at 2–5k words/day with all AI features: **~$1.50–3.00/month** mid-tier, <$10–15 on premium models
 - Model slugs resolved from `/api/v1/models` at runtime, never hardcoded (catalog churns). Settings has a **Choose…** picker per model field: filterable list of the live catalog (name, id, $/M in/out, context), limited to models with `structured_outputs` for the fast/strong fields (their calls require a strict JSON schema), the whole catalog for the writing field (drafting is plain text); fetched once per session, free-text slug entry still works offline
 - **Three model roles**: `fast` (alias finding), `strong` (continuity, story bible), `writing` (drafting, rewrites, style guide). Precedence per role: `project.toml [ai] <role>_model` > user setting `<role>_model` > built-in default. The writing model is a user choice, not hardcoded.
@@ -851,3 +890,31 @@ bundle uses pywebview's Qt backend (QtWebEngine); everything else uses the syste
 now. `lorewrite-gui --self-test` / `lorewrite --self-test` check the bundled data with no window and no
 network and are run on every built bundle. The version has a single source (`lorewrite.__version__`).
 Details: docs/dev/packaging.md.
+
+## 14. Roadmap and status
+
+Done (see the sections named for details; the user-visible list is in CHANGELOG.md):
+- M1 to M4, the desktop GUI, the workspace waves, inspiration images, M7 export, installable apps.
+- Hardening: TOML-safe titles, rename rollback and recovery of `.mv*` files, Unicode-aware entity slugs and
+  name matching (curly quotes included), alias hijack protection, length caps, and files that are not valid
+  UTF-8 open but are never overwritten.
+- The app is called Chisel in everything the user reads (not in commands, packages or folders).
+- Menu-aware AI: the open item is the assistant's subject (the removable "About:" chip, `subject_id`);
+  pictures link to any item (`for:`) and can be uploaded (JPG / PNG / WebP, 10 MB); *Parked scenes* is the
+  desktop name for the Unplaced folder.
+- Context budget and the "What was sent" report (`ai/budget.py`, `ai/relevance.py`), optional `context_window`.
+- Entity frontmatter round trip and optional story time (`core/timeline.py`).
+
+Planned next, in this order (no dates; each is designed before it is built):
+1. **Character relationships**: a `## Relationships` section in character notes, derived inverses, AI
+   suggestions and continuity checks.
+2. **Talk as a character**: a persona chat with an as-of point; it never sends scenes later than that story
+   time (via `timeline.scenes_up_to`) and is labelled as an AI simulation.
+3. **Local models**: Ollama and OpenAI-compatible endpoints (provider and base URL, optional key,
+   structured-output fallback, privacy copy).
+4. **Per-scene summaries** and a rolling story-so-far, used by the budget as compact context.
+5. **A timeline view** of scenes by story time.
+
+Known issue: on Windows, a from-source `lorewrite-gui` passes `icon.png` to pywebview, whose WinForms backend
+loads the icon with `System.Drawing.Icon` (expects `.ico`). Workaround: launch through a small wrapper that
+omits the icon argument. Packaged builds are not covered by this note.

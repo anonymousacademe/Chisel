@@ -398,7 +398,7 @@ class Cover(Flowable):
         # title block
         c.setFillColor(INK)
         c.setFont("Sans-Bold", 46)
-        c.drawString(0, h * 0.60, "Lorewrite")
+        c.drawString(0, h * 0.60, "Chisel")
         c.setFont("Sans", 20)
         c.drawString(0, h * 0.60 - 34, "User's Guide and Reference")
         c.setLineWidth(1.4)
@@ -454,6 +454,21 @@ def build_story(st) -> list:
         "correct edition for the level of the product. The version number "
         "is shown in the title bar of the terminal application's main "
         "window and at the top of its launch screen.",
+        style="notice")
+    s.p("This book was written for Version 0.2.0, when the program was "
+        "called Lorewrite. The program is now called //Chisel//: where the "
+        "text says Lorewrite, read Chisel. Commands, folder names and "
+        "settings are unchanged (`lorewrite`, `lorewrite-gui`). In the "
+        "desktop application, //Unplaced Scenes// is now called //Parked "
+        "scenes// (the terminal application and the `_unplaced` folder keep "
+        "the old name). Later releases also added: the //About// chip, "
+        "which tells the assistant which open item you are asking about; "
+        "pictures linked to any item and picture upload; the //What was "
+        "sent// report under every AI result; relevance filtering and a "
+        "size check before an AI request is sent; and optional story time "
+        "(`when:` in scene details, `born:` in a character note). See "
+        "CHANGELOG.md in the repository for the full list; a later edition "
+        "will describe them in the chapters.",
         style="notice")
     s.p("Changes are made periodically to the information herein. Where this "
         "book and the program disagree, the program is right; please report "
@@ -610,10 +625,11 @@ def build_story(st) -> list:
         "depend on your theme; figures of the desktop application are "
         "printed in shades of gray.")
     s.h2("Names and Terms")
-    s.p("The program is called Lorewrite; its commands are `lorewrite` "
-        "(terminal) and `lorewrite-gui` (desktop). The desktop window and "
-        "its assistant call themselves //Chisel//; it is the same "
-        "program. A //project// is one book: a folder of plain files. The "
+    s.p("The program is called Chisel (this edition calls it Lorewrite "
+        "in most places; see the Edition Notice); its commands are "
+        "`lorewrite` (terminal) and `lorewrite-gui` (desktop). The desktop "
+        "window and its assistant call themselves //Chisel//; it is the "
+        "same program. A //project// is one book: a folder of plain files. The "
         "Glossary at the back defines the other terms.")
 
     # ------------------------------------------------------------ changes

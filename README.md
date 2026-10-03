@@ -45,13 +45,14 @@ or both.
 - Parts (folders), scenes, *Parked scenes* for scenes you wrote but kept out
   of the book, and a Trash: deleting always moves to `.trash/`.
 - Collections ("Needs continuity pass", "Mara's arc"), scene details (POV, place,
-  status, word target) as YAML frontmatter, comments on passages (kept beside the
+  status, word target, and an optional story time with characters' birth years for ages;
+  leave it blank and everything uses reading order) as YAML frontmatter, comments on passages (kept beside the
   scene, never in the prose), notebook notes, and snapshots with a word-by-word
   comparison and restore.
 - Optional git sync that runs only when you click: commit, push (never forced,
   asks first) and init. Without git installed, nothing shows.
 
-**AI, always review-gated** (OpenRouter)
+**AI, always review-gated** (OpenRouter today; local models are planned)
 - *Alias finder*: finds other ways your prose refers to known characters ("the
   old smith") and offers them as aliases.
 - *Continuity check* and *story-bible updates*: flags contradictions with canon.
@@ -60,7 +61,11 @@ or both.
   rewrite a selection. Results are pending drafts you accept or reject.
 - *Assistant chat* with attachments (scenes, notes, notebook notes, your comments),
   *Ask my notebook* questions answered from your own notes, *Brainstorm*, and
-  *Inspiration images* for reference while you write.
+  *Inspiration images* for reference while you write. The assistant knows which
+  character, place or note you have open, shows it as a removable **About:** chip,
+  and a **What was sent** line shows what every request carried.
+- *Pictures* (generated or uploaded: JPG, PNG, WebP up to 10 MB) can be linked to
+  any scene, character, place or note. They are reference only and never sent to an AI.
 
 **Export**
 - A typeset PDF book, a double-spaced manuscript-review PDF with line numbers, a
@@ -210,12 +215,12 @@ my-novel/
 ├── manuscript/
 │   ├── 01-opening.md     # scenes, numbered; reorder in the app
 │   ├── 03-the-recall/    # a folder is a part (title in _part.md)
-│   └── _unplaced/        # written, but not in the book
+│   └── _unplaced/        # Parked scenes: written, but not in the book
 ├── entities/
 │   ├── characters/elara-vance.md   # free-text note + YAML frontmatter
-│   └── places/thornwick.md         #   (name, type, aliases)
+│   └── places/thornwick.md         #   (name, type, aliases; other keys such as born: are kept)
 ├── notebook/             # your Notebook: notes about anything (plain Markdown, any subfolders; was research/)
-├── inspiration/          # pictures, each with a .md sidecar (prompt, notes)
+├── inspiration/          # pictures, each with a .md sidecar (prompt, notes, link to an item)
 ├── exports/              # files you exported
 ├── style.md              # your learned style guide (editable)
 ├── dictionary.txt        # words to accept in spell check
@@ -241,17 +246,35 @@ A SQLite index under `.lorewrite/` powers backlinks. It is a rebuildable cache
   name any note that did not fit and was left out or shortened); the terminal app adds a one-line summary to
   each AI notification. For a long book, only the notes of the characters and places a scene is about are sent,
   and a request too big for the model's context window is refused before anything leaves your machine.
+- With AI features, only what the **What was sent** line shows is sent. When the
+  **About:** chip is on, the text of that open note is sent with your request;
+  remove the chip and it is not.
 - Never sent: scenes you did not open or attach, your comments (unless you attach
-  them), unaccepted AI text as if it were your prose, scene details frontmatter as
-  text, and your spelling dictionaries. Spell check, stats and search are fully local.
+  them), pictures (generated or uploaded; images are never sent), unaccepted AI text
+  as if it were your prose, scene details frontmatter as text, and your spelling
+  dictionaries. Spell check, stats and search are fully local.
 - The only other network request is the public OpenRouter model catalogue, fetched
   when you open a model picker.
+
+## Status and known issues
+
+Chisel is pre-1.0: formats and
+screens can still change. Your files are plain Markdown, so you are never locked in. The name changed
+from LoreWriter to Chisel; commands, folders and settings keep the old `lorewrite` name. Next on the
+roadmap (see [SPEC.md](SPEC.md)): character relationships, talking as a character, local models,
+per-scene summaries and a timeline view.
+
+Known issues:
+- **Windows, from source:** `lorewrite-gui` passes a PNG icon to pywebview, whose Windows backend
+  expects an `.ico`, so the window may not open. Workaround: launch via a small wrapper that omits
+  the icon argument. The installers are not expected to be affected.
 
 ## Documentation
 
 - **User's Guide** (PDF with screenshots): attached to each
   [GitHub Release](https://github.com/anonymousacademe/lorewriter/releases).
   Its sources are in [docs/user-guide/](docs/user-guide/).
+- [CHANGELOG.md](CHANGELOG.md): what changed, in plain words.
 - [SPEC.md](SPEC.md): the design document and roadmap.
 - [examples/README.md](examples/README.md): things to try in the sample project.
 - [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md): working on the code.

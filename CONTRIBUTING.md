@@ -30,7 +30,10 @@ AI calls are mocked at the function boundary — never call a real model in a te
 1. **Plain text, always.** A project is a folder of Markdown; no database blobs.
 2. **The index is a cache.** The SQLite index can be rebuilt; the files are the truth.
 3. **AI suggests, never edits.** Every AI feature ends in an accept/reject step.
-4. **Entity notes** are free text plus minimal YAML frontmatter (name, type, aliases).
+4. **Entity notes** are free text plus minimal YAML frontmatter (name, type, aliases; any other keys are kept as written).
+
+Naming: the app is called Chisel in anything a user reads. The package (`lorewrite`), its commands,
+state folders, `LOREWRITE_*` variables and the repository name stay as they are.
 
 Also: project logic lives in `core/` and `ai/` (pure Python, no UI), and both front ends
 use it. The desktop UI never re-implements logic in TypeScript.
@@ -39,7 +42,8 @@ use it. The desktop UI never re-implements logic in TypeScript.
 
 - Read [AGENTS.md](AGENTS.md): it lists the fragile spots and conventions in detail.
 - Keep the change small and in the style of the code around it; add or update tests.
-- Update [SPEC.md](SPEC.md) when you change design or behaviour.
+- Update [SPEC.md](SPEC.md) when you change design or behaviour, and add a line to
+  [CHANGELOG.md](CHANGELOG.md) under Unreleased for anything a user would notice.
 - Do not commit personal data: real names, home paths or e-mail addresses.
 - No emojis in the UI or the docs.
 

@@ -1,11 +1,17 @@
 # AGENTS.md — guide for AI assistants working on lorewrite
 
+Naming: the app is called **Chisel** wherever a user reads it (UI, README, installers, guide). The package
+`lorewrite`, the commands `lorewrite` / `lorewrite-gui`, state folders, `LOREWRITE_*` variables and the repo
+name `lorewriter` are unchanged on purpose; keep it that way. Packaging files are still named
+`lorewriter.spec` / `lorewriter.iss`; the artifacts they build are `Chisel-*`.
+
 Read this before changing anything. [SPEC.md](SPEC.md) is the source of truth
 for design; this file is the operational guide.
 
 ## Project in one paragraph
 
-lorewrite is a terminal fiction-writing app (Python 3.11+, Textual). Scenes
+lorewrite (shown to users as Chisel) is a fiction-writing app with a terminal front end (Python 3.11+,
+Textual) and a desktop front end (pywebview + React) over the same core. Scenes
 are plain Markdown files; characters/places are Markdown notes with small YAML
 frontmatter; `[[wiki-links]]` connect them; a SQLite index (a rebuildable
 cache, never the truth) powers backlinks; AI features go through OpenRouter
@@ -25,6 +31,9 @@ src/lorewrite/
     snapshots.py        # .snapshots/: create/list/restore/delete, daily auto, word diff
     sync.py             # optional git: status (read-only), commit, push, init — explicit only
     scenemeta.py        # scene details = YAML frontmatter: find/strip/blank/set_details
+    timeline.py         # optional story time: StoryTime, scene_times, mode, scenes_up_to, age_at, fact tags
+    continuity.py       # continuity flags/waivers shared by both front ends
+    spans.py            # UTF-16 <-> code point offsets for the GUI bridge
     index.py            # SQLite backlink index; no-ops after close()
     recents.py          # recent projects; state dir = platformdirs (Linux ~/.local/state/lorewrite); LOREWRITE_STATE_DIR env override
     soundpacks.py       # typing-sound packs + ambience loops in the user DATA dir (LOREWRITE_DATA_DIR in tests); zip import/export validation
@@ -41,13 +50,15 @@ src/lorewrite/
     chats.py            # saved assistant chats: .assistant/chats/<id>.json
     attach.py           # chat attachments (scene/note/research(=notebook)/comments), capped and reported
     stats.py            # writing stats/streak/sprints: Tracker, state dir stats/<project-id>.json
-    inspiration.py      # inspiration/ pictures + .md sidecars: save/list/update/pin, `for:` link remap
+    inspiration.py      # inspiration/ pictures + .md sidecars: save/list/update/pin, `for:` link (any item), sniff_ext, remap_links / remap_paths
     rename.py           # rename an entity everywhere: plan (read-only) / apply (snapshots first) / undo
     export/             # M7: manuscript.py (assemble -> Book), layouts/ (PDF: book, manuscript, plain),
                         #   pdfkit.py (fonts), markdown.py, pandoc.py, __init__.py (run_export, options)
   ai/
     client.py           # OpenRouter via openai SDK; keyring/env key resolution
     links.py            # alias finder (ctrl+l): prompt, schema, validate (never edits text)
+    continuity.py       # continuity check + canon (story-bible) proposals: plan_check / plan_canon
+    stream.py           # streaming text calls, CancelToken, Cancelled
     usage.py            # AI spend ledger (usage.cost) -> status bar
     style.py            # learn a style guide from sampled prose
     writing.py          # draft / expand / rewrite: context builder + plain-text generate
@@ -58,8 +69,9 @@ src/lorewrite/
     api.py              # Api: JSON bridge (every method -> {ok,...}); facade() = js_api
     workspace.py        # Project -> Workspace JSON for the React UI
     devserver.py        # headless: built UI (gui/web/, see webroot.py) + POST /api/<method> (+ --mock-ai)
+    aijobs.py           # AI jobs for ai_start / ai_poll / ai_cancel (Stop)
     mockai.py           # canned AI for screenshots/demos (never the real app)
-    inspiration.py      # bridge helpers for the inspiration images (rows, data URLs, save batch)
+    inspiration.py      # bridge helpers for the pictures (rows, data URLs, save batch, upload: save_upload; byte sniffing is core/inspiration.sniff_ext)
     app.py              # lorewrite-gui: pywebview window
     webroot.py          # finds the built UI: package web/ first, then repo gui/dist
     exports.py          # export worker-thread jobs (export_start / export_status)
@@ -73,11 +85,17 @@ src/lorewrite/
     stylereview.py promptscreen.py tour.py theme.py
     exportscreen.py (Export manuscript form)
 gui/                    # React/TS front end (see gui/README.md); src-tauri/ is unused
-packaging/              # PyInstaller spec, build.py, Inno Setup script (see docs/dev/packaging.md)
+  src/components/SentReport.tsx   # the "What was sent" disclosure (data/sent.ts)
+  src/data/subject.ts             # the "About:" chip: subjectOf + the subject_id payload
+  src/data/storyTime.ts           # story-time display helpers (parsing stays in Python)
+packaging/              # PyInstaller spec, build.py, Inno Setup script (see docs/dev/packaging.md); the files
+                        #   are still named lorewriter.spec / lorewriter.iss, their output is Chisel-*
+CHANGELOG.md            # user-facing changes; add a line under Unreleased with every user-visible change
 .github/workflows/      # ci.yml (tests), release.yml (installers, draft release on a v* tag)
 tests/                  # pytest; asyncio_mode=auto; Pilot for TUI tests
-docs/dev/               # internal design history: plan-*.md (one per feature wave),
-                        # specification-guide.md, ux-review-glm.md (source of the M1.5 polish)
+docs/dev/               # internal design history: plan-*.md (one per feature wave, historical: written when
+                        # the app was called LoreWriter), specification-guide.md, ux-review-glm.md; README.md
+                        # explains this. packaging.md is current.
 docs/user-guide/        # sources + build scripts of the User's Guide (the PDF is a Release asset)
 docs/screenshots/       # README images
 requirements*.txt       # run / dev dependencies for a source checkout (pyproject mirrors them)
@@ -109,7 +127,7 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
 1. Plain text, always — a project is a folder of Markdown; no database blobs.
 2. The index is a rebuildable cache (`f9`); files are the truth.
 3. AI suggests, never edits — every AI feature ends in an accept/reject UI.
-4. Entity notes = free text + minimal YAML frontmatter (name, type, aliases).
+4. Entity notes = free text + minimal YAML frontmatter (name, type, aliases, plus any other keys kept verbatim).
 
 ## Fragile spots — read before touching
 
@@ -305,6 +323,24 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   `drafts.count_words` already strips it. In the GUI the editor hides it (`sceneFrontmatter`
   in `editor/spans.ts` mirrors `scenemeta.find`; keep them in step) and Python returns the
   edit for it (`set_scene_details`), never TypeScript.
+- **Entity frontmatter round trip** (`core/entities.py`). `Entity.extra` holds every key other than
+  name/type/aliases (any YAML type, file order) and `to_markdown` writes it back after them; a note with
+  only managed keys serialises byte-identically. Every path that rebuilds an Entity from a note must go
+  through `from_markdown` (or keep `extra`): `save_entity`, `add_alias`, `apply_canon_update`, rename's note
+  rewrite, `set_entity_born`. Never construct `Entity(name=..., aliases=...)` to overwrite an existing note.
+  YAML comments inside the block are not preserved (documented, accepted). Malformed frontmatter reads as
+  empty, as before.
+- **Story time is optional** (`core/timeline.py`; SPEC "Story time"). `when:` (scene frontmatter) and `born:`
+  (entity frontmatter) are a year, optional month and day, as `StoryTime(year, month|None, day|None)`: never a
+  `datetime` (years past 9999 and negative ones must work; missing month/day sorts first). A scene without
+  `when:` inherits the previous scene's in READING ORDER (`list_scenes`, no Parked scenes); before the first
+  explicit one it has none. With no story times anywhere every feature falls back to reading order **and says
+  so** (`timeline.mode(...).sentence`); never sort or reorder the book by story time and never guess silently
+  (invalid values are kept as text and flagged). `timeline.scenes_up_to` is the single door for "as of"
+  filtering (a later "talk as a character" feature must use it and show the mode it returns). `when` is
+  stripped/blanked like the other scene details and is not in `MENTION_FIELDS`; do not add it to the AI
+  `scenemeta.header` without a decision. The GUI only displays what Python resolves (`when` on scene
+  summaries, `timeline` on the workspace, `ageNow`); parsing stays in Python (`check_story_time`).
 - **Pending AI drafts live in the scene file** as `<!--ai-->…<!--/ai-->`
   comments (`core/drafts.py`); text a draft replaced is in the sidecar
   `.drafts/<scene>.json` (author data, moved/deleted with the scene; reject
@@ -420,15 +456,25 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
 
 ## Current state
 
-Everything below is on `main`: M1 (editor + links), M1.5 (UX polish), M2 (alias finder),
-M3 (continuity + Contextual Tracker), settings, bracket-free implicit mentions (SPEC §5),
-AI spend tracking, **M4** (style guide, `ctrl+g` draft/expand/rewrite, pending AI drafts;
-docs/dev/plan-m4-ai-writing.md), the **desktop GUI** (pywebview + React over the same core;
-docs/dev/plan-gui.md), spell check (both front ends), the **workspace waves** (parts, Unplaced
-Scenes, Trash, scene details, snapshots, drafts, git sync, collections, comments, research
+Released: 0.3.1. On the working branch since then (see CHANGELOG.md, Unreleased): hardening of file handling
+and names, the rename of the app to Chisel in user-facing text, menu-aware AI (the "About:" chip), pictures
+linked to any item and picture upload, *Parked scenes* (desktop name of the Unplaced folder), the context
+budget with the "What was sent" report, entity frontmatter round trip, and optional story time.
+
+Done before that: M1 (editor + links), M1.5 (UX polish), M2 (alias finder), M3 (continuity + Contextual
+Tracker), settings, bracket-free implicit mentions (SPEC §5), AI spend tracking, **M4** (style guide,
+`ctrl+g` draft/expand/rewrite, pending AI drafts; docs/dev/plan-m4-ai-writing.md), the **desktop GUI**
+(pywebview + React over the same core; docs/dev/plan-gui.md), spell check, the **workspace waves** (parts,
+Parked/Unplaced scenes, Trash, scene details, snapshots, drafts, git sync, collections, comments, notebook
 notes, assistant chats, session stats and focus sprints, Brainstorm; docs/dev/plan-workspace.md),
-**inspiration images** (docs/dev/plan-inspiration.md) and **M7 export** (PDF / DOCX / EPUB /
-LaTeX / Markdown; docs/dev/plan-export.md). The public release work is in
-docs/dev/plan-release.md (Phase A: licence, packaging, portability, docs, CI).
-Known concern: the author is unconvinced by the command palette as the primary UI
-(SPEC §11b) — the desktop GUI is the answer being tried.
+**inspiration images** (docs/dev/plan-inspiration.md), **M7 export** (docs/dev/plan-export.md) and the public
+release work (docs/dev/plan-release.md; installers, CI).
+
+Planned next, in this order (SPEC §14 has the one-line descriptions): character relationships, "talk as a
+character" with an as-of point (use `timeline.scenes_up_to`), local models (Ollama / OpenAI-compatible),
+per-scene summaries and a rolling story-so-far, a timeline view. Until local models land, AI is OpenRouter-only.
+
+Known issue: from source on Windows, `lorewrite-gui` passes `icon.png` to pywebview (`gui/app.py`), whose
+WinForms backend expects an `.ico`; workaround: a small wrapper that omits the icon argument. Not fixed here.
+Known concern: the author is unconvinced by the command palette as the primary UI (SPEC §11b) — the desktop
+GUI is the answer being tried.
