@@ -811,11 +811,12 @@ both edit the same plain-Markdown projects.
 
 ## 8. Cost & key management
 
-- BYOK via OpenRouter (today the only provider; local and OpenAI-compatible endpoints are planned, section 14); `keyring` storage (Secret Service on Linux), config-file fallback `chmod 600`, env var for dev
-- Estimated hobbyist cost at 2–5k words/day with all AI features: **~$1.50–3.00/month** mid-tier, <$10–15 on premium models
-- Model slugs resolved from `/api/v1/models` at runtime, never hardcoded (catalog churns). Settings has a **Choose…** picker per model field: filterable list of the live catalog (name, id, $/M in/out, context), limited to models with `structured_outputs` for the fast/strong fields (their calls require a strict JSON schema), the whole catalog for the writing field (drafting is plain text); fetched once per session, free-text slug entry still works offline
+- BYOK via OpenRouter, plus **local models** (Ollama and any OpenAI-compatible server) on the author's own computer; `keyring` storage (Secret Service on Linux), config-file fallback `chmod 600`, env var for dev
+- **Local models**: a model slug prefixed `local:` (`local:llama3.1`) runs on the OpenAI-compatible server at the `local_base_url` setting (default `http://127.0.0.1:11434/v1`, Ollama); no key. Pickers list what is installed (`GET {base}/models`, plus Ollama `/api/show` for the context window); nothing is sent anywhere and local calls cost nothing (the ledger records tokens, never cost). OpenRouter-only request fields (`usage.include`, `provider.require_parameters`) are skipped for local calls; picture generation stays OpenRouter-only
+- Estimated hobbyist cost at 2–5k words/day with all AI features: **~$1.50–3.00/month** mid-tier, <$10–15 on premium models; local models are free
+- Model slugs resolved from `/api/v1/models` at runtime, never hardcoded (catalog churns). Settings has a **Choose…** picker per model field: filterable list of the live catalog (name, id, $/M in/out, context), limited to models with `structured_outputs` for the fast/strong fields (their calls require a strict JSON schema), the whole catalog for the writing field (drafting is plain text); the picker can switch source to the installed local models (`ctrl+l` in the terminal app); fetched once per session, free-text slug entry still works offline
 - **Three model roles**: `fast` (alias finding), `strong` (continuity, story bible), `writing` (drafting, rewrites, style guide). Precedence per role: `project.toml [ai] <role>_model` > user setting `<role>_model` > built-in default. The writing model is a user choice, not hardcoded.
-- Per-call cost tracked from `usage.cost` (requests send `usage: {include: true}`) in a session ledger (`ai/usage.py`) and shown in the status bar (`AI $0.0123`) and in each AI call's notification — AI spend is always visible
+- Per-call cost tracked from `usage.cost` (requests send `usage: {include: true}`) in a session ledger (`ai/usage.py`) and shown in the status bar (`AI $0.0123`) and in each AI call's notification — AI spend is always visible (local calls report no cost)
 
 ## 9. Testing strategy
 
@@ -926,7 +927,9 @@ Planned next, in this order (no dates; each is designed before it is built):
    suggestions and continuity checks.
 2. **Talk as a character**: a persona chat with an as-of point; it never sends scenes later than that story
    time (via `timeline.scenes_up_to`) and is labelled as an AI simulation.
-3. **Local models**: Ollama and OpenAI-compatible endpoints (provider and base URL, optional key,
-   structured-output fallback, privacy copy).
+3. ~~**Local models**~~ (? implemented 2026-10-03; plan: docs/dev/plan-local-models.md): Ollama and
+   OpenAI-compatible endpoints via the `local:` model-slug prefix and the `local_base_url` setting;
+   the pickers list what is installed; OpenRouter-only request fields are skipped; picture
+   generation stays OpenRouter-only for now.
 4. **Per-scene summaries** and a rolling story-so-far, used by the budget as compact context.
 5. **A timeline view** of scenes by story time.

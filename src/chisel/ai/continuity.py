@@ -22,7 +22,7 @@ from ..core.jev_interface import pre_screen
 from ..core.entities import Entity
 from . import relevance
 from .budget import Budget, Item, Section, SentReport, fit, preflight, render, trim
-from .client import usage_extra_body
+from .client import openrouter_extra_body
 from .usage import record_response
 
 CONTRADICTION_SCHEMA = {
@@ -248,7 +248,7 @@ def check_scene(
     if client is None:
         from .client import make_client
 
-        client = make_client()
+        client = make_client(model)
     response = client.chat.completions.create(
         model=model,
         messages=[
@@ -266,7 +266,7 @@ def check_scene(
                 "schema": CONTRADICTION_SCHEMA,
             },
         },
-        extra_body=usage_extra_body({"provider": {"require_parameters": True}}),
+        extra_body=openrouter_extra_body({"provider": {"require_parameters": True}}, model=model),
     )
     record_response(response, model, "continuity")
     raw = response.choices[0].message.content or ""
@@ -401,7 +401,7 @@ def propose_canon_updates(
     if client is None:
         from .client import make_client
 
-        client = make_client()
+        client = make_client(model)
     response = client.chat.completions.create(
         model=model,
         messages=[
@@ -416,7 +416,7 @@ def propose_canon_updates(
                 "schema": ACCUMULATION_SCHEMA,
             },
         },
-        extra_body=usage_extra_body({"provider": {"require_parameters": True}}),
+        extra_body=openrouter_extra_body({"provider": {"require_parameters": True}}, model=model),
     )
     record_response(response, model, "canon")
     raw = response.choices[0].message.content or ""

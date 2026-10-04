@@ -6,6 +6,7 @@ import type {
 } from "./data/types";
 import { collectExpanded, isOpenable } from "./data/tree";
 import { SaveController, type SaveState } from "./editor/saveController";
+import { installWindowDrag } from "./windowDrag";
 import type { Card, CursorInfo, SpellTarget } from "./editor/cm";
 import type { Span } from "./editor/spans";
 import { TitleBar } from "./components/TitleBar";
@@ -99,6 +100,11 @@ export default function App() {
   const gotoRow = useRef<number | null>(null);
   const docRef = useRef<DocumentPayload | null>(null);
   useEffect(() => { docRef.current = doc; });
+
+  // the frameless window is dragged by the OS, not per-mousemove (Windows)
+  useEffect(() => {
+    installWindowDrag();
+  }, []);
 
   const refresh = useCallback(async () => {
     const r = await api.getWorkspace();

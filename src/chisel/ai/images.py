@@ -24,7 +24,7 @@ import re
 
 from ..core import inspiration as store
 from ..core import settings as user_settings
-from .client import usage_extra_body
+from .client import is_local, openrouter_extra_body, usage_extra_body
 from .usage import record_response
 
 DEFAULT_STYLE = "cinematic, atmospheric, no text, no watermark"
@@ -138,13 +138,17 @@ def generate(prompt: str, model: str, client=None, style: str | None = None) -> 
     appended; *style* overrides the setting). Synchronous - run it off the UI
     thread. Records the cost as feature ``image``. Raises ImageError when the
     reply holds no usable picture (the message carries what the model said)."""
+    if is_local(model):
+        raise ImageError(
+            "Picture generation needs an OpenRouter image model; local servers "
+            "do not generate images.")
     sent = full_prompt(prompt, style)
     if not sent:
         raise ImageError("describe the picture first")
     if client is None:
         from .client import make_client
 
-        client = make_client()
+        client = make_client(model)
     response = client.chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": sent[:PROMPT_MAX]}],
@@ -201,14 +205,14 @@ def suggest_prompt(scene_context: str, model: str, client=None) -> str:
     if client is None:
         from .client import make_client
 
-        client = make_client()
+        client = make_client(model)
     response = client.chat.completions.create(
         model=model,
         messages=[
             {"role": "system", "content": DESCRIBE_SYSTEM_PROMPT},
             {"role": "user", "content": build_description_request(scene_context)},
         ],
-        extra_body=usage_extra_body(),
+        extra_body=openrouter_extra_body(model=model),
     )
     record_response(response, model, "image-prompt")
     text = clean_prompt(_reply_text(response.choices[0].message) if response.choices else "")

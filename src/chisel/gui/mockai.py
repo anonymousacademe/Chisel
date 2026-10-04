@@ -129,6 +129,12 @@ def install(api_module) -> None:
             return images
         return models if not structured_only else models[:2]
 
+    def list_local_models(base_url=None, timeout=5.0):
+        return [
+            ModelInfo("local:mockwriter", "mockwriter", None, None, 8192),
+            ModelInfo("local:mockfast", "mockfast", None, None, None),
+        ]
+
     def suggest_links(scene_text, entities, model):
         _pause(1.5)
         _spend("links")
@@ -242,6 +248,7 @@ def install(api_module) -> None:
     api_module._set_api_key = lambda k: keys.__setitem__("key", k)
     api_module._clear_api_key = lambda: keys.pop("key", None)
     api_module._list_models = list_models
+    api_module._list_local_models = list_local_models
     api_module.suggest_links = suggest_links
     api_module.check_scene = check_scene
     api_module.propose_canon_updates = propose_canon_updates

@@ -273,6 +273,56 @@ async def test_settings_writing_model_round_trip(tmp_path: Path):
         assert app.screen.query_one("#writing-model", Input).value == "vendor/prose-1"
 
 
+async def test_settings_local_base_url_round_trip_and_validation(tmp_path: Path):
+    from chisel.ai.client import DEFAULT_LOCAL_BASE_URL
+
+    user_settings.set("local_base_url", "http://127.0.0.1:9999/v1")
+    app = ChiselApp(_project(tmp_path, "l", "L"))
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.action_settings()
+        await pilot.pause()
+        field = app.screen.query_one("#local-base-url", Input)
+        assert field.value == "http://127.0.0.1:9999/v1"
+        field.value = "not a url"
+        await pilot.click("#save")
+        await pilot.pause()
+        assert user_settings.get("local_base_url") == "http://127.0.0.1:9999/v1"  # kept, not saved
+        app.push_screen(SettingsScreen(app.project))
+        await pilot.pause()
+        app.screen.query_one("#local-base-url", Input).value = ""
+        await pilot.click("#save")
+        await pilot.pause()
+        assert user_settings.get("local_base_url") is None   # "" resets to the default
+        assert DEFAULT_LOCAL_BASE_URL == "http://127.0.0.1:11434/v1"
+
+
+async def test_model_picker_local_source_toggle(tmp_path: Path, monkeypatch):
+    from chisel.ai.client import ModelInfo
+
+    local = [ModelInfo("local:llama3", "llama3", None, None, 8192)]
+
+    def _no_remote(*a, **k):
+        raise AssertionError("network")
+
+    monkeypatch.setattr(settingscreen_mod, "list_models", _no_remote)
+    monkeypatch.setattr(settingscreen_mod, "list_local_models", lambda *a, **k: local)
+    app = ChiselApp(_project(tmp_path, "c", "C"))
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        picked: list[str | None] = []
+        app.push_screen(settingscreen_mod.ModelPicker(), picked.append)
+        await pilot.pause()
+        await pilot.pause()
+        await pilot.press("ctrl+l")   # switch to the installed (local) list
+        await pilot.pause()
+        await pilot.pause()
+        assert [m.id for m in app.screen._shown] == ["local:llama3"]
+        await pilot.press("enter")
+        await pilot.pause()
+        assert picked == ["local:llama3"]
+
+
 def test_model_precedence_project_over_user_over_default(tmp_path: Path):
     from chisel.ai.client import DEFAULT_WRITING_MODEL
 

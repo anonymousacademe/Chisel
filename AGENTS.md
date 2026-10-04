@@ -513,8 +513,20 @@ notes, assistant chats, session stats and focus sprints, Brainstorm; docs/dev/pl
 release work (docs/dev/plan-release.md; installers, CI).
 
 Planned next, in this order (SPEC §14 has the one-line descriptions): character relationships, "talk as a
-character" with an as-of point (use `timeline.scenes_up_to`), local models (Ollama / OpenAI-compatible),
-per-scene summaries and a rolling story-so-far, a timeline view. Until local models land, AI is OpenRouter-only.
+character" with an as-of point (use `timeline.scenes_up_to`), per-scene summaries and a rolling
+story-so-far, a timeline view. Local models landed (see below); picture generation is still
+OpenRouter-only.
+
+- **Local models** (`ai/client.py`; SPEC §8, docs/dev/plan-local-models.md). A model slug prefixed
+  `local:` (`local:llama3.1`) runs on the author's OpenAI-compatible server at the `local_base_url`
+  setting (default Ollama `http://127.0.0.1:11434/v1`), no key. `make_client(model)` routes by the
+  prefix (call sites pass the model); `openrouter_extra_body(..., model=)` drops the OpenRouter-only
+  fields (`usage.include`, `provider.require_parameters`) for local calls — never send those to a
+  local server. `list_local_models` reads `GET {base}/models` (+ Ollama `/api/show` for context
+  lengths, remembered under the prefixed id); the GUI bridge method is `list_local_models` (mocked as
+  `api_module._list_local_models`), the TUI picker toggles source with `ctrl+l`. `ai/images.generate`
+  refuses local models. The `context_window` setting (already exists) is the fallback window for
+  local models the server did not report a length for.
 
 Known concern: the author is unconvinced by the command palette as the primary UI (SPEC §11b) — the desktop
 GUI is the answer being tried.

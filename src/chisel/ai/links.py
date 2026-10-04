@@ -16,7 +16,7 @@ from ..core.entities import Entity
 from ..core.links import find_links, find_mentions
 from . import relevance
 from .budget import Budget, Item, Section, SentReport, fit, preflight
-from .client import usage_extra_body
+from .client import openrouter_extra_body
 from .usage import record_response
 
 SCHEMA = {
@@ -207,7 +207,7 @@ def suggest_links(
     if client is None:
         from .client import make_client
 
-        client = make_client()
+        client = make_client(model)
     response = client.chat.completions.create(
         model=model,
         messages=[
@@ -219,7 +219,7 @@ def suggest_links(
             "json_schema": {"name": "link_mentions", "strict": True,
                             "schema": SCHEMA},
         },
-        extra_body=usage_extra_body({"provider": {"require_parameters": True}}),
+        extra_body=openrouter_extra_body({"provider": {"require_parameters": True}}, model=model),
     )
     record_response(response, model, "links")
     raw = response.choices[0].message.content or ""

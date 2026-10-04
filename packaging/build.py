@@ -135,7 +135,9 @@ def package_windows() -> None:
     zip_dir(BUNDLE, RELEASE / f"Chisel-{ver}-windows-portable.zip", "Chisel")
     iscc = shutil.which("iscc") or next(
         (p for p in (r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
-                     r"C:\Program Files\Inno Setup 6\ISCC.exe") if Path(p).is_file()), None)
+                     r"C:\Program Files\Inno Setup 6\ISCC.exe",
+                     str(Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Inno Setup 6" / "ISCC.exe"))
+         if p and Path(p).is_file()), None)
     if iscc is None:
         sys.exit("Inno Setup (ISCC.exe) not found: choco install innosetup")
     run([iscc, f"/DAppVersion={ver}", f"/DSourceDir={BUNDLE}", f"/DOutputDir={RELEASE}",

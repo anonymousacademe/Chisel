@@ -1,10 +1,12 @@
-"""OpenRouter client (OpenAI-compatible): key resolution, client, model catalog.
+"""OpenRouter + local OpenAI-compatible clients: key resolution, client, model catalog.
 
 Design notes (SPEC §8):
 - Key resolution order: OPENROUTER_API_KEY env var, then keyring
   (service "chisel", username "openrouter").
 - Model slugs are never hardcoded at runtime in production code; the
   defaults below are starting points and can be overridden in config.
+- A ``local:`` prefix (``local:llama3.1``) sends the call to the author's
+  own OpenAI-compatible server (Ollama by default; docs/dev/plan-local-models.md).
 """
 
 from __future__ import annotations
@@ -12,12 +14,20 @@ from __future__ import annotations
 import json
 import os
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 KEYRING_SERVICE = "chisel"
 KEYRING_USER = "openrouter"
 LEGACY_KEYRING_SERVICE = "lorewrite"  # the LoreWriter-era entry: read when the new one is empty, copied over
+
+# Local models (SPEC "Local models"): a model id starting with LOCAL_PREFIX runs
+# on the OpenAI-compatible server at the local_base_url setting (Ollama by
+# default). No key is needed; the request never leaves the machine.
+LOCAL_PREFIX = "local:"
+DEFAULT_LOCAL_BASE_URL = "http://127.0.0.1:11434/v1"
+SETTING_LOCAL_BASE_URL = "local_base_url"
+LOCAL_KEY_PLACEHOLDER = "local"
 
 # Sensible defaults (see research: cheap model for linking, strong for lore).
 DEFAULT_FAST_MODEL = "google/gemini-2.5-flash"
@@ -55,6 +65,43 @@ def usage_extra_body(extra: dict | None = None) -> dict:
     body = dict(extra or {})
     body["usage"] = {**(body.get("usage") or {}), "include": True}
     return body
+
+
+def openrouter_extra_body(extra: dict | None = None, model: str | None = None) -> dict:
+    """extra_body for a chat call to *model*.
+
+    OpenRouter-only fields (the usage/cost ask, ``provider.require_parameters``)
+    are skipped for local models: what unknown request fields a given local
+    server tolerates varies, and local calls cost nothing to report."""
+    if model is not None and is_local(model):
+        return {}
+    return usage_extra_body(extra)
+
+
+def is_local(model: str | None) -> bool:
+    """True when *model* runs on the author's own server (a ``local:`` slug)."""
+    return bool(model) and str(model).startswith(LOCAL_PREFIX)
+
+
+def local_model_id(model: str) -> str:
+    """*model* without the ``local:`` prefix (the id the local server knows)."""
+    return str(model)[len(LOCAL_PREFIX):]
+
+
+def local_base_url(raw: str | None = None) -> str:
+    """The local server base URL (normalized): the *raw* argument, else the
+    ``local_base_url`` setting, else the Ollama default. Raises ValueError on
+    anything that is not an http(s) URL."""
+    from ..core import settings as user_settings
+
+    value = str(raw if raw is not None else user_settings.get(SETTING_LOCAL_BASE_URL) or "").strip()
+    if not value:
+        value = DEFAULT_LOCAL_BASE_URL
+    value = value.rstrip("/")
+    if not (value.startswith("http://") or value.startswith("https://")):
+        raise ValueError(
+            f"The local AI server address must start with http:// or https:// (got {value!r})")
+    return value
 
 
 
@@ -97,10 +144,14 @@ REQUEST_TIMEOUT = 180.0
 MAX_RETRIES = 1
 
 
-def make_client():
-    """Build an OpenAI client pointed at OpenRouter. Raises if no key."""
+def make_client(model: str | None = None):
+    """Build an OpenAI client pointed at OpenRouter (or at the local server for
+    a ``local:`` model). Raises if the OpenRouter key is missing for a remote call."""
     from openai import OpenAI
 
+    if model is not None and is_local(model):
+        return OpenAI(base_url=local_base_url(), api_key=LOCAL_KEY_PLACEHOLDER,
+                      timeout=REQUEST_TIMEOUT, max_retries=MAX_RETRIES)
     key = get_api_key()
     if not key:
         raise RuntimeError(
@@ -193,6 +244,80 @@ def list_models(timeout: float = 10, structured_only: bool = True,
             _models_payload = json.load(resp)
         remember_context_lengths(parse_models(_models_payload, False))
     return parse_models(_models_payload, structured_only, output_modality)
+
+
+# -- local models (Ollama / OpenAI-compatible) ----------------------------------
+
+
+def _ollama_context_length(base: str, model_id: str, timeout: float) -> int | None:
+    """Best-effort context length from Ollama's ``POST /api/show`` (its OpenAI-compat
+    ``/models`` endpoint does not report one). Any failure is tolerated: the budget
+    then falls back to the context_window setting."""
+    if base.endswith("/v1"):
+        base = base[:-3]
+    try:
+        req = urllib.request.Request(
+            f"{base}/api/show", method="POST",
+            data=json.dumps({"model": model_id}).encode("utf-8"),
+            headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            info = (json.load(resp) or {}).get("model_info") or {}
+    except Exception:
+        return None
+    lengths = [int(v) for k, v in info.items()
+               if k.endswith("context_length") and isinstance(v, (int, float)) and v > 0]
+    return max(lengths) if lengths else None
+
+
+def parse_local_models(payload: dict) -> list[ModelInfo]:
+    """Models installed on a local OpenAI-compatible server, sorted by name.
+
+    The payload is the ``GET {base}/models`` response (``data[].id`` at minimum;
+    ``context_length`` when the server reports it). Ids come back prefixed with
+    ``local:`` so they are valid model slugs everywhere else in the app."""
+    models = []
+    for m in payload.get("data") or []:
+        if not isinstance(m, dict) or not m.get("id"):
+            continue
+        mid = str(m["id"])
+        length = m.get("context_length")
+        length = int(length) if isinstance(length, (int, float)) and length > 0 else None
+        models.append(ModelInfo(
+            id=LOCAL_PREFIX + mid,
+            name=mid,
+            prompt_per_m=None,
+            completion_per_m=None,
+            context_length=length,
+        ))
+    return sorted(models, key=lambda m: m.name.lower())
+
+
+def list_local_models(base_url: str | None = None,
+                      timeout: float = 5.0) -> list[ModelInfo]:
+    """The models installed on the local server (Ollama by default).
+
+    Raises ``RuntimeError`` with an author-friendly message when the server
+    cannot be reached. Context lengths that the server reports (directly or via
+    Ollama's ``/api/show``) are remembered for the budget."""
+    base = local_base_url(base_url)
+    try:
+        with urllib.request.urlopen(f"{base}/models", timeout=timeout) as resp:
+            payload = json.load(resp)
+    except (OSError, ValueError) as exc:
+        raise RuntimeError(
+            f"Couldn't reach the local AI server at {base} ({exc.__class__.__name__}). "
+            "Is it running? Check the address in Settings."
+        ) from exc
+    models = parse_local_models(payload)
+    filled = []
+    for m in models:
+        if m.context_length is None:
+            length = _ollama_context_length(base, local_model_id(m.id), timeout)
+            if length is not None:
+                m = replace(m, context_length=length)
+        filled.append(m)
+    remember_context_lengths(filled)
+    return filled
 
 
 # -- context windows (ai.budget plans AI requests against these) -------------------------

@@ -5,6 +5,20 @@ All notable changes to Chisel are listed here, newest first. The format follows
 
 ## Unreleased
 
+### Fixed
+- **The desktop window no longer jitters or overshoots when dragged.** Dragging the title bar now
+  uses the native Windows move loop instead of repositioning the window on every mouse move (the
+  old way also mishandled display scaling, so the window raced ahead of the cursor on scaled
+  displays and flickered a ghost title bar). Title-bar buttons stay clickable.
+
+### Added
+- **Local AI models (Ollama and OpenAI-compatible servers).** Pick any model installed on your own
+  computer for the fast, strong or writing roles: the model pickers in Settings can list what is
+  installed (the desktop app has an "Installed (local)" source, the terminal app toggles with
+  `ctrl+l`), and the address of the server is configurable (default: Ollama at
+  `http://127.0.0.1:11434/v1`). Local models cost nothing and nothing is sent anywhere; picture
+  generation still uses OpenRouter.
+
 ## 0.5.0 - 2026-10-03
 
 Version 0.4.0 was tagged but never published, so 0.5.0 is the first release with these changes: it includes

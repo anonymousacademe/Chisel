@@ -16,6 +16,7 @@ const KINDS: { kind: ModelKind; label: string; hint: string; structured: boolean
 const ZOOMS = [90, 100, 110, 125];
 
 const price = (m: ModelOption) => {
+  if (m.id.startsWith("local:")) return "local · free · stays on this computer";
   const tokens = m.promptPerM != null && m.completionPerM != null ? `$${m.promptPerM.toFixed(2)} / $${m.completionPerM.toFixed(2)} per M tokens` : "price unknown";
   return m.imagePrice != null ? `${tokens} · $${m.imagePrice.toFixed(3)} per image` : tokens;
 };
@@ -35,6 +36,7 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
   const [autoSnapshot, setAutoSnapshot] = useState(initial.autoSnapshot);
   const [dailyTarget, setDailyTarget] = useState(String(initial.dailyTarget));
   const [imageStyle, setImageStyle] = useState(initial.imageStyle);
+  const [localBaseUrl, setLocalBaseUrl] = useState(initial.localBaseUrl);
   const [picking, setPicking] = useState<ModelKind | null>(null);
   const [projectInfo, setProjectInfo] = useState({ author: "", pen_name: "", subtitle: "", copyright: "", contact: "", language: "en" });
 
@@ -59,7 +61,7 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
   const save = async () => {
     const target = Number(dailyTarget.trim() || 0);
     if (!Number.isInteger(target) || target < 0 || target > 100000) return notify("The daily target must be a whole number from 0 to 100,000.", "error");
-    const r = await api.setSettings(models, editor, spellcheck, autoSnapshot, target, imageStyle);
+    const r = await api.setSettings(models, editor, spellcheck, autoSnapshot, target, imageStyle, localBaseUrl.trim());
     if (!r.ok) return notify(r.error, "error");
     const pr = await api.setProjectInfo(projectInfo.author, projectInfo.pen_name, projectInfo.subtitle, projectInfo.copyright, projectInfo.contact, projectInfo.language);
     if (!pr.ok) return notify(pr.error, "error");
@@ -100,14 +102,29 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
               {info.models[k.kind].projectOverride && (
                 <p className="lw-empty">This project overrides it in project.toml: {info.models[k.kind].projectOverride}</p>
               )}
-              {picking === k.kind && (
-                <ModelPicker structured={k.structured} modality={k.modality} onPick={(id) => { setModels({ ...models, [k.kind]: id }); setPicking(null); }} />
-              )}
+          {picking === k.kind && (
+            <ModelPicker structured={k.structured} modality={k.modality} local={k.modality !== "image"}
+              baseUrl={localBaseUrl.trim()} onPick={(id) => { setModels({ ...models, [k.kind]: id }); setPicking(null); }} />
+          )}
             </div>
           ))}
           <label className="lw-dialog__label">Image style <span className="lw-faint">added to every picture description; empty turns it off</span>
             <input className="lw-launch__input" value={imageStyle} spellCheck={false} maxLength={300}
               placeholder={info.imageStyleDefault} aria-label="Image style" onChange={(e) => setImageStyle(e.target.value)} />
+          </label>
+        </section>
+
+        <section className="lw-settings__section">
+          <h3>Local AI (Ollama)</h3>
+          <p className="lw-dialog__message">
+            Models running on your own computer. Nothing is sent anywhere, and they cost
+            nothing — pick one with the Choose… buttons above (the list titled “Installed”).
+            Picture generation stays with OpenRouter.
+          </p>
+          <label className="lw-dialog__label">Server address <span className="lw-faint">OpenAI-compatible; empty = Ollama's default</span>
+            <input className="lw-launch__input" value={localBaseUrl} spellCheck={false}
+              placeholder="http://127.0.0.1:11434/v1" aria-label="Local AI server address"
+              onChange={(e) => setLocalBaseUrl(e.target.value)} />
           </label>
         </section>
 
@@ -187,32 +204,57 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
   );
 }
 
-/** Searchable OpenRouter catalog. Fetched on demand (it needs the network). */
-function ModelPicker({ structured, modality, onPick }: { structured: boolean; modality?: "image"; onPick: (id: string) => void }) {
+/** Model list with two sources: the OpenRouter catalog (needs the network) and
+ * the models installed on the author's own server (Ollama; the `local:` prefix). */
+function ModelPicker({ structured, modality, local, baseUrl, onPick }: {
+  structured: boolean; modality?: "image"; local: boolean; baseUrl: string; onPick: (id: string) => void;
+}) {
+  const [source, setSource] = useState<"openrouter" | "installed">("openrouter");
   const [models, setModels] = useState<ModelOption[] | null>(null);
   const [error, setError] = useState("");
   const [q, setQ] = useState("");
   useEffect(() => {
     let live = true;
-    void api.listModels(structured, modality).then((r) => {
-      if (!live) return;
-      if (r.ok) setModels(r.models); else setError(r.error);
-    });
+    if (source === "installed") {
+      void api.listLocalModels(baseUrl).then((r) => {
+        if (!live) return;
+        if (r.ok) setModels(r.models); else { setError(r.error); setModels(null); }
+      });
+    } else {
+      void api.listModels(structured, modality).then((r) => {
+        if (!live) return;
+        if (r.ok) setModels(r.models); else setError(r.error);
+      });
+    }
     return () => { live = false; };
-  }, [structured, modality]);
+  }, [structured, modality, source, baseUrl]);
   const shown = useMemo(() => {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);
     return (models ?? []).filter((m) => words.every((w) => `${m.name} ${m.id}`.toLowerCase().includes(w))).slice(0, 80);
   }, [models, q]);
+  const switchSource = (next: "openrouter" | "installed") => {
+    if (next === source) return;
+    setSource(next); setError(""); setModels(null);   // stale results must not show
+  };
   return (
     <div className="lw-picker">
+      {local && (
+        <div className="lw-row lw-gap-8 lw-picker__source" role="radiogroup" aria-label="Model source">
+          <button role="radio" aria-checked={source === "openrouter"} aria-pressed={false}
+            className={`lw-chip lw-chip--pick${source === "openrouter" ? " is-on" : ""}`}
+            onClick={() => switchSource("openrouter")}>OpenRouter</button>
+          <button role="radio" aria-checked={source === "installed"} aria-pressed={false}
+            className={`lw-chip lw-chip--pick${source === "installed" ? " is-on" : ""}`}
+            onClick={() => switchSource("installed")}>Installed (local)</button>
+        </div>
+      )}
       <div className="lw-switcher__input">
         <Icon icon={Search} size={14} stroke={1.7} color="var(--lw-text-muted)" />
-        <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search models…" aria-label="Search models" />
+        <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={source === "installed" ? "Search installed models…" : "Search models…"} aria-label="Search models" />
       </div>
       <div className="lw-picker__list" role="listbox">
         {error && <p className="lw-empty">Could not load the model list ({error}). You can still type a model id above.</p>}
-        {!models && !error && <p className="lw-empty lw-pulse">Loading models…</p>}
+        {!models && !error && <p className="lw-empty lw-pulse">{source === "installed" ? "Looking for installed models…" : "Loading models…"}</p>}
         {shown.map((m) => (
           <button key={m.id} role="option" aria-selected={false} className="lw-switcher__row" onClick={() => onPick(m.id)}>
             <span className="lw-switcher__title">{m.name}<span className="lw-faint"> · {m.id}</span></span>

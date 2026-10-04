@@ -286,6 +286,8 @@ export interface SettingsInfo {
   /** Appended to every image prompt (empty = off) and the built-in default. */
   imageStyle: string;
   imageStyleDefault: string;
+  /** The OpenAI-compatible local server the `local:` models run on ("" = the built-in default). */
+  localBaseUrl: string;
 }
 export interface ModelOption { id: string; name: string; promptPerM: number | null; completionPerM: number | null; context: number | null; imagePrice?: number | null }
 

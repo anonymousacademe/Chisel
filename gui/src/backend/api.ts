@@ -197,8 +197,8 @@ export const api = {
   exportSoundPack: (pack: string) => call<{ path: string | null }>("export_sound_pack", pack),
   openSoundsFolder: (which: "sounds" | "ambience") => call<{ path: string; opened: boolean }>("open_sounds_folder", which),
   getSettings: () => call<SettingsInfo>("get_settings"),
-  setSettings: (models?: Partial<Record<ModelKind, string>>, editor?: Partial<EditorPrefs>, spellcheck?: boolean, autoSnapshot?: boolean, dailyTarget?: number, imageStyle?: string) =>
-    call("set_settings", models ?? null, editor ?? null, spellcheck ?? null, autoSnapshot ?? null, dailyTarget ?? null, imageStyle ?? null),
+  setSettings: (models?: Partial<Record<ModelKind, string>>, editor?: Partial<EditorPrefs>, spellcheck?: boolean, autoSnapshot?: boolean, dailyTarget?: number, imageStyle?: string, localBaseUrl?: string) =>
+    call("set_settings", models ?? null, editor ?? null, spellcheck ?? null, autoSnapshot ?? null, dailyTarget ?? null, imageStyle ?? null, localBaseUrl ?? null),
   getProjectInfo: () => call<{ author: string; pen_name: string; subtitle: string; copyright: string; contact: string; language: string }>("get_project_info"),
   setProjectInfo: (author: string, pen_name: string, subtitle: string, copyright_: string, contact: string, language: string) =>
     call("set_project_info", author, pen_name, subtitle, copyright_, contact, language),
@@ -212,9 +212,13 @@ export const api = {
   setApiKey: (key: string) => call("set_api_key", key),
   clearApiKey: () => call<{ stillSet: boolean; note: string }>("clear_api_key"),
   listModels: (structuredOnly: boolean, modality?: "image") => call<{ models: ModelOption[] }>("list_models", structuredOnly, modality ?? null),
+  /** Models installed on the author's own OpenAI-compatible server (Ollama by default). */
+  listLocalModels: (baseUrl = "") => call<{ models: ModelOption[]; baseUrl: string }>("list_local_models", baseUrl),
   /** Opens a link in the system browser (http/https/mailto only; call it only from a click). */
   openExternal: (url: string) => call("open_external", url),
   minimize: () => call("minimize"),
   toggleMaximize: () => call("toggle_maximize"),
   close: () => call("close"),
+  /** Windows only: drag the frameless window with the native move loop. */
+  beginWindowDrag: () => call("begin_window_drag"),
 };

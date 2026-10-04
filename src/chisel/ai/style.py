@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 import datetime
 
 from ..core.style import MAX_EXEMPLARS, exemplars_section, learned_note, style_markdown
-from .client import usage_extra_body
+from .client import openrouter_extra_body
 from .usage import record_response
 
 SCHEMA = {
@@ -127,7 +127,7 @@ def learn_style(samples: list[tuple[str, str]], model: str,
     if client is None:
         from .client import make_client
 
-        client = make_client()
+        client = make_client(model)
     response = client.chat.completions.create(
         model=model,
         messages=[
@@ -139,7 +139,7 @@ def learn_style(samples: list[tuple[str, str]], model: str,
             "json_schema": {"name": "style_guide", "strict": True,
                             "schema": SCHEMA},
         },
-        extra_body=usage_extra_body(),
+        extra_body=openrouter_extra_body(model=model),
     )
     record_response(response, model, "style")
     data = parse_reply(response.choices[0].message.content or "")

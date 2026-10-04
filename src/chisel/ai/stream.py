@@ -14,7 +14,7 @@ import inspect
 import threading
 from typing import Callable
 
-from .client import usage_extra_body
+from .client import openrouter_extra_body
 from .usage import record_response
 
 
@@ -70,7 +70,7 @@ def stream_text(client, model: str, messages: list[dict], feature: str,
         raise Cancelled()
     stream = client.chat.completions.create(
         model=model, messages=messages, stream=True,
-        extra_body=usage_extra_body())
+        extra_body=openrouter_extra_body(model=model))
     if isinstance(cancel, CancelToken):
         cancel.add_closer(getattr(stream, "close", lambda: None))
     parts: list[str] = []

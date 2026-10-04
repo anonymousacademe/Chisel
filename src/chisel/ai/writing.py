@@ -14,7 +14,7 @@ from ..core import drafts, research as research_notes, scenemeta
 from ..core.entities import Entity
 from . import relevance
 from .budget import Budget, Item, Section, SentReport, fit, fit_text, render
-from .client import usage_extra_body
+from .client import openrouter_extra_body
 from .stream import stream_text
 from .usage import record_response
 
@@ -249,7 +249,7 @@ def generate(
     if client is None:
         from .client import make_client
 
-        client = make_client()
+        client = make_client(model)
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user",
@@ -259,7 +259,7 @@ def generate(
         raw = stream_text(client, model, messages, mode, on_delta, cancel)
     else:
         response = client.chat.completions.create(
-            model=model, messages=messages, extra_body=usage_extra_body())
+            model=model, messages=messages, extra_body=openrouter_extra_body(model=model))
         record_response(response, model, mode)
         raw = response.choices[0].message.content or ""
     return clean_output(raw, selection)
@@ -355,7 +355,7 @@ def _chat_reply(client, model: str, feature: str, messages: list[dict],
         raw = stream_text(client, model, messages, feature, on_delta, cancel)
     else:
         response = client.chat.completions.create(
-            model=model, messages=messages, extra_body=usage_extra_body())
+            model=model, messages=messages, extra_body=openrouter_extra_body(model=model))
         record_response(response, model, feature)
         raw = response.choices[0].message.content or ""
     return raw.replace("<!--", "<!-").strip()
@@ -382,7 +382,7 @@ def ask(
     if client is None:
         from .client import make_client
 
-        client = make_client()
+        client = make_client(model)
     reply = _chat_reply(client, model, "ask", [
         {"role": "system", "content": ASK_SYSTEM_PROMPT},
         *_turns(history),
@@ -476,7 +476,7 @@ def research_answer(
     if client is None:
         from .client import make_client
 
-        client = make_client()
+        client = make_client(model)
     reply = _chat_reply(client, model, "research", [
         {"role": "system", "content": RESEARCH_SYSTEM_PROMPT},
         *_turns(history),
@@ -550,7 +550,7 @@ def brainstorm(context: str, model: str, client=None, on_delta=None, cancel=None
     if client is None:
         from .client import make_client
 
-        client = make_client()
+        client = make_client(model)
     messages = [
         {"role": "system", "content": BRAINSTORM_SYSTEM_PROMPT},
         {"role": "user", "content": f"{context}\n\nGive me ideas to get unstuck."},
@@ -559,7 +559,7 @@ def brainstorm(context: str, model: str, client=None, on_delta=None, cancel=None
         raw = stream_text(client, model, messages, "brainstorm", on_delta, cancel)
     else:
         response = client.chat.completions.create(
-            model=model, messages=messages, extra_body=usage_extra_body())
+            model=model, messages=messages, extra_body=openrouter_extra_body(model=model))
         record_response(response, model, "brainstorm")
         raw = response.choices[0].message.content or ""
     ideas = parse_ideas(raw)

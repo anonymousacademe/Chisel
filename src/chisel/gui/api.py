@@ -20,9 +20,12 @@ from typing import Any
 
 from ..ai.client import (
     MODEL_DEFAULTS,
+    SETTING_LOCAL_BASE_URL,
     clear_api_key as _clear_api_key,
     get_api_key,
+    list_local_models as _list_local_models,
     list_models as _list_models,
+    local_base_url as _local_base_url,
     remember_context_lengths,
     resolve_model,
     set_api_key as _set_api_key,
@@ -502,7 +505,8 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
                 "autoSnapshot": snapshots.auto_enabled(),
                 "imageStyle": image_ai.style_suffix(), "imageStyleDefault": image_ai.DEFAULT_STYLE,
                 "dailyTarget": writing_stats.get_target(),
-                "contextWindow": user_settings.get(SETTING_WINDOW) or ""}
+                "contextWindow": user_settings.get(SETTING_WINDOW) or "",
+                "localBaseUrl": user_settings.get(SETTING_LOCAL_BASE_URL) or ""}
 
     @bridge
     def set_settings(self, models: dict | None = None, editor: dict | None = None,
@@ -510,14 +514,22 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
                      auto_snapshot: bool | None = None,
                      daily_target: int | None = None,
                      image_style: str | None = None,
-                     context_window: int | str | None = None) -> dict:
+                     context_window: int | str | None = None,
+                     local_base_url: str | None = None) -> dict:
         """Save model choices ("" resets to the default), GUI editor prefs and
         the spell-check toggle (shared with the TUI). `context_window` (tokens, "" = ask the
-        model list) is for models whose real window is not in the catalogue."""
+        model list) is for models whose real window is not in the catalogue.
+        `local_base_url` ("" = the default) is the OpenAI-compatible local
+        server the `local:` models run on."""
         with self._lock:
             if context_window is not None:
                 user_settings.set(SETTING_WINDOW,
                                   None if context_window == "" else validate_window(context_window))
+            if local_base_url is not None:
+                value = str(local_base_url).strip()
+                if value:
+                    _local_base_url(value)  # validate: raises ValueError with the reason
+                user_settings.set(SETTING_LOCAL_BASE_URL, value or None)
             for kind, value in (models or {}).items():
                 if kind not in MODEL_DEFAULTS:
                     raise ValueError(f"unknown model kind: {kind}")
@@ -597,6 +609,19 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
             "completionPerM": m.completion_per_m, "context": m.context_length,
             "imagePrice": m.image_price,
         } for m in models]}
+
+    @bridge
+    def list_local_models(self, base_url: str = "") -> dict:
+        """The models installed on the author's own OpenAI-compatible server
+        (Ollama by default; `base_url` overrides the setting for this call).
+        The ids come back with the `local:` prefix, ready for a model field.
+        Raises (-> `{ok:false}`) when the server cannot be reached."""
+        models = _list_local_models(base_url=base_url or None)
+        return {"models": [{
+            "id": m.id, "name": m.name, "promptPerM": None,
+            "completionPerM": None, "context": m.context_length,
+            "imagePrice": None,
+        } for m in models], "baseUrl": _local_base_url(base_url or None)}
 
     # -- AI ---------------------------------------------------------------------
     # Every AI call gathers its inputs under the lock, releases it for the slow

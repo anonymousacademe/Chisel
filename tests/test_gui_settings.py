@@ -101,3 +101,33 @@ def test_list_models_filters_by_structured_outputs(tmp_path, monkeypatch):
     assert seen == [True, False]
     monkeypatch.setattr(api_module, "_list_models", lambda **k: (_ for _ in ()).throw(OSError("offline")))
     assert api.list_models()["ok"] is False
+
+
+def test_local_base_url_settings_roundtrip(tmp_path):
+    api, _ = open_api(tmp_path)
+    assert api.get_settings()["localBaseUrl"] == ""
+    assert api.set_settings(local_base_url="http://127.0.0.1:9999/v1")["ok"]
+    assert api.get_settings()["localBaseUrl"] == "http://127.0.0.1:9999/v1"
+    assert api.set_settings(local_base_url="  ")["ok"]      # "" resets to the default
+    assert api.get_settings()["localBaseUrl"] == ""
+
+
+def test_local_base_url_validated(tmp_path):
+    api, _ = open_api(tmp_path)
+    r = api.set_settings(local_base_url="ftp://nowhere")
+    assert r["ok"] is False and "http://" in r["error"]
+    assert api.get_settings()["localBaseUrl"] == ""
+
+
+def test_list_local_models_bridge(tmp_path, monkeypatch):
+    api, _ = open_api(tmp_path)
+    monkeypatch.setattr(api_module, "_list_local_models",
+                        lambda base_url=None: [ModelInfo("local:llama3", "llama3", None, None, 8192)])
+    r = api.list_local_models("http://127.0.0.1:9999/v1")
+    assert r["ok"] and r["baseUrl"] == "http://127.0.0.1:9999/v1"
+    assert r["models"] == [{"id": "local:llama3", "name": "llama3", "promptPerM": None,
+                            "completionPerM": None, "context": 8192, "imagePrice": None}]
+    monkeypatch.setattr(api_module, "_list_local_models",
+                        lambda base_url=None: (_ for _ in ()).throw(RuntimeError("no server")))
+    r = api.list_local_models()
+    assert r["ok"] is False and "no server" in r["error"]

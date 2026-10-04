@@ -20,10 +20,13 @@ from ..ai.client import (
     DEFAULT_STRONG_MODEL,
     DEFAULT_IMAGE_MODEL,
     DEFAULT_WRITING_MODEL,
+    DEFAULT_LOCAL_BASE_URL,
     ModelInfo,
     clear_api_key,
     get_api_key,
+    list_local_models,
     list_models,
+    local_base_url,
     set_api_key,
 )
 from ..ai.images import DEFAULT_STYLE, SETTING_STYLE
@@ -66,6 +69,10 @@ class SettingsScreen(ModalScreen[None]):
                     yield Button("Choose…", id="pick-image")
                 yield Label("Image style (added to every picture description; empty = off):")
                 yield Input(id="image-style", placeholder=DEFAULT_STYLE)
+                yield Label("Local AI (Ollama) — models on this computer; nothing is sent anywhere:",
+                            classes="settings-heading")
+                yield Label("Server address (OpenAI-compatible; empty = Ollama's default):")
+                yield Input(id="local-base-url", placeholder=DEFAULT_LOCAL_BASE_URL)
                 if self._project is not None:
                     yield Label("Project & author", classes="settings-heading")
                     yield Label("Author:")
@@ -109,6 +116,8 @@ class SettingsScreen(ModalScreen[None]):
             user_settings.get("image_model") or "")
         style = user_settings.get(SETTING_STYLE)
         self.query_one("#image-style", Input).value = DEFAULT_STYLE if style is None else str(style)
+        self.query_one("#local-base-url", Input).value = str(
+            user_settings.get("local_base_url") or "")
         self.query_one("#spellcheck", Checkbox).value = bool(
             user_settings.get("spellcheck", True))
         self.query_one("#auto-snapshot", Checkbox).value = bool(
@@ -153,7 +162,8 @@ class SettingsScreen(ModalScreen[None]):
                 if model_id:
                     field.value = model_id
 
-            # drafting is plain text: show the whole catalog for that field
+            # drafting is plain text: show the whole catalog for that field;
+            # the image field is OpenRouter-only (local servers do not draw)
             self.app.push_screen(
                 ModelPicker(field.value.strip(),
                             structured_only=bid not in ("pick-writing", "pick-image"),
@@ -189,6 +199,13 @@ class SettingsScreen(ModalScreen[None]):
         image = self.query_one("#image-model", Input).value.strip()
         user_settings.set("image_model", image or None)
         user_settings.set(SETTING_STYLE, " ".join(self.query_one("#image-style", Input).value.split())[:300])
+        raw_url = self.query_one("#local-base-url", Input).value.strip()
+        try:
+            local_base_url(raw_url or None)  # validate before storing
+        except ValueError as exc:
+            self.app.notify(str(exc), severity="warning")
+        else:
+            user_settings.set("local_base_url", raw_url or None)
         user_settings.set("spellcheck",
                           self.query_one("#spellcheck", Checkbox).value)
         user_settings.set("auto_snapshot",
@@ -231,7 +248,10 @@ def model_label(m: ModelInfo) -> Text:
     """One picker row; Text so brackets in names aren't eaten as markup."""
     row = Text(m.name)
     row.append(f"  {m.id}", style="dim")
-    detail = f"  {_price(m.prompt_per_m)} in / {_price(m.completion_per_m)} out per M"
+    if m.id.startswith("local:"):
+        detail = "  on this computer · free"
+    else:
+        detail = f"  {_price(m.prompt_per_m)} in / {_price(m.completion_per_m)} out per M"
     if m.image_price is not None:
         detail += f" · ${m.image_price:.3f} per image"
     if m.context_length:
@@ -241,13 +261,15 @@ def model_label(m: ModelInfo) -> Text:
 
 
 class ModelPicker(ModalScreen[str | None]):
-    """Filterable list of OpenRouter models. Dismisses with a model id or None.
+    """Filterable model list: the OpenRouter catalog, or (ctrl+l) the models
+    installed on the author's own server. Dismisses with a model id or None.
 
     By default only models supporting structured outputs are listed (linking
     and continuity require them); structured_only=False lists everything.
     """
 
-    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+    BINDINGS = [Binding("escape", "cancel", "Cancel"),
+                Binding("ctrl+l", "local", "Installed (local)")]
 
     CSS = """
     ModelPicker { align: center middle; }
@@ -263,6 +285,7 @@ class ModelPicker(ModalScreen[str | None]):
         self._current = current
         self._structured_only = structured_only
         self._output_modality = output_modality
+        self._local = False  # False: the OpenRouter catalog; True: the local server
         self._models: list[ModelInfo] = []
         self._shown: list[ModelInfo] = []
 
@@ -276,13 +299,29 @@ class ModelPicker(ModalScreen[str | None]):
         self.query_one("#picker-filter", Input).focus()
         self._load()
 
+    def action_local(self) -> None:
+        # The image field is OpenRouter-only (local servers do not generate pictures).
+        if self._output_modality == "image":
+            self.app.notify("Picture generation needs an OpenRouter image model.",
+                            severity="warning")
+            return
+        self._local = not self._local
+        self._load()
+
     @work(exclusive=True)
     async def _load(self) -> None:
         status = self.query_one("#picker-status", Label)
+        status.update(Text("Looking for installed models…"
+                           if self._local else "Loading models from OpenRouter…"))
+        self._models = []
+        self.query_one("#picker-list", OptionList).clear_options()
         try:
-            kwargs = {"output_modality": self._output_modality} if self._output_modality else {}
-            self._models = await asyncio.to_thread(
-                list_models, structured_only=self._structured_only, **kwargs)
+            if self._local:
+                self._models = await asyncio.to_thread(list_local_models)
+            else:
+                kwargs = {"output_modality": self._output_modality} if self._output_modality else {}
+                self._models = await asyncio.to_thread(
+                    list_models, structured_only=self._structured_only, **kwargs)
         except Exception as exc:
             status.update(Text(
                 f"Couldn't load models ({exc}). Type a model id in Settings instead."))
@@ -302,8 +341,9 @@ class ModelPicker(ModalScreen[str | None]):
         elif ids:
             options.highlighted = 0
         self.query_one("#picker-status", Label).update(
-            f"{len(self._shown)} of {len(self._models)} models · "
-            "↑/↓ move · enter choose · esc cancel")
+            f"{len(self._shown)} of {len(self._models)}"
+            + (" installed · ctrl+l OpenRouter" if self._local else " models · ctrl+l Installed (local)")
+            + " · ↑/↓ move · enter choose · esc cancel")
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if self._models:
