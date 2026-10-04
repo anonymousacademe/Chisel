@@ -7,6 +7,7 @@ No pywebview import; unit-testable. Modelled on ``gui/exports.py``."""
 from __future__ import annotations
 
 import itertools
+import logging
 import threading
 import time
 from typing import Callable
@@ -15,6 +16,7 @@ from ..ai.stream import Cancelled, CancelToken
 
 RETENTION_SECONDS = 300  # a finished job stays pollable this long (a late poll still answers)
 
+log = logging.getLogger("chisel")
 _local = threading.local()
 
 
@@ -96,6 +98,8 @@ class AiJobs:
                 if job.cancel.is_set():
                     finish("cancelled")
                 else:
+                    if type(exc) not in _user_errors():   # a bug: keep the traceback
+                        log.warning("AI job %s failed", job.id, exc_info=True)
                     finish("error", error=_message(exc))
             else:
                 if job.cancel.is_set():
@@ -150,7 +154,13 @@ class AiJobs:
             del self._jobs[job_id]
 
 
+def _user_errors() -> tuple:
+    from ._bridge import USER_ERRORS
+
+    return USER_ERRORS
+
+
 def _message(exc: Exception) -> str:
-    from .api import USER_ERRORS  # late: api imports this module
+    from ._bridge import USER_ERRORS
 
     return str(exc) if type(exc) in USER_ERRORS else f"{type(exc).__name__}: {exc}"

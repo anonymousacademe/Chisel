@@ -4,10 +4,14 @@ thread and the UI polls its progress. No pywebview import; unit-testable."""
 from __future__ import annotations
 
 import itertools
+import logging
 import threading
 
 from ..core import export as exporting
 from ..core.export.manuscript import ExportOptions
+
+
+log = logging.getLogger("chisel")
 
 
 class ExportJobs:
@@ -32,6 +36,8 @@ class ExportJobs:
             try:
                 result = exporting.run_export(project, options, progress)
             except Exception as exc:  # the job reports it; the thread never dies loudly
+                if not isinstance(exc, (ValueError, RuntimeError, OSError)):   # a bug: keep the traceback
+                    log.warning("export %s failed", job_id, exc_info=True)
                 message = str(exc) if isinstance(exc, (ValueError, RuntimeError, OSError)) \
                     else f"{type(exc).__name__}: {exc}"
                 job.update(state="error", error=message)

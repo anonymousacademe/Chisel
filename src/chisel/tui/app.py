@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
+import logging
 import time
 from dataclasses import replace
 from pathlib import Path
@@ -44,7 +44,6 @@ from ..core import chats, fsutil, inspiration, migrate
 from ..core import collections as coll
 from ..core import research as research_notes
 from ..core import comments
-from ..core import export as exporting
 from ..core import drafts, scenemeta, snapshots, sync
 from ..core import entities as ent
 from ..core import settings as user_settings
@@ -59,6 +58,7 @@ from ..core.continuity import (
     remove_waiver,
     save_waiver,
 )
+from ..core.applog import log_exc
 from ..core.index import Index
 from ..core.links import link_at, offset_to_rowcol, rowcol_to_offset
 from ..core.project import Project, retitle_text, write_atomic
@@ -83,10 +83,18 @@ from .commands import (
     SceneProvider,
 )
 from .continuityscreen import ContinuityScreen, JumpToContradiction, WaiveToggled
+from .dialogs import ConfirmScreen, EntityTypePrompt, NamePrompt
 from .editor import LinkedTextArea
 from .launch import LaunchScreen
 from .linkreview import AliasReviewScreen
 from .renamemixin import RenameMixin
+from .structuremixin import StructureMixin
+from .snapshotsmixin import SnapshotsMixin
+from .syncmixin import SyncMixin
+from .statsmixin import StatsMixin
+from .spellmixin import SpellMixin
+from .commentsmixin import CommentsCollectionsMixin
+from .notebookmixin import NotebookMixin
 from .panels import BacklinkSelected, EntityPanel
 from .brainstormscreen import BrainstormScreen
 from .aimixin import AiMixin
@@ -95,7 +103,7 @@ from .promptscreen import PromptScreen
 from .settingscreen import KeyPrompt
 from .sidebar import OpenFile, Sidebar
 from .spellscreen import SpellScreen
-from .snapshotscreens import CompareScreen, LabelPrompt, SnapshotsScreen, label_text
+from .snapshotscreens import CompareScreen
 from .syncscreens import MessagePrompt
 from .statsscreens import StatsScreen
 from .exportscreen import ExportScreen
@@ -214,82 +222,8 @@ class HelpScreen(ModalScreen[None]):
         self.dismiss(None)
 
 
-class NamePrompt(ModalScreen[str | None]):
-    """Single-line input modal. Dismisses with the entered text or None."""
-
-    def __init__(self, prompt: str, initial: str = "") -> None:
-        super().__init__()
-        self._prompt = prompt
-        self._initial = initial
-
-    def compose(self) -> ComposeResult:
-        yield Label(self._prompt)
-        yield Input(self._initial, id="name-input")
-
-    def on_mount(self) -> None:
-        self.query_one(Input).focus()
-
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        value = event.value.strip()
-        self.dismiss(value or None)
-
-    def key_escape(self) -> None:
-        self.dismiss(None)
-
-
-class ConfirmScreen(ModalScreen[bool]):
-    """Yes/no confirmation. Dismisses True only on explicit confirm."""
-
-    BINDINGS = [
-        Binding("y", "confirm", "Yes"),
-        Binding("n", "cancel", "No"),
-        Binding("escape", "cancel", "Cancel"),
-    ]
-
-    def __init__(self, message: str, confirm_label: str = "Delete") -> None:
-        super().__init__()
-        self._message = message
-        self._confirm_label = confirm_label
-
-    def compose(self) -> ComposeResult:
-        yield Label(self._message)
-        yield Button(self._confirm_label, id="ok", variant="error")
-        yield Button("Cancel", id="cancel")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        self.dismiss(event.button.id == "ok")
-
-    def action_confirm(self) -> None:
-        self.dismiss(True)
-
-    def action_cancel(self) -> None:
-        self.dismiss(False)
-
-
-class EntityTypePrompt(ModalScreen[str | None]):
-    """Pick a type for a new entity note."""
-
-    BINDINGS = [Binding("escape", "cancel", "Cancel")]
-
-    def __init__(self, name: str) -> None:
-        super().__init__()
-        self._name = name
-
-    def compose(self) -> ComposeResult:
-        yield Label(Text(f'Create a note for "{self._name}" as:'))
-        yield Button("Character", id="character", variant="primary")
-        yield Button("Place", id="place")
-        yield Button("Cancel", id="cancel")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        bid = event.button.id
-        self.dismiss(None if bid == "cancel" else bid)
-
-    def action_cancel(self) -> None:
-        self.dismiss(None)
-
-
-class ChiselApp(AiMixin, InspirationMixin, RenameMixin, App):
+class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, SnapshotsMixin, SyncMixin,
+                StatsMixin, SpellMixin, CommentsCollectionsMixin, NotebookMixin, App):
     TITLE = "chisel"
 
     COMMANDS = App.COMMANDS | {SceneProvider, EntityProvider, ResearchProvider,
@@ -623,198 +557,6 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, App):
 
     # -- writing stats (core.stats): counted on save, kept in the state dir ------------
 
-    def _stats_key(self, path: Path) -> str:
-        return path.relative_to(self.project.root).as_posix()
-
-    def _stats_seen(self, text: str, path: Path | None = None) -> None:
-        """A scene was opened or replaced wholesale: its baseline, nothing counted."""
-        path = path or self.current_path
-        if self.stats is None or not self._is_scene(path):
-            return
-        self.stats.seen(self._stats_key(path), _word_count(text, self._originals(text, path)))
-
-    def _stats_record(self, text: str) -> None:
-        if self.stats is None or not self._is_scene(self.current_path):
-            return
-        try:
-            self.stats.record(self._stats_key(self.current_path),
-                              _word_count(text, self._originals(text)))
-            self._refresh_stats()
-        except OSError:
-            pass  # stats are a convenience; never block a save
-
-    def _stats_accepted(self, pending, body: str) -> None:
-        """An AI draft is about to become prose: AI words, not the author's."""
-        if self.stats is None or not self._is_scene(self.current_path):
-            return
-        original = self._originals(self.editor.text).get(pending.id, "") if pending.id else ""
-        self.stats.accepted(self._stats_key(self.current_path), len(body.split()),
-                            len(original.split()))
-
-    def _refresh_stats(self) -> None:
-        if self.stats is None:
-            self._stats_brief = None
-            return
-        s = self.stats.summary()
-        self._stats_brief = {"target": s["target"], "streak": s["streak"],
-                             "todayWords": s["today"]["words"], "sprint": s["sprint"]}
-
-    # -- focus sprint (Wave 4.2): a countdown in the status bar, optionally in writer mode ---
-
-    SPRINT_CHOICES = [("15 minutes", 15), ("25 minutes", 25), ("45 minutes", 45), ("Custom length…", 0)]
-
-    def focus_sprint(self) -> None:
-        """Action · Focus sprint: start a timed writing sprint, or stop the running one."""
-        if self.stats is None:
-            return
-        if self.stats.sprint is not None:
-            def _stop(choice) -> None:
-                if choice == "stop":
-                    self._end_sprint(cancelled=True)
-
-            self.push_screen(ChoiceScreen(
-                f"Sprint running: {writing_stats.clock(self.stats.sprint_state()['remaining'])} left",
-                [("Stop the sprint (keeps what you wrote)", "stop"), ("Keep going", "keep")]), _stop)
-            return
-
-        def _length(minutes) -> None:
-            if minutes is None:
-                return
-            if minutes == 0:
-                def _custom(raw) -> None:
-                    try:
-                        self._ask_sprint_mode(int(raw or 0))
-                    except ValueError:
-                        self.notify("A sprint length is a whole number of minutes", severity="warning")
-
-                self.push_screen(NamePrompt("Sprint length in minutes (1-240):", "30"), _custom)
-            else:
-                self._ask_sprint_mode(minutes)
-
-        self.push_screen(ChoiceScreen("Focus sprint - how long?", self.SPRINT_CHOICES), _length)
-
-    def _ask_sprint_mode(self, minutes: int) -> None:
-        def _go(writer) -> None:
-            if writer is not None:
-                self._start_sprint(minutes, bool(writer))
-
-        self.push_screen(ChoiceScreen(
-            f"{minutes}-minute sprint", [("Start, keep the screen as it is", False),
-                                         ("Start in writer mode (hides everything but the editor)", True)]), _go)
-
-    def _start_sprint(self, minutes: int, writer: bool) -> None:
-        try:
-            self.stats.start_sprint(minutes)
-        except ValueError as exc:
-            self.notify(str(exc), severity="warning")
-            return
-        self._sprint_writer = writer and not self._writer_mode
-        if self._sprint_writer:
-            self.writer_mode()
-        self._refresh_stats()
-        self.update_status()
-        self.notify(f"Sprint started: {minutes} minutes", timeout=2)
-
-    def _sprint_tick(self) -> None:
-        if self.stats is None or self.stats.sprint is None:
-            return
-        state = self.stats.sprint_state()
-        if state["done"]:
-            self._end_sprint(cancelled=False)
-        else:
-            self._refresh_stats()
-            self.update_status()
-
-    def _end_sprint(self, cancelled: bool) -> None:
-        if self.stats is None or self.stats.sprint is None:
-            return
-        self.save_current()   # the last words count
-        rec = self.stats.finish_sprint(cancelled=cancelled)
-        if getattr(self, "_sprint_writer", False):
-            self._sprint_writer = False
-            if self._writer_mode:
-                self.writer_mode()
-        self._refresh_stats()
-        self.update_status()
-        if rec is not None:
-            verb = "stopped" if cancelled else "done"
-            self.notify(f"Sprint {verb}: {rec['minutes']} minutes, {writing_stats.signed(rec['words'])} words "
-                        f"(today {writing_stats.signed(self._stats_brief['todayWords'])})", timeout=12)
-
-    def export_manuscript(self) -> None:
-        """Action · Export manuscript: a small form, then the file is written
-        in a worker thread to exports/ and its path is shown."""
-        if self.project is None:
-            return
-        self.save_current()
-        project = self.project
-        info = exporting.describe(project)
-        opts = exporting.load_options(project)
-        if not next((f["available"] for f in info["formats"] if f["key"] == opts.format), False):
-            opts = replace(opts, format=next((f["key"] for f in info["formats"] if f["available"]), "md"))
-        summary = exporting.summarize(project, opts)
-        if not summary["scenes"]:
-            self.notify("There is nothing to export yet: the book has no scenes", severity="warning")
-            return
-        notes = [m for m in summary["messages"] if "unaccepted AI drafts" not in m]
-        if summary["draft_scenes"]:
-            notes.insert(0, f"{summary['draft_scenes']} {project.unit}(s) have unaccepted AI drafts; "
-                            "their original text is exported unless you tick the box.")
-        self.push_screen(ExportScreen(info, opts, exporting.summary_line(summary, project.unit),
-                                      notes[:4], project.unit), self._start_export)
-
-    def _start_export(self, opts) -> None:
-        if opts is None or self.project is None:
-            return
-        project = self.project
-        self.notify("Exporting...", timeout=3)
-
-        def work() -> None:
-            try:
-                result = exporting.run_export(project, opts)
-            except (ValueError, RuntimeError, OSError) as exc:
-                self.call_from_thread(self.notify, str(exc), severity="error", timeout=10)
-            else:
-                self.call_from_thread(self._export_done, result)
-
-        self.run_worker(work, thread=True, exclusive=True, group="export")
-
-    def _export_done(self, result) -> None:
-        pages = f"{result.pages} pages, " if result.pages else ""
-        self.notify(f"Exported to {result.rel} ({pages}{result.words:,} words)", timeout=10)
-        for warning in result.warnings[:3]:
-            self.notify(warning, severity="warning", timeout=10)
-
-    def open_exports_folder(self) -> None:
-        """Action · Open exports folder (hands the folder to the desktop; only when picked)."""
-        if self.project is None:
-            return
-        try:
-            exporting.open_in_desktop(exporting.resolve_export(self.project, ""))
-        except (RuntimeError, OSError) as exc:
-            self.notify(str(exc), severity="warning", timeout=6)
-
-    def open_stats(self) -> None:
-        """Action · Session stats: today, this session, the last 30 days, streak."""
-        if self.stats is None:
-            return
-        self.save_current()
-        summary = self.stats.summary(project_words=self._project_words)
-        self.push_screen(StatsScreen(writing_stats.format_summary(summary)))
-
-    def _recount_project_words(self) -> None:
-        if self.project is None:
-            self._project_words = 0
-            return
-        total = 0
-        for path in self.project.counted_scenes():  # front matter isn't the book
-            try:
-                text = fsutil.read_text_lenient(path)
-                total += _word_count(text, self._originals(text, path))
-            except OSError:
-                continue
-        self._project_words = total
-
     def on_unmount(self) -> None:
         if self._save_timer is not None:
             self._save_timer.stop()
@@ -826,8 +568,8 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, App):
             self._sprint_timer.stop()
         try:
             self._write_to_disk()  # final flush; UI updates skipped on teardown
-        except Exception:
-            pass
+        except Exception as exc:
+            log_exc("final save on exit failed", exc, level=logging.WARNING)
         if self.stats is not None:
             try:
                 self.stats.close()
@@ -911,8 +653,8 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, App):
         warned.add(str(exc))
         try:
             self.notify(str(exc), severity="error", timeout=10)
-        except Exception:
-            pass
+        except Exception as err:  # teardown: no screen to notify on
+            log_exc("notify failed", err)
 
     def _write_to_disk(self) -> None:
         if self.current_path is None or self._editor is None:
@@ -921,8 +663,8 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, App):
         if self._is_scene(self.current_path) and snapshots.auto_enabled():
             try:  # the daily safety net must never block a save
                 snapshots.ensure_daily(self.project, self.current_path, text)
-            except Exception:
-                pass
+            except Exception as exc:
+                log_exc("daily snapshot failed", exc, level=logging.WARNING)
         try:
             write_atomic(self.current_path, text)
         except fsutil.NotUtf8Error as exc:  # lenient text must never replace odd bytes
@@ -933,8 +675,8 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, App):
                 comments.sidecar_path(self.project.root, self.current_path).is_file():
             try:  # comments follow edited passages: refresh what they quote
                 comments.reanchor(self.project.root, self.current_path, text)
-            except Exception:
-                pass
+            except Exception as exc:
+                log_exc("comment re-anchor failed", exc, level=logging.WARNING)
         if self.current_path in (style_path(self.project),
                                  spelling.project_dictionary_path(self.project)) \
                 or research_notes.is_research_path(self.project, self.current_path):
@@ -1100,140 +842,6 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, App):
 
     # -- spell check ---------------------------------------------------------------------
 
-    def _spell_active(self) -> bool:
-        """Spelling applies to scenes only (not notes, style.md, dictionary)."""
-        return (self.project is not None and self._editor is not None
-                and self._is_scene(self.current_path))
-
-    def _spell_on(self) -> bool:
-        return bool(user_settings.get("spellcheck", True)) and self._spell_active()
-
-    def _accepted(self) -> spelling.AcceptedTerms:
-        return spelling.accepted_terms(
-            self.project, entities=self.entities,
-            ignored=self._spell_ignores.for_project(self.project.root))
-
-    def _spelling_edited(self) -> None:
-        """Keep underlines honest between checks: a line-count change shifts
-        every later row, so clear; otherwise the edited row is dropped."""
-        if not self._spell_on():
-            return
-        lines = self.editor.document.line_count
-        if lines != self._spell_lines:
-            self.editor.set_misspellings(None)
-        else:
-            row = self.editor.cursor_location[0]
-            self.editor._spelling.pop(row, None)
-        self.schedule_spelling()
-
-    def schedule_spelling(self, delay: float = 0.6) -> None:
-        if self._spell_timer is not None:
-            self._spell_timer.stop()
-        self._spell_timer = self.set_timer(delay, self._spell_start)
-
-    def _spell_start(self) -> None:
-        if self._editor is None:
-            return
-        if not self._spell_on():
-            self.editor.set_misspellings(None)
-            return
-        text = self.editor.text
-        accepted = self._accepted()
-        self._spell_lines = self.editor.document.line_count
-
-        def work() -> None:
-            found = spelling.check(text, accepted)
-            try:
-                self.call_from_thread(self._spell_apply, text, found)
-            except Exception:  # app shutting down
-                pass
-
-        self.run_worker(work, thread=True, exclusive=True, group="spell")
-
-    def _spell_apply(self, text: str, found) -> None:
-        if self._editor is not None and self._editor.text == text \
-                and self._spell_on():
-            self.editor.set_misspellings(found)
-
-    def refresh_spelling(self) -> None:
-        """Re-check right now (after a dictionary change)."""
-        if self._editor is None:
-            return
-        if not self._spell_on():
-            self.editor.set_misspellings(None)
-            return
-        self._spell_lines = self.editor.document.line_count
-        self.editor.set_misspellings(
-            spelling.check(self.editor.text, self._accepted()))
-
-    def toggle_spellcheck(self) -> None:
-        on = not user_settings.get("spellcheck", True)
-        user_settings.set("spellcheck", on)
-        self.refresh_spelling()
-        self.notify(f"Spell check {'on' if on else 'off'}", timeout=2)
-
-    def action_spell_next(self) -> None:
-        """f6: jump to the next misspelling after the cursor and fix it."""
-        if not self._spell_active():
-            self.notify("Spell check applies to scenes", timeout=2)
-            return
-        text = self.editor.text
-        found = spelling.check(text, self._accepted())
-        if not found:
-            self.notify("No misspellings", timeout=2)
-            return
-        offset = rowcol_to_offset(text, *self.editor.cursor_location)
-        m = next((m for m in found if m.start >= offset), found[0])
-        self.editor.move_cursor(offset_to_rowcol(text, m.end))
-        word = text[m.start:m.end]
-
-        def _done(result: tuple[str, str] | None) -> None:
-            if result is None:
-                return
-            kind, value = result
-            self._spell_resolve(m, word, kind, value)
-
-        self.push_screen(SpellScreen(word, spelling.suggestions(word)), _done)
-
-    def _spell_resolve(self, m, word: str, kind: str, value: str) -> None:
-        if kind == "replace":
-            if self.editor.text[m.start:m.end] == word:
-                self.editor.replace_offsets(m.start, m.end, value)
-            return
-        if kind == "project":
-            spelling.add_to_dictionary(
-                spelling.project_dictionary_path(self.project), word)
-            self.notify(f'Added "{word}" to the project dictionary', timeout=2)
-        elif kind == "personal":
-            spelling.add_to_dictionary(spelling.personal_dictionary_path(), word)
-            self.notify(f'Added "{word}" to your dictionary', timeout=2)
-        elif kind == "ignore":
-            self._spell_ignores.add(self.project.root, word)
-        self.refresh_spelling()
-
-    def add_selection_to_dictionary(self) -> None:
-        """Palette: selected word or phrase -> project dictionary."""
-        if self.project is None or self._editor is None:
-            return
-        term = " ".join(self.editor.selected_text.split())
-        if not term:
-            self.notify("Select a word or phrase first", timeout=2)
-            return
-        added = spelling.add_to_dictionary(
-            spelling.project_dictionary_path(self.project), term)
-        self.notify(f'Added "{term}" to the project dictionary' if added
-                    else f'"{term}" is already in the dictionary', timeout=2)
-        self.refresh_spelling()
-
-    def open_project_dictionary(self) -> None:
-        if self.project is None:
-            return
-        self.save_current()
-        self.open_file(spelling.ensure_dictionary(
-            spelling.project_dictionary_path(self.project)))
-
-    # -- actions ---------------------------------------------------------------------
-
     def action_save(self) -> None:
         self.save_current(explicit=True)
 
@@ -1372,6 +980,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, App):
         except Cancelled:
             return
         except Exception as exc:
+            log_exc("_fetch_suggestions failed", exc, level=logging.WARNING)
             self.notify(f"Alias search failed: {exc}", severity="error",
                         timeout=6)
             return
@@ -1579,6 +1188,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, App):
         except Cancelled:
             return                  # stopped: nothing is inserted, saved or registered
         except Exception as exc:
+            log_exc("_generate_worker failed", exc, level=logging.WARNING)
             self.notify(f"AI writing failed: {exc}", severity="error",
                         timeout=6)
             return
@@ -1654,6 +1264,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, App):
         except Cancelled:
             return
         except Exception as exc:
+            log_exc("_learn_style_worker failed", exc, level=logging.WARNING)
             self.notify(f"Style guide failed: {exc}", severity="error",
                         timeout=6)
             return
@@ -1688,6 +1299,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, App):
                 set_api_key(key)
                 self.notify("API key stored in the system keyring", timeout=3)
             except Exception as exc:
+                log_exc("_store failed", exc, level=logging.WARNING)
                 self.notify(
                     f"Keyring unavailable ({exc}). Set the OPENROUTER_API_KEY"
                     " environment variable instead.",
@@ -1739,6 +1351,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, App):
         except Cancelled:
             return
         except Exception as exc:
+            log_exc("_check_continuity_worker failed", exc, level=logging.WARNING)
             self.notify(f"Continuity check failed: {exc}", severity="error",
                         timeout=6)
             return
@@ -1826,6 +1439,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, App):
         except Cancelled:
             return
         except Exception as exc:
+            log_exc("_update_bible_worker failed", exc, level=logging.WARNING)
             self.notify(f"Story-bible update failed: {exc}", severity="error",
                         timeout=6)
             return
@@ -1890,529 +1504,6 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, App):
         self.editor.focus()
         self.save_current()
 
-    def action_new_scene(self) -> None:
-        self.create_scene_prompt()
-
-    def create_scene_prompt(self) -> None:
-        def _create(title: str | None) -> None:
-            if not title:
-                return
-            part = self.project.default_part_for_new(self.current_path)
-            path = self.project.next_scene_path(title, part)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(f"# {title}\n\n", encoding="utf-8", newline="\n")
-            self.refresh_sidebar()
-            self.open_file(path)
-
-        self.push_screen(NamePrompt(f"New {self.project.unit} title:"), _create)
-
-    # -- scene organization -----------------------------------------------------
-
-    def _current_scene_path(self) -> Path | None:
-        """The open file, if it's a manuscript scene (not an entity note)."""
-        if self.project is None or self.current_path is None:
-            return None
-        if self.project.is_scene_path(self.current_path):
-            return self.current_path
-        return None
-
-    def rename_scene_prompt(self) -> None:
-        path = self._current_scene_path()
-        if path is None:
-            self.notify("Open a scene first", severity="warning")
-            return
-        current = self.project.scene_title(path)
-
-        def _rename(title: str | None) -> None:
-            if not title or title == current:
-                return
-            if not fsutil.is_valid_utf8(path):
-                self._warn_not_utf8(fsutil.NotUtf8Error(path))
-                return
-            # retitle the editor buffer, then save — a disk-side rename would
-            # be clobbered by the next autosave of the stale buffer
-            self.editor.load_text(retitle_text(self.editor.text, title))
-            self.save_current()
-            self.refresh_sidebar()
-            self.notify(f"Renamed to '{title}'", timeout=1)
-
-        self.push_screen(NamePrompt(f"Rename '{current}' to:"), _rename)
-
-    def delete_scene_confirm(self) -> None:
-        path = self._current_scene_path()
-        if path is None:
-            self.notify("Open a scene first", severity="warning")
-            return
-        title = self.project.scene_title(path)
-        unit = self.project.unit
-
-        def _delete(ok: bool) -> None:
-            if not ok:
-                return
-            rel = path.relative_to(self.project.root).as_posix()
-            self.project.delete_scene(path)  # to the Trash, with its draft sidecar
-            self.idx.remove_file(rel)
-            # detach BEFORE open_file, whose save step would otherwise
-            # resurrect the deleted file from the editor buffer
-            self.current_path = None
-            self.editor.load_text("")
-            self.refresh_sidebar()
-            scenes = self.project.list_scenes()
-            if scenes:
-                self.open_file(scenes[0])
-            else:
-                self.update_status()
-            self.notify(f"Moved '{title}' to the Trash", timeout=2)
-
-        self.push_screen(
-            ConfirmScreen(
-                f"Move {unit} '{title}' to the Trash?\n"
-                "You can restore it from Action · Open Trash.",
-                confirm_label="Move to Trash"),
-            _delete,
-        )
-
-    def _move_scene(self, delta: int) -> None:
-        path = self._current_scene_path()
-        if path is None:
-            self.notify("Open a scene first", severity="warning")
-            return
-        self.save_current()
-        new_path = self.project.move_scene(path, delta)
-        if new_path is None:
-            self.notify("Already at the edge of its part", severity="warning")
-            return
-        self.current_path = new_path  # content unchanged; only the name moved
-        self.idx.rebuild(self.project)
-        self.refresh_sidebar()
-        self.update_status()
-        self.notify(f"Moved to {new_path.name}", timeout=1)
-
-    def move_scene_up(self) -> None:
-        self._move_scene(-1)
-
-    def move_scene_down(self) -> None:
-        self._move_scene(1)
-
-    # -- parts, unplaced scenes, trash ------------------------------------------
-
-    def _part_options(self, include_top: bool = False) -> list[tuple[str, object]]:
-        options: list[tuple[str, object]] = [
-            (self.project.part_title(p), p) for p in self.project.list_parts()]
-        if include_top:
-            options.append(("(no part - top level)", "top"))
-        return options
-
-    def _with_part(self, prompt: str, then) -> None:
-        """Ask which part, defaulting to the open scene's part; run then(part)."""
-        options = self._part_options()
-        if not options:
-            self.notify("There are no parts yet - Action · New part",
-                        severity="warning")
-            return
-        path = self._current_scene_path()
-        current = self.project.part_of(path) if path else None
-        self.push_screen(ChoiceScreen(prompt, options, initial=current),
-                         lambda chosen: chosen is not None and then(chosen))
-
-    def _structure_changed(self, reopen: Path | None = None) -> None:
-        """After parts/scenes moved on disk: refresh index and sidebar and
-        keep the open scene open at its (possibly new) path."""
-        if reopen is not None:
-            self.current_path = reopen
-        self.idx.rebuild(self.project)
-        self.refresh_sidebar()
-        self.update_status()
-
-    def new_part_prompt(self) -> None:
-        def _create(title: str | None) -> None:
-            if not title:
-                return
-            try:
-                part = self.project.new_part(title)
-            except ValueError as exc:
-                self.notify(str(exc), severity="error")
-                return
-            self.refresh_sidebar()
-            self.notify(f"Created part '{self.project.part_title(part)}'", timeout=2)
-
-        self.push_screen(NamePrompt("New part title:"), _create)
-
-    def rename_part_prompt(self) -> None:
-        def _go(part: Path) -> None:
-            def _rename(title: str | None) -> None:
-                if not title:
-                    return
-                self.project.rename_part(part, title)
-                self.refresh_sidebar()
-
-            self.push_screen(
-                NamePrompt(f"Rename part '{self.project.part_title(part)}' to:"), _rename)
-
-        self._with_part("Rename which part?", _go)
-
-    def _move_part(self, delta: int) -> None:
-        def _go(part: Path) -> None:
-            self.save_current()
-            parts = self.project.list_parts()
-            j = parts.index(part) + delta
-            neighbor = parts[j] if 0 <= j < len(parts) else None
-            new = self.project.move_part(part, delta)
-            if new is None:
-                self.notify("Already at the edge", severity="warning")
-                return
-            cur, reopen = self.current_path, None
-            if cur is not None and cur.parent == part:
-                reopen = new / cur.name
-            elif cur is not None and neighbor is not None and cur.parent == neighbor:
-                prefix = part.name.split("-", 1)[0]
-                reopen = neighbor.with_name(
-                    f"{prefix}-{neighbor.name.split('-', 1)[1]}") / cur.name
-            self._structure_changed(reopen)
-            self.notify(f"Moved part '{self.project.part_title(new)}'", timeout=1)
-
-        self._with_part("Move which part?", _go)
-
-    def move_part_up(self) -> None:
-        self._move_part(-1)
-
-    def move_part_down(self) -> None:
-        self._move_part(1)
-
-    def delete_part_confirm(self) -> None:
-        def _go(part: Path) -> None:
-            title = self.project.part_title(part)
-            if self.project.part_scenes(part):
-                self.notify(f"'{title}' still has scenes - move them out first",
-                            severity="warning")
-                return
-
-            def _delete(ok: bool) -> None:
-                if not ok:
-                    return
-                try:
-                    self.project.delete_part(part)
-                except ValueError as exc:
-                    self.notify(str(exc), severity="warning")
-                    return
-                self.refresh_sidebar()
-                self.notify(f"Deleted part '{title}'", timeout=2)
-
-            self.push_screen(ConfirmScreen(f"Delete the empty part '{title}'?"), _delete)
-
-        self._with_part("Delete which (empty) part?", _go)
-
-    def _place_in(self, path: Path, prompt: str, done: str) -> None:
-        """Ask for a part (or the top level) and move *path* to its end."""
-        def _go(chosen) -> None:
-            self.save_current()
-            part = None if chosen == "top" else chosen
-            new = self.project.move_scene_to_part(path, part)
-            self._structure_changed(new if path == self.current_path else None)
-            self.notify(done, timeout=2)
-
-        self.push_screen(ChoiceScreen(prompt, self._part_options(include_top=True)),
-                         lambda chosen: chosen is not None and _go(chosen))
-
-    def move_scene_to_part_prompt(self) -> None:
-        path = self._current_scene_path()
-        if path is None:
-            self.notify("Open a scene first", severity="warning")
-            return
-        self._place_in(path, f"Move '{self.project.scene_title(path)}' to which part?",
-                       "Moved (at the end of the part)")
-
-    def unplace_scene_action(self) -> None:
-        """Move the open scene out of the book into Unplaced Scenes."""
-        path = self._current_scene_path()
-        if path is None:
-            self.notify("Open a scene first", severity="warning")
-            return
-        if self.project.is_unplaced(path):
-            self.notify("Already unplaced - use Action · Place scene in the book",
-                        severity="warning")
-            return
-        self.save_current()
-        new = self.project.unplace_scene(path)
-        self._structure_changed(new)
-        self.notify("Moved to Unplaced scenes (not counted in the book)", timeout=2)
-
-    def place_scene_action(self) -> None:
-        """Bring the open unplaced scene back into the book."""
-        path = self._current_scene_path()
-        if path is None or not self.project.is_unplaced(path):
-            self.notify("Open an unplaced scene first", severity="warning")
-            return
-        self._place_in(path, "Place in which part?", "Placed in the book")
-
-    def open_trash(self) -> None:
-        items = self.project.list_trash()
-
-        def _act(result) -> None:
-            if result is None:
-                return
-            what, name = result
-            if what == "restore":
-                new = self.project.restore_scene(name)
-                if new.parent == inspiration.inspiration_dir(self.project):   # reference images: no sidebar row
-                    self.notify("Restored the inspiration image", timeout=3)
-                elif research_notes.is_research_path(self.project, new):   # not indexed, no sidebar row
-                    self.notify(f"Restored the notebook note to {new.relative_to(self.project.root)}", timeout=3)
-                else:
-                    self.idx.rebuild(self.project)
-                    self.refresh_sidebar()
-                    self.notify("Restored to "
-                                f"{new.relative_to(self.project.manuscript_dir)}", timeout=2)
-                self.open_trash()
-            elif what == "delete":
-                item = next((i for i in items if i.name == name), None)
-
-                def _forever(ok: bool) -> None:
-                    if ok:
-                        self.project.delete_forever(name)
-                    self.open_trash()
-
-                self.push_screen(ConfirmScreen(
-                    f"Delete '{item.title if item else name}' forever?\n"
-                    "This cannot be undone.", confirm_label="Delete forever"), _forever)
-            elif what == "empty":
-                def _empty(ok: bool) -> None:
-                    if ok:
-                        n = self.project.empty_trash()
-                        self.notify(f"Emptied the Trash ({n})", timeout=2)
-                    self.open_trash()
-
-                self.push_screen(ConfirmScreen(
-                    f"Delete all {len(items)} item(s) in the Trash forever?\n"
-                    "This cannot be undone.", confirm_label="Empty Trash"), _empty)
-
-        self.push_screen(TrashScreen(items), _act)
-
-    # -- snapshots (Wave 2.1) -----------------------------------------------------
-
-    def _refresh_snapshot_time(self) -> None:
-        path = self.current_path
-        self._snapshot_at = (snapshots.latest_time(self.project, path)
-                             if path is not None and self._is_scene(path) else None)
-
-    def snapshot_scene_prompt(self) -> None:
-        """Scene · Snapshot scene: a verbatim copy you can compare and restore."""
-        path = self._current_scene_path()
-        if path is None:
-            self.notify("Open a scene first", severity="warning")
-            return
-
-        def _take(label: str | None) -> None:
-            if label is None:
-                return
-            snapshots.create(self.project, path, label, self.editor.text)
-            self._refresh_snapshot_time()
-            self.update_status()
-            self.notify("Snapshot taken" + (f": {label}" if label else ""), timeout=2)
-
-        self.push_screen(LabelPrompt("Snapshot this scene (the text as it is now)"), _take)
-
-    def snapshot_all_prompt(self) -> None:
-        """Action · Snapshot all scenes: one label for every scene."""
-        if self.project is None:
-            return
-        self.save_current()
-
-        def _take(label: str | None) -> None:
-            if label is None:
-                return
-            n = snapshots.snapshot_all(self.project, label)
-            self._refresh_snapshot_time()
-            self.update_status()
-            self.notify(f"Snapshot taken of {n} scene(s)", timeout=2)
-
-        self.push_screen(LabelPrompt("Snapshot every scene in the project"), _take)
-
-    def open_snapshots(self) -> None:
-        """Scene · Snapshots: list, compare, restore, delete."""
-        path = self._current_scene_path()
-        if path is None:
-            self.notify("Open a scene first", severity="warning")
-            return
-        self.save_current()
-        text = self.editor.text
-        words = _word_count(text, self._originals(text))
-        items = snapshots.list_snapshots(self.project, path)
-        title = self.project.scene_title(path)
-
-        def _act(result) -> None:
-            if result is None:
-                return
-            what, name = result
-            if what == "new":
-                self.snapshot_scene_prompt()
-            elif what == "all":
-                self.snapshot_all_prompt()
-            elif what == "compare":
-                self._compare_snapshot(path, name)
-            elif what == "restore":
-                self._confirm_restore(path, name)
-            elif what == "delete":
-                snap = next((s for s in items if s.name == name), None)
-
-                def _gone(ok: bool) -> None:
-                    if ok:
-                        snapshots.delete(self.project, path, name)
-                        self._refresh_snapshot_time()
-                        self.update_status()
-                    self.open_snapshots()
-
-                self.push_screen(ConfirmScreen(
-                    f"Delete the snapshot '{label_text(snap.label) if snap else name}'?\n"
-                    "This cannot be undone.", confirm_label="Delete"), _gone)
-
-        self.push_screen(SnapshotsScreen(title, items, words), _act)
-
-    def _compare_snapshot(self, path: Path, name: str) -> None:
-        old = snapshots.read_text(self.project, path, name)
-        segs = snapshots.diff_words(old, self.editor.text)
-        snap = next((x for x in snapshots.list_snapshots(self.project, path) if x.name == name), None)
-        title = (f"{label_text(snap.label)}, {snap.when.strftime('%Y-%m-%d %H:%M')} ({snapshots.ago(snap.when)})"
-                 if snap else name)
-
-        def _back(result) -> None:
-            if result == "restore":
-                self._confirm_restore(path, name)
-            else:
-                self.open_snapshots()
-
-        self.push_screen(CompareScreen(title, segs), _back)
-
-    def _confirm_restore(self, path: Path, name: str) -> None:
-        def _go(ok: bool) -> None:
-            if not ok:
-                self.open_snapshots()
-                return
-            self.save_current()
-            # the current text is snapshotted first (before-restore), then replaced
-            text = snapshots.restore(self.project, path, name, self.editor.text)
-            self._stats_seen(text)  # restoring is not writing
-            self.editor.load_text(text)
-            self.save_current()
-            self.editor.refresh_links()
-            self.schedule_spelling(0.05)
-            self.notify("Snapshot restored; the text from before is kept as "
-                        "'before a restore'", timeout=4)
-
-        self.push_screen(ConfirmScreen(
-            "Replace this scene with the snapshot?\n"
-            "The text as it is now is snapshotted first, so you can come back to it.",
-            confirm_label="Restore"), _go)
-
-    # -- git sync (Wave 2.3): the status is read-only; the actions run only when asked ----
-
-    def _schedule_sync(self) -> None:
-        """Refresh the git status 2.5 s after a save (trailing; one timer at a time)."""
-        if self._sync_timer is None and self.project is not None:
-            self._sync_timer = self.set_timer(2.5, self._sync_timer_fired)
-
-    def _sync_timer_fired(self) -> None:
-        self._sync_timer = None
-        self.refresh_sync()
-
-    @work(exclusive=True, group="sync-status")
-    async def refresh_sync(self) -> None:
-        if self.project is None:
-            return
-        root = self.project.root
-        try:
-            status = await asyncio.to_thread(sync.status, root)
-        except Exception:  # a failing git must never disturb writing
-            status = None
-        self._sync = status
-        self.update_status()
-
-    def sync_visible(self, method: str) -> bool:
-        """Which sync actions the palette lists: commit/push only inside a
-        repository (push only with a remote), init only when there is none."""
-        st = self._sync
-        if method == "sync_commit_prompt":
-            return st is not None
-        if method == "sync_push_confirm":
-            return st is not None and st.can_push
-        if method == "sync_init_confirm":
-            return st is None and sync.git_available() and self.project is not None \
-                and not sync.in_repository(self.project.root)
-        return True
-
-    def _sync_run(self, fn, done) -> None:
-        """Run a blocking git call off the UI thread; report the outcome."""
-        async def go() -> None:
-            try:
-                result = await asyncio.to_thread(fn)
-            except ValueError as exc:
-                self.notify(str(exc), severity="warning", timeout=5)
-            except Exception as exc:  # GitError and friends: git's own words
-                self.notify(str(exc), severity="error", timeout=8)
-            else:
-                done(result)
-            self.refresh_sync()
-
-        self.run_worker(go(), group="sync-action")
-
-    def sync_commit_prompt(self) -> None:
-        """Action · Commit changes: message pre-filled, commits this project folder only."""
-        if self.project is None or self._sync is None:
-            self.notify("This project is not in a git repository", severity="warning")
-            return
-        if self._sync.changes == 0:
-            self.notify("Nothing to commit: everything is already committed", timeout=3)
-            return
-        self.save_current()
-        root = self.project.root
-        st = self._sync
-
-        def _go(message: str | None) -> None:
-            if message is None:
-                return
-            self._sync_run(lambda: sync.commit(root, message),
-                           lambda summary: self.notify(f"Committed: {summary}", timeout=4))
-
-        self.push_screen(MessagePrompt(
-            f"Commit {st.changes} change(s) in this project folder (enter commits, esc cancels)",
-            sync.default_message(st)), _go)
-
-    def sync_push_confirm(self) -> None:
-        """Action · Push: asks first, naming the remote. Never forces."""
-        st = self._sync
-        if self.project is None or st is None or not st.can_push:
-            self.notify("No remote is configured for this project", severity="warning")
-            return
-        root = self.project.root
-        url = sync.remote_url(root, st.remote)
-        where = f"{st.remote} ({url})" if url else st.remote
-
-        def _go(ok: bool) -> None:
-            if ok:
-                self.notify("Pushing…", timeout=2)
-                self._sync_run(lambda: sync.push(root), lambda s: self.notify(s, timeout=4))
-
-        self.push_screen(ConfirmScreen(
-            f"Push branch '{st.branch}' to the remote {where}?\n"
-            "This sends your manuscript there. It is never forced.",
-            confirm_label="Push"), _go)
-
-    def sync_init_confirm(self) -> None:
-        """Action · Initialize git for this project."""
-        if self.project is None:
-            return
-        root = self.project.root
-
-        def _go(ok: bool) -> None:
-            if ok:
-                self._sync_run(lambda: sync.init(root), lambda _: self.notify(
-                    "This folder is now a git repository. Nothing is committed yet.", timeout=4))
-
-        self.push_screen(ConfirmScreen(
-            "Turn this project folder into a git repository?\n"
-            "A .gitignore hides the index cache (.chisel/). Nothing is committed or pushed.",
-            confirm_label="Initialize"), _go)
-
     def start_new_draft(self) -> None:
         """Action · Start new draft: snapshot every scene as end-of-draft-N, count up."""
         if self.project is None:
@@ -2460,70 +1551,6 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, App):
         self.push_screen(DetailsScreen(self.editor.text, characters, places), _save)
 
     # -- notebook notes (Wave 3.3; "research" internally): plain Markdown in notebook/, not scenes, not indexed ---------
-
-    def new_research_note_prompt(self) -> None:
-        def _create(title: str | None) -> None:
-            if not title:
-                return
-            try:
-                path = research_notes.new_note(self.project, title)
-            except ValueError as exc:
-                self.notify(str(exc), severity="warning")
-                return
-            self.open_file(path)
-
-        self.push_screen(NamePrompt("New note title:"), _create)
-
-    def new_research_from_link_prompt(self) -> None:
-        def _create(url: str | None) -> None:
-            if not url:
-                return
-            try:
-                path = research_notes.note_from_url(self.project, url)
-            except ValueError as exc:
-                self.notify(str(exc), severity="warning")
-                return
-            self.open_file(path)
-            self.notify("Saved the link as a notebook note (the page is not downloaded)", timeout=3)
-
-        self.push_screen(NamePrompt("Link (https://...):"), _create)
-
-    def send_selection_to_notebook(self) -> None:
-        """Copy the selected passage into notebook/clippings.md (the scene is not touched)."""
-        if not self.editor.selected_text.strip():
-            self.notify("Select the passage to send first", severity="warning")
-            return
-        path = self._current_scene_path()
-        source = self.project.scene_title(path) if path is not None else ""
-        try:
-            research_notes.append_clipping(self.project, self.editor.selected_text, source)
-        except (ValueError, OSError) as exc:
-            self.notify(str(exc), severity="warning")
-            return
-        self.notify("Sent to notebook/clippings.md", timeout=3)
-
-    def delete_research_note_confirm(self) -> None:
-        path = self.current_path
-        if path is None or not research_notes.is_research_path(self.project, path):
-            self.notify("Open a notebook note first", severity="warning")
-            return
-
-        def _go(ok: bool) -> None:
-            if not ok:
-                return
-            self._dirty = False          # a pending autosave must not bring the file back
-            self.current_path = None
-            research_notes.delete_note(self.project, path)   # to the Trash
-            scenes = self.project.list_scenes()
-            if scenes:
-                self.open_file(scenes[0])
-            self.notify("Note moved to the Trash (Action · Open Trash restores it)", timeout=3)
-
-        self.push_screen(ConfirmScreen(
-            f"Move the notebook note '{research_notes.title_of(path)}' to the Trash?\n"
-            "You can restore it from Action · Open Trash.", confirm_label="Move to Trash"), _go)
-
-    # -- the assistant (chat + research), Wave 3.3 / 3.4 -------------------------------------
 
     def open_assistant(self, mode: str = "chat") -> None:
         """Action · Ask the assistant (ctrl+r inside switches to research mode)."""
@@ -2669,6 +1696,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, App):
                 screen.show_note("(stopped)")
             return
         except Exception as exc:
+            log_exc("_assistant_worker failed", exc, level=logging.WARNING)
             msg = ChatMsg("assistant", f"That request failed ({exc}). Nothing was changed.", error=True)
         cost = self._cost_note(calls, sent)
         if screen.is_attached:
@@ -2712,6 +1740,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, App):
         except Cancelled:
             return
         except Exception as exc:
+            log_exc("_brainstorm_worker failed", exc, level=logging.WARNING)
             self.notify(f"Brainstorm failed: {exc}", severity="error", timeout=6)
             return
         cost = self._cost_note(calls, sent)
@@ -2745,195 +1774,6 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, App):
         self.push_screen(BrainstormScreen(ideas), _act)
 
     # -- comments (Wave 3.2): author notes in .comments/, never in the prose ----------
-
-    def refresh_comments(self, reload: bool = False) -> None:
-        """Underline the open scene's open comments (faintly) in the editor."""
-        if self._editor is None:
-            return
-        path = self._current_scene_path()
-        if path is None:
-            self._comment_list, self._comment_scene = [], None
-            self._editor.set_comments([])
-            return
-        if reload or self._comment_scene != path:
-            self._comment_list = comments.load(self.project.root, path)
-            self._comment_scene = path
-        if not self._comment_list:
-            self._editor.set_comments([])
-            return
-        live = [c for c in self._comment_list if not c.resolved]
-        self._editor.set_comments([(p.start, p.end) for p in comments.place(
-            self._editor.text, live) if not p.detached])
-
-    def add_comment_prompt(self) -> None:
-        """Scene · Add comment on selection."""
-        path = self._current_scene_path()
-        if path is None:
-            self.notify("Open a scene first", severity="warning")
-            return
-        if not self.editor.selected_text.strip():
-            self.notify("Select the passage to comment on first", severity="warning")
-            return
-        text = self.editor.text
-        a, b = self.editor.selection
-        lo = min(rowcol_to_offset(text, *a), rowcol_to_offset(text, *b))
-        hi = max(rowcol_to_offset(text, *a), rowcol_to_offset(text, *b))
-
-        def _add(body: str | None) -> None:
-            if not body:
-                return
-            try:
-                comments.add(self.project.root, path, text, lo, hi, body)
-            except ValueError as exc:
-                self.notify(str(exc), severity="warning")
-                return
-            self.refresh_comments(reload=True)
-            self.notify("Comment added (it is kept beside the scene, not in the text)", timeout=3)
-
-        self.push_screen(NamePrompt("Comment:"), _add)
-
-    def open_comments(self, focus: str | None = None) -> None:
-        """Scene · Comments: list, jump, resolve, edit, delete."""
-        path = self._current_scene_path()
-        if path is None:
-            self.notify("Open a scene first", severity="warning")
-            return
-        self.save_current()
-        text = self.editor.text
-        placed = comments.place(text, comments.load(self.project.root, path))
-        lines = {p.comment.id: (None if p.start is None else text.count("\n", 0, p.start))
-                 for p in placed}
-        index = next((i for i, p in enumerate(placed) if p.comment.id == focus), 0)
-        by_id = {p.comment.id: p for p in placed}
-
-        def _act(result) -> None:
-            if result is None:
-                self.refresh_comments(reload=True)
-                return
-            what, cid = result
-            root = self.project.root
-            if what == "jump":
-                p = by_id[cid]
-                self.refresh_comments(reload=True)
-                self.editor.selection = Selection(offset_to_rowcol(text, p.start),
-                                                  offset_to_rowcol(text, p.end))
-                self.editor.focus()
-            elif what == "resolve":
-                comments.resolve(root, path, cid, not by_id[cid].comment.resolved)
-                self.open_comments(cid)
-            elif what == "edit":
-                def _edit(body: str | None) -> None:
-                    if body:
-                        comments.edit(root, path, cid, body)
-                    self.open_comments(cid)
-
-                self.push_screen(NamePrompt("Comment:", by_id[cid].comment.body), _edit)
-            elif what == "delete":
-                def _gone(ok: bool) -> None:
-                    if ok:
-                        comments.delete(root, path, cid)
-                    self.open_comments(None if ok else cid)
-
-                self.push_screen(ConfirmScreen(
-                    "Delete this comment?\nThe text it was about is not touched.",
-                    confirm_label="Delete comment"), _gone)
-
-        self.push_screen(CommentsScreen(placed, lines, self.project.scene_title(path), index),
-                         _act)
-
-    def _scene_collection_names(self) -> dict[Path, list[str]]:
-        """{scene: its collection names}, for the sidebar's #collection filter."""
-        out: dict[Path, list[str]] = {}
-        for c in coll.list_collections(self.project):
-            for p in c.scenes:
-                out.setdefault(p, []).append(c.name)
-        return out
-
-    def open_collections(self, focus: str | None = None) -> None:
-        """Scene · Collections: tick the open scene's collections; add, rename,
-        recolour or delete them. (Sidebar filter: type #name.)"""
-        self.save_current()
-        path = self._current_scene_path()
-        members = (set(scenemeta.details(self.editor.text)["collections"])
-                   if path is not None else None)
-        items = coll.list_collections(self.project)
-        index = next((i for i, c in enumerate(items) if c.name == focus), 0)
-        title = self.project.scene_title(path) if path is not None else None
-
-        def _act(result) -> None:
-            if result is None:
-                return
-            what, name = result
-            if what == "new":
-                def _create(new: str | None) -> None:
-                    if new:
-                        try:
-                            name = coll.create(self.project, new)
-                        except ValueError as exc:
-                            self.notify(str(exc), severity="warning")
-                            name = None
-                        self.refresh_sidebar()
-                        self.open_collections(name)
-                    else:
-                        self.open_collections()
-
-                self.push_screen(NamePrompt("New collection name:"), _create)
-            elif what == "toggle":
-                names = [n for n in (members or ()) if n != name]
-                if name not in (members or ()):
-                    names.append(name)
-                new = scenemeta.set_details(self.editor.text, collections=names)
-                if new != self.editor.text:
-                    self.editor.load_text(new)  # the buffer owns the file: edit it, then save
-                    self.save_current()
-                    self.editor.refresh_links()
-                self.open_collections(name)
-            elif what == "recolor":
-                found = coll.find(self.project, name)
-                at = coll.COLORS.index(found.color) if found and found.color in coll.COLORS else -1
-                coll.recolor(self.project, name, coll.COLORS[(at + 1) % len(coll.COLORS)])
-                self.open_collections(name)
-            elif what == "rename":
-                def _rename(new: str | None) -> None:
-                    if new:
-                        try:
-                            self._collection_op(lambda: coll.rename(self.project, name, new))
-                            name_after = new
-                        except (ValueError, LookupError) as exc:
-                            self.notify(str(exc), severity="warning")
-                            name_after = name
-                        self.open_collections(name_after)
-                    else:
-                        self.open_collections(name)
-
-                self.push_screen(NamePrompt(f"Rename '{name}' to:"), _rename)
-            elif what == "delete":
-                found = coll.find(self.project, name)
-                count = len(found.scenes) if found else 0
-
-                def _gone(ok: bool) -> None:
-                    if ok:
-                        self._collection_op(lambda: coll.delete(self.project, name))
-                    self.open_collections()
-
-                self.push_screen(ConfirmScreen(
-                    f"Delete the collection '{name}'?\nIt is taken off its {count} "
-                    f"scene{'' if count == 1 else 's'}; no scene is deleted.",
-                    confirm_label="Delete collection"), _gone)
-
-        self.push_screen(CollectionsScreen(items, members, title, index, self.project.unit),
-                         _act)
-
-    def _collection_op(self, run) -> None:
-        """Rename / delete rewrite member scenes on disk: the open one is
-        saved first and re-read afterwards."""
-        self.save_current()
-        changed = run()
-        if self.current_path in changed:  # re-read it; open_file would save the stale buffer over it
-            self.editor.load_text(fsutil.read_text_lenient(self.current_path))
-            self._dirty = False
-            self.editor.refresh_links()
-        self.refresh_sidebar()
 
     def toggle_unit(self) -> None:
         unit = "chapter" if self.project.unit == "scene" else "scene"

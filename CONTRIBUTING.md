@@ -15,12 +15,29 @@ pip install -r requirements-dev.txt && pip install -e .
 
 The desktop app on Linux needs the system WebKitGTK packages; see the README.
 
+### Windows (PowerShell)
+
+```powershell
+git clone https://github.com/anonymousacademe/Chisel; cd Chisel
+python -m venv .venv
+.venv\Scripts\Activate.ps1                # if scripts are blocked: Set-ExecutionPolicy -Scope Process RemoteSigned
+python -m pip install -e ".[dev]"
+.venv\Scripts\python.exe -m pytest
+```
+
+Always run the tests with the venv's interpreter (`.venv\Scripts\python.exe -m pytest`): the system
+Python does not have Textual, pytest or the other dependencies, so a bare `python -m pytest` outside the
+venv fails on import. `pip install -e ".[dev]"` installs the same packages as `requirements-dev.txt`.
+
 ## Run the tests
 
 ```bash
 python -m pytest                           # must stay green; no test touches the network
 (cd gui && npm run lint && npm test && npm run build)
 ```
+
+To run the suite in parallel, use `python -m pytest -n auto` (optional; `pytest-xdist` is in the dev
+extra). Every test gets its own state folder, so the tests do not share state between workers.
 
 TUI tests drive the app headlessly with Textual's Pilot; the GUI backend is plain Python.
 AI calls are mocked at the function boundary — never call a real model in a test.

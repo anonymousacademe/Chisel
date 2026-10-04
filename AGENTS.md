@@ -42,6 +42,7 @@ src/chisel/
     atmosphere.py       # sound prefs + radio stations in user settings (http(s) only)
     desktop.py          # open_path: os.startfile / open / xdg-open (only on a click)
     migrate.py          # one-time migration from the old lorewrite names (state/data dirs, keyring, .lorewrite/ -> .chisel/); envvars.py: get_env with the deprecated LOREWRITE_* aliases
+    applog.py           # diagnostic log (logger 'chisel', rotating <state dir>/log/chisel.log): log_exc(context, exc); never raises, no prose or keys
     fsutil.py           # replace/rename with a short retry (Windows PermissionError); use instead of Path.replace
     settings.py         # user settings (tour_seen, ...)
     style.py            # style.md (project root): load/save/backup, manuscript sampling
@@ -69,7 +70,21 @@ src/chisel/
     budget.py           # context budget: estimate_tokens, Section/Item, fit(), SentReport, window_for, BudgetError
     relevance.py        # which entities a scene is about (named / POV+place / rest), for continuity, canon, aliases
   gui/                  # desktop GUI backend (pywebview); no Textual
-    api.py              # Api: JSON bridge (every method -> {ok,...}); facade() = js_api
+    api.py              # Api(mixins...): bridge core (project, documents, settings, AI calls; every method -> {ok,...}); facade() = js_api.
+                        #   Names tests monkeypatch (ask_writer, generate_images, ...) are looked up here, so the AI methods stay in this file
+    _bridge.py          # @bridge decorator + USER_ERRORS (shared by Api and the mixins; api.py re-exports them)
+    spelling_api.py     # SpellingMixin: spell check, dictionary
+    entities_api.py     # EntitiesMixin: entities, story time (born), rename everywhere
+    structure_api.py    # StructureMixin: scenes, parts, Trash, scene details
+    versions_api.py     # VersionsMixin: snapshots, start_new_draft, git sync
+    export_api.py       # ExportMixin: export_info / summary / start / status / open
+    notebook_api.py     # NotebookMixin: notebook notes (the Ask-my-notebook chat `research` stays in api.py)
+    annotations_api.py  # AnnotationsMixin: comments, collections
+    inspiration_api.py  # InspirationMixin: picture listing, upload, edit, delete (describe/generate stay in api.py)
+    atmosphere_api.py   # AtmosphereMixin: sounds, ambience, packs, native file dialog (_pick_file)
+    stats_api.py        # StatsMixin: usage, writing stats, sprints
+    chats_api.py        # ChatsMixin: attachable items, saved chats, save_reply_to_notes
+    window_api.py       # WindowMixin: minimize / maximize / close, open_external
     workspace.py        # Project -> Workspace JSON for the React UI
     devserver.py        # headless: built UI (gui/web/, see webroot.py) + POST /api/<method> (+ --mock-ai)
     aijobs.py           # AI jobs for ai_start / ai_poll / ai_cancel (Stop)
@@ -87,6 +102,11 @@ src/chisel/
     spellscreen.py (f6 fix window)
     stylereview.py promptscreen.py tour.py theme.py
     exportscreen.py (Export manuscript form)
+    dialogs.py (NamePrompt / ConfirmScreen / EntityTypePrompt, re-exported by app.py)
+    structuremixin.py (scenes, parts, Parked scenes, Trash: ChiselApp mixin)
+    snapshotsmixin.py syncmixin.py (snapshots; optional git: ChiselApp mixins)
+    statsmixin.py (stats, sprints, export: ChiselApp mixin)
+    spellmixin.py commentsmixin.py notebookmixin.py (spell check; comments + collections; notebook notes: ChiselApp mixins)
 gui/                    # React/TS front end (see gui/README.md); src-tauri/ is unused
   src/components/SentReport.tsx   # the "What was sent" disclosure (data/sent.ts)
   src/data/subject.ts             # the "About:" chip: subjectOf + the subject_id payload

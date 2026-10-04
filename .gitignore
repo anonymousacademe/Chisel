@@ -9,3 +9,6 @@ gui/dist/
 src/chisel/gui/web/
 /build/
 /dist/
+
+# Claude Code local state and agent worktrees
+.claude/
