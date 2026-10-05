@@ -11,6 +11,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Pass to every subprocess call (`subprocess.run(..., **NO_CONSOLE)`): on Windows the
+# windowed app has no console, so each child would flash a console window of its own
+# (the "screen jitter" while git status runs in the background). Empty elsewhere.
+NO_CONSOLE: dict = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
+
 
 def open_path(path: Path | str) -> bool:
     """Open *path* with the desktop; False when that cannot be done."""

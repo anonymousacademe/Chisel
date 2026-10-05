@@ -21,6 +21,8 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
+from .desktop import NO_CONSOLE
+
 STATUS_TIMEOUT = 5
 COMMIT_TIMEOUT = 60
 PUSH_TIMEOUT = 120
@@ -68,7 +70,7 @@ def _run(root: Path, *args: str, timeout: float, check: bool = True,
     try:
         proc = subprocess.run(["git", *args], cwd=root, env=_env(), timeout=timeout,
                               capture_output=True, text=True, encoding="utf-8",
-                              errors="replace", input=input_text)
+                              errors="replace", input=input_text, **NO_CONSOLE)
     except FileNotFoundError as exc:
         raise GitError("git is not installed") from exc
     except subprocess.TimeoutExpired as exc:

@@ -10,6 +10,9 @@ All notable changes to Chisel are listed here, newest first. The format follows
   uses the native Windows move loop instead of repositioning the window on every mouse move (the
   old way also mishandled display scaling, so the window raced ahead of the cursor on scaled
   displays and flickered a ghost title bar). Title-bar buttons stay clickable.
+- **No more console windows flashing over the desktop app on Windows.** The installed app checks git
+  status in the background, and every check briefly opened a console window on top of the app. git,
+  pandoc and the other helper programs now run hidden.
 
 ### Added
 - **Character relationships.** A character note can declare its relationships in a `## Relationships`

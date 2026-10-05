@@ -11,6 +11,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from ..desktop import NO_CONSOLE
 from .manuscript import Book
 from .markdown import to_markdown
 
@@ -45,7 +46,7 @@ def convert(book: Book, fmt: str, out: Path) -> None:
         cmd.append("--standalone")
     try:
         done = subprocess.run(cmd, input=to_markdown(book, pandoc=True).encode("utf-8"),
-                              capture_output=True, timeout=TIMEOUT, cwd=out.parent)
+                              capture_output=True, timeout=TIMEOUT, cwd=out.parent, **NO_CONSOLE)
     except subprocess.TimeoutExpired:
         raise RuntimeError(f"pandoc took longer than {TIMEOUT} seconds and was stopped") from None
     if done.returncode != 0 or not out.is_file() or out.stat().st_size == 0:

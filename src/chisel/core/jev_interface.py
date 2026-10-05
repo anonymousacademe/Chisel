@@ -16,6 +16,7 @@ import subprocess
 from pathlib import Path
 
 from . import entities as ent
+from .desktop import NO_CONSOLE
 
 JEV_CLI = Path.home() / ".config/jev/jev.py"
 MAX_SCREEN_ENTITIES = 20  # beyond this, skip screening (cost > value)
@@ -33,7 +34,7 @@ def _ask(state: dict, questions: dict) -> dict | None:
             ["python3", str(JEV_CLI), "ask",
              "--state", json.dumps(state),
              "--questions", json.dumps(questions)],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, timeout=30, **NO_CONSOLE,
         )
         if result.returncode != 0:
             return None

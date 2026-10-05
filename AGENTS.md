@@ -399,7 +399,8 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   `spellcheck` off (ours is the only one).
 - **Portability (Windows/macOS/Linux)**. Write text with `write_text(..., newline="\n")` (a test
   enforces it); rename/replace through `core/fsutil` (retries a locked file); open files through
-  `core/desktop.open_path`; state lives under `recents.default_state_dir()`. Export fonts (Noto
+  `core/desktop.open_path`; run child processes with `**desktop.NO_CONSOLE` (else the windowed Windows app
+  flashes a console window per call; `tests/test_desktop.py` checks every call); state lives under `recents.default_state_dir()`. Export fonts (Noto
   Serif, Liberation Mono) are bundled in `core/export/fonts/` with their OFL licences; other fonts
   are found on the system if present. Omarchy theming is Linux-only and optional.
 - **Terminal key limits**: `ctrl+[` IS Escape; `ctrl+enter` doesn't reach most
