@@ -12,6 +12,13 @@ All notable changes to Chisel are listed here, newest first. The format follows
   displays and flickered a ghost title bar). Title-bar buttons stay clickable.
 
 ### Added
+- **Character relationships.** A character note can declare its relationships in a `## Relationships`
+  section (`- [[Rook Tanaka]] — father; estranged`); the app reads it wherever the note is shown. The
+  note panel (desktop) lists what the note declares, what the other notes say about it ("from their
+  note"), and links that have no note yet. The assistant can propose relationships from the note's own
+  point of view: you tick the ones to keep, and only the ticked rows are written into the note's
+  section — the prose is never touched, and the other notes are never changed (their side is shown by
+  reading them). Terminal app: the same flow from the command palette ("Entity · Suggest relationships").
 - **Local AI models (Ollama and OpenAI-compatible servers).** Pick any model installed on your own
   computer for the fast, strong or writing roles: the model pickers in Settings can list what is
   installed (the desktop app has an "Installed (local)" source, the terminal app toggles with

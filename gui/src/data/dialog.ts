@@ -1,4 +1,4 @@
-import type { AliasSuggestion, AttachItem, CanonProposal, SentReport as SentInfo, SettingsInfo, SyncInfo } from "./types";
+import type { AliasSuggestion, AttachItem, CanonProposal, RelationshipSuggestion, SentReport as SentInfo, SettingsInfo, SyncInfo } from "./types";
 import type { MovePlan } from "./reorder";
 
 /** The one open modal dialog of the app (null: none). */
@@ -35,6 +35,7 @@ export type Dialog =
   | { kind: "new-note"; name: string; openAfter: boolean }
   | { kind: "generate"; mode: "draft" | "rewrite"; from: number; to: number; title: string; label: string; initial: string }
   | { kind: "aliases"; items: AliasSuggestion[]; sent?: SentInfo }
+  | { kind: "relationships"; name: string; items: RelationshipSuggestion[]; sent?: SentInfo }
   | { kind: "sent"; report: SentInfo }
   | { kind: "rename-note"; name: string; aliases: string[] }
   | { kind: "canon"; items: CanonProposal[]; sent?: SentInfo }

@@ -921,15 +921,16 @@ Done (see the sections named for details; the user-visible list is in CHANGELOG.
 - Context budget and the "What was sent" report (`ai/budget.py`, `ai/relevance.py`), optional `context_window`.
 - Entity frontmatter round trip and optional story time (`core/timeline.py`).
 - The Chisel logo and icons; the Windows window uses `icon.ico` (fixes the from-source start-up crash).
+- **Character relationships** (plan: docs/dev/plan-relationships.md): a `## Relationships` section in notes,
+  derived inverses (read from the other note, never written), unresolved links kept, AI suggestions through
+  the context budget with a per-row review in both front ends.
 
 Planned next, in this order (no dates; each is designed before it is built):
-1. **Character relationships**: a `## Relationships` section in character notes, derived inverses, AI
-   suggestions and continuity checks.
-2. **Talk as a character**: a persona chat with an as-of point; it never sends scenes later than that story
+1. **Talk as a character**: a persona chat with an as-of point; it never sends scenes later than that story
    time (via `timeline.scenes_up_to`) and is labelled as an AI simulation.
-3. ~~**Local models**~~ (? implemented 2026-10-03; plan: docs/dev/plan-local-models.md): Ollama and
+2. ~~**Local models**~~ (? implemented 2026-10-03; plan: docs/dev/plan-local-models.md): Ollama and
    OpenAI-compatible endpoints via the `local:` model-slug prefix and the `local_base_url` setting;
    the pickers list what is installed; OpenRouter-only request fields are skipped; picture
    generation stays OpenRouter-only for now.
-4. **Per-scene summaries** and a rolling story-so-far, used by the budget as compact context.
-5. **A timeline view** of scenes by story time.
+3. **Per-scene summaries** and a rolling story-so-far, used by the budget as compact context.
+4. **A timeline view** of scenes by story time.

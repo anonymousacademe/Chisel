@@ -8,6 +8,7 @@ import pytest
 
 from chisel.ai.continuity import CanonUpdate
 from chisel.ai.links import Suggestion
+from chisel.ai.relationships import Suggestion as RelSuggestion
 from chisel.core import drafts
 from chisel.core.continuity import Contradiction
 from chisel.gui import api as api_module
@@ -346,3 +347,68 @@ def test_subject_goes_through_the_job_runner_and_chat_context_has_no_images(tmp_
     assert api.brainstorm(None, None, 0, [], MARA)["ok"]
     assert "IMAGEBYTES" not in seen["brain"] and "A tall woman" not in seen["brain"]
     assert api.AI_JOBS["ask"] == "ask" and api.AI_JOBS["brainstorm"] == "brainstorm"
+
+
+# -- character relationships ---------------------------------------------------------------------
+
+def _rel_notes(root):
+    (root / MARA).write_text(
+        "---\nname: Mara Vale\ntype: character\naliases: [Mara]\n---\n\n"
+        "Left-handed archivist.\n\n## Relationships\n\n"
+        "- [[Elias Vale]] — brother\n- [[The Caller]] — unknown\n", encoding="utf-8")
+    (root / "entities/characters/elias-vale.md").write_text(
+        "---\nname: Elias Vale\ntype: character\naliases: [Elias]\n---\n\n"
+        "Waiting under the clock.\n\n## Relationships\n\n- [[Mara]] — sister\n", encoding="utf-8")
+
+
+def test_get_entity_reports_relationship_rows(tmp_path):
+    api, root = open_api(tmp_path)
+    _rel_notes(root)
+    api.reload_entities()
+    rows = api.get_entity("Mara Vale")["relationships"]
+    assert {"other": "Elias Vale", "target": "Elias Vale", "label": "brother",
+            "side": "declared", "resolved": True} in rows
+    assert {"other": "", "target": "The Caller", "label": "unknown",
+            "side": "declared", "resolved": False} in rows
+    assert {"other": "Elias Vale", "target": "Elias Vale", "label": "sister",
+            "side": "derived", "resolved": True} in rows
+
+
+def test_suggest_relationships_sends_the_note_and_roster(tmp_path, monkeypatch):
+    api, root = open_api(tmp_path)
+    seen = {}
+
+    def fake(entity, others, model, client=None):
+        seen.update(name=entity.name, model=model, others=[o.name for o in others])
+        return [RelSuggestion("Elias Vale", "brother; rival")]
+
+    monkeypatch.setattr(api_module, "suggest_relationships", fake)
+    before = (root / MARA).read_text(encoding="utf-8")
+    r = api.suggest_relationships("Mara")
+    assert r["ok"] and r["suggestions"] == [{"target": "Elias Vale", "label": "brother; rival"}]
+    assert seen["name"] == "Mara Vale" and "Elias Vale" in seen["others"]
+    assert seen["model"] and isinstance(r["sent"], dict) and r["sent"]
+    assert (root / MARA).read_text(encoding="utf-8") == before  # nothing written yet
+    assert api.suggest_relationships("Nobody")["ok"] is False
+
+
+def test_apply_relationships_writes_the_note(tmp_path):
+    api, root = open_api(tmp_path)
+    note = root / MARA
+    note.write_text(MARA_NOTE, encoding="utf-8")
+    api.reload_entities()
+    r = api.apply_relationships("Mara Vale", [
+        {"target": "Elias Vale", "label": "brother; rival"},
+        {"target": "Nobody", "label": "ghost"},
+        {"target": "Lower Meridian", "label": "home"},
+        "junk",
+    ])
+    assert r["applied"] == 2
+    text = note.read_text(encoding="utf-8")
+    assert text.startswith("---\nname: Mara Vale\ntype: character\n")  # frontmatter intact
+    assert "Left-handed archivist" in text  # the body is kept
+    assert "- [[Elias Vale]] — brother; rival" in text and "- [[Lower Meridian]] — home" in text
+    rows = [row for row in api.get_entity("Mara Vale")["relationships"] if row["side"] == "declared"]
+    assert [(row["target"], row["label"]) for row in rows] == [
+        ("Elias Vale", "brother; rival"), ("Lower Meridian", "home")]
+    assert api.apply_relationships("Nobody", [])["ok"] is False

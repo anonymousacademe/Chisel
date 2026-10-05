@@ -37,6 +37,12 @@ from ..ai.continuity import check_scene, plan_canon, plan_check, propose_canon_u
 from ..ai import images as image_ai
 from ..ai.images import generate as generate_images, suggest_prompt as suggest_image_prompt
 from ..ai.links import alias_form, plan_aliases, suggest_links
+from ..ai.relationships import (
+    Suggestion as RelationshipSuggestion,
+    apply_suggestions,
+    plan_suggestions,
+    suggest_relationships,
+)
 from ..ai.style import learn_style
 from ..ai.stream import call_ai
 from ..ai.usage import LEDGER
@@ -720,6 +726,7 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
     AI_JOBS = {
         "ask": "ask", "research": "research", "brainstorm": "brainstorm", "generate": "generate",
         "continuity": "check_continuity", "canon": "propose_canon", "aliases": "find_aliases",
+        "relationships": "suggest_relationships",
         "style": "learn_style", "image": "generate_inspiration", "describe_scene": "describe_scene",
         "image_regenerate": "regenerate_inspiration",
     }
@@ -809,6 +816,47 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
                 if added:
                     self._entities_changed()
         return {"added": added}
+
+    @bridge
+    def suggest_relationships(self, name: str) -> dict:
+        """Relationships a note's text supports, from the note's own point of
+        view; accepting one rewrites its Relationships section, never the prose."""
+        with self._lock:
+            self._require()
+            entity = ent.resolve(name, self.entities)
+            if entity is None:
+                raise LookupError(f"no note named {name!r}")
+            model = resolve_model("fast", self.project.meta)
+            entities, sent = plan_suggestions(entity, self.entities, Budget.for_model(model))
+            calls = LEDGER.count()
+        suggestions = suggest_relationships(entity, entities, model)
+        return {"suggestions": [{"target": s.target, "label": s.label} for s in suggestions],
+                "cost": self._spent(calls), "sent": sent.to_dict()}
+
+    @bridge
+    def apply_relationships(self, name: str, items: list) -> dict:
+        """Add the accepted suggestions ({target, label}) to the note's
+        Relationships section; targets that resolve to no other note are dropped."""
+        with self._lock:
+            self._require()
+            entity = ent.resolve(name, self.entities)
+            if entity is None:
+                raise LookupError(f"no note named {name!r}")
+            accepted = []
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                target = " ".join(str(item.get("target", "")).split())
+                label = " ".join(str(item.get("label", "")).split())
+                if not target or not label:
+                    continue
+                if ent.resolve(target, [e for e in self.entities if e is not entity]) is None:
+                    continue
+                accepted.append(RelationshipSuggestion(target, label))
+            if accepted:
+                apply_suggestions(entity, accepted, ent.save_entity)
+                self._entities_changed()
+        return {"applied": len(accepted)}
 
     @bridge
     def check_continuity(self, doc_id: str, text: str | None = None) -> dict:

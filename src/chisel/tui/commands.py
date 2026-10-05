@@ -204,6 +204,8 @@ class ActionProvider(_Provider):
          "Put back the scenes and note changed by the last Rename everywhere"),
         ("Find aliases in this scene", "find_aliases",
          "AI: find other ways the prose refers to your entities (ctrl+l)"),
+        ("Suggest relationships", "suggest_relationships",
+         "AI: propose relationships for the open note, from its point of view"),
         ("Check scene for continuity issues", "check_continuity",
          "AI: flag contradictions with the story bible"),
         ("Restore waived continuity issues (this scene)", "restore_waived",
@@ -239,7 +241,8 @@ class ActionProvider(_Provider):
     CATEGORY = {"edit_details": "Scene", "open_snapshots": "Scene", "open_collections": "Scene",
                 "add_comment_prompt": "Scene", "open_comments": "Scene",
                 "snapshot_scene_prompt": "Scene",
-                "rename_entity_prompt": "Entity", "rename_undo_action": "Entity"}
+                "rename_entity_prompt": "Entity", "rename_undo_action": "Entity",
+                "suggest_relationships": "Entity"}
 
     def _entries(self):
         app = self.app

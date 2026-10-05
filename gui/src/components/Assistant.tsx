@@ -37,7 +37,7 @@ export function Assistant(props: {
   tab: AssistantTab; onTab: (t: AssistantTab) => void;
   mentions: SceneMention[]; onPickEntity: (name: string) => void;
   note: EntityInfo | null; missingTarget: string | null;
-  onOpenNote: (id: string) => void; onAddAlias: (name: string, alias: string) => void; onSetBorn: (name: string, born: string) => void; onRename: (name: string, aliases: string[]) => void;
+  onOpenNote: (id: string) => void; onAddAlias: (name: string, alias: string) => void; onSetBorn: (name: string, born: string) => void; onSuggestRelationships: (name: string) => void; onRename: (name: string, aliases: string[]) => void;
   onCreateNote: (target: string) => void; onOpenBacklink: (sourceId: string, row: number) => void;
   issues: Issue[]; onReviewIssue: (i: Issue) => void; onDismissIssue: (i: Issue) => void;
   /** What the last continuity check sent (shown under its issues). */
@@ -234,7 +234,8 @@ export function Assistant(props: {
         {tab === "context" && <Sources mentions={props.mentions} onPick={props.onPickEntity} />}
         {tab === "notes" && (
           <NotesPanel note={props.note} missingTarget={props.missingTarget} onOpenNote={props.onOpenNote}
-            onAddAlias={props.onAddAlias} onSetBorn={props.onSetBorn} onRename={props.onRename} onCreateNote={props.onCreateNote} onOpenBacklink={props.onOpenBacklink} />
+            onAddAlias={props.onAddAlias} onSetBorn={props.onSetBorn} onSuggestRelationships={props.onSuggestRelationships}
+            onRename={props.onRename} onCreateNote={props.onCreateNote} onOpenBacklink={props.onOpenBacklink} />
         )}
         {tab === "notes" && props.notesExtra}
         <div hidden={tab !== "inspiration"}>{props.inspiration}</div>

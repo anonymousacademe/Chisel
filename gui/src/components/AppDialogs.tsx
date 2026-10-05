@@ -1,7 +1,7 @@
 import type { ComponentProps, Dispatch, SetStateAction, MutableRefObject } from "react";
 import { api } from "../backend/api";
 import type { Dialog } from "../data/dialog";
-import type { AliasSuggestion, ChatSummary, CommentRow, DetailsPatch, DocumentPayload, EntityType, Workspace } from "../data/types";
+import type { AliasSuggestion, ChatSummary, CommentRow, DetailsPatch, DocumentPayload, EntityType, RelationshipSuggestion, Workspace } from "../data/types";
 import type { MovePlan } from "../data/reorder";
 import type { BridgeResult } from "../backend/transport";
 import type { Attachment } from "../data/chat";
@@ -10,7 +10,7 @@ import type { Notice } from "./Toast";
 import { NOTE_TYPES } from "../data/appLogic";
 import { AddCommentDialog, CommentPopover } from "./CommentComponents";
 import { AtmospherePanel } from "./AtmospherePanel";
-import { AliasReviewDialog, CanonReviewDialog, StyleReviewDialog } from "./ReviewDialogs";
+import { AliasReviewDialog, CanonReviewDialog, RelationshipsReviewDialog, StyleReviewDialog } from "./ReviewDialogs";
 import { SprintDialog, StatsDialog } from "./StatsDialog";
 import { ConfirmDialog, Modal, PromptDialog } from "./Dialogs";
 import { SentReport } from "./SentReport";
@@ -45,6 +45,7 @@ export interface AppDialogsProps {
   // AI reviews and drafting
   runGenerate: (mode: "draft" | "expand" | "rewrite", instruction: string, from: number, to: number) => Promise<void>;
   applyAliases: (picked: AliasSuggestion[]) => Promise<void>;
+  applyRelationships: (name: string, picked: RelationshipSuggestion[]) => Promise<void>;
   applyCanon: (picked: { entity: string; facts: string[] }[]) => Promise<void>;
   saveStyle: (text: string) => Promise<void>;
   settingsSaved: (editor: { zoom: number; reflow: boolean }, spellcheck: boolean) => void;
@@ -109,7 +110,7 @@ export interface AppDialogsProps {
 export function AppDialogs(p: AppDialogsProps) {
   const {
     ws, doc, unit, dialog, setDialog, notify, refresh, openDoc, liveText, noteType, setNoteType, createNote, runGenerate,
-    applyAliases, applyCanon, saveStyle, settingsSaved, renamePreview, renameApply, renameUndo, createScene, renameScene, deleteScene,
+    applyAliases, applyRelationships, applyCanon, saveStyle, settingsSaved, renamePreview, renameApply, renameUndo, createScene, renameScene, deleteScene,
     createPart, renamePart, deletePart, placeScene, performMove, saveDetails, sprintFocus, startSprint, endSprint, setInspRev,
     restoreSnapshot, setSnapshotAt, startNewDraft, syncCommit, syncPush, syncInit, addComment, commentPop, setCommentPop, popComment,
     commentCall, chatList, chatId, chatIdRef, setPersist, attachments, setAttachments, loadChat, newChat, renameChat, deleteChat,
@@ -141,6 +142,10 @@ export function AppDialogs(p: AppDialogsProps) {
           onClose={() => setDialog(null)} />
       )}
       {dialog?.kind === "aliases" && <AliasReviewDialog suggestions={dialog.items} sent={dialog.sent} onApply={(p) => void applyAliases(p)} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "relationships" && (
+        <RelationshipsReviewDialog name={dialog.name} items={dialog.items} sent={dialog.sent}
+          onApply={(picked) => void applyRelationships(dialog.name, picked)} onClose={() => setDialog(null)} />
+      )}
       {dialog?.kind === "sent" && (
         <Modal title="What was sent" onClose={() => setDialog(null)}>
           <SentReport report={dialog.report} open />

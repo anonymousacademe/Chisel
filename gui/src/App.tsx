@@ -84,7 +84,7 @@ export default function App() {
   const [inspRev, setInspRev] = useState(0);   // bumped when the Trash gives a picture back
   const [noteName, setNoteName] = useState<string | null>(null);
   const [note, setNote] = useState<EntityInfo | null>(null);
-  const [_noteVersion, setNoteVersion] = useState(0);
+  const [noteVersion, setNoteVersion] = useState(0);
   const [missingTarget, setMissingTarget] = useState<string | null>(null);
   const [noteType, setNoteType] = useState<EntityType>("character");
   const [issues, setIssues] = useState<Issue[]>([]);
@@ -217,11 +217,14 @@ export default function App() {
     return { noteName: null, missingTarget: null };
   }, [doc]);
   
-  // update note state when derived value changes
-  if (noteState.noteName !== null) {
-    setNoteName(noteState.noteName);
-    setMissingTarget(noteState.missingTarget);
-  }
+  // update note state when derived value changes. Keep this in an effect despite the lint warning:
+  // calling these setters in the render body loops forever (React #301, blank page on opening a note)
+  useEffect(() => {
+    if (noteState.noteName !== null) {
+      setNoteName(noteState.noteName);
+      setMissingTarget(noteState.missingTarget);
+    }
+  }, [noteState.noteName, noteState.missingTarget]);
 
  
   // (for a scene, the note also shows the character's age there: Python computes it)
@@ -235,7 +238,7 @@ export default function App() {
       });
       return () => { live = false; };
     }
-  }, [noteName, sceneDocId]);
+  }, [noteName, sceneDocId, noteVersion]);
 
   const { comments, setComments, commentPop, setCommentPop, startAddComment, addComment, commentCall, openComment, popComment } =
     useComments({ editorRef, docRef, dialog, setDialog, notify, setTab, setAssistantOpen });
@@ -249,7 +252,7 @@ export default function App() {
     useSceneOps({ saver, ws, doc, docRef, editorRef, notify, refresh, openDoc, setDoc, setDialog, setExpanded, setPartFocus, setMentions, focusNextOpen });
   const { createResearch, researchFromUrl, deleteResearch, sendSelectionToNotebook } =
     useNotebookOps({ saver, docRef, editorRef, notify, refresh, openDoc, setDoc, setDialog, setExpanded, focusNextOpen });
-  const { liveText, quickContinuity, reviewIssue, dismissIssue, restoreWaived, findAliases, applyAliases, updateBible, applyCanon,
+  const { liveText, quickContinuity, reviewIssue, dismissIssue, restoreWaived, findAliases, applyAliases, suggestRelationships, applyRelationships, updateBible, applyCanon,
     openStyle, learnStyle, saveStyle, runGenerate, startGenerate, rewriteSelection, resolveDraft, resolveAtCursor } =
     useAiActions({ saver, ws, docRef, editorRef, notify, refresh, openDoc, aiCall, requireAi, setDialog, setIssues, setIssuesSent, setTab,
       setAssistantOpen, setSpansVersion, setNoteVersion, setMentions });
@@ -718,7 +721,7 @@ export default function App() {
           ]} />
         {showAssistant && (
           <Assistant tab={tab} onTab={setTab} mentions={mentions} onPickEntity={showNote}
-            note={note} missingTarget={missingTarget} onOpenNote={(id) => void openDoc(id)} onAddAlias={(n, a) => void addAlias(n, a)} onSetBorn={(n, b) => void setBorn(n, b)} onRename={(n, al) => setDialog({ kind: "rename-note", name: n, aliases: al })}
+            note={note} missingTarget={missingTarget} onOpenNote={(id) => void openDoc(id)} onAddAlias={(n, a) => void addAlias(n, a)} onSetBorn={(n, b) => void setBorn(n, b)} onSuggestRelationships={(n) => void suggestRelationships(n)} onRename={(n, al) => setDialog({ kind: "rename-note", name: n, aliases: al })}
             onCreateNote={(t) => setDialog({ kind: "new-note", name: t, openAfter: false })} onOpenBacklink={(id, row) => void openBacklink(id, row)}
             issues={issues} issuesSent={issuesSent} onReviewIssue={reviewIssue} onDismissIssue={(i) => void dismissIssue(i)}
             messages={messages} busy={aiBusy} run={aiRun} onStop={stopAi} aiReady={aiReady} scope={scope} onScope={() => setScope((c) => (c === "scene" ? "project" : "scene"))}
@@ -760,7 +763,7 @@ export default function App() {
       {menu && <Menu anchor={menu.anchor} items={menu.items} onClose={() => setMenu(null)} />}
       <AppDialogs ws={ws} doc={doc} unit={unit} dialog={dialog} setDialog={setDialog} notify={notify} refresh={refresh} openDoc={openDoc} liveText={liveText}
         noteType={noteType} setNoteType={setNoteType} createNote={createNote} runGenerate={runGenerate}
-        applyAliases={applyAliases} applyCanon={applyCanon} saveStyle={saveStyle} settingsSaved={settingsSaved}
+        applyAliases={applyAliases} applyRelationships={applyRelationships} applyCanon={applyCanon} saveStyle={saveStyle} settingsSaved={settingsSaved}
         renamePreview={renamePreview} renameApply={renameApply} renameUndo={renameUndo}
         createScene={createScene} renameScene={renameScene} deleteScene={deleteScene} createPart={createPart} renamePart={renamePart}
         deletePart={deletePart} placeScene={placeScene} performMove={performMove} saveDetails={saveDetails}

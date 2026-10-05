@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import type { AliasSuggestion, CanonProposal, SentReport as Report } from "../data/types";
+import type { AliasSuggestion, CanonProposal, RelationshipSuggestion, SentReport as Report } from "../data/types";
 import { Modal } from "./Dialogs";
 import { SentReport } from "./SentReport";
 
@@ -42,6 +42,36 @@ export function AliasReviewDialog({ suggestions, sent, onApply, onClose }: {
       <Footer confirm={on.size ? `Add ${on.size} alias${on.size === 1 ? "" : "es"}` : "Add aliases"} disabled={on.size === 0}
         onConfirm={() => onApply(suggestions.filter((_, i) => on.has(i)))} onClose={onClose}
         left={<button className="lw-link" onClick={() => setOn(new Set(suggestions.map((_, i) => i)))}>Select all</button>} />
+    </Modal>
+  );
+}
+
+/** Relationship suggestions for a note: all ticked to start; applying only records what is ticked. */
+export function RelationshipsReviewDialog({ name, items, sent, onApply, onClose }: {
+  name: string; items: RelationshipSuggestion[]; sent?: Report | null; onApply: (picked: RelationshipSuggestion[]) => void; onClose: () => void;
+}) {
+  const [on, setOn] = useState<Set<number>>(() => new Set(items.map((_, i) => i)));
+  const toggle = (i: number) => setOn((s) => { const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i); return n; });
+  return (
+    <Modal title="Possible relationships" wide onClose={onClose}>
+      <p className="lw-dialog__message">
+        Relationships the assistant noticed for “{name}”. Tick the ones to keep;
+        they are added to the note’s Relationships section. Your prose is never touched.
+      </p>
+      <div className="lw-review">
+        {items.map((s, i) => (
+          <label key={`${s.target}:${s.label}:${i}`} className="lw-review__row">
+            <input type="checkbox" checked={on.has(i)} onChange={() => toggle(i)} />
+            <span className="lw-review__text">
+              <span className="lw-review__target">{s.label ? `${s.label} — ${s.target}` : s.target}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      <SentReport report={sent} />
+      <Footer confirm={on.size ? `Add ${on.size} relationship${on.size === 1 ? "" : "s"}` : "Add relationships"} disabled={on.size === 0}
+        onConfirm={() => onApply(items.filter((_, i) => on.has(i)))} onClose={onClose}
+        left={<button className="lw-link" onClick={() => setOn(new Set(items.map((_, i) => i)))}>Select all</button>} />
     </Modal>
   );
 }

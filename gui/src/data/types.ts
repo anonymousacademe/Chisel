@@ -132,6 +132,8 @@ export type EntityInfo =
     body: string; canon: string; summary: string; backlinks: Backlink[];
     /** `born:` as written ("" = none); `ageNow` e.g. "age 24 at 2189" for the open scene ("" = none). */
     born: string; bornInvalid: boolean; ageNow: string;
+    /** Declared first, then derived (python sorts them); absent from older bridges. */
+    relationships?: RelRow[];
   };
 
 export type RenameScope = "scenes" | "entities" | "research" | "comments";
@@ -215,6 +217,18 @@ export interface Issue {
 export interface AliasSuggestion { entity: string; surface: string; alias: string; before: string; after: string }
 
 export interface CanonProposal { entity: string; facts: string[]; evidence: string; existing: string }
+
+/** One relationship of a note, as get_entity reports it (python: the relationships bridge). */
+export interface RelRow {
+  /** The other note's name ("" when unresolved; `target` is the raw [[link]] text). */
+  other: string; target: string; label: string;
+  /** "declared" = this note's own link; "derived" = the other note links back to this one. */
+  side: "declared" | "derived";
+  /** false = the [[target]] has no note yet. */
+  resolved: boolean;
+}
+/** One suggestion of suggest_relationships, before the author confirms it. */
+export interface RelationshipSuggestion { target: string; label: string }
 
 /** One part of an AI request, as `SentReport` lists it (python: ai/budget.py `SectionReport.to_dict`). */
 export interface SentSection {

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from . import workspace as ws
-from ..core import drafts, entities as ent, fsutil, rename as renaming, research as research_notes, timeline
+from ..core import drafts, entities as ent, fsutil, relationships, rename as renaming, research as research_notes, timeline
 from ..core.project import Project
 from ._bridge import bridge
 
@@ -27,6 +27,7 @@ class EntitiesMixin:
             if entity is None or entity.path is None:
                 return {"found": False, "name": name}
             return {"found": True,
+                    "relationships": relationships.rows(entity, self.entities),
                     **ws.entity_payload(project, entity, self.index, scene_id)}
 
     def _entities_changed(self) -> None:

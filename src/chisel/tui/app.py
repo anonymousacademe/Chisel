@@ -22,6 +22,7 @@ from ..ai.budget import Budget, BudgetError, Section, SentReport
 from ..ai.client import MODEL_DEFAULTS, resolve_model, set_api_key
 from ..ai.images import generate as generate_image, suggest_prompt as suggest_image_prompt
 from ..ai.links import Suggestion, alias_form, plan_aliases, suggest_links
+from ..ai.relationships import apply_suggestions, plan_suggestions, suggest_relationships
 from ..ai.style import learn_style
 from ..ai.stream import Cancelled
 from ..ai.usage import LEDGER, format_cost
@@ -87,6 +88,7 @@ from .dialogs import ConfirmScreen, EntityTypePrompt, NamePrompt
 from .editor import LinkedTextArea
 from .launch import LaunchScreen
 from .linkreview import AliasReviewScreen
+from .relationreview import RelationshipReviewScreen
 from .renamemixin import RenameMixin
 from .structuremixin import StructureMixin
 from .snapshotsmixin import SnapshotsMixin
@@ -1015,6 +1017,95 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
                 added += 1
         self._entities_changed()
         self.notify(f"Added {added} alias(es) to entity notes", timeout=2)
+
+    # -- AI: relationship suggestions -----------------------------------------
+
+    def _open_entity(self) -> ent.Entity | None:
+        """The entity note open in the editor, else None."""
+        path = self.current_path
+        if path is None:
+            return None
+        for entity in self.entities:
+            if entity.path is not None and entity.path.resolve() == path.resolve():
+                return entity
+        return None
+
+    def action_suggest_relationships(self) -> None:
+        """AI: propose relationships for the open entity note; review before applying."""
+        entity = self._open_entity()
+        if entity is None:
+            self.notify("Open an entity note first", severity="warning")
+            return
+        if not [e for e in self.entities if e is not entity]:
+            self.notify("No other entities yet — create some notes first",
+                        severity="warning")
+            return
+        self.save_current()  # the plan reads the note from disk
+        self.notify("Looking for relationships…", timeout=2)
+        self._fetch_relationship_suggestions()
+
+    suggest_relationships = action_suggest_relationships
+
+    @work(exclusive=True)
+    async def _fetch_relationship_suggestions(self) -> None:
+        entity = self._open_entity()
+        if entity is None:
+            return
+        calls = LEDGER.count()
+        model = self._ai_fast_model()
+        try:
+            others, sent = plan_suggestions(
+                entity, self.entities, Budget.for_model(model))
+            suggestions = await self._ai_call(
+                "suggesting relationships", suggest_relationships,
+                entity, others, model)
+        except Cancelled:
+            return
+        except Exception as exc:
+            log_exc("_fetch_relationship_suggestions failed", exc,
+                    level=logging.WARNING)
+            self.notify(f"Relationship suggestions failed: {exc}",
+                        severity="error", timeout=6)
+            return
+        cost = self._cost_note(calls, sent)
+        if not suggestions:
+            self.notify("No relationship suggestions" + cost, timeout=2)
+            return
+        if cost:
+            self.notify(f"Found {len(suggestions)} relationship "
+                        f"suggestion(s){cost}", timeout=3)
+
+        def _apply(accepted) -> None:
+            self._apply_relationship_suggestions(accepted, entity.path)
+
+        self.push_screen(RelationshipReviewScreen(suggestions), _apply)
+
+    def _apply_relationship_suggestions(self, accepted: list | None,
+                                        path: Path | None) -> None:
+        """Accepted suggestions are merged into the note's Relationships section."""
+        if not accepted or path is None:
+            return
+        self.save_current()  # the open buffer is the truth before the rewrite
+        try:
+            entity = ent.load_entity(path)  # from disk: the buffer may have moved on
+            apply_suggestions(entity, accepted, ent.save_entity)
+        except (OSError, fsutil.NotUtf8Error) as exc:
+            self._warn_not_utf8(exc)
+            return
+        if self.current_path == path:
+            # the note was rewritten on disk: re-read it; open_file would
+            # save the stale buffer over it. The queued Changed event of the
+            # programmatic load marks the buffer dirty: clear it afterwards.
+            self._skip_touch = True
+            self.editor.load_text(fsutil.read_text_lenient(self.current_path))
+            self.editor.refresh_links()
+            self.call_after_refresh(self._clean_reloaded_buffer)
+        self._entities_changed()
+        self.notify(f"Added {len(accepted)} relationship(s) to the note",
+                    timeout=2)
+
+    def _clean_reloaded_buffer(self) -> None:
+        self._dirty = False
 
     # -- AI drafts: accept / reject (M4) ------------------------------------------
 

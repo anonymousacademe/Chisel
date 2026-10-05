@@ -295,7 +295,7 @@ When you are happy with Chisel, you can delete the old `lorewrite` folders and, 
 Chisel is pre-1.0: formats and
 screens can still change. Your files are plain Markdown, so you are never locked in. The name changed
 from LoreWriter to Chisel (see "Upgrading from LoreWriter" above). Next on the
-roadmap (see [SPEC.md](SPEC.md)): character relationships, talking as a character, local models,
+roadmap (see [SPEC.md](SPEC.md)): talking as a character,
 per-scene summaries and a timeline view.
 
 ## Documentation

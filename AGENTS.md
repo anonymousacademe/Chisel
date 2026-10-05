@@ -56,6 +56,7 @@ src/chisel/
     stats.py            # writing stats/streak/sprints: Tracker, state dir stats/<project-id>.json
     inspiration.py      # inspiration/ pictures + .md sidecars: save/list/update/pin, `for:` link (any item), sniff_ext, remap_links / remap_paths
     rename.py           # rename an entity everywhere: plan (read-only) / apply (snapshots first) / undo
+    relationships.py    # relationships: the ## Relationships section of a note (parse/set_section) and rows() with derived inverses (never written into the other note)
     export/             # M7: manuscript.py (assemble -> Book), layouts/ (PDF: book, manuscript, plain),
                         #   pdfkit.py (fonts), markdown.py, pandoc.py, __init__.py (run_export, options)
   ai/
@@ -69,6 +70,7 @@ src/chisel/
     images.py           # inspiration pictures: generate (OpenRouter image output), suggest_prompt
     budget.py           # context budget: estimate_tokens, Section/Item, fit(), SentReport, window_for, BudgetError
     relevance.py        # which entities a scene is about (named / POV+place / rest), for continuity, canon, aliases
+    relationships.py    # relationship suggestions: plan_suggestions (budget) / suggest_relationships (network) / apply_suggestions (set_section + save_entity; no snapshot, like the canon apply)
   gui/                  # desktop GUI backend (pywebview); no Textual
     api.py              # Api(mixins...): bridge core (project, documents, settings, AI calls; every method -> {ok,...}); facade() = js_api.
                         #   Names tests monkeypatch (ask_writer, generate_images, ...) are looked up here, so the AI methods stay in this file
@@ -102,6 +104,7 @@ src/chisel/
     spellscreen.py (f6 fix window)
     stylereview.py promptscreen.py tour.py theme.py
     exportscreen.py (Export manuscript form)
+    relationreview.py (relationship suggestions review)
     dialogs.py (NamePrompt / ConfirmScreen / EntityTypePrompt, re-exported by app.py)
     structuremixin.py (scenes, parts, Parked scenes, Trash: ChiselApp mixin)
     snapshotsmixin.py syncmixin.py (snapshots; optional git: ChiselApp mixins)
@@ -512,10 +515,19 @@ notes, assistant chats, session stats and focus sprints, Brainstorm; docs/dev/pl
 **inspiration images** (docs/dev/plan-inspiration.md), **M7 export** (docs/dev/plan-export.md) and the public
 release work (docs/dev/plan-release.md; installers, CI).
 
-Planned next, in this order (SPEC §14 has the one-line descriptions): character relationships, "talk as a
-character" with an as-of point (use `timeline.scenes_up_to`), per-scene summaries and a rolling
-story-so-far, a timeline view. Local models landed (see below); picture generation is still
-OpenRouter-only.
+- **Character relationships** (`core/relationships.py`, `ai/relationships.py`; SPEC §14, docs/dev/plan-relationships.md).
+  A note declares relationships in a `## Relationships` body section (`- [[Name]] — label`, label free text from
+  this note's point of view); inverses are derived at read time and NEVER written into the other note; an
+  unresolved `[[link]]` is kept, not created. AI suggestions follow the alias-finder shape exactly: plan
+  (budget) → network call → per-row review → `apply_suggestions` (mutates the Entity, `save_entity`, no
+  snapshot — like the canon apply). The GUI's `get_entity` carries `relationships` rows; the TUI re-reads the
+  open buffer after an apply (the `_collection_op` rule) and clears the queued `Changed` event. Mock points:
+  `chisel.tui.app.suggest_relationships` and `chisel.gui.api.suggest_relationships` (in `gui/mockai.py`; it is
+  in the two mocked-name tuples).
+
+Planned next, in this order (SPEC §14 has the one-line descriptions): "talk as a character" with an as-of
+point (use `timeline.scenes_up_to`), per-scene summaries and a rolling story-so-far, a timeline view.
+Local models and character relationships landed (see below); picture generation is still OpenRouter-only.
 
 - **Local models** (`ai/client.py`; SPEC §8, docs/dev/plan-local-models.md). A model slug prefixed
   `local:` (`local:llama3.1`) runs on the author's OpenAI-compatible server at the `local_base_url`

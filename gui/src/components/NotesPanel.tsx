@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { FilePenLine, Pencil, Plus, User } from "lucide-react";
-import type { EntityInfo } from "../data/types";
+import { FilePenLine, Pencil, Plus, User, Users } from "lucide-react";
+import type { EntityInfo, RelRow } from "../data/types";
 import { Icon, SectionLabel, Tag } from "./primitives";
 import { noteBlocks } from "../data/noteBlocks";
 
@@ -13,6 +13,7 @@ export function NotesPanel(props: {
   onAddAlias: (name: string, alias: string) => void;
   /** Save the character's `born:` story time (blank clears it). */
   onSetBorn: (name: string, born: string) => void;
+  onSuggestRelationships: (name: string) => void;
   onRename: (name: string, aliases: string[]) => void;
   onCreateNote: (target: string) => void;
   onOpenBacklink: (sourceId: string, row: number) => void;
@@ -61,6 +62,7 @@ export function NotesPanel(props: {
         <BornField key={`${note.id}:${note.born}`} name={note.name} saved={note.born} invalid={note.bornInvalid}
           ageNow={note.ageNow} onSave={props.onSetBorn} />
       )}
+      <Relationships note={note} onSuggest={props.onSuggestRelationships} />
       {note.body.trim()
         ? (
           <div className="lw-note__body">
@@ -87,6 +89,36 @@ export function NotesPanel(props: {
         ))}
       </div>
     </section>
+  );
+}
+
+/** The note's relationships, as Python resolves them: declared first, then what the other notes say. */
+function Relationships({ note, onSuggest }: { note: EntityInfo & { found: true }; onSuggest: (name: string) => void }) {
+  const rows: RelRow[] = [...(note.relationships ?? [])]
+    .sort((a, b) => (a.side === "declared" ? 0 : 1) - (b.side === "declared" ? 0 : 1));
+  return (
+    <>
+      <SectionLabel>Relationships · {rows.length}</SectionLabel>
+      <div className="lw-note__backlinks">
+        {rows.length === 0 && <p className="lw-empty">No relationships recorded yet.</p>}
+        {rows.map((r, i) => {
+          const name = r.resolved ? r.other : r.target;
+          const hints: string[] = [];
+          if (r.label) hints.push(name);
+          if (!r.resolved) hints.push("no note yet");
+          if (r.side === "derived") hints.push("from their note");
+          return (
+            <div key={`${r.side}:${name}:${i}`} className="lw-backlink">
+              <span className="lw-backlink__title">{r.label || name}</span>
+              {hints.length > 0 && <span className="lw-backlink__line">{hints.map((h, j) => <span key={j} className="lw-faint">{h}{j < hints.length - 1 ? " · " : ""}</span>)}</span>}
+            </div>
+          );
+        })}
+      </div>
+      <button className="lw-btn" onClick={() => onSuggest(note.name)} title="The assistant reads this note and proposes relationships; nothing is recorded until you review them">
+        <Icon icon={Users} size={14} stroke={1.8} /> Suggest relationships
+      </button>
+    </>
   );
 }
 

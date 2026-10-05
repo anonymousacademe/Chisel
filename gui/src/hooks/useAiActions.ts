@@ -1,6 +1,6 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { api } from "../backend/api";
-import type { AliasSuggestion, CanonProposal, DocumentPayload, GenerateResult, Issue, SceneMention, SentReport as SentInfo, Workspace } from "../data/types";
+import type { AliasSuggestion, CanonProposal, DocumentPayload, GenerateResult, Issue, RelationshipSuggestion, SceneMention, SentReport as SentInfo, Workspace } from "../data/types";
 import type { Dialog } from "../data/dialog";
 import type { AiKind } from "../backend/api";
 import { anchorDraft } from "../editor/drafts";
@@ -86,6 +86,24 @@ export function useAiActions(d: Deps) {
     await refresh(); setSpansVersion((v) => v + 1); setNoteVersion((v) => v + 1);
     const d = docRef.current;
     if (d?.kind === "scene") { const c = await api.sceneContext(d.id, liveText()); if (c.ok) setMentions(c.mentions); }
+  };
+
+  const suggestRelationships = async (name: string) => {
+    if (!name.trim()) return notify("Open a note first.");
+    const r = await aiCall<{ suggestions: RelationshipSuggestion[]; cost: number | null; sent: SentInfo }>("Looking for relationships…", "looking for relationships", "relationships", { name });
+    if (!r) return;
+    if (!r.suggestions.length) return notify(`No new relationships found for ${name}` + cost(r.cost) + (isTrimmed(r.sent) ? `; ${sentSummary(r.sent)}` : ""), "info", { label: "What was sent", run: () => setDialog({ kind: "sent", report: r.sent }) });
+    setDialog({ kind: "relationships", name, items: r.suggestions, sent: r.sent });
+  };
+  const applyRelationships = async (name: string, picked: RelationshipSuggestion[]) => {
+    const open = docRef.current?.kind === "entity" && docRef.current.title === name ? docRef.current.id : null;
+    if (open && !(await saver.flush())) return notify("Could not save the current document first.", "error");
+    setDialog(null);
+    const r = await api.applyRelationships(name, picked.map((p) => ({ target: p.target, label: p.label })));
+    if (!r.ok) return notify(r.error, "error");
+    notify(`Added ${r.applied} relationship${r.applied === 1 ? "" : "s"} to your notes.`);
+    setNoteVersion((v) => v + 1); void refresh();
+    if (open) await openDoc(open, { force: true, keepMode: true });
   };
 
   const updateBible = async () => {
@@ -191,6 +209,6 @@ export function useAiActions(d: Deps) {
     return true;
   };
 
-  return { liveText, quickContinuity, reviewIssue, dismissIssue, restoreWaived, findAliases, applyAliases, updateBible, applyCanon,
+  return { liveText, quickContinuity, reviewIssue, dismissIssue, restoreWaived, findAliases, applyAliases, suggestRelationships, applyRelationships, updateBible, applyCanon,
     openStyle, learnStyle, saveStyle, runGenerate, startGenerate, rewriteSelection, resolveDraft, resolveAtCursor };
 }

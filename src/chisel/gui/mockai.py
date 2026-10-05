@@ -17,6 +17,7 @@ from types import SimpleNamespace
 from ..ai.client import ModelInfo
 from ..ai.continuity import CanonUpdate
 from ..ai.links import Suggestion
+from ..ai.relationships import Suggestion as RelSuggestion
 from ..ai.stream import Cancelled
 from ..ai.usage import LEDGER
 from ..core.continuity import Contradiction
@@ -152,6 +153,12 @@ def install(api_module) -> None:
                 out.append(Suggestion(entities[0].name, m.start(), m.end(), m.group(0)))
         return out
 
+    def suggest_relationships(entity, others, model, client=None):
+        _pause(1.5)
+        _spend("relationships")
+        labels = ["owes them a favour", "kept them from the tide"]
+        return [RelSuggestion(o.name, label) for o, label in zip(others, labels)]
+
     def check_scene(scene_text, entities, canon, model):
         _pause(1.5)
         _spend("continuity")
@@ -250,6 +257,7 @@ def install(api_module) -> None:
     api_module._list_models = list_models
     api_module._list_local_models = list_local_models
     api_module.suggest_links = suggest_links
+    api_module.suggest_relationships = suggest_relationships
     api_module.check_scene = check_scene
     api_module.propose_canon_updates = propose_canon_updates
     api_module.learn_style = learn_style

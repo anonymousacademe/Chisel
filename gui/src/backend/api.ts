@@ -1,7 +1,7 @@
 import type { RestoreResult } from "../data/restoreText";
 import type { Misspelling, Span } from "../editor/spans";
 import type {
-  AliasSuggestion, AttachItem, RenameDone, RenamePreview, RenameScope, RenameUndone, AttachKind, AttachReport, CanonProposal, ChatSummary, CollectionColor, CommentRow, SavedChat, SentReport, CollectionSummary, DiffSegment, SnapshotRow, SyncInfo, DetailsPatch, DocumentPayload, Remap, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
+  AliasSuggestion, AttachItem, RenameDone, RenamePreview, RenameScope, RenameUndone, AttachKind, AttachReport, CanonProposal, ChatSummary, CollectionColor, CommentRow, SavedChat, SentReport, CollectionSummary, DiffSegment, SnapshotRow, SyncInfo, DetailsPatch, DocumentPayload, Remap, RelationshipSuggestion, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
   InspirationImage, Issue, ModelKind, ModelOption, RecentProject, SceneMention, SettingsInfo, EditorPrefs, SprintRecord, SprintState, StatsSummary, StyleStatus, Workspace,
 } from "../data/types";
 import type { AtmosphereInfo, KeyClass, PackRow, Prefs, Station } from "../data/atmosphere";
@@ -9,7 +9,7 @@ import type { ExportInfo, ExportOptions, ExportStatus, ExportSummary } from "../
 import { call } from "./transport";
 
 /** AI job kinds (the AI job contract): the first four stream text, the rest answer once. */
-export type AiKind = "ask" | "research" | "brainstorm" | "generate" | "continuity" | "canon" | "aliases" | "style" | "image" | "image_regenerate" | "describe_scene";
+export type AiKind = "ask" | "research" | "brainstorm" | "generate" | "continuity" | "canon" | "aliases" | "relationships" | "style" | "image" | "image_regenerate" | "describe_scene";
 export const STREAMING_KINDS: readonly AiKind[] = ["ask", "research", "brainstorm", "generate"];
 export type AiState = "running" | "done" | "cancelled" | "error";
 export interface AiPoll {
@@ -133,6 +133,8 @@ export const api = {
   usage: () => call<{ cost: number; calls: number }>("usage"),
   findAliases: (id: string, text: string) => call<{ suggestions: AliasSuggestion[]; cost: number | null; sent: SentReport }>("find_aliases", id, text),
   applyAliases: (items: { entity: string; surface: string }[]) => call<{ added: number }>("apply_aliases", items),
+  suggestRelationships: (name: string) => call<{ suggestions: RelationshipSuggestion[]; cost: number | null; sent: SentReport }>("suggest_relationships", name),
+  applyRelationships: (name: string, items: { target: string; label: string }[]) => call<{ applied: number }>("apply_relationships", name, items),
   checkContinuity: (id: string, text: string) => call<{ issues: Issue[]; waived: number; cost: number | null; sent: SentReport }>("check_continuity", id, text),
   waive: (key: string, id: string) => call("waive", key, id),
   restoreWaivers: (id: string) => call<{ restored: number }>("restore_waivers", id),
