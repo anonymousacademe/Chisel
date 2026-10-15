@@ -16,7 +16,7 @@ PROVIDES = {
     "keyring": {"keyring"},
     "pyspellchecker": {"spellchecker"},
     "platformdirs": {"platformdirs"},
-    "pywebview": {"webview"},
+    "pywebview": {"webview", "System"},
     "reportlab": {"reportlab", "PIL"},
     "pyphen": {"pyphen"},
 }

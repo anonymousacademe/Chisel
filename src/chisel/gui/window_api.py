@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ctypes
+import sys
 import webbrowser
 from urllib.parse import urlsplit
 
@@ -10,6 +11,12 @@ from ._bridge import bridge
 
 WM_NCLBUTTONDOWN = 0xA1
 HTCAPTION = 0x2
+
+
+def _hwnd(form) -> int:
+    """The form's window handle as an int: pythonnet 3 does not convert a System.IntPtr with int()."""
+    handle = form.Handle
+    return handle.ToInt64() if hasattr(handle, "ToInt64") else int(handle)
 
 
 class WindowMixin:
@@ -24,14 +31,28 @@ class WindowMixin:
         the window itself. pywebview's default (SetWindowPos on every mousemove, with
         the DPI scale applied to physical screen coordinates a second time) makes the
         window overshoot and flicker on scaled displays. Blocks until the drag ends;
-        the OS answers the mouse-up."""
+        the OS answers the mouse-up.
+
+        Both calls must run on the form's UI thread, not on this bridge worker thread:
+        on mousedown the WebView2 child window captures the mouse, and that capture
+        lives in the input queue the UI thread shares with it. ReleaseCapture only
+        affects the calling thread's queue, so from a worker it returns success and does
+        nothing, and DefWindowProc then declines to start the move loop."""
         form = getattr(self._window, "native", None) if self._window is not None else None
         if form is None:
             return {}
-        hwnd = int(form.Handle)
-        user32 = ctypes.windll.user32
-        user32.ReleaseCapture()
-        user32.SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0)
+        hwnd = _hwnd(form)
+
+        def drag() -> None:
+            user32 = ctypes.windll.user32
+            user32.ReleaseCapture()
+            user32.SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0)
+
+        if getattr(form, "InvokeRequired", False):
+            from System import Action  # pythonnet: loaded by pywebview's WinForms backend
+            form.Invoke(Action(drag))
+        else:
+            drag()
         return {}
 
     @bridge
@@ -61,12 +82,18 @@ class WindowMixin:
     def toggle_maximize(self) -> dict:
         w = self._window
         if w is not None:
-            # pywebview has no "is maximized"; track it ourselves
-            if getattr(self, "_maximized", False):
+            # pywebview has no "is maximized": ask Windows (a caption drag or Win+arrow
+            # restores the window behind our back); elsewhere track it ourselves
+            form = getattr(w, "native", None)
+            if form is not None and sys.platform == "win32":
+                maximized = bool(ctypes.windll.user32.IsZoomed(_hwnd(form)))
+            else:
+                maximized = getattr(self, "_maximized", False)
+            if maximized:
                 w.restore()
             else:
                 w.maximize()
-            self._maximized = not getattr(self, "_maximized", False)
+            self._maximized = not maximized
         return {}
 
     @bridge
