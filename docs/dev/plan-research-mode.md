@@ -1,8 +1,9 @@
 # Plan: Research mode (Zotero sources, figures, equations, Word and LaTeX output)
 
-Status: draft 2, revised after an independent review against the code (see "Review changes" at the end).
+Status: draft 3, revised after two independent reviews against the code (see "Review changes" at the end).
 Nothing here is built. The implementation split across agents is in
-[plan-research-mode-work-packages.md](plan-research-mode-work-packages.md).
+[plan-research-mode-work-packages.md](plan-research-mode-work-packages.md); the interface contracts that
+let those packages run in parallel are in [research-mode-contracts.md](research-mode-contracts.md).
 
 Items marked **VERIFY** are not yet confirmed against current documentation or the author's library.
 Items marked **Verified** were checked on 2026-10-14 (Zotero schema and docs, pandoc 3.9.0.2 and MiKTeX on
@@ -71,7 +72,10 @@ limit, and target. Section templates and Claims are deferred.
 
 ### 4.1 Backends
 
-One `ZoteroSource` interface, four implementations. Default order: web, local, file, cache.
+One `ZoteroSource` interface, four implementations. **One order for `chain_fetch`: web, local, file,
+cache** (the build order differs: the file backend is built first, but it sits third in the fall-through
+chain). Fall-through never mixes version state across backends: a result carries the backend that produced
+it, and sync state is kept per backend.
 
 0. **Better BibTeX auto-export file** (CSL JSON or BibTeX that the author points Chisel at). Offline, needs
    no key and no running Zotero, and carries the author's real keys. This is the first backend built, so
@@ -79,10 +83,11 @@ One `ZoteroSource` interface, four implementations. Default order: web, local, f
 1. **Web API** (`api.zotero.org`). Needs an API key (read access), kept in the keyring only. The user ID is
    read from `GET /keys/current`, so the author does not type it.
 2. **Local API** (`http://localhost:23119/api/`, requires "Allow other applications on this computer to
-   communicate with Zotero"). Read-only unless a local key is granted. **Verified:** object and library
-   versions have no relation to the web API's; results are not paginated by default; only user 0 is
-   available; every response carries `Zotero-Server-ID`. **VERIFY:** annotation routes, `/deleted`, and
-   `include=csljson` on the local API.
+   communicate with Zotero"). **Verified (Zotero docs, but stated for Zotero 10 and later, so gate on the
+   running version):** read-only unless a local key is granted; object and library versions have no relation
+   to the web API's; results are not paginated by default; every response carries `Zotero-Server-ID`; the
+   user in the path is 0 or your numeric user ID (others give 400). **VERIFY:** annotation routes,
+   `/deleted`, and `include=csljson` on the local API (not documented).
 3. **Cache**: the source notes already in the project. If nothing else answers, citations and export still
    work from cached data.
 
@@ -107,8 +112,9 @@ BibTeX uses it, always pins keys, and keys sync. Zotero 7 is no longer supported
 - Dry run first: new, changed, missing and key-mismatch rows; the author ticks what to apply (the shape
   rename and canon updates already use). Apply refuses files changed since the preview.
 - Web protocol: `If-Modified-Since-Version` (304 means nothing changed), `since=`, `format=versions`, fetch by
-  key at most 50 per request, `/deleted?since=` for removals, restart if the library version changes mid-run.
-  **VERIFY** the 429 / `Backoff` / `Retry-After` behaviour and honour it.
+  key at most 50 per request (`limit` at most 100), `/deleted?since=` for removals, restart if the library
+  version changes mid-run. **Verified rule:** honour a `Backoff: <seconds>` header on **any** response (not
+  only 429), and wait at least `Retry-After` on a 429.
 - **Sync state is per backend**, in the per-user state folder, never in the project: web as `users/<id>`,
   local per `Zotero-Server-ID`. A note stores `web_version` only (meaningless for the local backend).
 - Removed from Zotero does not delete the note; it is marked `zotero_status: missing` and kept.
@@ -125,6 +131,9 @@ BibTeX uses it, always pins keys, and keys sync. Zotero 7 is no longer supported
 - File name is `slugify(key)` plus a collision suffix, **not** the display name: two different "Smith 2024"
   papers must not merge into one note, and `Smith2024` and `smith2024` are one file on Windows. The real key
   lives only in frontmatter. `name` is the key (or a disambiguated "Smith 2024a").
+- `Project.entity_path` and `create_entity` today derive the file from `slugify(entity.name)` and return
+  an existing note on a name match; both get a source branch that uses the key-based rule above, and the
+  rename paths use it too. **"Rename everywhere" is disabled for sources**: a key changes only through 6.4.
 - Aliases ("Smith and Lee") remain plain mentions; the "never cited" check counts explicit citations only.
 
 ### 5.2 Content
@@ -184,14 +193,24 @@ The existing link parser reads `[[smith2024; lee2023]]` and `[[smith2024, p. 12]
 (and `|` already means display text), the index would store that folded target, and key matching is
 case-insensitive. So citations get their own form:
 
-- `[[@smith2024]]`, with pandoc semantics inside: `[[see @smith2024, p. 12; @lee2023]]`,
-  `[[-@smith2024]]` (suppress author), and narrative "Smith (2024)" as `[[@smith2024|n]]`
-  (**decision needed:** exact narrative spelling; APA needs the narrative form).
+- `[[@smith2024]]`, with pandoc semantics inside: `[[see @smith2024, p. 12; @lee2023]]` and
+  `[[-@smith2024]]` (suppress author).
+- **Narrative citations ("Smith (2024)") use a leading `+`: `[[+@smith2024]]`.** (Decided; the earlier
+  `|n` spelling collided with the existing `|display text` meaning. APA needs the narrative form.)
 - Plain pandoc `[@key]` is also accepted and rendered the same.
+- **The existing link parser must ignore these.** `find_links` / `find_all_links` skip any target that
+  starts with `@`, `-@` or `+@`, contains ` @`, or starts with `fig:`, `tbl:` or `eq:`; `find_citations` and
+  `find_refs` own them. The `!` of a placement line (`![[...]]`) is outside the link match and is handled by
+  `find_placements`. Without this, citations and object references would be shown as unresolved links,
+  indexed as folded targets, offered for "create note", and touched by rename and backlinks.
 - A new `links.find_citations(text) -> list[Citation]` is the single parser, used by the index, the TUI
-  highlighter and the Python span computation. The GUI never parses citations in TypeScript.
+  highlighter and the Python span computation (`link_spans` / `compute_spans` also emit citation,
+  reference, placement and inline-math spans). The GUI never parses citations in TypeScript. Offsets are
+  code points; UTF-16 only at the bridge.
 - `resolve_key` is case-sensitive and matches only source keys; it never competes with entity names (a
   Concept called "kalman2020" cannot shadow a key).
+- **Index:** a separate case-sensitive `citations(source, key)` table (the existing `links` table folds
+  case). The index schema has no version, so switching a project's mode must trigger a rebuild.
 
 ### 6.2 Checks (read-only report, like the continuity check)
 
@@ -222,6 +241,13 @@ tables/tbl-results.csv          # optional source data
 equations/eq-mass-balance.md    # YAML: caption (optional); body = LaTeX
 ```
 
+- **`data/`** holds CSV and other input files for generated figures and tables (7.4). It is project content:
+  rename and move handling (`remap`) and the Trash cover it, and every `data:` path in frontmatter must
+  stay inside the project (paths with `..` or absolute paths are refused).
+- **`.py` and `.csv` files are not documents today** (`Api.resolve_document` refuses anything but `.md`, and
+  saving through the scene path would run link spans, spell check, word counts and indexing on them). A new
+  document kind `code` (no spans, spelling, reflow, title block or index) opens scripts in the editor; CSV
+  data is edited in the table panel or the system editor (`desktop.open_path`).
 - **The label is the file-name stem** (`fig-flow-model.md` is `fig:flow-model`). It is not also stored in
   YAML, so there is one source of truth; a rename is a file rename plus a reference rewrite.
 - Separate from `inspiration/`, which is reference only and never exported or sent to an AI. Figures are
@@ -236,10 +262,15 @@ equations/eq-mass-balance.md    # YAML: caption (optional); body = LaTeX
 - **Reference** in prose: `[[fig:flow-model]]`, `[[tbl:results]]`, `[[eq:mass-balance]]`.
 - A project-wide **numbering service** (Python, called through the bridge) assigns numbers in reading order
   and recomputes when sections are reordered. Numbers are never stored in files.
-- Numbering schemes: plain (1, 2, 3), per-section (2.1) for theses, and supplementary (S1) for papers.
+- Numbering schemes: plain (1, 2, 3), per-section (2.1) for theses, and supplementary (S1) for papers. A
+  number is therefore a display string (`Num(seq, display)`), not an integer.
 - References render as "Figure 2", "Table 1", "Eq. (3)"; captions render with the number.
 - Inline math `$...$` in prose works in the editor and in export (see 8). Spell check, word counts and
-  mention scans must skip math (a `strip_math` helper, used like `scenemeta.strip`).
+  mention scans must skip math (a `strip_math` helper, used like `scenemeta.strip`, wired into `spelling`,
+  `drafts.count_words` and `find_mentions`).
+- **Math handling is research-mode only** and follows pandoc's `tex_math_dollars` rule (no space after the
+  opening `$`, none before the closing `$`, no digit directly after it), so "$5 and $10" in a fiction
+  project, or in research prose, is not math. A test asserts fiction spans, counts and spelling are unchanged.
 
 ### 7.3 WYSIWYG in the desktop editor
 
@@ -248,16 +279,44 @@ existing approach (one CodeMirror `StateField` holds block widgets; Python compu
 draws).
 
 - **Figure:** a placement line renders as the image at its set width, with the numbered caption beneath
-  ("Figure 2. ..."). The image comes through a bridge method that serves only project figure files (like
-  `inspiration_image`), as a downscaled preview for large files, never a raw path. Click opens the figure
-  panel (replace image, edit caption, width, alt text, notes). A missing image shows a clear placeholder.
-- **Table:** a placement line renders as a real table with the numbered caption above it. Click turns it into
-  a **grid editor** (type in cells, add and remove rows and columns, paste from a spreadsheet, import CSV).
-  Edits are written back as the Markdown pipe table; the file stays plain text.
+  ("Figure 2. ..."). The image comes through `object_image(label)`, which serves only
+  `figures/<stem>.{png,jpg}` resolved through one `_figure_file` door (plain stem, no symlinks, inside
+  `figures/`), cached client-side by mtime. (A downscaled preview needs an image library the app does not
+  have, so version 1 serves the file as is, within the 10 MB cap; a thumbnail is a later optimisation.)
+  Click opens the figure panel (replace image, edit caption, width, alt text, notes). A missing image shows
+  a clear placeholder.
+- **Table:** a placement line renders as a real table with the numbered caption above it. A **panel or
+  modal grid editor** (not live inputs inside the widget: writing back rebuilds the widget and would lose
+  focus) lets the author type in cells, add and remove rows and columns, paste a spreadsheet selection
+  (TSV, parsed client-side) and import CSV. **All parsing and serialising is in Python** (`core/tables.py`:
+  `parse_pipe(text) -> Table(cells, align)`, `to_pipe(table)` in a canonical form: escaped `\|`, no newlines
+  in cells, deterministic dash counts, because pandoc derives column widths from them once a line exceeds
+  `--columns`). The bridge is `read_table(id)` and `save_table(id, cells, align, base_mtime)`. Byte-exact
+  round trip is guaranteed for canonical tables; a hand-written table is normalised on its first grid save,
+  after a one-line notice.
 - **Equation:** a placement line renders as typeset math (KaTeX) with its number at the right. Click opens a
   LaTeX box with live preview, a symbol and template palette, and the optional AI "describe it, get LaTeX"
   step, shown as a pending proposal and listed in "What was sent". Inline `$...$` renders as typeset math in
-  place and shows its source when the cursor enters it.
+  place and shows its source when the cursor enters it. KaTeX is **typeset closely to the export, not
+  identical** (`siunitx`, `\newcommand` across equations and some environments differ from LaTeX and Word),
+  so a check flags "macro unsupported in preview". KaTeX is a new npm dependency with its fonts bundled
+  locally (no CDN); it runs with `trust: false`, `maxExpand` about 1000, a `maxSize`, and
+  `throwOnError: false`, because pasted or AI-proposed LaTeX is untrusted. Check the build size.
+
+**Widget engineering rules (CodeMirror).** These follow the editor's one-`StateField` design and its
+rebuild-on-every-change behaviour:
+
+- Image, KaTeX and table widgets implement `eq()` on (label, content hash) so they do not rebuild their DOM
+  on every keystroke or cursor move. A scene with five figures must not re-create image DOM while typing
+  (measured, an acceptance test).
+- Object data arrives asynchronously: an `objectsField` plus a `setObjects` effect (like `setSpans`), part of
+  the rebuild trigger, with a sized placeholder (set `estimatedHeight`) until it arrives, so the scroll does
+  not jump.
+- Placements are block `Decoration.replace({widget, block: true})` over the whole line and are atomic.
+  "Cursor entering shows the source" does **not** apply to block placements. Deletion and moves: Backspace
+  from the next line removes the placement after a confirm, and the widget menu offers Move and Remove.
+- `softBreaks` treats a `![[...]]` line as a hard break; otherwise its newline gets a space replace that
+  overlaps the block replace.
 - **Cross-references** show as the resolved text ("Figure 2"); the cursor entering one shows `[[fig:...]]`.
   A reference that resolves to nothing is drawn with the same warning style as unresolved links.
 - Hovering a figure, table or equation reference shows a small preview.
@@ -275,7 +334,8 @@ stay in the project as plain files, so the result is reproducible and re-runnabl
 
 ```
 figures/fig-flow-model.md       # YAML adds: source: script, script: fig-flow-model.py, data: [data/flow.csv],
-                                #   run: { python, packages, script_sha, data_sha, at, status }
+                                #   run: { python, packages, script_sha, data_sha, at, status }  (provenance only;
+                                #   it is NOT a trust record, see "Trust")
 figures/fig-flow-model.py       # the author's plotting code (matplotlib in version 1)
 figures/fig-flow-model.png      # the output; the same file the rest of this plan already shows and exports
 ```
@@ -290,11 +350,34 @@ figures/fig-flow-model.png      # the output; the same file the rest of this pla
   run, detected by hash) or failed (with the error text).
 - **Trust:** running code is as risky as opening a notebook, and a project can be shared or cloned. A script
   is never run until the author confirms, and the confirmation is tied to the script's hash: any change asks
-  again. The dialog shows the file and where it will run.
-- **Execution:** a subprocess with a timeout, using the interpreter chosen in settings (default: a project
-  or user virtual environment, not Chisel's own `.venv`), working directory in the project, output only to
-  the declared path. Chisel cannot sandbox network or file access, and says so. Matplotlib is an optional
-  extra, like the export extra; with it missing the run button names the install command.
+  again. The dialog shows the file and where it will run. **Confirmed hashes are stored only in the
+  per-user state folder, keyed by project id, figure path and SHA-256; nothing in the project can mark a
+  script as trusted** (a cloned project must never arrive pre-confirmed). `run_figure(project, id)` checks
+  that record; `trust_figure(project, id, sha)`, called only from the confirmation dialog, is the only way
+  to write it.
+- **Interpreter:** a per-user setting only. Chisel never runs an interpreter found inside the project folder
+  (a cloned project could ship its own `python.exe`). The installed desktop app has no Python of its own, so
+  with no interpreter set, Run says so and names the setting.
+- **Execution contract (Windows-safe):**
+  - Copy the hashed bytes to a temp file and run that copy, so there is no gap between hashing and running.
+  - Run `<python> -I -X utf8 <chisel_runner.py> --script <copy> --out <tmp.png> --data <dir> --style <mplstyle>`.
+    `-I` keeps a planted `figures/numpy.py` or `matplotlib.py` from shadowing imports; `-X utf8` is needed
+    because `-I` ignores `PYTHONIOENCODING`.
+  - Working directory is a temp dir, not the project (otherwise matplotlib reads a project `matplotlibrc`).
+  - Scrubbed environment: drop `OPENROUTER_API_KEY`, `CHISEL_*` and `PYTHON*`; set `MPLBACKEND=Agg`.
+  - `**desktop.NO_CONSOLE`; a timeout that kills the **whole process tree** (a Job Object with
+    KILL_ON_JOB_CLOSE, or `taskkill /T /F`), because `subprocess.run(timeout=)` kills only the direct child;
+    captured stdout and stderr are capped.
+  - The output is checked by bytes (`sniff_ext`, the 10 MB cap) before an atomic `fsutil` replace.
+  - It runs as a job (`figure_run_start` / `figure_run_status` / cancel, like `gui/exports.py`), never
+    holding `self._lock`.
+  - `chisel_runner.py` is Chisel's own code; it also records the Python and package versions
+    (`importlib.metadata`) to a JSON file, which is where "Provenance" gets its data.
+- **Matplotlib** must be installed in the **chosen interpreter**, not in Chisel's environment (it is not an
+  extra of Chisel). Run checks for it through the runner and names `<python> -m pip install matplotlib`.
+  Chisel cannot sandbox network or file access from a script, and says so.
+- **Figure width:** a project setting in inches in version 1 (reading the Word template's page setup is
+  deferred; it would make P4b depend on P5).
 - **Provenance:** the sidecar records the script and data hashes, the Python and package versions and the
   time, so a result can be traced and a stale one detected.
 - **AI help (optional):** "describe the plot, get code" is a *pending proposal* shown in the panel and
@@ -310,7 +393,8 @@ tables/tbl-results.md           # YAML adds: source: data, data: data/results.cs
 tables/tbl-results.csv          # or any CSV in data/
 ```
 
-- The table is built from a CSV (or an Excel sheet export) plus a **formatting spec** in YAML: column
+- The table is built from a **CSV** (an Excel sheet saved as CSV works; reading `.xlsx` directly would need
+  another dependency and is deferred) plus a **formatting spec** in YAML: column
   headers and units, number format per column (decimals or significant figures, thousands separators),
   alignment (decimal-aligned numbers), bold or marked best values, row and column order, footnotes, and
   caption. Re-build when the data changes; a changed CSV marks the table stale, like a figure.
@@ -321,8 +405,9 @@ tables/tbl-results.csv          # or any CSV in data/
   feature cannot survive into Word it is dropped with a visible warning, never silently.
 - **No code is needed for tables** in version 1: the spec is data, not a script. A "table from a Python
   script" is deferred, because a script can only be trusted case by case.
-- WYSIWYG: the table renders formatted exactly as it will export (7.3). The grid editor edits the spec and the
-  hand-typed cells; generated cells are read-only and shown as such.
+- WYSIWYG: the table renders formatted as it will export (7.3). **A `source: data` table's body is
+  generated and read-only (marked by a comment line); edits go to the spec only.** Hand-typed tables are
+  the 7.1 kind, and only they have cells the grid editor writes.
 
 ## 8. Export
 
@@ -348,6 +433,11 @@ needs**, so this is the largest and riskiest piece, not a one-line addition:
   funder, stored in the project (`templates/`) or the user data folder.
 - **Verified (pandoc 3.9.0.2):** TeX display math becomes native Word equations (`m:oMath`); `--citeproc`
   works; `{#fig:x}` becomes a Word bookmark.
+- **Equation numbers: VERIFY, probably not buildable as first written.** Plain pandoc does not accept
+  attributes on display math (`$$..$$ {#eq:x}` is pandoc-crossref syntax) and raw TeX is off in the reader.
+  Plan: Word gets the equation plus a right-aligned "(n)" via a two-column borderless table or a tab stop;
+  LaTeX gets a raw `equation` environment with `\label` emitted by the writer (a generated construct, not
+  author text).
 - Cross-references and numbers are typed text, not Word fields; they will not renumber if the document is
   edited in Word. The export dialog says so.
 - Page limits: a word-count estimate against section limits. No Word page count is claimed. (A LibreOffice
@@ -419,7 +509,8 @@ personal data and saved as test fixtures):
 ## 13. Open questions
 
 1. Zotero version and whether keys are populated in the web API (check 1 above).
-2. Exact narrative-citation spelling, and whether plain `[@key]` is accepted everywhere.
+2. ~~Narrative-citation spelling~~ decided: `[[+@key]]` (6.1). Still open: whether plain `[@key]` is
+   accepted everywhere or only on export.
 3. Which funder or proposal formats come first; sample Word templates or format specs.
 4. Terminal app scope for table and equation editing in version 1.
 5. Multi-panel figures: one image per figure in version 1?
@@ -446,7 +537,23 @@ personal data and saved as test fixtures):
 - Scope touches entities, links, the index, the editor, export, Trash and the GUI; the build order keeps each
   slice testable and reversible.
 
-## 15. Review changes (draft 1 to draft 2)
+## 15. Review changes
+
+### Draft 2 to draft 3 (second review, 2026-10-15)
+
+Applied: script trust record and interpreter live in the per-user state folder, never the project (7.4);
+Windows-safe execution contract with runner, temp copy, isolated Python, scrubbed environment, process-tree
+kill, job (7.4); matplotlib belongs to the chosen interpreter, not a Chisel extra (7.4); new `code` document
+kind and a `data/` folder (7.1); table parse and serialise in Python with a canonical form (7.3); generated
+table bodies are read-only (7.4); the link parser ignores citation and object targets and narrative
+citations use `[[+@key]]`, with a separate case-sensitive index table and rebuild on mode change (6.1);
+`Num` display strings for numbering (7.2); widget engineering rules for the StateField, KaTeX hardening and
+image serving through one door (7.3); Word equation numbers marked VERIFY (8.1); math handling restricted to
+research mode with pandoc's dollar rule (7.2); source file naming and rename rules (5.1); one fall-through
+order (4.1); Zotero local-API claims gated on version and the Backoff rule (4.1, 4.3). Contracts are now in
+[research-mode-contracts.md](research-mode-contracts.md).
+
+### Draft 1 to draft 2
 
 Applied from the independent review: new entity kind and `entities/sources/` folder (5.1); sources excluded
 from AI context (5.3); citation syntax and parser (6.1); key-based file naming and key-change flow (5.1,
