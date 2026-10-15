@@ -265,6 +265,65 @@ draws).
   supports citation highlighting, the checks and the export options, and opens the object's file for editing.
   (Decision needed: whether table and equation text editing is in scope for the TUI in version 1.)
 
+### 7.4 Generated figures and tables
+
+A figure can be **made from Python code** (a graph) and a table can be **built from data with a formatting
+spec** (a well-formatted table), instead of being a pasted image or hand-typed Markdown. The code and data
+stay in the project as plain files, so the result is reproducible and re-runnable.
+
+**Generated figure**
+
+```
+figures/fig-flow-model.md       # YAML adds: source: script, script: fig-flow-model.py, data: [data/flow.csv],
+                                #   run: { python, packages, script_sha, data_sha, at, status }
+figures/fig-flow-model.py       # the author's plotting code (matplotlib in version 1)
+figures/fig-flow-model.png      # the output; the same file the rest of this plan already shows and exports
+```
+
+- The script follows a small contract: it receives the project's data folder, the figure style and the output
+  path, and writes one PNG. A starter template is provided (read CSV, plot, save). No other output is used.
+- **Project figure style:** one shared style (fonts, sizes, line widths, colour-blind-safe palette, figure
+  width matched to the Word template's column or the LaTeX text width, 300 dpi) so every figure matches and
+  fits the page. Set once, applied to every script.
+- **Run on click only.** *Run script* regenerates the PNG; nothing runs on open, on save or in the
+  background. The figure panel shows the status: current, **stale** (script or data changed since the last
+  run, detected by hash) or failed (with the error text).
+- **Trust:** running code is as risky as opening a notebook, and a project can be shared or cloned. A script
+  is never run until the author confirms, and the confirmation is tied to the script's hash: any change asks
+  again. The dialog shows the file and where it will run.
+- **Execution:** a subprocess with a timeout, using the interpreter chosen in settings (default: a project
+  or user virtual environment, not Chisel's own `.venv`), working directory in the project, output only to
+  the declared path. Chisel cannot sandbox network or file access, and says so. Matplotlib is an optional
+  extra, like the export extra; with it missing the run button names the install command.
+- **Provenance:** the sidecar records the script and data hashes, the Python and package versions and the
+  time, so a result can be traced and a stale one detected.
+- **AI help (optional):** "describe the plot, get code" is a *pending proposal* shown in the panel and
+  listed in "What was sent" (the description, and the data column names only if the author ticks them). It
+  is never run automatically; accepting it only saves the script, and running is the separate trusted step.
+- **WYSIWYG:** the figure shows like any other (7.3); the panel adds *Edit script* (opens the `.py` in the
+  editor) and *Run*. A run that fails keeps the previous image.
+
+**Generated table**
+
+```
+tables/tbl-results.md           # YAML adds: source: data, data: data/results.csv, format: { ... }
+tables/tbl-results.csv          # or any CSV in data/
+```
+
+- The table is built from a CSV (or an Excel sheet export) plus a **formatting spec** in YAML: column
+  headers and units, number format per column (decimals or significant figures, thousands separators),
+  alignment (decimal-aligned numbers), bold or marked best values, row and column order, footnotes, and
+  caption. Re-build when the data changes; a changed CSV marks the table stale, like a figure.
+- **Output forms:** a Markdown pipe table for the file and the editor view, and the richer form on export.
+  Plain pipe tables cannot do merged cells, multi-row headers or decimal alignment, so the export path uses
+  pandoc's grid or simple table forms, or generated LaTeX (booktabs) for the PDF. **VERIFY** how far Word
+  output follows this (merged header cells, decimal alignment) with the author's real template; where a
+  feature cannot survive into Word it is dropped with a visible warning, never silently.
+- **No code is needed for tables** in version 1: the spec is data, not a script. A "table from a Python
+  script" is deferred, because a script can only be trusted case by case.
+- WYSIWYG: the table renders formatted exactly as it will export (7.3). The grid editor edits the spec and the
+  hand-typed cells; generated cells are read-only and shown as such.
+
 ## 8. Export
 
 All export goes through `core/export/manuscript.assemble`, but the current pipeline **strips what research
@@ -324,6 +383,9 @@ AI: existing roles and models; no new role in version 1.
   silent caps. Sources are otherwise excluded from every AI context (5.3).
 - Syncing never deletes author text; replacement is limited to the marked Zotero block.
 - Pulled HTML is sanitised and escaped (5.2).
+- **Scripts never run on their own** (7.4): only on a click, only after a confirmation tied to the script's
+  hash, with a timeout. Chisel does not sandbox them and states that. Data and code are never sent to an AI
+  except what the author ticks in a "describe the plot" request, shown in "What was sent".
 - Export refuses unresolved citations and references unless the author overrides.
 
 ## 11. Build order
@@ -336,6 +398,9 @@ AI: existing roles and models; no new role in version 1.
 3. **Zotero web and local sync, notes and highlights.**
 4. **Figures, tables and equations, with the WYSIWYG editor widgets (7.3) and cross-references.** Export of
    objects lands here at the latest.
+4b. **Generated figures and tables (7.4):** script runner with trust and staleness, figure style, table
+   formatting spec. Built after step 4, because it only writes the same PNG and Markdown files step 4
+   already displays and exports.
 5. **GUI and TUI polish.**
 
 Docs, `CHANGELOG.md`, `SPEC.md` and packaging data files are updated at merge time by one integrator.
@@ -360,6 +425,10 @@ personal data and saved as test fixtures):
 5. Multi-panel figures: one image per figure in version 1?
 6. Is write-back to Zotero wanted later?
 7. Where per-funder Word templates live: per project or a shared folder.
+8. Which Python the figure scripts use (an existing environment of yours, or one Chisel creates), and which
+   plotting library besides matplotlib, if any.
+9. Which table features matter most for your proposals: merged headers, decimal alignment, footnotes,
+   significance marks.
 
 ## 14. Risks
 
@@ -368,6 +437,10 @@ personal data and saved as test fixtures):
 - WYSIWYG widgets add CodeMirror complexity (block widgets and line-spanning replaces must live in the one
   `StateField`); table grid editing must round-trip Markdown exactly.
 - Word cross-references are text, not fields.
+- Running author-supplied Python is the one place Chisel executes arbitrary code. The hash-bound trust step
+  is the guard; a cloned project must never run code without that prompt.
+- Rich table features (merged cells, decimal alignment) may not survive into Word, so the formatted table
+  and the exported one can differ; the warning in 7.4 is the mitigation.
 - Local and web Zotero APIs differ in detail (annotations, deleted items, versions, rate limits).
 - MiKTeX package prompts can hang LaTeX export.
 - Scope touches entities, links, the index, the editor, export, Trash and the GUI; the build order keeps each
@@ -383,4 +456,5 @@ sync state and sync protocol (4.3); verbatim CSL JSON and bundled styles (5.2, 6
 (5.2); template caveat and starter (8.1); MiKTeX behaviour and PNG/JPG-only images (8.2); Better BibTeX
 auto-export as the first backend and re-ordered build (4.1, 11); mode gate first (3, 11); numbering schemes
 and strip-math (7.2); terminal app scope (7.3); AI-suggested citation cut (2). Added by request: WYSIWYG
-figures, tables and equations (7.3).
+figures, tables and equations (7.3); figures generated from Python code and tables built from data with a
+formatting spec (7.4).

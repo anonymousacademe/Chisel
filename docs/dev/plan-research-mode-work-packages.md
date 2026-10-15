@@ -13,6 +13,7 @@ decisions and risky integration, Sonnet for standard implementation, Haiku for m
 | P2 | Zotero client and file backend | new `core/zotero/` (web, local, file, html2md) | P0 | `ZoteroSource` protocol: `probe()`, `fetch(scope, since)` returning items, deleted keys, library version, server id; `open_sources(settings)`; `chain_fetch(...)` returning result and a plain-words report | fake HTTP server with scrubbed recorded JSON; 304, 429/Backoff, pagination, deleted, Extra fallback, sanitiser | Sonnet | M |
 | P3 | Source notes and sync | new `core/sources.py`, sync state in the user state dir | P1, P2 | `item_to_note`, `replace_block`, `plan_sync` (rows: new, changed, missing, key-mismatch), `apply_sync(plan, ticked)` | marker preservation byte for byte, extra round trip, no overwrite of author text, refuse if changed since plan | Sonnet; Opus reviews apply | L |
 | P4 | Objects core and numbering | new `core/objects.py`, Trash kind `object` in `core/structure.py`, document-kind entries | P0 | `list_objects`, `create_figure`, `numbering(project)` (reading order), `find_placements`, `find_refs`, `strip_math` | numbering across parts and reorders, schemes (plain, per-section, supplementary), duplicate labels, Trash restore, image sniff and size cap | Sonnet | M |
+| P4b | Generated figures and tables | new `core/figscripts.py` (runner, trust, staleness, provenance), `core/tablefmt.py` (CSV plus format spec to Markdown, grid and LaTeX forms), starter script template, figure style file | P4 | `run_figure(project, id, confirmed_sha)` returning status and error text (never runs when the confirmation does not match the script hash); `figure_status(project, id)` (current, stale, failed); `build_table(project, id)` returning Markdown and the export form; `trust_state(project, id)` | runner uses a temp project and a trivial script (no matplotlib needed in tests); hash-mismatch refuses to run; timeout; failed run keeps the old image; stale detection on script and data; formatting spec cases (decimals, significant figures, alignment, footnotes); fiction projects unaffected | Sonnet; Opus reviews the trust and execution path | M |
 | P5 | Research export | new `core/export/research.py`, `csljson.py`, research branch in `pandoc.py`, model additions in `manuscript.py`, bundled `export/csl/` | P1, P4 contracts | `assemble_research(project, opts)` returning a Book with Heading, Math, Citation, Figure, Table, Equation; `convert_research(book, fmt, out, csl, reference_doc, resource_path)` | golden docx XML (oMath, bookmarks, citeproc text), strict escaping for author text, **fiction exports byte-identical**, PDF test skipped without TeX | **Opus** | L |
 | P6 | Research checks | new `core/researchchecks.py` | P1, P3, P4 | `run_checks(project)` returning flags; `blocking(flags)` gating export | one test per check | Haiku | S |
 | P7 | GUI bridge | new `gui/research_api.py` (mixin), `gui/workspace.py` additions | P3 to P6 | `zotero_status`, `zotero_sync_plan`, `zotero_sync_apply`, `list_sources`, `list_objects`, `object_numbers`, `object_preview` (downscaled, project figures only), `save_table`, `research_checks`, `insert_figure`, `export_research_start`; all `@bridge`, network outside `self._lock` | `tests/test_gui_research.py`, signature and mock-name tests | Sonnet | M |
@@ -23,9 +24,10 @@ decisions and risky integration, Sonnet for standard implementation, Haiku for m
 
 ## Waves and merge order
 
-- Wave 0: P0. Wave 1 in parallel: P1, P2, P4. Wave 2 in parallel: P3, P5 (can start on P0 contracts with
-  stubbed numbering), P6 (after P3). Wave 3: P7. Wave 4 in parallel: P8a, P8b, P9. Wave 5: P10.
-- Merge order: P0, P1, P4, P2, P3, P6, P5, P7, P8a, P8b, P9, P10. One git worktree per package; the full suite
+- Wave 0: P0. Wave 1 in parallel: P1, P2, P4. Wave 2 in parallel: P3, P4b (after P4), P5 (can start on P0
+  contracts with stubbed numbering), P6 (after P3). Wave 3: P7 (gains `run_figure`, `figure_status`,
+  `build_table` bridge methods and a confirmation dialog in P8b). Wave 4 in parallel: P8a, P8b, P9. Wave 5: P10.
+- Merge order: P0, P1, P4, P4b, P2, P3, P6, P5, P7, P8a, P8b, P9, P10. One git worktree per package; the full suite
   runs at each merge.
 
 ## Avoiding merge conflicts
@@ -58,8 +60,8 @@ Shared files: `gui/api.py` (mixin list, facade, mocked-name tuples), `core/proje
 - **Test gates:** each agent runs only its own tests plus the linter (GUI: `npm run lint` and vitest on its
   files); the full suite runs once per merge. A package is done only when its tests pass, fiction tests and
   exports are unchanged, and no test touches the network or the real keyring.
-- **Opus spend** concentrates on P0, P5, P8b's StateField changes and two short reviews (P1 AI-exclusion,
-  P3 apply).
+- **Opus spend** concentrates on P0, P5, P8b's StateField changes and three short reviews (P1 AI-exclusion,
+  P3 apply, P4b trust and execution path).
 - **Stop conditions** (report back instead of looping): the same test fails after 3 fix attempts; the work
   needs a file outside the package or a change to a P0 contract; a VERIFY assumption proves false; a test
   seems to need the network or real keyring; the full suite already fails before any change; about 40 tool
