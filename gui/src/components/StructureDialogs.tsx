@@ -124,8 +124,10 @@ export function TrashDialog({ onClose, onRestored, onChanged, notify }: {
 }
 
 /** Status, POV, place, purpose and word target of a scene. Saved into its frontmatter by the caller. */
-export function DetailsDialog({ details, entities, onSave, onClose, unit, when, timeline }: {
+export function DetailsDialog({ details, entities, onSave, onClose, unit, when, timeline, story = true }: {
   details: SceneDetails; entities: EntitySummary[]; unit: string;
+  /** False in research mode: POV, place and story time are not shown (their saved values are kept). */
+  story?: boolean;
   /** Python's reading of this scene's story time, and the project's timeline mode sentence. */
   when?: WhenInfo; timeline?: TimelineInfo;
   onSave: (patch: DetailsPatch) => void; onClose: () => void;
@@ -164,7 +166,7 @@ export function DetailsDialog({ details, entities, onSave, onClose, unit, when, 
           onChange={(e) => setStatus(e.target.value)} />
         <datalist id="lw-status-options">{SUGGESTED_STATUS.map((s) => <option key={s} value={s} />)}</datalist>
       </label>
-      <div className="lw-row lw-gap-8 lw-details__pair">
+      {story && <div className="lw-row lw-gap-8 lw-details__pair">
         <label className="lw-dialog__label lw-grow">POV
           <input className="lw-launch__input" list="lw-pov-options" value={pov} placeholder="a character, or any name"
             onChange={(e) => setPov(e.target.value)} />
@@ -175,23 +177,23 @@ export function DetailsDialog({ details, entities, onSave, onClose, unit, when, 
             onChange={(e) => setPlace(e.target.value)} />
           <datalist id="lw-place-options">{names(["place"]).map((n) => <option key={n} value={n} />)}</datalist>
         </label>
-      </div>
+      </div>}
       <label className="lw-dialog__label">{unit[0].toUpperCase()}{unit.slice(1)} purpose
         <textarea className="lw-launch__input lw-details__purpose" rows={3} value={purpose} onChange={(e) => setPurpose(e.target.value)}
-          placeholder="What this is for in the story" />
+          placeholder={story ? "What this is for in the story" : "What this is for in the document"} />
       </label>
-      <label className="lw-dialog__label">Story time
+      {story && <label className="lw-dialog__label">Story time
         <input className="lw-launch__input" value={storyTime} placeholder="2187 or 2187-03-14" aria-invalid={timeBad}
           onChange={(e) => setStoryTime(e.target.value)} />
         {hint && <span className="lw-faint lw-details__hint">{hint}</span>}
         <span className={timeBad ? "lw-details__error" : "lw-faint lw-details__hint"}>{whenHelp(storyTime, timeValid)}</span>
-      </label>
+      </label>}
       <label className="lw-dialog__label">Target words
         <input className="lw-launch__input" inputMode="numeric" value={target} placeholder="blank for none"
           aria-invalid={bad} onChange={(e) => setTarget(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
         {bad && <span className="lw-details__error">A number of words, like 2400.</span>}
       </label>
-      {timeline && <p className="lw-faint lw-details__hint lw-details__timeline">{timeline.sentence}</p>}
+      {story && timeline && <p className="lw-faint lw-details__hint lw-details__timeline">{timeline.sentence}</p>}
       <div className="lw-dialog__buttons">
         <button className="lw-btn" onClick={onClose}>Cancel</button>
         <button className="lw-btn lw-btn--primary" disabled={bad} onClick={submit}>Save</button>

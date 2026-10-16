@@ -301,6 +301,16 @@ def _scene_node(s: dict, project: Project) -> dict:
     return node
 
 
+# Binder wording per project mode (project.mode). The ids and kinds never change, only the words. The
+# "characters" and "world" groups keep listing the same notes until the research note kinds exist
+# (docs/dev/plan-research-mode.md, P1).
+LABELS = {
+    "story": {"manuscript": "Manuscript", "parked": "Parked scenes", "characters": "Characters",
+              "world": "World Bible"},
+    "research": {"manuscript": "Sections", "parked": "Parked paragraphs", "characters": "Sources",
+                 "world": "Concepts and methods"},
+}
+
 PARKED_TITLE = "Parked scenes"
 PARKED_HELP = "Written but not part of the book. Not counted in word totals or export. Still searchable."
 
@@ -309,6 +319,7 @@ def build_binder(project: Project, scenes: list[dict], entities: list[dict],
                  has_style: bool, parts: list[dict] | None = None,
                  trash_count: int = 0, research: list[dict] | None = None) -> list[dict]:
     parts = parts if parts is not None else part_summaries(project, scenes)
+    labels = LABELS[project.mode]
     placed = [s for s in scenes if not s["unplaced"]]
     unplaced = [s for s in scenes if s["unplaced"]]
     loose = [s for s in placed if s["part"] is None]
@@ -325,7 +336,7 @@ def build_binder(project: Project, scenes: list[dict], entities: list[dict],
             })
     if loose or not any(not p["frontMatter"] for p in parts):
         children.append({
-            "id": "group:manuscript", "title": "Manuscript", "kind": "folder",
+            "id": "group:manuscript", "title": labels["manuscript"], "kind": "folder",
             "meta": fmt_words(sum(s["words"] for s in loose)), "expanded": True,
             "children": [_scene_node(s, project) for s in loose],
         })
@@ -342,11 +353,11 @@ def build_binder(project: Project, scenes: list[dict], entities: list[dict],
         "id": "project", "title": project.title, "kind": "project",
         "meta": fmt_words(total), "expanded": True, "children": children,
     }, {
-        "id": "group:characters", "title": "Characters", "kind": "characters",
+        "id": "group:characters", "title": labels["characters"], "kind": "characters",
         "children": [{"id": e["id"], "title": e["name"], "kind": "entity"}
                      for e in characters],
     }, {
-        "id": "group:world", "title": "World Bible", "kind": "world",
+        "id": "group:world", "title": labels["world"], "kind": "world",
         "children": [{"id": e["id"], "title": e["name"], "kind": "entity",
                       "meta": e["type"]} for e in world],
     }]
@@ -357,7 +368,7 @@ def build_binder(project: Project, scenes: list[dict], entities: list[dict],
     binder.append({"id": DICTIONARY_ID, "title": "Dictionary", "kind": "dictionary"})
     binder.append(research_node(research or []))
     if unplaced:   # Parked scenes (folder manuscript/_unplaced/): listed only while it holds scenes
-        binder.append({"id": "group:unplaced", "title": PARKED_TITLE, "kind": "inbox",
+        binder.append({"id": "group:unplaced", "title": labels["parked"], "kind": "inbox",
                        "description": PARKED_HELP, "meta": str(len(unplaced)),
                        "children": [_scene_node(s, project) for s in unplaced]})
     binder += [
@@ -405,6 +416,7 @@ def build_workspace(project: Project, entities: list[ent.Entity], *,
             "unit": project.unit,
             "draft": project.draft,
             "mode": project.mode,
+            "labels": LABELS[project.mode],
         },
         "binder": build_binder(project, scenes, summaries, has_style, parts, trash_count, research),
         "scenes": scenes,

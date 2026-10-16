@@ -404,6 +404,15 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
             return {"unit": unit}
 
     @bridge
+    def set_mode(self, mode: str) -> dict:
+        """Switch the project between story and research. Files do not change; only wording, the
+        binder and which fiction fields show (the GUI reads `project.mode` from the workspace)."""
+        with self._lock:
+            project = self._require()
+            project.update_mode(mode)
+            return {"mode": project.mode}
+
+    @bridge
     def rebuild_index(self) -> dict:
         with self._lock:
             project = self._require()

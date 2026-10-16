@@ -34,6 +34,8 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 export function Assistant(props: {
+  /** False in research mode (see NotesPanel). */
+  story?: boolean;
   tab: AssistantTab; onTab: (t: AssistantTab) => void;
   mentions: SceneMention[]; onPickEntity: (name: string) => void;
   note: EntityInfo | null; missingTarget: string | null;
@@ -233,7 +235,7 @@ export function Assistant(props: {
         )}
         {tab === "context" && <Sources mentions={props.mentions} onPick={props.onPickEntity} />}
         {tab === "notes" && (
-          <NotesPanel note={props.note} missingTarget={props.missingTarget} onOpenNote={props.onOpenNote}
+          <NotesPanel story={props.story} note={props.note} missingTarget={props.missingTarget} onOpenNote={props.onOpenNote}
             onAddAlias={props.onAddAlias} onSetBorn={props.onSetBorn} onSuggestRelationships={props.onSuggestRelationships}
             onRename={props.onRename} onCreateNote={props.onCreateNote} onOpenBacklink={props.onOpenBacklink} />
         )}

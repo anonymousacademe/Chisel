@@ -287,3 +287,28 @@ def test_new_project_takes_a_mode(tmp_path):
     assert api.get_workspace()["workspace"]["project"]["mode"] == "story"
     assert api.new_project("Odd", str(tmp_path / "odd"), "script")["ok"] is False
     assert not (tmp_path / "odd").exists()
+
+
+def test_set_mode_switches_labels_and_keeps_files(tmp_path):
+    api, _ = open_api(tmp_path)
+    assert api.new_project("Paper", str(tmp_path / "paper"))["ok"] is True
+    before = (tmp_path / "paper" / "manuscript" / "01-opening.md").read_text(encoding="utf-8")
+
+    def titles():
+        ws = api.get_workspace()["workspace"]
+        return ws["project"], [n["title"] for n in ws["binder"]]
+
+    project, binder = titles()
+    assert project["labels"]["parked"] == "Parked scenes"
+    assert "Characters" in binder and "World Bible" in binder
+
+    assert api.set_mode("research") == {"ok": True, "mode": "research"}
+    project, binder = titles()
+    assert project["mode"] == "research"
+    assert project["labels"]["parked"] == "Parked paragraphs"
+    assert "Sources" in binder and "Concepts and methods" in binder and "Characters" not in binder
+    assert (tmp_path / "paper" / "manuscript" / "01-opening.md").read_text(encoding="utf-8") == before
+
+    assert api.set_mode("story")["ok"] is True
+    assert "Characters" in titles()[1]
+    assert api.set_mode("poetry")["ok"] is False

@@ -23,6 +23,8 @@ const modes: { id: ViewMode; icon: LucideIcon; label: string }[] = [
 ];
 
 export function Editor(props: {
+  /** False in research mode: the POV / place field is left out. */
+  story?: boolean;
   doc: DocumentPayload | null; scenes: SceneSummary[]; parts: PartSummary[]; unit: Unit; words: number; mentions: SceneMention[]; reflow: boolean;
   sessionWords: number; sessionMinutes: number;
   mode: ViewMode; onMode: (m: ViewMode) => void;
@@ -163,7 +165,7 @@ export function Editor(props: {
       <footer className="lw-inspector">
         {[
           { label: "Status", value: d?.status || "—", edit: props.onEditDetails },
-          { label: "POV / Place", value: [d?.pov, d?.place].filter(Boolean).join(" · ") || "—", edit: props.onEditDetails },
+          ...(props.story === false ? [] : [{ label: "POV / Place", value: [d?.pov, d?.place].filter(Boolean).join(" · ") || "—", edit: props.onEditDetails }]),
           { label: `${props.unit[0].toUpperCase()}${props.unit.slice(1)} purpose`, value: d?.purpose || "—", edit: props.onEditDetails },
           { label: "Collections", value: d?.collections.join(", ") || "—", edit: props.onEditCollections },
           { label: "Session", value: session, accent: true },

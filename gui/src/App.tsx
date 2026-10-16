@@ -559,6 +559,13 @@ export default function App() {
       if (docRef.current) await openDoc(docRef.current.id, { force: true });  // the kicker follows
       notify(`Labels now say “${next}”. Only the wording changes.`);
     } },
+    { label: ws.project.mode === "story" ? "Switch this project to research mode" : "Switch this project to story mode", onSelect: async () => {
+      const next = ws.project.mode === "story" ? "research" : "story";
+      const r = await api.setMode(next);
+      if (!r.ok) return notify(r.error, "error");
+      await refresh();
+      notify(`Now a ${next} project. Your files are unchanged; you can switch back.`);
+    } },
     { label: "Settings…", onSelect: () => void openSettings() },
   ] });
 
@@ -658,7 +665,7 @@ export default function App() {
       { label: `Move ${unit} to part…`, disabled: !isScene, onSelect: () => doc && setDialog({ kind: "pick-part", sceneId: doc.id, unplaced: !!doc.unplaced }) },
       doc?.unplaced
         ? { label: "Place in the book…", onSelect: () => doc && setDialog({ kind: "pick-part", sceneId: doc.id, unplaced: true }) }
-        : { label: "Move to Parked scenes", disabled: !isScene, onSelect: () => doc && void placeScene(doc.id, null, null, true).then((r) => r && notify("Moved to Parked scenes. It no longer counts in the book.")) },
+        : { label: `Move to ${ws.project.labels.parked}`, disabled: !isScene, onSelect: () => doc && void placeScene(doc.id, null, null, true).then((r) => r && notify(`Moved to ${ws.project.labels.parked}. It no longer counts in the book.`)) },
       { label: "Collections…", disabled: !isScene, onSelect: () => setDialog({ kind: "scene-collections" }) },
       { label: "History (snapshots)…", disabled: !isScene, onSelect: openHistory },
       { label: `Delete ${unit}…`, disabled: !isScene, danger: true, onSelect: () => setDialog({ kind: "delete" }) },
@@ -701,7 +708,7 @@ export default function App() {
             onNewNote={() => setDialog({ kind: "new-research" })}
             onNew={() => setDialog(rail === "library" ? { kind: "new-note", name: "", openAfter: true } : { kind: "new-scene" })} onMenu={openSceneMenu} />
         )}
-        <Editor doc={doc} scenes={ws.scenes} filter={boardFilter}
+        <Editor story={ws.project.mode === "story"} doc={doc} scenes={ws.scenes} filter={boardFilter}
           onEditCollections={() => setDialog({ kind: "scene-collections" })} parts={ws.parts} unit={unit} words={words} mentions={mentions} reflow={reflow}
           sessionWords={ws.status.sessionWords} sessionMinutes={ws.status.sessionMinutes}
           onEditDetails={() => setDialog({ kind: "details" })} onMoveRequest={(plan) => setDialog({ kind: "move", plan })}
@@ -721,7 +728,7 @@ export default function App() {
             { key: "Mod-g", run: startGenerate },
           ]} />
         {showAssistant && (
-          <Assistant tab={tab} onTab={setTab} mentions={mentions} onPickEntity={showNote}
+          <Assistant story={ws.project.mode === "story"} tab={tab} onTab={setTab} mentions={mentions} onPickEntity={showNote}
             note={note} missingTarget={missingTarget} onOpenNote={(id) => void openDoc(id)} onAddAlias={(n, a) => void addAlias(n, a)} onSetBorn={(n, b) => void setBorn(n, b)} onSuggestRelationships={(n) => void suggestRelationships(n)} onRename={(n, al) => setDialog({ kind: "rename-note", name: n, aliases: al })}
             onCreateNote={(t) => setDialog({ kind: "new-note", name: t, openAfter: false })} onOpenBacklink={(id, row) => void openBacklink(id, row)}
             issues={issues} issuesSent={issuesSent} onReviewIssue={reviewIssue} onDismissIssue={(i) => void dismissIssue(i)}

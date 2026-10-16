@@ -6,6 +6,8 @@ import { noteBlocks } from "../data/noteBlocks";
 
 /** The Notes tab: the note under the cursor / picked in the binder, with aliases and backlinks. */
 export function NotesPanel(props: {
+  /** False in research mode: born / story time and relationships are left out. */
+  story?: boolean;
   note: EntityInfo | null;
   /** A [[link]] under the cursor that has no note yet. */
   missingTarget: string | null;
@@ -58,11 +60,11 @@ export function NotesPanel(props: {
         <input className="lw-note__alias-input" value={alias} placeholder="Add alias" aria-label="Add alias"
           onChange={(e) => setAlias(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addAlias(); }} />
       </div>
-      {note.type === "character" && (
+      {props.story !== false && note.type === "character" && (
         <BornField key={`${note.id}:${note.born}`} name={note.name} saved={note.born} invalid={note.bornInvalid}
           ageNow={note.ageNow} onSave={props.onSetBorn} />
       )}
-      <Relationships note={note} onSuggest={props.onSuggestRelationships} />
+      {props.story !== false && <Relationships note={note} onSuggest={props.onSuggestRelationships} />}
       {note.body.trim()
         ? (
           <div className="lw-note__body">

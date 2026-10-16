@@ -146,9 +146,11 @@ export interface RenameUndone { restored: string[]; skipped: string[]; id: strin
 
 /** What kind of work a project is (project.toml [project] mode). A script mode is planned. */
 export type ProjectMode = "story" | "research";
+/** Mode-dependent binder words, from Python (gui/workspace.py LABELS). */
+export interface ProjectLabels { manuscript: string; parked: string; characters: string; world: string }
 
 export interface Workspace {
-  project: { title: string; author: string; initials: string; path: string; documentCount: number; unit: Unit; draft: number; mode: ProjectMode };
+  project: { title: string; author: string; initials: string; path: string; documentCount: number; unit: Unit; draft: number; mode: ProjectMode; labels: ProjectLabels };
   binder: BinderNode[];
   scenes: SceneSummary[];
   parts: PartSummary[];

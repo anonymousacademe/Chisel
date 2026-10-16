@@ -110,6 +110,7 @@ export const api = {
   /** Rewrites the member scenes' files (`changed` = their ids): flush first, reopen the open one after. */
   renameCollection: (name: string, newName: string) => call<{ collections: CollectionSummary[]; changed: string[] }>("rename_collection", name, newName),
   deleteCollection: (name: string) => call<{ collections: CollectionSummary[]; changed: string[] }>("delete_collection", name),
+  setMode: (mode: ProjectMode) => call<{ mode: ProjectMode }>("set_mode", mode),
   setUnit: (unit: Unit) => call<{ unit: Unit }>("set_unit", unit),
   rebuildIndex: () => call("rebuild_index"),
   sceneContext: (id: string, text?: string) => call<{ mentions: SceneMention[] }>("scene_context", id, text ?? null),

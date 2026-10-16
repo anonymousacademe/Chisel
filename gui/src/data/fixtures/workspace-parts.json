@@ -7,7 +7,13 @@
     "documentCount": 6,
     "unit": "scene",
     "draft": 1,
-    "mode": "story"
+    "mode": "story",
+    "labels": {
+      "manuscript": "Manuscript",
+      "parked": "Parked scenes",
+      "characters": "Characters",
+      "world": "World Bible"
+    }
   },
   "binder": [
     {
