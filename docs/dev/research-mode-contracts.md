@@ -226,6 +226,15 @@ ticked it. Neither runs anything.
 
 ## Registrations done in P0 (so later packages touch only their own modules)
 
+As built: `core/paper/types.py`, the empty `ResearchMixin` (`gui/research_api.py`, in the `Api` bases),
+`gui/src/data/research.ts`, and the project `mode` (`core/project.py` `MODES`, `Project.mode`, workspace
+`project.mode` and `labels`, `set_mode`). **Deliberately left to their owners** because a registration without
+its behaviour would change fiction projects or break tests: `TYPE_SUBDIRS` / `VALID_TYPES` (P1, gated by mode so
+a story project gains no folders), the Trash kind `object` and the `code` document kind (P4, with their
+branches and tests), and the mocked-name tuple entries (P4c, when the functions exist).
+
+Original list:
+
 `ResearchMixin` stub in the `Api` mixin list and facade; `TYPE_SUBDIRS` and `VALID_TYPES` entries; the Trash
 kind `object` constant and its branches; `_doc_kind` branches including the new `code` kind; `gui/src/data/types.ts`
 placeholders; `project.toml` `mode` accessor; mocked-name tuple placeholders.

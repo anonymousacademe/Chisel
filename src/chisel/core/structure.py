@@ -107,7 +107,7 @@ class TrashItem:
     original: str        # project-relative path the scene (or research note) had
     deleted: datetime
     title: str
-    kind: str = "scene"  # "scene" | "research" | "inspiration"
+    kind: str = "scene"  # "scene" | "research" | "inspiration" ("object" is added by research mode, P4)
 
 
 class Structure:
