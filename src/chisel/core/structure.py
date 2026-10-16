@@ -37,10 +37,12 @@ UNPLACED_DIR = "_unplaced"
 PART_FILE = "_part.md"
 TRASH_DIR = ".trash"
 FRONT_SLUG = "front-matter"
+OBJECT_DIRS = ("figures", "tables", "equations")   # research mode objects (core/objects.py)
+OBJECT_COMPANIONS = ("png", "jpg", "csv")         # files that ride beside an object's .md in the Trash
 MAX_TRASH_NAME = 120  # of the original path part of a .trash/ name
 
 _PREFIX_RE = re.compile(r"(\d+)-(.+)")
-_TRASH_RE = re.compile(r"^(\d{8}-\d{6})(?:-(\d+))?-((?:manuscript|notebook|research|inspiration)__.+)$")
+_TRASH_RE = re.compile(r"^(\d{8}-\d{6})(?:-(\d+))?-((?:manuscript|notebook|research|inspiration|figures|tables|equations)__.+)$")
 
 
 def _sort_key(name: str) -> tuple[int, int, str]:
@@ -107,7 +109,7 @@ class TrashItem:
     original: str        # project-relative path the scene (or research note) had
     deleted: datetime
     title: str
-    kind: str = "scene"  # "scene" | "research" | "inspiration" ("object" is added by research mode, P4)
+    kind: str = "scene"  # "scene" | "research" | "inspiration" | "object" (figure, table, equation)
 
 
 class Structure:
@@ -514,6 +516,22 @@ class Structure:
         fsutil.replace(image.meta_path, dest)
         return dest
 
+    def trash_object(self, object_id: str) -> Path:
+        """Move a figure, table or equation (its ``.md`` plus the image or CSV beside it) to the Trash. The
+        companions ride along as ``<item>.<ext>``. *object_id* is the project-relative path of the ``.md``."""
+        md = (self.root / object_id).resolve()
+        folder = md.parent
+        if (md.suffix != ".md" or folder.parent != self.root.resolve()
+                or folder.name not in OBJECT_DIRS or not md.is_file()):
+            raise FileNotFoundError("no such figure, table or equation")
+        dest = self._trash_dest(self.root / folder.name / md.name)
+        for ext in OBJECT_COMPANIONS:
+            companion = md.with_suffix(f".{ext}")
+            if companion.is_file():
+                fsutil.replace(companion, dest.with_name(f"{dest.name}.{ext}"))
+        fsutil.replace(md, dest)
+        return dest
+
     def delete_scene(self, path: Path) -> Path:
         """Move a scene to the Trash (with its draft sidecar). Returns the
         file's new path inside ``.trash/``."""
@@ -550,6 +568,8 @@ class Structure:
                 if original.startswith("research/"):   # trashed before the Notebook rename
                     original = research_notes.NOTEBOOK_DIR + original[len("research"):]
                 items.append(TrashItem(p.name, p, original, when, research_notes.title_of(p), "research"))
+            elif original.split("/", 1)[0] in OBJECT_DIRS:
+                items.append(TrashItem(p.name, p, original, when, self._object_title(p), "object"))
             elif original.startswith("inspiration/"):
                 items.append(TrashItem(p.name, p, original, when, inspiration.trashed_label(p), "inspiration"))
             else:
@@ -570,6 +590,36 @@ class Structure:
         folder.mkdir(parents=True, exist_ok=True)
         final = orig if orig.parent == folder and not orig.exists() \
             else research_notes._free_path(folder, orig.stem)
+        fsutil.replace(item.path, final)
+        self._tidy_trash()
+        return final
+
+    @staticmethod
+    def _object_title(trashed: Path) -> str:
+        """The caption of a trashed object, else its label."""
+        try:
+            head = trashed.read_text(encoding="utf-8")[:2000]
+            m = re.search(r"^caption:[ \t]*(.+?)[ \t]*$", head, re.MULTILINE)
+            if m and m.group(1).strip("'\""):
+                return m.group(1).strip("'\"")
+        except (OSError, UnicodeDecodeError):
+            pass
+        return Path(_TRASH_RE.match(trashed.name).group(3).replace("__", "/")).stem
+
+    def _restore_object(self, item: TrashItem) -> Path:
+        """The ``.md`` and its image/CSV back into the object's folder (a free name if one was made since)."""
+        orig = self.root / item.original
+        folder = orig.parent
+        folder.mkdir(parents=True, exist_ok=True)
+        stem, n = orig.stem, 1
+        while any((folder / f"{stem}.{e}").exists() for e in ("md",) + OBJECT_COMPANIONS):
+            n += 1
+            stem = f"{orig.stem}-{n}"
+        for ext in OBJECT_COMPANIONS:
+            companion = item.path.with_name(f"{item.path.name}.{ext}")
+            if companion.is_file():
+                fsutil.replace(companion, folder / f"{stem}.{ext}")
+        final = folder / f"{stem}.md"
         fsutil.replace(item.path, final)
         self._tidy_trash()
         return final
@@ -616,6 +666,8 @@ class Structure:
             return self._restore_research(item)
         if item.kind == "inspiration":
             return self._restore_inspiration(item)
+        if item.kind == "object":
+            return self._restore_object(item)
         orig = self.root / item.original
         folder = orig.parent
         if folder == self.manuscript_dir or folder in self.list_parts():
@@ -646,7 +698,7 @@ class Structure:
         item.path.unlink(missing_ok=True)
         item.path.with_name(item.path.name + ".drafts.json").unlink(missing_ok=True)
         item.path.with_name(item.path.name + ".comments.json").unlink(missing_ok=True)
-        for ext in inspiration.EXTENSIONS:
+        for ext in dict.fromkeys(inspiration.EXTENSIONS + OBJECT_COMPANIONS):
             item.path.with_name(f"{item.path.name}.{ext}").unlink(missing_ok=True)
         shutil.rmtree(item.path.with_name(item.path.name + ".snapshots"), ignore_errors=True)
         self._tidy_trash()
