@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 from .entities import _QUOTES
+from .paper.types import CiteRef, Citation
 
 WIKILINK_RE =re.compile(r"\[\[([^\[\]|]+?)(?:\|([^\[\]]+?))?\]\]")
 
@@ -37,6 +38,18 @@ class Link:
         return self.display if self.display else self.target
 
 
+# Targets owned by other parsers (research mode): citations and object references. The link
+# parser must never see them, or they would show as unresolved links, be indexed as folded
+# targets, be offered for "create note" and be touched by rename and backlinks.
+_OBJECT_PREFIXES = ("fig:", "tbl:", "eq:")
+
+
+def is_foreign_target(target: str) -> bool:
+    """True for a ``[[...]]`` target that is a citation or an object reference, not a link."""
+    t = target.strip()
+    return (t.startswith(("@", "-@", "+@")) or " @" in t or t.startswith(_OBJECT_PREFIXES))
+
+
 def find_links(text: str) -> list[Link]:
     """Return all wiki-links in *text*, in document order."""
     return [
@@ -47,7 +60,81 @@ def find_links(text: str) -> list[Link]:
             end=m.end(),
         )
         for m in WIKILINK_RE.finditer(text)
+        if not is_foreign_target(m.group(1))
     ]
+
+
+# -- citations (research mode; docs/dev/research-mode-contracts.md "Parsing") ----------------
+
+_BRACKETED_RE = re.compile(r"\[\[([^\[\]]+?)\]\]")
+_PANDOC_RE = re.compile(r"(?<!\[)\[([^\[\]]*@[^\[\]]*)\](?![\[(\]])")
+# pandoc keys: a word character, then word characters and internal punctuation, ending in a word char
+_KEY = r"\w(?:[\w:.#$%&\-+?<>~/]*\w)?"
+_REF_RE = re.compile(rf"^(?P<prefix>.*?)(?P<neg>-)?(?<![\w])@(?P<key>{_KEY})(?P<rest>.*)$", re.DOTALL)
+_NUM = r"(?:\d+[A-Za-z]?|[IVXLC]+(?![A-Za-z]))"
+_LOCATOR_RE = re.compile(
+    rf"^(?P<loc>(?:[A-Za-z]{{1,8}}\.?\s*|[§¶]\s*)?{_NUM}(?:\s*[-–—,&]\s*{_NUM})*)(?P<suf>.*)$", re.DOTALL)
+
+
+def _parse_ref(part: str) -> CiteRef | None:
+    m = _REF_RE.match(part)
+    if not m:
+        return None
+    rest = m.group("rest").strip()
+    locator = suffix = ""
+    if rest.startswith(","):
+        after = rest[1:].strip()
+        lm = _LOCATOR_RE.match(after)
+        if lm:
+            locator = lm.group("loc").strip()
+            suffix = lm.group("suf").strip().lstrip(",").strip()
+        else:
+            suffix = after
+    else:
+        suffix = rest
+    return CiteRef(key=m.group("key"), prefix=m.group("prefix").strip(), locator=locator,
+                   suffix=suffix, suppress_author=bool(m.group("neg")))
+
+
+def _parse_refs(content: str) -> list[CiteRef]:
+    refs = []
+    for part in content.split(";"):
+        ref = _parse_ref(part)
+        if ref is not None:
+            refs.append(ref)
+    return refs
+
+
+def find_citations(text: str) -> list[Citation]:
+    """Every citation in *text*, in document order: ``[[@k]]``, ``[[+@k]]`` (narrative),
+    ``[[see @a, p. 12; @b]]``, ``[[-@k]]`` and plain pandoc ``[@k; @j]``. Keys are case-sensitive.
+    Offsets are code points. The only citation parser; ``find_links`` ignores these."""
+    if "@" not in text:
+        return []
+    found: list[Citation] = []
+    taken: list[tuple[int, int]] = []
+    for m in _BRACKETED_RE.finditer(text):
+        inner = m.group(1)
+        if not is_foreign_target(inner.split("|", 1)[0]):
+            continue
+        t = inner.strip()
+        if t.startswith(_OBJECT_PREFIXES):
+            continue
+        narrative = t.startswith("+@")
+        refs = _parse_refs(t[1:] if narrative else t)
+        if not refs:
+            continue
+        found.append(Citation(refs=refs, start=m.start(), end=m.end(), raw=m.group(0),
+                              kind="narrative" if narrative else "bracketed"))
+        taken.append((m.start(), m.end()))
+    for m in _PANDOC_RE.finditer(text):
+        if any(s < m.end() and m.start() < e for s, e in taken):
+            continue
+        refs = _parse_refs(m.group(1))
+        if refs:
+            found.append(Citation(refs=refs, start=m.start(), end=m.end(), raw=m.group(0),
+                                  kind="pandoc"))
+    return sorted(found, key=lambda c: c.start)
 
 
 MIN_MENTION_LENGTH = 2
@@ -105,7 +192,8 @@ def find_mentions(text: str, names: list[str]) -> list[Link]:
         return []
     # Disjoint intervals kept sorted by start: an overlap test only needs the
     # one interval starting last before the candidate's end (was O(n^2)).
-    taken = sorted((l.start, l.end) for l in find_links(text))
+    taken = sorted([(l.start, l.end) for l in find_links(text)]
+                   + [(c.start, c.end) for c in find_citations(text)])
     starts = [s for s, _ in taken]
     norm, idx = _norm_with_map(text)
     spans = ((m.start(1), m.end(1)) for m in pattern.finditer(norm))

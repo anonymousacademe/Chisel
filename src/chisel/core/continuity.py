@@ -208,6 +208,8 @@ def canon_map(entities: list[ent.Entity]) -> dict[str, str]:
     fit the whole into the model's window (ai.budget), and report what they cut."""
     canon = {}
     for e in entities:
+        if e.is_source:  # bibliography notes are never sent to an AI unless attached
+            continue
         managed = get_canon(e.body)
         canon[e.name] = managed if managed else e.body
     return canon

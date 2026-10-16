@@ -24,7 +24,13 @@ TYPE_SUBDIRS = {
     "place": "places",
     "object": "objects",
     "faction": "factions",
+    "source": "sources",
+    "concept": "concepts",
+    "method": "methods",
+    "dataset": "datasets",
 }
+# Folders every project gets; the research kinds' folders are made only for research-mode projects.
+FICTION_KINDS = ("character", "place", "object", "faction")
 
 # What kind of work a project is. "story" is the default and what every project made before modes was;
 # "research" is papers and proposals (docs/dev/plan-research-mode.md). A script mode is planned: add its
@@ -115,8 +121,9 @@ class Project(Structure):
             raise ValueError(f"mode must be one of: {', '.join(MODES)}")
         root = root.expanduser().resolve()
         (root / MANUSCRIPT_DIR).mkdir(parents=True, exist_ok=True)
-        for sub in TYPE_SUBDIRS.values():
-            (root / ENTITIES_DIR / sub).mkdir(parents=True, exist_ok=True)
+        for kind, sub in TYPE_SUBDIRS.items():
+            if kind in FICTION_KINDS or mode == "research":
+                (root / ENTITIES_DIR / sub).mkdir(parents=True, exist_ok=True)
         (root / PROJECT_FILE).write_text(PROJECT_TEMPLATE.format(title=toml_string(title), mode=toml_string(mode)),
                                          encoding="utf-8", newline="\n")
         sample = root / MANUSCRIPT_DIR / "01-opening.md"
@@ -365,13 +372,15 @@ class Project(Structure):
 
     def entity_path(self, entity: ent.Entity) -> Path:
         sub = TYPE_SUBDIRS.get(entity.type, "characters")
-        return self.entities_dir / sub / f"{ent.slugify(entity.name)}.md"
+        stem = ent.slugify(ent.source_key(entity) if entity.is_source else entity.name)
+        return self.entities_dir / sub / f"{stem}.md"
 
     def create_entity(self, name: str, etype: str = "character") -> tuple[ent.Entity, Path]:
         """Create a new entity note from the template. Returns (entity, path)."""
         entity = ent.Entity(name=name, type=etype)
         want = ent.fold(name)
-        for other in self.load_entities():  # already an alias of a note
+        source = entity.is_source
+        for other in ([] if source else self.load_entities()):  # already an alias of a note
             if other.path is not None and any(
                     ent.fold(a).casefold() == want.casefold() for a in other.aliases):
                 return other, other.path
@@ -381,7 +390,9 @@ class Project(Structure):
             # same file: the same name returns that note; a different name
             # (Wren vs wren, Elan vs Elan with an accent) gets its own file
             existing = ent.load_entity(path)
-            if ent.fold(existing.name) == want:
+            same = (ent.source_key(existing) == name if source
+                    else ent.fold(existing.name) == want)  # source keys: case-sensitive
+            if same and (existing.is_source == source):
                 return existing, path
             n += 1
             path = path.with_name(f"{ent.slugify(name)}-{n}.md")

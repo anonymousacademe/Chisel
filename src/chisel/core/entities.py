@@ -21,7 +21,10 @@ import yaml
 
 from . import fsutil
 
-VALID_TYPES = ("character", "place", "object", "faction")
+VALID_TYPES = ("character", "place", "object", "faction",
+               "source", "concept", "method", "dataset")
+# Research-mode kinds (docs/dev/research-mode-contracts.md). Story projects never create their folders.
+RESEARCH_TYPES = ("source", "concept", "method", "dataset")
 
 ENTITY_TEMPLATE = """\
 ---
@@ -76,6 +79,11 @@ class Entity:
     path: Path | None = None
     # frontmatter keys other than name/type/aliases, in file order (any YAML type)
     extra: dict = field(default_factory=dict)
+
+    @property
+    def is_source(self) -> bool:
+        """A bibliography source note (research mode). Never sent to an AI unless attached."""
+        return self.type == "source"
 
     @property
     def names(self) -> list[str]:
@@ -148,6 +156,20 @@ def resolve(term: str, entities: list[Entity]) -> Entity | None:
     """Resolve a link target to an entity by name or alias (case-insensitive)."""
     for entity in entities:
         if entity.matches(term):
+            return entity
+    return None
+
+
+def source_key(entity: Entity) -> str:
+    """The citation key of a source note: its frontmatter ``key``, else its name."""
+    return str(entity.extra.get("key") or entity.name)
+
+
+def resolve_key(key: str, entities) -> Entity | None:
+    """Resolve a citation key to a SOURCE note. Case-sensitive and exact; notes of any other kind
+    never match (a Concept called "kalman2020" cannot shadow a key)."""
+    for entity in entities:
+        if entity.is_source and source_key(entity) == key:
             return entity
     return None
 

@@ -44,6 +44,7 @@ def _found(text: str, names: list[str], entities: list[Entity]) -> list[Entity]:
 def rank(scene_text: str, entities: list[Entity]) -> list[Ranked]:
     """Every entity once, in the project's order, with its tier. *scene_text* may carry its
     details block (its POV / place count as tier 1) and must not carry pending AI drafts."""
+    entities = [e for e in entities if not e.is_source]   # source notes are never sent to an AI
     names = [n for e in entities for n in e.names]
     prose = _found(scenemeta.blank(scene_text), names, entities)
     overall = _found(scenemeta.blank(scene_text, keep=scenemeta.MENTION_FIELDS), names, entities)
@@ -66,5 +67,6 @@ def in_scene(ranked: list[Ranked]) -> list[Ranked]:
 def priority_limit(entities: list[Entity]) -> int:
     """The largest ``Ranked.priority`` that is sent for a project of this size (a
     ``Section.max_priority``): everyone for a small project, tiers 0 and 1 for a big one."""
+    entities = [e for e in entities if not e.is_source]
     tier = TIER_REST if len(entities) < ALL_MAX else TIER_DETAILS
     return (tier + 1) * _TIER - 1

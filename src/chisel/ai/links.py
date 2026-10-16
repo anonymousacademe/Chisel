@@ -82,7 +82,7 @@ def build_prompt(scene_text: str, entities: list[Entity]) -> str:
     roster = "\n".join(
         f"- {e.name} ({e.type})"
         + (f" — aliases: {', '.join(e.aliases)}" if e.aliases else "")
-        for e in entities
+        for e in entities if not e.is_source  # source notes are never sent to an AI
     )
     return f"KNOWN ENTITIES:\n{roster or '(none)'}\n\nSCENE:\n{scene_text}"
 
@@ -129,6 +129,7 @@ def validate_suggestions(
     """Drop anything that doesn't check out: bad offsets, surface mismatch,
     unknown entities, spans that are already links or known names/aliases,
     pronouns, absurd lengths, duplicates and overlaps."""
+    entities = [e for e in entities if not e.is_source]
     by_name = {e.name.casefold(): e for e in entities}
     for e in entities:
         for alias in e.aliases:

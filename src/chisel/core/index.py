@@ -15,7 +15,7 @@ from pathlib import Path
 from . import drafts, fsutil
 from . import entities as ent
 from . import scenemeta
-from .links import find_all_links
+from .links import find_all_links, find_citations
 
 SCHEMA = """\
 CREATE TABLE IF NOT EXISTS entities (
@@ -32,6 +32,16 @@ CREATE TABLE IF NOT EXISTS links (
 );
 CREATE INDEX IF NOT EXISTS idx_links_target ON links(target);
 CREATE INDEX IF NOT EXISTS idx_links_source ON links(source);
+-- research mode: one row per cited key; TEXT without NOCASE, so keys are case-sensitive
+CREATE TABLE IF NOT EXISTS citations (
+    source TEXT NOT NULL,
+    key TEXT NOT NULL,
+    row INTEGER NOT NULL,
+    line TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_citations_key ON citations(key);
+CREATE INDEX IF NOT EXISTS idx_citations_source ON citations(source);
+CREATE TABLE IF NOT EXISTS meta (name TEXT PRIMARY KEY, value TEXT NOT NULL);
 """
 
 
@@ -50,6 +60,22 @@ class Index:
         self._conn = sqlite3.connect(db_path, check_same_thread=check_same_thread)
         self._conn.executescript(SCHEMA)
         self._closed = False
+        self.mode = self._get_meta("mode") or "story"   # citations are indexed in research mode only
+
+    def _get_meta(self, name: str) -> str | None:
+        row = self._conn.execute("SELECT value FROM meta WHERE name = ?", (name,)).fetchone()
+        return row[0] if row else None
+
+    def set_mode(self, mode: str) -> None:
+        """Remember the project's mode; call ``rebuild`` after a change (``needs_rebuild``)."""
+        self.mode = mode
+        if not self._closed:
+            self._conn.execute("INSERT OR REPLACE INTO meta (name, value) VALUES ('mode', ?)", (mode,))
+            self._conn.commit()
+
+    def needs_rebuild(self, project) -> bool:
+        """True when the project's mode differs from the one this index was built for."""
+        return (self._get_meta("mode") or "story") != project.mode
 
     def close(self) -> None:
         self._closed = True
@@ -73,6 +99,7 @@ class Index:
             return
         cur = self._conn.cursor()
         cur.execute("DELETE FROM links WHERE source = ?", (rel_path,))
+        cur.execute("DELETE FROM citations WHERE source = ?", (rel_path,))
         text = drafts.blank_pending(text)
         lines = [ln.rstrip() for ln in text.split("\n")]  # "\n" only: matches line_starts
         line_starts = [0]  # offset of each line, for O(log n) offset -> row
@@ -89,12 +116,21 @@ class Index:
                 "INSERT INTO links (source, target, row, line) VALUES (?, ?, ?, ?)",
                 (rel_path, ent.fold(link.target), row, line),
             )
+        if self.mode == "research":
+            for cite in find_citations(text):
+                row = bisect_right(line_starts, cite.start) - 1
+                line = lines[row] if row < len(lines) else ""
+                for key in dict.fromkeys(r.key for r in cite.refs):
+                    cur.execute(
+                        "INSERT INTO citations (source, key, row, line) VALUES (?, ?, ?, ?)",
+                        (rel_path, key, row, line))
         self._conn.commit()
 
     def remove_file(self, rel_path: str) -> None:
         if self._closed:
             return
         self._conn.execute("DELETE FROM links WHERE source = ?", (rel_path,))
+        self._conn.execute("DELETE FROM citations WHERE source = ?", (rel_path,))
         self._conn.commit()
 
     def upsert_entity(self, entity: ent.Entity, rel_path: str) -> None:
@@ -123,10 +159,21 @@ class Index:
         ).fetchall()
         return [Backlink(source=r[0], row=r[1], line=r[2]) for r in rows]
 
+    def citers(self, key: str) -> list[Backlink]:
+        """Every line citing the source *key* (exact, case-sensitive match)."""
+        if self._closed:
+            return []
+        rows = self._conn.execute(
+            "SELECT DISTINCT source, row, line FROM citations WHERE key = ? ORDER BY source, row",
+            (key,)).fetchall()
+        return [Backlink(source=r[0], row=r[1], line=r[2]) for r in rows]
+
     def rebuild(self, project) -> None:
         """Drop everything and re-index from disk. `project` is core.Project."""
+        self.set_mode(project.mode)
         cur = self._conn.cursor()
         cur.execute("DELETE FROM links")
+        cur.execute("DELETE FROM citations")
         cur.execute("DELETE FROM entities")
         self._conn.commit()
         names: list[str] = []
