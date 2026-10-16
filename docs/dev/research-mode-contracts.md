@@ -7,9 +7,11 @@ output of package P0 and are **frozen once Wave 1 starts**: a package that needs
 [plan-research-mode.md](plan-research-mode.md); section numbers below refer to it.
 
 All dataclasses are frozen unless noted. Offsets are code points; UTF-16 conversion happens only at the GUI
-bridge (`core/spans.py`). Module paths are the intended homes.
+bridge (`core/spans.py`). Module paths are the intended homes. Research code lives in `core/paper/` (not `core/research/`: that name
+collides with the existing `core/research.py`, the Notebook notes). The project mode is `story` or `research`
+(`core/project.py` `MODES`); the plan's older word "fiction" means story.
 
-## Types (`core/research/types.py`)
+## Types (`core/paper/types.py`)
 
 ```python
 @dataclass(frozen=True)

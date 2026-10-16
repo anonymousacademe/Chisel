@@ -33,6 +33,29 @@ async def test_launch_screen_lists_recents(tmp_path: Path, monkeypatch):
         assert app.project is not None
         assert app.project.title == "Launch Novel"
         assert "Welcome to chisel" in app.editor.text
+        assert app.project.mode == "story"
+
+
+async def test_launch_new_research_project(tmp_path: Path, monkeypatch):
+    from textual.widgets import Select
+
+    monkeypatch.setattr(launch_mod, "load_recents", fake_recents())
+
+    app = ChiselApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.screen.action_new_project()
+        await pilot.pause()
+        prompt = app.screen
+        assert isinstance(prompt, NewProjectPrompt)
+        prompt.query_one("#title-input", Input).value = "A Paper"
+        prompt.query_one("#path-input", Input).value = str(tmp_path / "a-paper")
+        prompt.query_one("#mode-select", Select).value = "research"
+        prompt._submit()
+        await pilot.pause()
+
+        assert app.project is not None
+        assert app.project.mode == "research"
 
 
 async def test_launch_screen_skips_stale_recents(tmp_path: Path, monkeypatch):

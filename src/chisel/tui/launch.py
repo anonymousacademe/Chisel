@@ -9,7 +9,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, ListItem, ListView, Static
+from textual.widgets import Button, Input, Label, ListItem, ListView, Select, Static
 
 from .. import __version__
 from ..core import entities as ent
@@ -42,8 +42,8 @@ class PathPrompt(ModalScreen[Path | None]):
         self.dismiss(None)
 
 
-class NewProjectPrompt(ModalScreen[tuple[str, Path] | None]):
-    """Prompt for a new project's title and location."""
+class NewProjectPrompt(ModalScreen[tuple[str, Path, str] | None]):
+    """Prompt for a new project's title, location and mode (story or research)."""
 
     def __init__(self, default_parent: Path) -> None:
         super().__init__()
@@ -53,6 +53,9 @@ class NewProjectPrompt(ModalScreen[tuple[str, Path] | None]):
         yield Label("New project")
         yield Input(placeholder="Title, e.g. The Salt Road", id="title-input")
         yield Input(placeholder="Folder", id="path-input")
+        yield Select([("Story: scenes, characters, places", "story"),
+                      ("Research: sections, sources, citations", "research")],
+                     value="story", allow_blank=False, id="mode-select")
 
     def on_mount(self) -> None:
         self.query_one("#title-input", Input).focus()
@@ -78,7 +81,8 @@ class NewProjectPrompt(ModalScreen[tuple[str, Path] | None]):
         if not title or not raw:
             self.app.notify("Title and folder are both required", severity="error")
             return
-        self.dismiss((title, Path(raw).expanduser()))
+        mode = self.query_one("#mode-select", Select).value
+        self.dismiss((title, Path(raw).expanduser(), str(mode)))
 
     def key_escape(self) -> None:
         self.dismiss(None)
@@ -149,15 +153,15 @@ class LaunchScreen(ModalScreen[Project | None]):
     def action_new_project(self) -> None:
         default_parent = Path.home() / "novels"
 
-        def _create(result: tuple[str, Path] | None) -> None:
+        def _create(result: tuple[str, Path, str] | None) -> None:
             if result is None:
                 return
-            title, path = result
+            title, path, mode = result
             if Project.is_project(path):
                 self.dismiss(Project.open(path))
                 return
             try:
-                self.dismiss(Project.create(path, title=title))
+                self.dismiss(Project.create(path, title=title, mode=mode))
             except OSError as exc:
                 self.app.notify(f"Could not create project: {exc}",
                                 severity="error")
