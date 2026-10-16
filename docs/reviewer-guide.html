@@ -1,0 +1,751 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chisel Reviewer Guide</title>
+<style>
+  :root { --ink: #111; --soft: #555; --rule: #9a9a9a; --faint: #cfcfcf; }
+  @page { size: Letter; margin: 0.6in 0.65in 0.6in 0.65in; }
+  * { box-sizing: border-box; }
+  html { background: #fff; }
+  body { margin: 0; color: var(--ink); background: #fff;
+    font: 10.5pt/1.38 "Georgia", "Cambria", "Times New Roman", serif; }
+  .page { break-after: page; page-break-after: always; display: flex; flex-direction: column;
+    min-height: 9.7in; }
+  .page:last-child { break-after: auto; page-break-after: auto; }
+  h1, h2, h3, .kicker, .verdict, .label, table { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+  .kicker { font-size: 8.5pt; letter-spacing: .14em; text-transform: uppercase; color: var(--soft); margin: 0 0 2pt; }
+  h1 { font-size: 30pt; margin: 0 0 4pt; letter-spacing: -.01em; }
+  h2 { font-size: 16pt; margin: 0 0 3pt; border-bottom: 1.5pt solid var(--ink); padding-bottom: 3pt;
+    display: flex; justify-content: space-between; align-items: baseline; }
+  h2 .num { font-size: 10pt; font-weight: 600; color: var(--soft); }
+  .intro { color: var(--soft); margin: 4pt 0 8pt; font-style: italic; }
+  ul.checks { list-style: none; padding: 0; margin: 0 0 8pt; }
+  ul.checks li { display: grid; grid-template-columns: 14pt 1fr; gap: 6pt; padding: 2.5pt 0;
+    border-bottom: .5pt solid var(--faint); break-inside: avoid; }
+  ul.checks li::before { content: ""; width: 10pt; height: 10pt; border: 1pt solid var(--ink); margin-top: 2.5pt; }
+  .expect { color: var(--soft); font-size: 9.5pt; }
+  kbd { font: 600 8.5pt "Consolas", "Courier New", monospace; border: .75pt solid var(--rule);
+    border-radius: 2pt; padding: 0 2.5pt; white-space: nowrap; }
+  code { font: 9pt "Consolas", "Courier New", monospace; }
+  .verdict { display: flex; gap: 14pt; align-items: center; font-size: 9.5pt; margin: 4pt 0 6pt;
+    padding: 5pt 7pt; border: 1pt solid var(--ink); }
+  .verdict b { margin-right: 4pt; }
+  .verdict span::before { content: ""; display: inline-block; width: 9pt; height: 9pt;
+    border: 1pt solid var(--ink); border-radius: 50%; margin-right: 4pt; vertical-align: -1pt; }
+  .label { font-size: 8.5pt; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+    margin: 6pt 0 0; }
+  .lines { flex: 1; min-height: 1.2in;
+    background-image: linear-gradient(to bottom, transparent 31px, var(--rule) 31px);
+    background-size: 100% 32px; background-repeat: repeat-y; }
+  .lines.fixed { flex: none; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16pt; }
+  table.eval { width: 100%; border-collapse: collapse; border: 1pt solid var(--ink); font-size: 9.5pt; margin: 4pt 0 4pt; }
+  table.eval th { text-align: left; width: 18%; padding: 4pt 7pt; border-bottom: .5pt solid var(--faint); font-weight: 700; }
+  table.eval td { padding: 4pt 7pt; border-bottom: .5pt solid var(--faint); }
+  table.eval span { margin-right: 14pt; white-space: nowrap; }
+  table.eval span::before { content: ""; display: inline-block; width: 9pt; height: 9pt;
+    border: 1pt solid var(--ink); border-radius: 50%; margin-right: 4pt; vertical-align: -1pt; }
+  table.eval em { color: var(--soft); font-size: 8.5pt; }
+  .lines.half { flex: .55; min-height: .9in; }
+  table.score { width: 100%; border-collapse: collapse; font-size: 9pt; }
+  table.score th, table.score td { border: .75pt solid var(--rule); padding: 3.2pt 5pt; text-align: left; }
+  table.score th { background: #eee; font-weight: 700; }
+  table.score td.box { width: 9%; }
+  table.score td:first-child { width: 4%; }
+  /* cover */
+  .cover h1 { margin-top: .6in; }
+  .cover .sub { font-size: 13pt; color: var(--soft); margin: 0 0 .35in; }
+  table.fields { width: 100%; border-collapse: collapse; font-size: 10pt; margin-bottom: .25in; }
+  table.fields td { padding: 9pt 4pt 3pt; border-bottom: .75pt solid var(--ink); vertical-align: bottom; }
+  table.fields td:first-child { width: 34%; font-weight: 600; border-bottom-color: transparent; }
+  .howto { border: 1pt solid var(--ink); padding: 8pt 11pt; }
+  .howto h3 { font-size: 10pt; margin: 0 0 4pt; text-transform: uppercase; letter-spacing: .1em; }
+  .howto ol { margin: 0; padding-left: 15pt; }
+  .howto li { margin: 2pt 0; }
+  .keys { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin-top: 10pt; }
+  .keys td { padding: 2.5pt 4pt; border-bottom: .5pt solid var(--faint); }
+  .keys td:first-child { width: 22%; }
+  .toc { columns: 2; column-gap: 20pt; font-size: 9.5pt; padding-left: 16pt; margin: 4pt 0 0; }
+  @media screen {
+    html { background: #e8e8e8; }
+    body { padding: 24px 16px; }
+    .page { background: #fff; max-width: 8.5in; margin: 0 auto 24px; padding: .6in .65in;
+      min-height: 11in; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+  }
+  @media screen and (max-width: 700px) {
+    .page { padding: 20px 16px; min-height: auto; }
+    .grid2 { grid-template-columns: 1fr; }
+    .verdict { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================== COVER ============================== -->
+<section class="page cover">
+  <p class="kicker">Hands-on evaluation</p>
+  <h1>Chisel Reviewer Guide</h1>
+  <p class="sub">A feature-by-feature walk through the desktop app, with room for your notes.</p>
+
+  <table class="fields">
+    <tr><td>Reviewer</td><td></td></tr>
+    <tr><td>Date(s) tested</td><td></td></tr>
+    <tr><td>App version</td><td>0.5.0 + unreleased (commit 3d4c31d)</td></tr>
+    <tr><td>Computer / operating system</td><td></td></tr>
+    <tr><td>Project used for testing</td><td></td></tr>
+    <tr><td>AI set up? (OpenRouter key / local model)</td><td></td></tr>
+    <tr><td>Models chosen (writing / chat / image)</td><td></td></tr>
+  </table>
+
+  <div class="howto">
+    <h3>How to use this guide</h3>
+    <ol>
+      <li><b>Work on a copy of a project</b>, or on the bundled example <code>examples/residual</code>. Several
+        steps rename, move and delete things.</li>
+      <li>Tick the box beside each step you tried. The grey text says what should happen.</li>
+      <li>At the end of each section, fill in three ratings. <b>Function</b>: Works, Rough (works but awkward),
+        Broken, or Skipped. <b>Feel</b>: 1 (frustrating) to 5 (a pleasure). <b>Matters to me</b>: how much you
+        would miss the feature.</li>
+      <li>Under <b>What happened</b>, write bugs and surprises: exact error wording helps, and note the time if
+        something crashes. Under <b>How it felt</b>, write your impressions and what you would change.</li>
+      <li>You do not need to do every step or every section. Follow your curiosity; tick what you tried.</li>
+      <li>When you are done, copy the ratings onto the scorecard on the last page.</li>
+      <li>Sections 16 to 21 need AI set up (section 15). Image generation costs about $0.03 a picture.</li>
+    </ol>
+  </div>
+</section>
+
+<section class="page">
+  <h2>Before you start <span class="num">Keys and sections</span></h2>
+  <p class="intro">Desktop app shortcuts (Cmd instead of Ctrl on a Mac).</p>
+  <table class="keys">
+    <tr><td><kbd>Ctrl K</kbd></td><td>Quick switcher (jump to any scene or note)</td></tr>
+    <tr><td><kbd>Ctrl N</kbd></td><td>New scene</td></tr>
+    <tr><td><kbd>Ctrl J</kbd></td><td>Open the note for the name under the cursor; with a name selected, make one</td></tr>
+    <tr><td><kbd>Ctrl G</kbd></td><td>AI write: draft at cursor, expand a marker, or rewrite the selection</td></tr>
+    <tr><td><kbd>F7</kbd> / <kbd>F8</kbd></td><td>Accept / reject the AI draft under the cursor</td></tr>
+    <tr><td><kbd>Ctrl .</kbd></td><td>Spelling fixes for the word under the cursor</td></tr>
+    <tr><td><kbd>Ctrl S</kbd></td><td>Save now (it also autosaves)</td></tr>
+    <tr><td><kbd>F11</kbd></td><td>Focus mode</td></tr>
+  </table>
+
+  <p class="label" style="margin-top:16pt">Sections</p>
+  <ol class="toc">
+    <li>Launching and projects</li><li>Binder, scenes and parts</li><li>Writing in the editor</li>
+    <li>Characters, places and links</li><li>The character sheet</li><li>Relationships (new)</li>
+    <li>Rename everywhere</li><li>Scene details and story time</li><li>Spell check</li>
+    <li>Comments</li><li>Collections</li><li>Snapshots</li><li>Notebook</li><li>Git sync (optional)</li>
+    <li>Settings and AI setup</li><li>Assistant chat</li><li>Brainstorm and Ask my notebook</li>
+    <li>Alias finder, continuity, story bible</li><li>Style guide and AI writing</li>
+    <li>Inspiration pictures</li><li>Writing stats and sprints</li><li>Atmosphere (sound)</li>
+    <li>Export</li><li>Trash</li><li>Terminal app (optional)</li><li>Overall impressions</li><li>Scorecard</li>
+  </ol>
+  <p class="label" style="margin-top:16pt">Anything to know before testing (setup notes, problems getting started)</p>
+  <div class="lines"></div>
+</section>
+
+<!-- Template per section: h2, intro, checks, verdict, notes -->
+
+<section class="page">
+  <h2>Launching and projects <span class="num">1</span></h2>
+  <p class="intro">First impressions: getting into a project and moving around the window.</p>
+  <ul class="checks">
+    <li><div>Start Chisel. <span class="expect">A launch screen lists recent projects, with Open folder and New project.</span></div></li>
+    <li><div>Make a new project. <span class="expect">Default location is your novels folder; it opens with a first scene.</span></div></li>
+    <li><div>Open an existing project with Open folder, then reopen it from the recent list.</div></li>
+    <li><div>Switch between two projects. <span class="expect">Each opens where you left it; nothing from one leaks into the other.</span></div></li>
+    <li><div>Drag the window by its top bar; minimise, maximise, restore and close it.</div></li>
+    <li><div>Close and restart Chisel. <span class="expect">Your last project and scene come back.</span></div></li>
+    <li><div>Resize the window narrow and wide. <span class="expect">Panels stay usable; nothing jitters or overlaps.</span></div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Binder, scenes and parts <span class="num">2</span></h2>
+  <p class="intro">The left-hand binder: the book's structure.</p>
+  <ul class="checks">
+    <li><div>Make a scene with <kbd>Ctrl N</kbd> and another from the binder's new-item button.</div></li>
+    <li><div>Rename a scene. <span class="expect">The title updates in the binder, breadcrumb and window title.</span></div></li>
+    <li><div>Make a part (chapter folder), rename it, and move scenes into it.</div></li>
+    <li><div>Drag scenes to reorder them, inside a part and between parts. <span class="expect">Numbering follows; the open scene stays open.</span></div></li>
+    <li><div>Move a whole part up or down.</div></li>
+    <li><div>Park a scene (take it out of the book without deleting it). <span class="expect">A Parked scenes group appears; word totals drop.</span></div></li>
+    <li><div>Put the parked scene back into the book.</div></li>
+    <li><div>Try the Corkboard and Outline views; reorder by dragging there too.</div></li>
+    <li><div>Use <kbd>Ctrl K</kbd> to jump to a scene by typing part of its name.</div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Writing in the editor <span class="num">3</span></h2>
+  <p class="intro">The heart of the app. Write a few real paragraphs.</p>
+  <ul class="checks">
+    <li><div>Type several paragraphs. <span class="expect">The status bar shows Saved shortly after you stop.</span></div></li>
+    <li><div>Bold and italic from the toolbar and from <kbd>Ctrl B</kbd> / <kbd>Ctrl I</kbd>.</div></li>
+    <li><div>Undo and redo, from the toolbar and the keyboard.</div></li>
+    <li><div>Watch the word count for the scene, the project, and today.</div></li>
+    <li><div>Paste text from another program. <span class="expect">It lands as plain text, without odd formatting.</span></div></li>
+    <li><div>Focus mode with <kbd>F11</kbd>, then leave it.</div></li>
+    <li><div>Open the scene file in another editor, change a line, come back. <span class="expect">Chisel notices; it never silently overwrites your change.</span></div></li>
+    <li><div>Long scene: scroll, select across paragraphs, check that typing stays smooth.</div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Characters, places and links <span class="num">4</span></h2>
+  <p class="intro">The living story bible: names in the prose connect to notes.</p>
+  <ul class="checks">
+    <li><div>Select a character's name in a scene and press <kbd>Ctrl J</kbd> to make a note. Try a place too.</div></li>
+    <li><div>Every later mention of the name is coloured, without brackets. <span class="expect">Aliases count as mentions too.</span></div></li>
+    <li><div>Hover over a name. <span class="expect">A small card shows the note's summary.</span></div></li>
+    <li><div>Click a name. <span class="expect">The Notes tab on the right shows that note. (This used to blank the screen; it is fixed.)</span></div></li>
+    <li><div>Ctrl-click a name. <span class="expect">The note opens in the editor.</span></div></li>
+    <li><div>Type <code>[[Someone New]]</code> for a name with no note. <span class="expect">It is marked as missing; the Notes tab offers Create note.</span></div></li>
+    <li><div>Click a backlink in the Notes tab. <span class="expect">The scene opens at that line.</span></div></li>
+    <li><div>Open a character from the binder's Characters group.</div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>The character sheet <span class="num">5</span></h2>
+  <p class="intro">The Notes tab for one character: aliases, birth, backlinks.</p>
+  <ul class="checks">
+    <li><div>Add an alias in the Add alias box and press Enter. <span class="expect">The alias becomes a mention in the prose.</span></div></li>
+    <li><div>Enter a birth year in Born (e.g. <code>2187</code> or <code>2187-03-14</code>). <span class="expect">With story time on scenes, the age in this scene appears.</span></div></li>
+    <li><div>Enter nonsense in Born. <span class="expect">"Not a story time. Kept as text." Nothing is lost.</span></div></li>
+    <li><div>Open in editor, write a description in the body, return to a scene. <span class="expect">The Notes tab shows the new text.</span></div></li>
+    <li><div>Look at the note as it opens in the editor. <span class="expect">Is the name / type / aliases block at the top clear, or confusing?</span></div></li>
+    <li><div>A note with no body text at all. <span class="expect">Shows "This note has no text yet."</span></div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Relationships (new) <span class="num">6</span></h2>
+  <p class="intro">Who is whose sister, rival, boss. Written in the note; the other side is worked out for you.</p>
+  <ul class="checks">
+    <li><div>In a character's note, add a section <code>## Relationships</code> with a line <code>- [[Other Name]] — older sister</code>.</div></li>
+    <li><div>Check the Relationships list in that character's Notes tab.</div></li>
+    <li><div>Open the other character. <span class="expect">The relationship appears there, marked "from their note". Their file is not changed.</span></div></li>
+    <li><div>Link to someone with no note yet. <span class="expect">Listed with "no note yet"; no note is created.</span></div></li>
+    <li><div>(AI) Press Suggest relationships. <span class="expect">A review list appears; nothing is saved until you accept rows.</span></div></li>
+    <li><div>Accept some suggestions, reject others. <span class="expect">Only the accepted ones are written into the note.</span></div></li>
+    <li><div>Are the suggested labels sensible for your story?</div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Rename everywhere <span class="num">7</span></h2>
+  <p class="intro">Change a character's name across the whole book, safely.</p>
+  <ul class="checks">
+    <li><div>From the Notes tab, choose Rename everywhere. <span class="expect">A preview lists every place the name appears.</span></div></li>
+    <li><div>Untick a few occurrences, then apply. <span class="expect">Only the ticked ones change.</span></div></li>
+    <li><div>Check the prose, the note's file name and the binder.</div></li>
+    <li><div>Undo the rename. <span class="expect">Everything goes back as it was.</span></div></li>
+    <li><div>Edit a scene between preview and apply. <span class="expect">Chisel refuses to overwrite the changed file and says so.</span></div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Scene details and story time <span class="num">8</span></h2>
+  <p class="intro">The inspector strip under the editor: status, point of view, place, purpose, and when it happens.</p>
+  <ul class="checks">
+    <li><div>Set a status, POV character, place and chapter purpose for a scene.</div></li>
+    <li><div>Set a word target and watch progress toward it.</div></li>
+    <li><div>Set a story time (when it happens) on one scene, e.g. <code>2190-06</code>. <span class="expect">Later scenes without one inherit it.</span></div></li>
+    <li><div>Enter an invalid story time. <span class="expect">Flagged, kept as text, never guessed.</span></div></li>
+    <li><div>Check character ages in a scene with a story time (needs Born, section 5).</div></li>
+    <li><div>The details never appear as text in the prose, the word count, or exports.</div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Spell check <span class="num">9</span></h2>
+  <p class="intro">Spelling only, offline. Never grammar.</p>
+  <ul class="checks">
+    <li><div>Misspell a few words. <span class="expect">They are underlined after a moment; the count shows in the status bar.</span></div></li>
+    <li><div>Put the cursor on one and press <kbd>Ctrl .</kbd> (or click it). Pick a suggestion.</div></li>
+    <li><div>Add a made-up word to the dictionary. <span class="expect">It stops being flagged everywhere.</span></div></li>
+    <li><div>Character and place names are never flagged.</div></li>
+    <li><div>Open Dictionary in the binder. <span class="expect">A plain list of your accepted words you can edit.</span></div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Comments <span class="num">10</span></h2>
+  <p class="intro">Margin notes on passages, kept beside the scene and never in the prose.</p>
+  <ul class="checks">
+    <li><div>Select a passage and use the comment button above the page. Write a comment.</div></li>
+    <li><div>A marker appears in the margin; click it to read the comment.</div></li>
+    <li><div>Edit the text around the passage. <span class="expect">The comment stays attached; if its text is deleted, it is kept as detached, not lost.</span></div></li>
+    <li><div>Move or rename the scene. <span class="expect">Comments travel with it.</span></div></li>
+    <li><div>Delete a comment.</div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Collections <span class="num">11</span></h2>
+  <p class="intro">Tag scenes into groups like "Needs continuity pass" or "Mara's arc".</p>
+  <ul class="checks">
+    <li><div>Make a collection from the Collections panel (bottom left).</div></li>
+    <li><div>Add several scenes to it; view the collection's scene list.</div></li>
+    <li><div>Change its colour; rename it. <span class="expect">The scenes keep their membership.</span></div></li>
+    <li><div>Delete the collection. <span class="expect">Scenes are untouched apart from the tag.</span></div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Snapshots <span class="num">12</span></h2>
+  <p class="intro">Saved versions of a scene you can compare and restore.</p>
+  <ul class="checks">
+    <li><div>Take a snapshot of a scene, with a label.</div></li>
+    <li><div>Change the scene a lot, then compare it with the snapshot. <span class="expect">A word-by-word comparison.</span></div></li>
+    <li><div>Restore the snapshot. <span class="expect">A snapshot of the current text is taken first, so nothing is lost.</span></div></li>
+    <li><div>Check that a daily automatic snapshot exists after a day of writing.</div></li>
+    <li><div>Start a new draft (Draft 1 to Draft 2) from the status bar, if you want to try it.</div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Notebook <span class="num">13</span></h2>
+  <p class="intro">Research and loose notes, separate from the book and the story bible.</p>
+  <ul class="checks">
+    <li><div>Make a notebook note with + New note; try a template.</div></li>
+    <li><div>Make a note from a web address (from URL).</div></li>
+    <li><div>Select prose in a scene and send it to the notebook.</div></li>
+    <li><div>Search the notebook for a word.</div></li>
+    <li><div>Delete a notebook note. <span class="expect">It goes to the Trash.</span></div></li>
+    <li><div>Notebook notes are not counted as book words and not spell-checked.</div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Git sync (optional) <span class="num">14</span></h2>
+  <p class="intro">Only if git is installed. Nothing happens unless you click.</p>
+  <ul class="checks">
+    <li><div>Check the Sync item in the status bar. <span class="expect">Without git it is hidden or says so.</span></div></li>
+    <li><div>Initialise a repository for the project.</div></li>
+    <li><div>Commit with a message.</div></li>
+    <li><div>Push. <span class="expect">It asks first and names the remote. It never forces.</span></div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Settings and AI setup <span class="num">15</span></h2>
+  <p class="intro">Everything except the AI features works without this.</p>
+  <ul class="checks">
+    <li><div>Open Settings (gear, bottom left). Look through every section.</div></li>
+    <li><div>Enter an OpenRouter key. <span class="expect">Stored in the system keyring, not in the project.</span></div></li>
+    <li><div>Pick models for each role (writing, chat, checks, image). <span class="expect">The picker lists real models with prices.</span></div></li>
+    <li><div>(Optional) Local model: with Ollama running, switch the picker to local models and choose one.</div></li>
+    <li><div>Run any AI action. <span class="expect">The AI cost in the status bar goes up.</span></div></li>
+    <li><div>Start an AI request and press Stop. <span class="expect">Nothing is inserted or saved.</span></div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Assistant chat <span class="num">16</span></h2>
+  <p class="intro">The right-hand Assistant tab. It suggests; it never edits your text.</p>
+  <ul class="checks">
+    <li><div>Ask a question about the open scene. <span class="expect">The About: chip shows what it is looking at.</span></div></li>
+    <li><div>Open a character, then ask about them. <span class="expect">The chip changes to that character.</span></div></li>
+    <li><div>Remove the About chip and ask again. <span class="expect">The answer no longer uses that item.</span></div></li>
+    <li><div>Switch scope between the current scene and the whole project.</div></li>
+    <li><div>Attach a scene, a note and a comment with the paperclip.</div></li>
+    <li><div>Open "What was sent" under a reply. <span class="expect">Lists what was included, trimmed or left out.</span></div></li>
+    <li><div>Regenerate a reply; delete one; start a new chat; reopen an old chat from history; rename it.</div></li>
+    <li><div>Save a useful reply to your notebook.</div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Brainstorm and Ask my notebook <span class="num">17</span></h2>
+  <p class="intro">Idea generation, and questions answered only from your own notes.</p>
+  <ul class="checks">
+    <li><div>Brainstorm ideas for what happens next. <span class="expect">A list of ideas as a chat message.</span></div></li>
+    <li><div>Are the ideas specific to your story, or generic?</div></li>
+    <li><div>Ask my notebook a question your notes can answer. <span class="expect">The answer cites your notes.</span></div></li>
+    <li><div>Ask it with an empty notebook. <span class="expect">A clear refusal, with no AI charge.</span></div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Alias finder, continuity, story bible <span class="num">18</span></h2>
+  <p class="intro">AI reading your scene against your notes. Every result is reviewed before anything changes.</p>
+  <ul class="checks">
+    <li><div>Find aliases in a scene. <span class="expect">Suggestions like "the old smith" for a known character; accept some.</span></div></li>
+    <li><div>Run a continuity check on a scene that contradicts a note (wrong eye colour, wrong town).</div></li>
+    <li><div>Review an issue; dismiss (waive) one; restore a waived one.</div></li>
+    <li><div>Update the story bible from a scene. <span class="expect">Proposed note changes, each accepted or rejected.</span></div></li>
+    <li><div>Were the flagged issues real? Any false alarms or misses?</div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Style guide and AI writing <span class="num">19</span></h2>
+  <p class="intro">The AI learns your voice, then drafts. Drafts are marked until you accept them.</p>
+  <ul class="checks">
+    <li><div>Open Style Guide in the binder; learn the style from your prose. Edit the result.</div></li>
+    <li><div>Put the cursor in a scene and press <kbd>Ctrl G</kbd> to draft. <span class="expect">The new text is marked as a pending draft.</span></div></li>
+    <li><div>Write <code>{{expand: they argue about the money}}</code> and press <kbd>Ctrl G</kbd> on it.</div></li>
+    <li><div>Select a paragraph and press <kbd>Ctrl G</kbd> to rewrite it.</div></li>
+    <li><div>Accept one draft with <kbd>F7</kbd> and reject another with <kbd>F8</kbd>. <span class="expect">Rejecting brings back your original exactly.</span></div></li>
+    <li><div>Does the drafted prose sound like you?</div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Inspiration pictures <span class="num">20</span></h2>
+  <p class="intro">Reference images for a scene, character, place or note. Never sent to an AI.</p>
+  <ul class="checks">
+    <li><div>Open the Inspiration tab; describe the scene. <span class="expect">Fills a prompt box only; no charge yet.</span></div></li>
+    <li><div>Generate a picture (about $0.03).</div></li>
+    <li><div>Upload a JPG, PNG or WebP of your own. Try a GIF too. <span class="expect">The GIF is refused.</span></div></li>
+    <li><div>Link a picture to a character; pin it so it shows with them.</div></li>
+    <li><div>Edit a picture's title and notes; open it in your image viewer.</div></li>
+    <li><div>Delete a picture. <span class="expect">It goes to the Trash.</span></div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Writing stats and sprints <span class="num">21</span></h2>
+  <p class="intro">Personal numbers. They stay on your computer, never in the project.</p>
+  <ul class="checks">
+    <li><div>Open session stats from the status bar. <span class="expect">Words today, the daily target, the streak.</span></div></li>
+    <li><div>Change the daily word target.</div></li>
+    <li><div>Start a short sprint (e.g. 5 minutes), with focus mode. Write until it ends. <span class="expect">A summary of words written.</span></div></li>
+    <li><div>Start another and cancel it early.</div></li>
+    <li><div>Accept an AI draft. <span class="expect">AI words are not counted as your writing.</span></div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Atmosphere (sound) <span class="num">22</span></h2>
+  <p class="intro">Optional typing sounds and background audio. The app starts silent.</p>
+  <ul class="checks">
+    <li><div>Turn on Typing sound from the status bar; type. Try other packs; change the volume.</div></li>
+    <li><div>Turn on Ambience; pick a loop.</div></li>
+    <li><div>Pick an internet radio station. Add one of your own.</div></li>
+    <li><div>Import a sound pack from a zip file.</div></li>
+    <li><div>Is there any lag or stutter while typing with sound on?</div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Export <span class="num">23</span></h2>
+  <p class="intro">Turn the book into something to read, send or print.</p>
+  <ul class="checks">
+    <li><div>Export a typeset PDF book. Check the title page, contents, running heads and page numbers.</div></li>
+    <li><div>Export a manuscript PDF (double-spaced, line numbers).</div></li>
+    <li><div>Export a plain proof PDF and a Markdown file.</div></li>
+    <li><div>DOCX or EPUB (needs pandoc installed; greyed out without it).</div></li>
+    <li><div>Export with a pending AI draft in a scene, with and without "include drafts".</div></li>
+    <li><div>Parked scenes, comments, scene details and notebook notes are not in the export.</div></li>
+    <li><div>Open the file from the app. Export again. <span class="expect">A new file; the old one is not overwritten.</span></div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Trash <span class="num">24</span></h2>
+  <p class="intro">Deleting never destroys anything until you empty the Trash.</p>
+  <ul class="checks">
+    <li><div>Delete a scene, a notebook note and a picture.</div></li>
+    <li><div>Open Trash in the binder. <span class="expect">All three are listed, each with its kind.</span></div></li>
+    <li><div>Restore each one. <span class="expect">They return where they were, with comments and snapshots.</span></div></li>
+    <li><div>Delete the open scene. <span class="expect">Another opens; the deleted one does not reappear.</span></div></li>
+    <li><div>Empty the Trash. <span class="expect">Asks for confirmation first.</span></div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Terminal app (optional) <span class="num">25</span></h2>
+  <p class="intro">The keyboard-only version, <code>chisel</code>, on the same project files.</p>
+  <ul class="checks">
+    <li><div>Open the same project in the terminal app. <kbd>F1</kbd> lists the keys.</div></li>
+    <li><div>Command palette with <kbd>Ctrl P</kbd>; find an action by typing.</div></li>
+    <li><div>Edit a scene in the terminal while the desktop app is open on it. <span class="expect">The desktop app warns about the conflict; nothing is lost.</span></div></li>
+    <li><div>Scene navigation with <kbd>Alt</kbd> + arrow keys; spell check with <kbd>F6</kbd>.</div></li>
+    <li><div>Is there anything you would rather do here than in the desktop app?</div></li>
+  </ul>
+  <table class="eval">
+    <tr><th>Function</th><td><span>Works</span><span>Rough</span><span>Broken</span><span>Skipped</span></td></tr>
+    <tr><th>Feel</th><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><em>1 = frustrating, 5 = a pleasure</em></td></tr>
+    <tr><th>Matters to me</th><td><span>Must have</span><span>Nice to have</span><span>Don't need</span></td></tr>
+  </table>
+  <p class="label">What happened (bugs, errors, surprises)</p>
+  <div class="lines half"></div>
+  <p class="label">How it felt / what I would change</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Overall impressions <span class="num">26</span></h2>
+  <p class="intro">The big picture, after using it for a while.</p>
+  <div class="grid2">
+    <div><p class="label">Three things that worked well</p><div class="lines fixed" style="height:1.6in"></div></div>
+    <div><p class="label">Three biggest frustrations</p><div class="lines fixed" style="height:1.6in"></div></div>
+  </div>
+  <p class="label">Anything confusing, or hard to find</p>
+  <div class="lines fixed" style="height:1.3in"></div>
+  <p class="label">What I would fix or add first (in order)</p>
+  <div class="lines fixed" style="height:1.6in"></div>
+  <p class="label">Would I write a book in this? Why or why not?</p>
+  <div class="lines"></div>
+</section>
+
+<section class="page">
+  <h2>Scorecard <span class="num">27</span></h2>
+  <p class="intro">Copy each section's ratings here. Function: W / R / B / S. Feel: 1 to 5. Matters: M / N / D.</p>
+  <table class="score">
+    <tr><th>#</th><th>Section</th><th>Function</th><th>Feel</th><th>Matters</th><th>One-line note</th></tr>
+      <tr><td>1</td><td>Launching and projects</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>2</td><td>Binder, scenes and parts</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>3</td><td>Writing in the editor</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>4</td><td>Characters, places and links</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>5</td><td>The character sheet</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>6</td><td>Relationships (new)</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>7</td><td>Rename everywhere</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>8</td><td>Scene details and story time</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>9</td><td>Spell check</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>10</td><td>Comments</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>11</td><td>Collections</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>12</td><td>Snapshots</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>13</td><td>Notebook</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>14</td><td>Git sync (optional)</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>15</td><td>Settings and AI setup</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>16</td><td>Assistant chat</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>17</td><td>Brainstorm and Ask my notebook</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>18</td><td>Alias finder, continuity, story bible</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>19</td><td>Style guide and AI writing</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>20</td><td>Inspiration pictures</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>21</td><td>Writing stats and sprints</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>22</td><td>Atmosphere (sound)</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>23</td><td>Export</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>24</td><td>Trash</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+      <tr><td>25</td><td>Terminal app (optional)</td><td class="box"></td><td class="box"></td><td class="box"></td><td></td></tr>
+  </table>
+  <p class="label">Overall: Function</p>
+  <table class="eval"><tr><td><span>Works</span><span>Rough</span><span>Broken</span></td></tr></table>
+  <p class="label">Overall: Feel</p>
+  <table class="eval"><tr><td><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></td></tr></table>
+</section>
+
+</body>
+</html>
