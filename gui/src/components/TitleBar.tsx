@@ -18,13 +18,7 @@ export function TitleBar(props: {
   const saveColor = props.saveState === "saved" ? "var(--lw-success)" : props.saveState === "dirty" || props.saveState === "saving" ? "var(--lw-text-muted)" : "var(--lw-warning)";
   return (
     <header className={`lw-titlebar pywebview-drag-region${IS_MAC ? "" : " is-right-controls"}`}>
-      {IS_MAC && (
-        <div className="lw-traffic">
-          <button className="lw-traffic__dot is-close" aria-label="Close window" onClick={props.onClose} />
-          <button className="lw-traffic__dot is-min" aria-label="Minimize window" onClick={() => api.minimize()} />
-          <button className="lw-traffic__dot is-max" aria-label="Maximize window" onClick={() => api.toggleMaximize()} />
-        </div>
-      )}
+      {IS_MAC && <WindowControls onClose={props.onClose} />}
 
       <div className="lw-titlebar__identity pywebview-drag-region">
         <Icon icon={BookOpen} size={15} stroke={1.7} color="var(--lw-accent-text)" />
@@ -47,19 +41,47 @@ export function TitleBar(props: {
         <IconButton icon={Ellipsis} label="More" onClick={(e) => props.onMore?.(e.currentTarget)} placeholder={!props.onMore} />
       </div>
 
-      {!IS_MAC && (
-        <div className="lw-wincontrols">
-          <button className="lw-wincontrols__btn" aria-label="Minimize window" title="Minimize" onClick={() => api.minimize()}>
-            <Icon icon={Minus} size={14} stroke={1.5} />
-          </button>
-          <button className="lw-wincontrols__btn" aria-label="Maximize window" title="Maximize" onClick={() => api.toggleMaximize()}>
-            <Icon icon={Square} size={12} stroke={1.5} />
-          </button>
-          <button className="lw-wincontrols__btn is-close" aria-label="Close window" title="Close" onClick={props.onClose}>
-            <Icon icon={X} size={15} stroke={1.5} />
-          </button>
-        </div>
-      )}
+      {!IS_MAC && <WindowControls onClose={props.onClose} />}
+    </header>
+  );
+}
+
+/** Minimise / maximise / close: dots on the left on macOS, flat buttons on the right elsewhere. */
+function WindowControls({ onClose }: { onClose: () => void }) {
+  if (IS_MAC) {
+    return (
+      <div className="lw-traffic">
+        <button className="lw-traffic__dot is-close" aria-label="Close window" onClick={onClose} />
+        <button className="lw-traffic__dot is-min" aria-label="Minimize window" onClick={() => api.minimize()} />
+        <button className="lw-traffic__dot is-max" aria-label="Maximize window" onClick={() => api.toggleMaximize()} />
+      </div>
+    );
+  }
+  return (
+    <div className="lw-wincontrols">
+      <button className="lw-wincontrols__btn" aria-label="Minimize window" title="Minimize" onClick={() => api.minimize()}>
+        <Icon icon={Minus} size={14} stroke={1.5} />
+      </button>
+      <button className="lw-wincontrols__btn" aria-label="Maximize window" title="Maximize" onClick={() => api.toggleMaximize()}>
+        <Icon icon={Square} size={12} stroke={1.5} />
+      </button>
+      <button className="lw-wincontrols__btn is-close" aria-label="Close window" title="Close" onClick={onClose}>
+        <Icon icon={X} size={15} stroke={1.5} />
+      </button>
+    </div>
+  );
+}
+
+/** The title bar of the launch screen (no project yet): the window must still be draggable and closable. */
+export function LaunchTitleBar({ onClose }: { onClose: () => void }) {
+  return (
+    <header className={`lw-titlebar pywebview-drag-region${IS_MAC ? "" : " is-right-controls"}`}>
+      {IS_MAC && <WindowControls onClose={onClose} />}
+      <div className="lw-titlebar__identity pywebview-drag-region">
+        <Icon icon={BookOpen} size={15} stroke={1.7} color="var(--lw-accent-text)" />
+        <span className="lw-titlebar__project">Chisel</span>
+      </div>
+      {!IS_MAC && <WindowControls onClose={onClose} />}
     </header>
   );
 }

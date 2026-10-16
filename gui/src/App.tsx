@@ -9,7 +9,7 @@ import { SaveController, type SaveState } from "./editor/saveController";
 import { installWindowDrag } from "./windowDrag";
 import type { Card, CursorInfo, SpellTarget } from "./editor/cm";
 import type { Span } from "./editor/spans";
-import { TitleBar } from "./components/TitleBar";
+import { LaunchTitleBar, TitleBar } from "./components/TitleBar";
 import { ActivityRail, type RailView } from "./components/ActivityRail";
 import { Binder } from "./components/Binder";
 import { Editor, type ViewMode } from "./components/Editor";
@@ -285,6 +285,7 @@ export default function App() {
   if (ws === null) {
     return (
       <div className="lw-app">
+        <LaunchTitleBar onClose={() => void api.close()} />
         <Launch onOpened={boot} />
         <Toasts notices={notices} onDismiss={dismiss} />
       </div>

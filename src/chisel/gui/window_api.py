@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ctypes
 import sys
+from ctypes import wintypes
 import webbrowser
 from urllib.parse import urlsplit
 
@@ -30,29 +31,37 @@ class WindowMixin:
         title-bar mouse down to ``DefWindowProc`` as a caption drag, so the OS moves
         the window itself. pywebview's default (SetWindowPos on every mousemove, with
         the DPI scale applied to physical screen coordinates a second time) makes the
-        window overshoot and flicker on scaled displays. Blocks until the drag ends;
-        the OS answers the mouse-up.
+        window overshoot and flicker on scaled displays.
 
-        Both calls must run on the form's UI thread, not on this bridge worker thread:
-        on mousedown the WebView2 child window captures the mouse, and that capture
-        lives in the input queue the UI thread shares with it. ReleaseCapture only
-        affects the calling thread's queue, so from a worker it returns success and does
-        nothing, and DefWindowProc then declines to start the move loop."""
+        Bridge calls arrive on a worker thread, but mouse capture and the move loop
+        belong to the window's UI thread: from anywhere else ReleaseCapture does
+        nothing and the drag never starts. So the hand-off runs through
+        ``Form.Invoke`` and is posted (not sent) with the cursor position, as Tauri does."""
         form = getattr(self._window, "native", None) if self._window is not None else None
         if form is None:
             return {}
-        hwnd = _hwnd(form)
 
-        def drag() -> None:
+        def hand_off() -> None:
+            handle = form.Handle
+            hwnd = handle.ToInt64()   # a System.IntPtr: int() refuses it under pythonnet
             user32 = ctypes.windll.user32
+            point = wintypes.POINT()
+            user32.GetCursorPos(ctypes.byref(point))
+            lparam = (point.y & 0xFFFF) << 16 | (point.x & 0xFFFF)
             user32.ReleaseCapture()
-            user32.SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0)
+            user32.PostMessageW(wintypes.HWND(hwnd), WM_NCLBUTTONDOWN, HTCAPTION, wintypes.LPARAM(lparam))
 
-        if getattr(form, "InvokeRequired", False):
-            from System import Action  # pythonnet: loaded by pywebview's WinForms backend
-            form.Invoke(Action(drag))
-        else:
-            drag()
+        invoke = getattr(form, "Invoke", None)
+        if invoke is None:   # not a WinForms form (tests)
+            hand_off()
+            return {}
+        from System import Func, Type  # pythonnet: present whenever the WinForms backend runs
+
+        def on_ui_thread():
+            hand_off()
+            return None
+
+        invoke(Func[Type](on_ui_thread))
         return {}
 
     @bridge

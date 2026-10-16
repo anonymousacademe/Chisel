@@ -13,6 +13,11 @@ All notable changes to Chisel are listed here, newest first. The format follows
 - **No more console windows flashing over the desktop app on Windows.** The installed app checks git
   status in the background, and every check briefly opened a console window on top of the app. git,
   pandoc and the other helper programs now run hidden.
+- **The launch screen has a title bar.** Before a project was open, the desktop window had nothing to drag
+  it by and no minimise / maximise / close buttons, so it could not be moved.
+- **Dragging the desktop window with the left mouse button works again (Windows).** The native drag
+  failed on every press, so the window only moved with a right-button drag (the old, jittery way). The
+  title bar now ignores the right button.
 
 ### Added
 - **Character relationships.** A character note can declare its relationships in a `## Relationships`

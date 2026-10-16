@@ -6,7 +6,8 @@
  *  Windows moves the window itself until the mouse goes up. The capture-phase
  *  listener also keeps pywebview's own body-level drag handler from firing.
  *  Buttons and fields inside the title bar stay clickable: the native move
- *  loop swallows the mouse-up, so they never hand the drag off. */
+ *  loop swallows the mouse-up, so they never hand the drag off. Only the left
+ *  button drags (pywebview's handler would move the window on a right click). */
 import { IS_WINDOWS } from "./data/platform";
 import { api } from "./backend/api";
 
@@ -17,12 +18,12 @@ export function installWindowDrag(): void {
   document.addEventListener(
     "mousedown",
     (ev) => {
-      if (ev.button !== 0) return;
       let target: EventTarget | null = ev.target;
       while (target instanceof Element && target !== document.body && target !== document.documentElement) {
         if (target.matches(INTERACTIVE)) return;
         if (target.classList.contains("pywebview-drag-region")) {
-          ev.stopPropagation();
+          ev.stopPropagation();   // other buttons too: pywebview's handler would drag on any button
+          if (ev.button !== 0) return;
           ev.preventDefault();
           void api.beginWindowDrag();
           return;
