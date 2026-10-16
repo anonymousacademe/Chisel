@@ -274,3 +274,16 @@ def test_default_project_path_helper(tmp_path):
 
     assert default_project_path("Neon Requiem", tmp_path) == tmp_path / "neon-requiem"
     assert default_project_path("  ") is None
+
+
+def test_new_project_takes_a_mode(tmp_path):
+    from chisel.core.project import Project
+
+    api, _ = open_api(tmp_path)
+    assert api.new_project("Paper", str(tmp_path / "paper"), "research")["ok"] is True
+    assert api.get_workspace()["workspace"]["project"]["mode"] == "research"
+    assert Project.open(tmp_path / "paper").mode == "research"
+    assert api.new_project("Tale", str(tmp_path / "tale"))["ok"] is True
+    assert api.get_workspace()["workspace"]["project"]["mode"] == "story"
+    assert api.new_project("Odd", str(tmp_path / "odd"), "script")["ok"] is False
+    assert not (tmp_path / "odd").exists()

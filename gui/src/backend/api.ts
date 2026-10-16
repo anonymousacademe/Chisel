@@ -2,7 +2,7 @@ import type { RestoreResult } from "../data/restoreText";
 import type { Misspelling, Span } from "../editor/spans";
 import type {
   AliasSuggestion, AttachItem, RenameDone, RenamePreview, RenameScope, RenameUndone, AttachKind, AttachReport, CanonProposal, ChatSummary, CollectionColor, CommentRow, SavedChat, SentReport, CollectionSummary, DiffSegment, SnapshotRow, SyncInfo, DetailsPatch, DocumentPayload, Remap, RelationshipSuggestion, SceneDetails, TrashItem, Unit, DraftEdit, EntityInfo, EntitySummary, EntityType, GenerateResult,
-  InspirationImage, Issue, ModelKind, ModelOption, RecentProject, SceneMention, SettingsInfo, EditorPrefs, SprintRecord, SprintState, StatsSummary, StyleStatus, Workspace,
+  InspirationImage, Issue, ModelKind, ModelOption, RecentProject, SceneMention, SettingsInfo, EditorPrefs, SprintRecord, SprintState, StatsSummary, StyleStatus, Workspace, ProjectMode,
 } from "../data/types";
 import type { AtmosphereInfo, KeyClass, PackRow, Prefs, Station } from "../data/atmosphere";
 import type { ExportInfo, ExportOptions, ExportStatus, ExportSummary } from "../data/export";
@@ -30,7 +30,7 @@ export const api = {
   getWorkspace: () => call<{ workspace: Workspace | null }>("get_workspace"),
   readDocument: (id: string) => call<DocumentPayload>("read_document", id),
   openProject: (path: string) => call("open_project", path),
-  newProject: (title: string, path: string) => call("new_project", title, path),
+  newProject: (title: string, path: string, mode: ProjectMode = "story") => call("new_project", title, path, mode),
   suggestProjectPath: (title: string) => call<{ path: string }>("suggest_project_path", title),
   recentProjects: () => call<{ recents: RecentProject[] }>("recent_projects"),
   chooseFolder: () => call<{ path: string | null }>("choose_folder"),

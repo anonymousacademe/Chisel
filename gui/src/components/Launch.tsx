@@ -1,9 +1,14 @@
 import { useEffect, useState } from "react";
 import { FolderOpen, Plus } from "lucide-react";
-import type { RecentProject } from "../data/types";
+import type { ProjectMode, RecentProject } from "../data/types";
 import { api } from "../backend/api";
 import { Icon } from "./primitives";
 import { Logo } from "./Logo";
+
+const MODES: { id: ProjectMode; label: string; hint: string }[] = [
+  { id: "story", label: "Story", hint: "A novel or stories: scenes, characters and places." },
+  { id: "research", label: "Research", hint: "A paper, proposal or thesis: sections, sources and citations." },
+];
 
 /** Shown when no project is open: pick a recent one, open a folder, or start a new project. */
 export function Launch({ onOpened }: { onOpened: () => void }) {
@@ -13,6 +18,7 @@ export function Launch({ onOpened }: { onOpened: () => void }) {
   const [newPath, setNewPath] = useState("");
   // The folder follows the title (~/novels/<slug>) until the author edits it.
   const [newPathEdited, setNewPathEdited] = useState(false);
+  const [mode, setMode] = useState<ProjectMode>("story");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -34,7 +40,7 @@ export function Launch({ onOpened }: { onOpened: () => void }) {
     const r = await api.suggestProjectPath(value);
     if (r.ok) setNewPath(r.path);
   };
-  const create = () => run(() => api.newProject(title.trim(), newPath.trim()));
+  const create = () => run(() => api.newProject(title.trim(), newPath.trim(), mode));
 
   return (
     <div className="lw-launch">
@@ -66,6 +72,14 @@ export function Launch({ onOpened }: { onOpened: () => void }) {
               <Icon icon={Plus} size={14} stroke={1.8} /> Create
             </button>
           </div>
+          <div className="lw-row lw-gap-8" role="radiogroup" aria-label="Project type">
+            {MODES.map((m) => (
+              <button key={m.id} role="radio" aria-checked={mode === m.id} title={m.hint}
+                className={`lw-btn${mode === m.id ? " lw-btn--primary" : ""}`}
+                onClick={() => setMode(m.id)}>{m.label}</button>
+            ))}
+          </div>
+          <span className="lw-faint">{MODES.find((m) => m.id === mode)?.hint}</span>
           <div className="lw-row lw-gap-8">
             <input className="lw-launch__input lw-mono" value={newPath}
               onChange={(e) => { setNewPath(e.target.value); setNewPathEdited(true); }}

@@ -26,10 +26,24 @@ TYPE_SUBDIRS = {
     "faction": "factions",
 }
 
+# What kind of work a project is. "story" is the default and what every project made before modes was;
+# "research" is papers and proposals (docs/dev/plan-research-mode.md). A script mode is planned: add its
+# name here when it exists. The old plan called story mode "fiction", which still reads as story.
+MODES = ("story", "research")
+DEFAULT_MODE = "story"
+
 PROJECT_TEMPLATE = """\
 title = {title}
 author = ""
+
+[project]
+mode = {mode}
 """
+
+
+def normalize_mode(value: object) -> str:
+    """*value* as a known mode; anything unknown (or the old name "fiction") reads as story."""
+    return value if isinstance(value, str) and value in MODES else DEFAULT_MODE
 
 
 def toml_string(value: str) -> str:
@@ -96,12 +110,14 @@ class Project(Structure):
     # -- lifecycle ---------------------------------------------------------
 
     @classmethod
-    def create(cls, root: Path, title: str) -> Project:
+    def create(cls, root: Path, title: str, mode: str = DEFAULT_MODE) -> Project:
+        if mode not in MODES:
+            raise ValueError(f"mode must be one of: {', '.join(MODES)}")
         root = root.expanduser().resolve()
         (root / MANUSCRIPT_DIR).mkdir(parents=True, exist_ok=True)
         for sub in TYPE_SUBDIRS.values():
             (root / ENTITIES_DIR / sub).mkdir(parents=True, exist_ok=True)
-        (root / PROJECT_FILE).write_text(PROJECT_TEMPLATE.format(title=toml_string(title)),
+        (root / PROJECT_FILE).write_text(PROJECT_TEMPLATE.format(title=toml_string(title), mode=toml_string(mode)),
                                          encoding="utf-8", newline="\n")
         sample = root / MANUSCRIPT_DIR / "01-opening.md"
         if not sample.exists():
@@ -109,7 +125,7 @@ class Project(Structure):
         gitignore = root / ".gitignore"
         if not gitignore.exists():
             gitignore.write_text(f"{CACHE_DIR}/\n", encoding="utf-8", newline="\n")
-        return cls(root=root, title=title)
+        return cls(root=root, title=title, meta={"title": title, "project": {"mode": mode}})
 
     @classmethod
     def open(cls, root: Path) -> Project:
@@ -126,6 +142,18 @@ class Project(Structure):
         drafts.migrate_sidecars(root)  # pre-parts sidecars -> path-keyed names
         research.migrate_folder(root)  # research/ -> notebook/ (Notebook rename)
         return cls(root=root, title=str(meta.get("title", "Untitled")), meta=meta)
+
+    @property
+    def mode(self) -> str:
+        """The kind of project (project.toml [project] mode): one of ``MODES``."""
+        proj = self.meta.get("project")
+        return normalize_mode(proj.get("mode") if isinstance(proj, dict) else None)
+
+    def update_mode(self, mode: str) -> None:
+        """Switch the project's mode. Files do not change, so a project can switch back."""
+        if mode not in MODES:
+            raise ValueError(f"mode must be one of: {', '.join(MODES)}")
+        self._write_project_section(mode=mode)
 
     def author_info(self) -> dict:
         """Project and author details from project.toml [project].
@@ -166,9 +194,14 @@ class Project(Structure):
         if language is not None:
             current["language"] = (language.strip() or "en")
 
-        body = ""
+        self._write_project_section(info=current)
+
+    def _write_project_section(self, info: dict | None = None, mode: str | None = None) -> None:
+        """Write [project]: the author details and the mode (each kept when not being changed)."""
+        info = info if info is not None else self.author_info()
+        body = f"mode = {toml_string(mode or self.mode)}\n"
         for key in ["author", "pen_name", "subtitle", "copyright", "contact", "language"]:
-            val = current[key]
+            val = info[key]
             if val:
                 body += f"{key} = {json.dumps(val, ensure_ascii=False)}\n"
         self._write_section("project", body)

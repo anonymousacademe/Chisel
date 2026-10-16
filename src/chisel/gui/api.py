@@ -163,7 +163,7 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
         return {}
 
     @bridge
-    def new_project(self, title: str, path: str = "") -> dict:
+    def new_project(self, title: str, path: str = "", mode: str = "story") -> dict:
         title = title.strip()
         if not title:
             raise ValueError("a project needs a title")
@@ -171,7 +171,7 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
         if Project.is_project(root):
             raise FileExistsError(f"{root} already holds a project")
         with self._lock:
-            self._load(Project.create(root, title))
+            self._load(Project.create(root, title, mode))
         return {}
 
     @bridge

@@ -144,8 +144,11 @@ export interface RenamePreview { plan: string; name: string; newName: string; al
 export interface RenameDone { undoId: string; replacements: number; scenes: number; changed: string[]; remap: Record<string, string>; id: string; name: string }
 export interface RenameUndone { restored: string[]; skipped: string[]; id: string }
 
+/** What kind of work a project is (project.toml [project] mode). A script mode is planned. */
+export type ProjectMode = "story" | "research";
+
 export interface Workspace {
-  project: { title: string; author: string; initials: string; path: string; documentCount: number; unit: Unit; draft: number };
+  project: { title: string; author: string; initials: string; path: string; documentCount: number; unit: Unit; draft: number; mode: ProjectMode };
   binder: BinderNode[];
   scenes: SceneSummary[];
   parts: PartSummary[];

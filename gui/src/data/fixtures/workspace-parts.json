@@ -6,7 +6,8 @@
     "path": "<root>",
     "documentCount": 6,
     "unit": "scene",
-    "draft": 1
+    "draft": 1,
+    "mode": "story"
   },
   "binder": [
     {
