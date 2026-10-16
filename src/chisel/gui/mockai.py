@@ -249,8 +249,24 @@ def install(api_module) -> None:
                 "holographic koi drifting overhead, a lone figure under an awning, warm lamplight "
                 "against cold blue rain, late night, near-future.")
 
+    def suggest_latex(description, *, model, cancel=None):
+        _pause(1.5)
+        _spend("latex")
+        return _stream(r"E = m c^{2}", None, cancel)
+
+    def suggest_plot_code(description, columns, *, model, cancel=None):
+        _pause(1.5)
+        _spend("plot-code")
+        return _stream("import sys\nimport matplotlib\nmatplotlib.use('Agg')\n"
+                       "import matplotlib.pyplot as plt\n\n"
+                       "fig, ax = plt.subplots(figsize=(4, 3), dpi=300)\n"
+                       "ax.set_xlabel('x')\nax.set_ylabel('y')\n"
+                       "fig.savefig(sys.argv[-1])\n", None, cancel)
+
     api_module.generate_images = generate_images
     api_module.suggest_image_prompt = suggest_image_prompt
+    api_module.suggest_latex = suggest_latex
+    api_module.suggest_plot_code = suggest_plot_code
     api_module.get_api_key = get_api_key
     api_module._set_api_key = lambda k: keys.__setitem__("key", k)
     api_module._clear_api_key = lambda: keys.pop("key", None)
