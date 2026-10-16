@@ -289,26 +289,15 @@ def test_new_project_takes_a_mode(tmp_path):
     assert not (tmp_path / "odd").exists()
 
 
-def test_set_mode_switches_labels_and_keeps_files(tmp_path):
+def test_research_project_binder_uses_research_wording(tmp_path):
     api, _ = open_api(tmp_path)
-    assert api.new_project("Paper", str(tmp_path / "paper"))["ok"] is True
-    before = (tmp_path / "paper" / "manuscript" / "01-opening.md").read_text(encoding="utf-8")
+    assert api.new_project("Tale", str(tmp_path / "tale"))["ok"] is True
+    story = api.get_workspace()["workspace"]
+    assert story["project"]["labels"]["parked"] == "Parked scenes"
+    assert {"Characters", "World Bible"} <= {n["title"] for n in story["binder"]}
 
-    def titles():
-        ws = api.get_workspace()["workspace"]
-        return ws["project"], [n["title"] for n in ws["binder"]]
-
-    project, binder = titles()
-    assert project["labels"]["parked"] == "Parked scenes"
-    assert "Characters" in binder and "World Bible" in binder
-
-    assert api.set_mode("research") == {"ok": True, "mode": "research"}
-    project, binder = titles()
-    assert project["mode"] == "research"
-    assert project["labels"]["parked"] == "Parked paragraphs"
-    assert "Sources" in binder and "Concepts and methods" in binder and "Characters" not in binder
-    assert (tmp_path / "paper" / "manuscript" / "01-opening.md").read_text(encoding="utf-8") == before
-
-    assert api.set_mode("story")["ok"] is True
-    assert "Characters" in titles()[1]
-    assert api.set_mode("poetry")["ok"] is False
+    assert api.new_project("Paper", str(tmp_path / "paper"), "research")["ok"] is True
+    paper = api.get_workspace()["workspace"]
+    assert paper["project"]["labels"]["parked"] == "Parked paragraphs"
+    titles = {n["title"] for n in paper["binder"]}
+    assert {"Sources", "Concepts and methods"} <= titles and "Characters" not in titles

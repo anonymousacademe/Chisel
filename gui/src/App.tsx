@@ -559,13 +559,6 @@ export default function App() {
       if (docRef.current) await openDoc(docRef.current.id, { force: true });  // the kicker follows
       notify(`Labels now say “${next}”. Only the wording changes.`);
     } },
-    { label: ws.project.mode === "story" ? "Switch this project to research mode" : "Switch this project to story mode", onSelect: async () => {
-      const next = ws.project.mode === "story" ? "research" : "story";
-      const r = await api.setMode(next);
-      if (!r.ok) return notify(r.error, "error");
-      await refresh();
-      notify(`Now a ${next} project. Your files are unchanged; you can switch back.`);
-    } },
     { label: "Settings…", onSelect: () => void openSettings() },
   ] });
 

@@ -38,27 +38,10 @@ def test_unknown_or_old_values_read_as_story(tmp_path, raw):
     assert Project.open(root).mode == "story"
 
 
-def test_update_mode_keeps_author_details(tmp_path):
-    p = Project.create(tmp_path / "a", "A")
-    p.update_author_info(author="Jane", pen_name="J. W.")
-    p.update_mode("research")
-    again = Project.open(tmp_path / "a")
-    assert again.mode == "research"
-    assert again.author_info()["author"] == "Jane"
-    assert again.author_info()["pen_name"] == "J. W."
-
-
 def test_editing_author_details_keeps_the_mode(tmp_path):
     p = Project.create(tmp_path / "a", "A", "research")
     p.update_author_info(author="Jane")
     assert Project.open(tmp_path / "a").mode == "research"
-
-
-def test_update_mode_refuses_unknown(tmp_path):
-    p = Project.create(tmp_path / "a", "A")
-    with pytest.raises(ValueError):
-        p.update_mode("poetry")
-    assert p.mode == "story"
 
 
 def test_modes_listed():

@@ -156,12 +156,6 @@ class Project(Structure):
         proj = self.meta.get("project")
         return normalize_mode(proj.get("mode") if isinstance(proj, dict) else None)
 
-    def update_mode(self, mode: str) -> None:
-        """Switch the project's mode. Files do not change, so a project can switch back."""
-        if mode not in MODES:
-            raise ValueError(f"mode must be one of: {', '.join(MODES)}")
-        self._write_project_section(mode=mode)
-
     def author_info(self) -> dict:
         """Project and author details from project.toml [project].
 

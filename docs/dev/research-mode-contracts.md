@@ -228,7 +228,7 @@ ticked it. Neither runs anything.
 
 As built: `core/paper/types.py`, the empty `ResearchMixin` (`gui/research_api.py`, in the `Api` bases),
 `gui/src/data/research.ts`, and the project `mode` (`core/project.py` `MODES`, `Project.mode`, workspace
-`project.mode` and `labels`, `set_mode`). **Deliberately left to their owners** because a registration without
+`project.mode` and `labels`; the mode is chosen when a project is created and does not change afterwards, so there is no switch). **Deliberately left to their owners** because a registration without
 its behaviour would change fiction projects or break tests: `TYPE_SUBDIRS` / `VALID_TYPES` (P1, gated by mode so
 a story project gains no folders), the Trash kind `object` and the `code` document kind (P4, with their
 branches and tests), and the mocked-name tuple entries (P4c, when the functions exist).
