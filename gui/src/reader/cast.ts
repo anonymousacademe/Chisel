@@ -40,11 +40,19 @@ export function savePrefs(p: ReaderPrefs, storage: Pick<Storage, "setItem"> | nu
   try { storage?.setItem(KEY, JSON.stringify(p)); } catch { /* private window, quota: the choice is just not remembered */ }
 }
 
-/** Voices in the language of the interface first (all of them when none match), installed-on-this-machine first. */
+/** Voices in the language of the interface first (all of them when none match); the suggested ones (a *rank*)
+ * first, then installed-on-this-machine first, then by name. */
 export function candidateVoices(voices: VoiceInfo[], lang = typeof navigator !== "undefined" ? navigator.language : "en"): VoiceInfo[] {
   const base = lang.toLowerCase().split("-")[0];
   const mine = voices.filter((v) => v.lang.toLowerCase().startsWith(base));
-  return [...(mine.length ? mine : voices)].sort((a, b) => Number(b.local) - Number(a.local) || a.name.localeCompare(b.name));
+  const rank = (v: VoiceInfo) => v.rank ?? Number.MAX_SAFE_INTEGER;
+  return [...(mine.length ? mine : voices)].sort((a, b) =>
+    rank(a) - rank(b) || Number(b.local) - Number(a.local) || a.name.localeCompare(b.name));
+}
+
+/** Where a project's cast is kept: the system voices under the project path (as before), others per engine. */
+export function castKey(project: string, engine: string): string {
+  return engine === "browser" ? project : `${project}\u0000${engine}`;
 }
 
 /** A voice for every role: the narrator the first candidate, the other roles the following ones in turn, so

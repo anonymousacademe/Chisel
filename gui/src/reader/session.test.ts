@@ -158,3 +158,24 @@ describe("utteranceIndexAt", () => {
     expect(utteranceIndexAt([], 5)).toBe(0);
   });
 });
+
+describe("ReadSession with a clip engine", () => {
+  it("asks the engine to render the next chunk while one plays, in the next voice", () => {
+    const f = fakeEngine();
+    const ahead: { text: string; voice?: string }[] = [];
+    f.engine.prefetch = (text, opts) => { ahead.push({ text, voice: opts.voice }); };
+    const { s } = session(f, [utt("narrator", "Alpha one.", 0, 10), utt("Keith", "Bravo.", 12, 18)]);
+    s.play(0);
+    expect(ahead).toEqual([{ text: "Bravo.", voice: "v-k" }]);
+    f.end();
+    expect(ahead).toHaveLength(1);              // nothing after the last one
+  });
+
+  it("shows a clip engine's sentence as it is", () => {
+    const f = fakeEngine();
+    const { s, errors } = session(f);
+    s.play(0);
+    f.fail("The local voice engine stopped unexpectedly");
+    expect(errors).toEqual(["The local voice engine stopped unexpectedly"]);
+  });
+});

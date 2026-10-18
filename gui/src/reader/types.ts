@@ -26,5 +26,27 @@ export interface ReadOptions {
 
 export const DEFAULT_READ_OPTIONS: ReadOptions = { titles: true, headings: true, directions: false, transitions: false, citations: false };
 
-/** A voice the system offers. */
-export interface VoiceInfo { id: string; name: string; lang: string; local: boolean }
+/** A voice an engine offers. *rank*: suggested order (natural voices; lower first); *label*: name with details. */
+export interface VoiceInfo { id: string; name: string; lang: string; local: boolean; rank?: number; label?: string }
+
+/** Who speaks: the system's voices (played by the window) or clips rendered by Python (chisel/speech/). */
+export type EngineId = "browser" | "kokoro" | "endpoint";
+
+export interface SpeechPrefs { engine: EngineId; baseUrl: string; model: string }
+
+export interface KokoroStatus {
+  installed: boolean; variant: string; bytes: number; voices: VoiceInfo[]; licence: string; source: string;
+  revision: string; variants: { id: string; bytes: number; label: string }[];
+  /** the local engine's Python package is installed; *hint* says what to do when it is not */
+  engine: boolean;
+  hint: string;
+}
+
+/** Cost facts for the speech server: local (free), else the published price when known. */
+export interface EndpointCost { local: boolean; pricePerMillion: number | null; perHour: number | null }
+
+export interface SpeechInfo { prefs: SpeechPrefs; hasKey: boolean; kokoro: KokoroStatus; endpoint: EndpointCost }
+
+export interface DownloadStatus {
+  state: "running" | "done" | "error" | "cancelled"; stage: string; fraction: number; error?: string; kokoro?: KokoroStatus;
+}

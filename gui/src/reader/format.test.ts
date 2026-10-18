@@ -26,3 +26,14 @@ describe("progressLabel", () => {
     expect(progressLabel("idle", 0, 0)).toBe("Nothing to read");
   });
 });
+
+describe("costLine", () => {
+  it("says free, the published price, or to check", async () => {
+    const { costLine, megabytes } = await import("./format");
+    expect(costLine({ local: true, pricePerMillion: 0, perHour: 0 })).toMatch(/no cost/);
+    expect(costLine({ local: false, pricePerMillion: 15, perHour: 0.81 }, 0.012)).toBe(
+      "Cloud service: about $15 per million characters, about $0.81 per hour of listening (estimate; clips heard again are free). This session: about $0.012.");
+    expect(costLine({ local: false, pricePerMillion: null, perHour: null })).toMatch(/check its price/);
+    expect(megabytes(92_361_116)).toBe("92 MB");
+  });
+});

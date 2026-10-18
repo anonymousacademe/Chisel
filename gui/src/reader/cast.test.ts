@@ -64,3 +64,15 @@ describe("reader settings", () => {
     expect(() => savePrefs(DEFAULT_PREFS, { setItem: () => { throw new Error("quota"); } })).not.toThrow();
   });
 });
+
+describe("ranked voices", () => {
+  it("puts suggested voices first and keeps engines' casts apart", async () => {
+    const { candidateVoices: cv, castKey } = await import("./cast");
+    const ranked = [{ id: "am_adam", name: "Adam", lang: "en-us", local: true, rank: 20 },
+      { id: "af_heart", name: "Heart", lang: "en-us", local: true, rank: 0 },
+      { id: "bf_emma", name: "Emma", lang: "en-gb", local: true, rank: 2 }];
+    expect(cv(ranked, "en-US").map((x) => x.id)).toEqual(["af_heart", "bf_emma", "am_adam"]);
+    expect(castKey("/p", "browser")).toBe("/p");
+    expect(castKey("/p", "kokoro")).not.toBe(castKey("/p", "endpoint"));
+  });
+});

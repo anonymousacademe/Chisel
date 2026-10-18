@@ -31,8 +31,16 @@ All notable changes to Chisel are listed here, newest first. The format follows
   transitions on request); a story's quoted speech gets its own voice; a research section drops citations and says
   "equation" and "the figure" for math and references. Pick a voice for each role from the voices your system has
   (remembered per project on this computer), hear a sample, and give a name its pronunciation with a `say:` line
-  in its note (`say: Kee-eth`). Nothing is spoken until you press play, nothing leaves your computer, and nothing
-  in your project changes. The terminal app does not have it.
+  in its note (`say: Kee-eth`). Nothing is spoken until you press play and nothing in your project changes. The
+  terminal app does not have it.
+- **Natural voices for read aloud (desktop).** Voices and options > Voice engine offers three choices. *System
+  voices* are what your computer has. *Natural voices on this computer* are Kokoro (Apache-2.0): 55 voices in
+  nine languages, downloaded once from Hugging Face when you click Download (92 MB, checked against its published
+  checksum), then free and offline; a good voice is suggested for each character. *Speech server* is any service
+  with the OpenAI speech API: a local server is free, a cloud service such as OpenAI shows its price per hour of
+  listening and adds what you spend to the AI cost in the status bar. Its key is kept in your system's keychain.
+  Clips you have heard are cached, so hearing them again costs nothing. The natural voices need
+  `pip install "chisel-writer[speech-local]"` and are not in the installers yet.
 - **A right-click menu in the editor (desktop).** A misspelled word still shows its suggestions. On a character
   or place you have a note for, "Go to note" opens that note's page; on a `[[link]]` with no note yet, or on any
   word, "Create note…" opens the new-note dialog (character, place, object or faction). A selection adds Send to

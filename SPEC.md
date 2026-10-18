@@ -678,8 +678,25 @@ Hear the open document with the window's own speech service. **Python decides wh
 - **Voices:** a system voice per role, remembered per project in the browser's local storage on this machine (voice ids
   differ between machines, so they are not in `project.toml`); defaults spread the voices out; a voice no longer
   installed falls back to a default.
-- **Not yet:** read-my-part and skip-directions table-read features, a speech-server / voice-pack / cloud engine and
-  audio export, AI dialogue attribution for stories, the terminal app (desktop only by decision).
+- **Engines** (`chisel/speech/`, `gui/speech_api.py`, `gui/src/reader/clips.ts`; user setting `speech`): `browser`
+  (the window's voices, above), `kokoro` and `endpoint`. The last two render each chunk to WAV in Python
+  (`engine.render`) and the editor plays it (`clipEngine`), rendering the next chunk while one plays (`prefetch`).
+  - *Natural voices on this computer*: Kokoro-82M (Apache-2.0) from `onnx-community/Kokoro-82M-v1.0-ONNX`,
+    downloaded only on a click (`models.download`: pinned to the listed revision, model checked against its LFS
+    SHA-256, voices packed into one `voices.npz`, installed by renaming a `.partial` folder; a manifest records
+    source, revision and licence) into `<user data>/speech/kokoro/`; removable. Kokoro phonemizes with espeak-ng
+    (GPL), so it runs in a **separate worker process** (`kokoro_worker.py`, JSON lines over pipes) and Chisel never
+    imports it; the `speech-local` extra installs it. The model loads when the reader opens (`speech_warm`). Not in
+    the frozen installers yet (the worker is started with `python -m`).
+  - *Speech server*: any `POST {base}/audio/speech` (OpenAI API; Kokoro-FastAPI, LocalAI, OpenAI). Address and model
+    in the setting, key in the keyring (`chisel` / `speech-endpoint`, or `CHISEL_SPEECH_API_KEY`). Text is sent only
+    on Play. A server on this machine or a private network costs nothing; otherwise the published price
+    (`endpoint.PRICES`, US$ per million characters) gives an estimate per hour of listening, and each new clip's
+    estimate is added to the session's AI spend ledger.
+  - Clips are cached in `<state dir>/speech/clips/` (key: engine, model, voice, speed, text; 200 MB, oldest first):
+    a passage heard again is not rendered or paid for again. Casts are kept per engine (voice ids differ).
+- **Not yet:** read-my-part and skip-directions table-read features, audio export, tone and pronunciation per engine,
+  AI dialogue attribution for stories, the terminal app (desktop only by decision).
 
 ### Rename a character everywhere ✅ (feedback batch 2; plan: docs/dev/plan-feedback-2026-10.md)
 Deterministic (no AI). Core `core/rename.py`; GUI: Notes tab -> **Rename everywhere...**; terminal palette:

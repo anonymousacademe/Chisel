@@ -2,12 +2,16 @@ import { useState } from "react";
 import { Pause, Play, SkipBack, SkipForward, Square, SlidersHorizontal, X, Volume2 } from "lucide-react";
 import type { useReadAloud } from "../hooks/useReadAloud";
 import { roleLabel } from "../reader/cast";
+import type { VoiceInfo } from "../reader/types";
+import { SpeechSettings } from "./SpeechSettings";
 import { progressLabel, timeLeft } from "../reader/format";
 import type { ReadOptions } from "../reader/types";
 import { Icon, IconButton } from "./primitives";
 import "../styles/reader.css";
 
 const RATES = [0.75, 1, 1.25, 1.5, 2];
+
+const voiceLabel = (v: VoiceInfo) => v.label ?? (v.lang ? `${v.name} (${v.lang})` : v.name);
 
 const OPTION_LABELS: { key: keyof ReadOptions; label: string; modes?: string[] }[] = [
   { key: "titles", label: "Read the title" },
@@ -51,13 +55,14 @@ export function ReaderBar({ reader }: { reader: ReturnType<typeof useReadAloud> 
       {s.message && <p className="lw-reader__message" role="alert">{s.message}</p>}
       {panel && (
         <div className="lw-reader__panel">
+          <SpeechSettings key={`${s.speech?.prefs.baseUrl}|${s.speech?.prefs.model}`} reader={reader} />
           <div className="lw-reader__voices" role="group" aria-label="Voices">
             {voiceRoles.map(({ voice, count }) => (
               <div className="lw-reader__voice" key={voice}>
                 <span className="lw-reader__role" title={`${count} passage${count === 1 ? "" : "s"}`}>{roleLabel(voice)}</span>
                 <select value={s.cast[voice] ?? ""} aria-label={`Voice for ${roleLabel(voice)}`} onChange={(e) => reader.setVoice(voice, e.target.value)}>
-                  {!s.cast[voice] && <option value="">System default</option>}
-                  {s.voices.map((v) => <option key={v.id} value={v.id}>{v.name} ({v.lang})</option>)}
+                  {!s.cast[voice] && <option value="">{s.engine === "browser" ? "System default" : "Choose a voice"}</option>}
+                  {s.voices.map((v) => <option key={v.id} value={v.id}>{voiceLabel(v)}</option>)}
                 </select>
                 <button className="lw-btn" onClick={() => reader.hear(voice)}>Hear</button>
               </div>

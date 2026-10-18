@@ -21,6 +21,10 @@ PROVIDES = {
     "pyphen": {"pyphen"},
 }
 
+# Optional extras left out of requirements.txt on purpose (the natural read-aloud voices: espeak-ng is GPL and
+# runs in a separate process). Each must be in that extra in pyproject.toml.
+OPTIONAL = {"speech-local": {"kokoro-onnx": {"kokoro_onnx"}, "numpy": {"numpy"}}}
+
 
 def _names(lines) -> set[str]:
     out = set()
@@ -38,6 +42,7 @@ def _requirements() -> set[str]:
 
 def test_every_import_is_declared():
     modules = set().union(*(PROVIDES[n] for n in _requirements() if n in PROVIDES))
+    modules |= {m for extra in OPTIONAL.values() for mods in extra.values() for m in mods}
     missing = {}
     for path in (ROOT / "src" / "chisel").rglob("*.py"):
         if path.name == "chisel_runner.py":
@@ -65,3 +70,5 @@ def test_requirements_cover_pyproject():
     dev = _names(project["optional-dependencies"]["dev"])
     assert dev <= _names((ROOT / "requirements-dev.txt").read_text().splitlines())
     assert set(PROVIDES) >= _requirements()
+    for extra, dists in OPTIONAL.items():
+        assert set(dists) <= _names(project["optional-dependencies"][extra])

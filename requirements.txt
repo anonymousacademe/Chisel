@@ -6,6 +6,9 @@
 # Linux desktop app: PyGObject and WebKitGTK come from the system packages
 # (see README), and the venv needs --system-site-packages. pywebview itself
 # pulls pythonnet on Windows and pyobjc on macOS.
+#
+# Not included: the natural read-aloud voices (Kokoro; its phonemizer is
+# espeak-ng, GPL, run in a separate process):  pip install -e ".[speech-local]"
 textual[syntax]>=3.0
 pyyaml>=6.0
 openai>=1.0

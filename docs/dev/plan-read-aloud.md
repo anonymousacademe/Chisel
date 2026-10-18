@@ -177,6 +177,12 @@ place names, abbreviations); the engine default.
 | 3 | Table read and tone basics: read-my-part, cast sheet, per-role rate / pitch, tone markers (browser mapping), cast moved to the state dir | browser | small |
 | 4 | The clip pipeline: Engine protocol, OpenAI-compatible endpoint engine (local servers and OpenAI cloud), clip cache, prefetch, Web Audio player, exact highlighting, WAV export | endpoint | medium |
 | 5 | Built-in local voices: Kokoro via onnxruntime, the model catalogue and downloader, licences, removal | kokoro | medium |
+
+**Built (phases 4 and 5, first cut, before phase 3 at the author's request):** the endpoint engine, the clip cache,
+prefetch, Kokoro (out of process, because espeak-ng is GPL) with its downloader and removal, an engine picker with
+cost lines, per-engine casts, cloud spend in the AI ledger. Measured on the author's machine: model load about 3 s,
+then about 2 s to render 4.5 s of speech (faster than real time, so prefetch keeps up). Still open from these phases:
+exact (word) highlighting, WAV export, a frozen-app worker (`Chisel --speech-worker`), and the `speech` extra split.
 | 6 | Cloud: OpenAI (tone instructions) and ElevenLabs (IPA, tags), keys, cost estimate, sent report | cloud | medium |
 | 7 | Pronunciation lab: pronunciations.toml, IPA per engine, record-to-IPA, "words to teach" pass | all | medium |
 | 8 | Character voices: description-to-voice suggestion, cloning with a consent flow, per-scene overrides | server / cloud | medium |

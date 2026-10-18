@@ -1,7 +1,6 @@
-// The speech engine behind the reader. Today there is one: the window's own speech service (browser speech),
-// which is free, offline and needs nothing installed, but offers whatever voices the operating system has and
-// cannot save audio. Later engines (a speech server, voice packs) implement the same interface and return audio
-// clips (docs/dev/plan-read-aloud.md, phase 4).
+// The speech engine behind the reader. The window's own speech service (browser speech) is free, offline and
+// needs nothing installed, but offers whatever voices the operating system has. The other engines (clips.ts)
+// play WAV clips Python renders: natural voices on this computer, or a speech server.
 import type { VoiceInfo } from "./types";
 
 export interface SpeakHandlers {
@@ -15,6 +14,8 @@ export interface SpeechEngine {
   voices(): Promise<VoiceInfo[]>;
   /** Speak one chunk (short enough for the engine); exactly one of the handlers is called. */
   speak(text: string, opts: { voice?: string; rate: number }, handlers: SpeakHandlers): void;
+  /** Get a chunk ready that will probably be spoken next (clip engines render it ahead). */
+  prefetch?(text: string, opts: { voice?: string; rate: number }): void;
   pause(): void;
   resume(): void;
   cancel(): void;

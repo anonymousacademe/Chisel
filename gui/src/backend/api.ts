@@ -7,7 +7,9 @@ import type {
 import type { AtmosphereInfo, KeyClass, PackRow, Prefs, Station } from "../data/atmosphere";
 import type { ExportInfo, ExportOptions, ExportStatus, ExportSummary } from "../data/export";
 import type { FountainImport } from "../data/script";
-import type { ReadOptions, ReadPlan } from "../reader/types";
+import type {
+  DownloadStatus, EndpointCost, EngineId, KokoroStatus, ReadOptions, ReadPlan, SpeechInfo, SpeechPrefs, VoiceInfo,
+} from "../reader/types";
 import { call } from "./transport";
 
 /** AI job kinds (the AI job contract): the first four stream text, the rest answer once. */
@@ -87,6 +89,18 @@ export const api = {
   /** Tab in a script scene: the line rewritten as the next (previous) element; Python holds the rules. */
   /** Read aloud: what to speak in the open document, with the editor text (python: core/reader.py). */
   readPlan: (docId: string, text: string, options: ReadOptions) => call<ReadPlan>("read_plan", docId, text, options),
+  /** Read aloud voices (python: chisel/speech/, gui/speech_api.py). Network only on these clicks. */
+  speechInfo: () => call<SpeechInfo>("speech_info"),
+  speechSet: (prefs: Partial<SpeechPrefs>) => call<{ prefs: SpeechPrefs; endpoint: EndpointCost }>("speech_set", prefs),
+  speechSetKey: (key: string) => call<{ hasKey: boolean }>("speech_set_key", key),
+  speechVoices: (engine: EngineId) => call<{ voices: VoiceInfo[] }>("speech_voices", engine),
+  speechClip: (text: string, voice: string, rate: number, engine: EngineId) =>
+    call<{ dataUrl: string; cached: boolean; chars: number; cost: number | null }>("speech_clip", text, voice, rate, engine),
+  speechWarm: () => call<{ warmed: boolean }>("speech_warm"),
+  speechDownloadStart: (variant: string) => call<{ job: string }>("speech_download_start", variant),
+  speechDownloadStatus: (job: string) => call<DownloadStatus>("speech_download_status", job),
+  speechDownloadCancel: (job: string) => call("speech_download_cancel", job),
+  speechRemove: () => call<{ removed: boolean; kokoro: KokoroStatus }>("speech_remove"),
   scriptCycle: (line: string, element: string, reverse = false) => call<{ line: string }>("script_cycle", line, element, reverse),
   importFountain: (path?: string) => call<{ imported: FountainImport | null }>("import_fountain", path),
   exportSummary: (options: ExportOptions) => call<{ summary: ExportSummary }>("export_summary", options),

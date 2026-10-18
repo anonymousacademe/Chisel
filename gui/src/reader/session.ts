@@ -94,6 +94,7 @@ export class ReadSession {
       return this.begin(token);
     }
     const u = this.d.utterances[this.index];
+    const ahead = this.ahead();          // worked out now: a fake engine may end the chunk synchronously
     this.d.engine.speak(chunk, { voice: this.d.voiceFor(u.voice), rate: this.d.rate() }, {
       onend: () => this.speakNext(token),
       onerror: (reason) => {
@@ -102,9 +103,22 @@ export class ReadSession {
         this.token++;
         this.status = "idle";
         this.notify();
-        this.d.onError?.(reason === "not-allowed" ? "The window did not allow speech." : `Speech stopped: ${reason}.`);
+        // a clip engine's reason is a sentence for the author; the window's speech gives a code
+        this.d.onError?.(reason === "not-allowed" ? "The window did not allow speech."
+          : /\s/.test(reason) ? reason : `Speech stopped: ${reason}.`);
       },
     });
+    // after speak, so a clip engine renders the chunk being spoken first
+    if (ahead && token === this.token) this.d.engine.prefetch?.(ahead.text, { voice: this.d.voiceFor(ahead.role), rate: this.d.rate() });
+  }
+
+  /** The chunk that follows the one about to be spoken (in this utterance or the next), for clip engines. */
+  private ahead(): { text: string; role: string } | null {
+    if (!this.d.engine.prefetch) return null;
+    if (this.queue.length) return { text: this.queue[0], role: this.d.utterances[this.index].voice };
+    const after = this.d.utterances[this.index + 1];
+    const first = after ? chunkSpeech(after.say)[0] : undefined;
+    return after && first ? { text: first, role: after.voice } : null;
   }
 
   private finish(): void {

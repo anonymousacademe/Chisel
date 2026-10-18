@@ -74,6 +74,9 @@ src/chisel/
     budget.py           # context budget: estimate_tokens, Section/Item, fit(), SentReport, window_for, BudgetError
     relevance.py        # which entities a scene is about (named / POV+place / rest), for continuity, canon, aliases
     relationships.py    # relationship suggestions: plan_suggestions (budget) / suggest_relationships (network) / apply_suggestions (set_section + save_entity; no snapshot, like the canon apply)
+  speech/               # read-aloud voices (desktop): engine.py (setting, render door, cache), kokoro.py + kokoro_worker.py
+                        #   (local voices, separate process), models.py (Hugging Face download), endpoint.py (OpenAI-compatible
+                        #   speech server, key, prices), cache.py (state dir clips), catalogue.py (voices, suggestions)
   gui/                  # desktop GUI backend (pywebview); no Textual
     api.py              # Api(mixins...): bridge core (project, documents, settings, AI calls; every method -> {ok,...}); facade() = js_api.
                         #   Names tests monkeypatch (ask_writer, generate_images, ...) are looked up here, so the AI methods stay in this file
@@ -85,6 +88,7 @@ src/chisel/
     export_api.py       # ExportMixin: export_info / summary / start / status / open
     script_api.py       # ScriptMixin: import_fountain (script projects; the file dialog is the window's)
     reader_api.py       # ReaderMixin: read_plan (read aloud; the utterance list the editor speaks; desktop only)
+    speech_api.py       # SpeechMixin: speech_info/set/set_key/voices/clip/warm, natural-voices download job, remove
     notebook_api.py     # NotebookMixin: notebook notes (the Ask-my-notebook chat `research` stays in api.py)
     annotations_api.py  # AnnotationsMixin: comments, collections
     inspiration_api.py  # InspirationMixin: picture listing, upload, edit, delete (describe/generate stay in api.py)
@@ -414,6 +418,13 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   of a cancelled chunk (generation token) because speech services report a cancel as an `end` or an `error`; long
   utterances are spoken in chunks (`chunkSpeech`); voice choices are per project in local storage, never in `project.toml`
   (voice ids are machine-specific); typing stops reading (`noteEdited`) because the plan's ranges no longer match.
+  Engines other than the window's (`chisel/speech/`): **never import `kokoro_onnx`/`phonemizer`/`espeakng_loader` in the
+  app process** (espeak-ng is GPL; it runs only in `kokoro_worker.py`, started with `**desktop.NO_CONSOLE`, ASCII JSON
+  lines, replies matched by id so library chatter on stdout is skipped). The model is downloaded only from a click,
+  pinned to a revision and checksummed, into the DATA dir (`CHISEL_DATA_DIR`); clips are cached in the STATE dir. Text
+  reaches a speech server only on Play/Hear with that engine chosen; cloud cost goes into `usage.LEDGER`. Every
+  render goes through `engine.render` (the cache key includes engine, model, voice, speed). Tests use fake openers, a
+  fake worker script and a fake `kokoro_onnx` module, never the network or the real keyring.
 - **Story time is optional** (`core/timeline.py`; SPEC "Story time"). `when:` (scene frontmatter) and `born:`
   (entity frontmatter) are a year, optional month and day, as `StoryTime(year, month|None, day|None)`: never a
   `datetime` (years past 9999 and negative ones must work; missing month/day sorts first). A scene without
