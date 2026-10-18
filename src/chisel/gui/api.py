@@ -103,6 +103,7 @@ from .export_api import ExportMixin
 from .inspiration_api import InspirationMixin
 from .notebook_api import NotebookMixin
 from .research_api import ResearchMixin
+from .reader_api import ReaderMixin
 from .script_api import ScriptMixin
 from .spelling_api import SpellingMixin
 from .stats_api import StatsMixin
@@ -113,7 +114,7 @@ from .window_api import WindowMixin
 
 class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMixin,
           NotebookMixin, AnnotationsMixin, InspirationMixin, AtmosphereMixin, StatsMixin,
-          ChatsMixin, WindowMixin, ResearchMixin, ScriptMixin):
+          ChatsMixin, WindowMixin, ResearchMixin, ScriptMixin, ReaderMixin):
     def __init__(self) -> None:
         self._lock = threading.RLock()  # guards every project write
         self._window: Any = None  # set by gui.app once the window exists
