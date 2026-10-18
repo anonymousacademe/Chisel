@@ -39,3 +39,18 @@ def test_local_fetch_allows_a_slow_cold_read_but_restores_the_short_probe_timeou
     assert src.fetch(None, None) == "result"
     assert seen == [LocalSource.FETCH_TIMEOUT]
     assert src._http.timeout == 5.0
+
+
+def test_local_annotations_are_read_from_the_listing_not_the_children_route():
+    """Zotero 10.0.6: /items/<pdf>/children has no annotations; the library-wide listing does."""
+    from chisel.core.zotero.web import ZoteroLibrary
+
+    lib = ZoteroLibrary(None, "/users/0")
+    lib.annotations_by_listing = True
+    ann = {"key": "A1", "data": {"itemType": "annotation", "parentItem": "PDF1", "annotationText": "quoted",
+                                 "annotationComment": "my comment", "annotationPageLabel": "4"}}
+    lib._pages = lambda path, params, since: (1, [ann, {"key": "A2", "data": {"parentItem": "OTHER"}}], False)
+    lib._children = lambda key: ([{"key": "PDF1", "data": {"itemType": "attachment"}}] if key == "TOP" else [])
+    notes, annots = lib._kids_of("TOP", {"meta": {"numChildren": 1}}, [], True)
+    assert notes == []
+    assert [(a.id, a.text, a.comment, a.page) for a in annots] == [("A1", "quoted", "my comment", "4")]

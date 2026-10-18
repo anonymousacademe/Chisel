@@ -29,6 +29,7 @@ class LocalSource:
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         self._http = ZoteroHTTP(base, timeout=timeout, opener=opener, sleep=sleep, clock=clock)
         self._lib = ZoteroLibrary(self._http, "/users/0")
+        self._lib.annotations_by_listing = True   # see ZoteroLibrary: the children route lacks annotations
         self._server_id: str | None = None
         self.warnings: list[str] = []
 

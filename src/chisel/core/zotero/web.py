@@ -147,6 +147,10 @@ class ZoteroLibrary:
         self.http = http
         self.user_path = user_path           # "/users/42" or "/users/0"
         self.warnings: list[str] = []
+        # Zotero 10.0.6's local API returns no annotations from /items/<pdf>/children (they exist: the library-wide
+        # listing has them, each naming its PDF as parentItem), so the local backend reads them from the listing.
+        self.annotations_by_listing = False
+        self._annotation_rows_cache: dict[str, list[dict]] | None = None
 
     # -- plumbing ------------------------------------------------------------------------------------
     def _ok(self, resp: _Response, what: str) -> _Response:
@@ -187,6 +191,7 @@ class ZoteroLibrary:
     def fetch(self, scope: Scope, since: int | None, backend: str,
               server_id: str | None = None) -> FetchResult:
         self.warnings = []
+        self._annotation_rows_cache = None
         base = "/items"
         if scope.collection:
             base = "/collections/" + urllib.parse.quote(scope.collection, safe="") + "/items"
@@ -279,7 +284,10 @@ class ZoteroLibrary:
             kids = self._children(key)
             atts = [k for k in kids if k.get("data", {}).get("itemType") == "attachment"]
             for att in atts:
-                kids.extend(self._children(att["key"]))
+                if self.annotations_by_listing:
+                    kids.extend(self._annotation_rows().get(att["key"], []))
+                else:
+                    kids.extend(self._children(att["key"]))
         else:
             kids = listed
         for k in kids:
@@ -292,6 +300,19 @@ class ZoteroLibrary:
                                          comment=d.get("annotationComment", ""),
                                          page=str(d.get("annotationPageLabel", ""))))
         return notes, annots
+
+    def _annotation_rows(self) -> dict[str, list[dict]]:
+        """Every annotation in the library, grouped by the PDF attachment it belongs to (read once per fetch)."""
+        if self._annotation_rows_cache is None:
+            _version, rows, _unchanged = self._pages(
+                "/items", {"itemType": "annotation", "include": "data", "format": "json"}, None)
+            grouped: dict[str, list[dict]] = {}
+            for r in rows:
+                parent = r.get("data", {}).get("parentItem") if isinstance(r, dict) else None
+                if parent:
+                    grouped.setdefault(parent, []).append(r)
+            self._annotation_rows_cache = grouped
+        return self._annotation_rows_cache
 
     def _deleted(self, since: int) -> list[str]:
         resp = self.http.get(self.user_path + "/deleted", {"since": since})
