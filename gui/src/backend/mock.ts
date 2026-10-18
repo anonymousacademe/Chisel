@@ -186,6 +186,12 @@ function uploadPicture(name: string, dataUrl: string, docId: unknown): object {
   return { ok: true, image };
 }
 
+/** Two believable sources for the dev-only mock (research mode). */
+const MOCK_SOURCES = [
+  { key: "daneshgar2024", display: "Daneshgar et al. 2024", title: "Machine learning for wastewater process modeling: a review", authors: "Daneshgar, S.; Callejo, A.; Vanrolleghem, P.", year: 2024, venue: "Water Research", doi: "10.1016/j.watres.2024.00001", url: "https://doi.org/10.1016/j.watres.2024.00001", zoteroKey: "AB12CD34" },
+  { key: "smith2023", display: "Smith and Lee 2023", title: "Rainfall-runoff prediction with recurrent networks", authors: "Smith, J.; Lee, K.", year: 2023, venue: "Journal of Hydrology", doi: "10.1016/j.jhydrol.2023.00002", url: "", zoteroKey: "EF56GH78" },
+];
+
 /** URLs passed to open_external in the mock (read by tests). */
 export const openedUrls: string[] = [];
 
@@ -209,7 +215,19 @@ export function mockCall(method: string, args: unknown[]): object {
       { id: "src-3", key: "IJ90KL12", action: "key-mismatch", summary: "The note’s citation key differs from Zotero’s", blocked: "Fix the key in the note first" },
     ] };
     case "zotero_sync_apply": return { ok: true, changed: args[0] as string[], skipped: [], recorded: true };
-    case "list_sources": return { ok: true, sources: [] };
+    case "list_sources": return { ok: true, sources: MOCK_SOURCES.map((s) => ({ id: "entities/sources/" + s.key + ".md", name: s.display, title: s.title, key: s.key, status: "" })) };
+    case "search_sources": {
+      const words = String(args[0] ?? "").toLowerCase().split(/\s+/).filter(Boolean);
+      const hit = (s: (typeof MOCK_SOURCES)[number]) => words.every((w) => [s.display, s.title, s.authors, String(s.year), s.key].join(" ").toLowerCase().includes(w));
+      return { ok: true, sources: MOCK_SOURCES.filter(hit).slice(0, Number(args[1] ?? 30)) };
+    }
+    case "source_card": {
+      const s = MOCK_SOURCES.find((x) => String(args[0]).includes(x.key));
+      if (!s) return { ok: false, error: "No such source." };
+      return { ok: true, ...s, citeAs: "[[@" + s.key + "]]", zoteroKey: s.zoteroKey, noteCount: 2, highlightCount: 5 };
+    }
+    case "zotero_item_collections": return { ok: true, collections: ["AI and Computing / WRRI - AI and Process Modeling"] };
+    case "open_in_zotero": return { ok: true };
     case "open_external": openedUrls.push(String(args[0])); return { ok: true };
     case "ai_start": return aiStart(String(args[0]), (args[1] ?? {}) as Record<string, unknown>);
     case "ai_poll": return aiPoll(String(args[0]), Number(args[1] ?? 0));

@@ -24,6 +24,7 @@ import { NewNoteDialog, NotebookDialog } from "./NotebookDialogs";
 import { SettingsDialog } from "./SettingsDialog";
 import { ZoteroSettingsDialog } from "./research/ZoteroSettingsDialog";
 import { SyncReviewDialog } from "./research/SyncReviewDialog";
+import { CiteDialog } from "./research/CiteDialog";
 
 type Notify = (text: string, tone?: Notice["tone"], action?: Notice["action"]) => void;
 type Collections = ComponentProps<typeof CollectionsManager>;
@@ -101,6 +102,8 @@ export interface AppDialogsProps {
   researchMode: boolean;
   setAssistantOpen: Dispatch<SetStateAction<boolean>>;
   onQuick: (a: "research") => void;
+  /** Cite dialog: put this text at the cursor of the open document. */
+  insertCitation: (text: string) => void;
   // collections
   createCollection: Collections["onCreate"];
   recolorCollection: Collections["onRecolor"];
@@ -116,7 +119,7 @@ export function AppDialogs(p: AppDialogsProps) {
     createPart, renamePart, deletePart, placeScene, performMove, saveDetails, sprintFocus, startSprint, endSprint, setInspRev,
     restoreSnapshot, setSnapshotAt, startNewDraft, syncCommit, syncPush, syncInit, addComment, commentPop, setCommentPop, popComment,
     commentCall, chatList, chatId, chatIdRef, setPersist, attachments, setAttachments, loadChat, newChat, renameChat, deleteChat,
-    createResearch, researchFromUrl, deleteResearch, researchMode, setAssistantOpen, onQuick,
+    createResearch, researchFromUrl, deleteResearch, researchMode, setAssistantOpen, onQuick, insertCitation,
     createCollection, recolorCollection, renameCollection, deleteCollection,
   } = p;
   return (
@@ -209,6 +212,7 @@ export function AppDialogs(p: AppDialogsProps) {
           onChanged={setSnapshotAt} onRestore={restoreSnapshot} onClose={() => setDialog(null)} />
       )}
       {dialog?.kind === "zotero-settings" && <ZoteroSettingsDialog notify={notify} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "cite" && <CiteDialog notify={notify} onInsert={insertCitation} onSync={() => setDialog({ kind: "zotero-sync" })} onClose={() => setDialog(null)} />}
       {dialog?.kind === "zotero-sync" && <SyncReviewDialog notify={notify} onApplied={() => void refresh()} onClose={() => setDialog(null)} />}
       {dialog?.kind === "export" && <ExportDialog unit={unit} notify={notify} onClose={() => setDialog(null)} />}
       {dialog?.kind === "new-draft" && (

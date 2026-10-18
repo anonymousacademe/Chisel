@@ -58,3 +58,41 @@ export const filterCollections = (all: ZoteroCollection[], q: string) => {
   const s = q.trim().toLowerCase();
   return s ? all.filter((c) => c.path.toLowerCase().includes(s)) : all;
 };
+
+// -- Citing sources (Cite dialog, [[@ completion, the source card, citation hover) --------------------------
+
+/** One search result of search_sources. */
+export interface SourceHit { key: string; display: string; title: string; authors: string; year: string | number; venue: string }
+
+/** source_card: what the Notes panel shows for an open source note. */
+export interface SourceCardInfo {
+  key: string; citeAs: string; display: string; title: string; authors: string; year: string | number; venue: string;
+  doi: string; url: string; zoteroKey: string; noteCount: number; highlightCount: number;
+}
+
+/** The text a citation is inserted as: [[@key]] or [[@key, p. 12]]. A bare number is a page; "ch. 3" or "pp. 4-5" is kept. */
+export function citeText(key: string, locator = ""): string {
+  const loc = locator.trim();
+  if (!loc) return `[[@${key}]]`;
+  return `[[@${key}, ${/^\d/.test(loc) ? "p. " : ""}${loc}]]`;
+}
+
+/** What to type for a chosen completion: the key, the closing brackets unless they are already there, and the cursor offset. */
+export function citeCompletion(after: string, key: string): { insert: string; cursor: number } {
+  const insert = after.startsWith("]]") ? key : `${key}]]`;
+  return { insert, cursor: key.length + 2 };
+}
+
+/** The hover card for a citation span (Python decided resolved / unresolved and the label). */
+export function citationCard(span: { status?: string; keys?: string[]; label?: string; title?: string }) {
+  if (span.status === "resolved") {
+    return { title: span.label || (span.keys ?? []).join("; "), kind: "source", body: span.title || "This source has no title." };
+  }
+  return {
+    title: (span.keys ?? []).join("; "), kind: "no source", missing: true,
+    body: "No source with this key. Sync from Zotero, or check the key.",
+  };
+}
+
+/** Plain-words fallback when the paper's Zotero collections cannot be read. */
+export const COLLECTIONS_FALLBACK = "Zotero's collections could not be read. Is Zotero running?";

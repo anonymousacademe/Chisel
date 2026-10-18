@@ -32,6 +32,9 @@ import type { Dialog } from "./data/dialog";
 import { firstScene, sentence } from "./data/appLogic";
 import { importedLine } from "./data/script";
 import { contextActions, type MenuAction } from "./data/editorMenu";
+import { citationCard } from "./data/research";
+import { CITE_KEY, CITE_KEY_LABEL } from "./components/research/CiteDialog";
+import { SourceCard } from "./components/research/SourceCard";
 import type { ContextInfo } from "./editor/cm";
 import { useComments } from "./hooks/useComments";
 import { useRenameEverywhere } from "./hooks/useRenameEverywhere";
@@ -337,6 +340,7 @@ export default function App() {
     else if (sp?.kind === "unresolved") setMissingTarget(sp.target ?? null);
   };
   const getCard = async (span: Span): Promise<Card | null> => {
+    if (span.kind === "citation") return citationCard(span);
     if (span.kind === "unresolved") {
       return { title: span.target ?? "", kind: "no note", missing: true, body: "No note yet. Put the cursor on it and press Ctrl J to make one." };
     }
@@ -345,6 +349,13 @@ export default function App() {
     return { title: r.name, kind: r.type, body: r.summary || "This note has no text yet." };
   };
   const openEntitySpan = (span: Span) => {
+    if (span.kind === "citation") {
+      // a source note is named by its citation key: Python finds the note, the app opens it
+      const key = span.keys?.[0];
+      if (span.status !== "resolved" || !key) return notify("No source with this key. Sync from Zotero, or check the key.");
+      void api.getEntity(key).then((r) => { if (r.ok && r.found) void openDoc(r.id); else notify("That source note could not be found.", "error"); });
+      return;
+    }
     if (span.entity) showNote(span.entity); else if (span.target) showMissing(span.target);
   };
   /** ctrl+J / the link button: open the note under the cursor, or make one for the selected name. */
@@ -560,6 +571,7 @@ export default function App() {
     { label: "Export…", onSelect: () => void openExport() },
     ...(ws.project.mode === "script" ? [{ label: "Import a Fountain file…", onSelect: () => void importFountain() }] : []),
     ...(ws.project.mode === "research" ? [
+      { label: `Cite a source… (${CITE_KEY_LABEL})`, onSelect: openCite },
       { label: "Zotero settings…", onSelect: () => setDialog({ kind: "zotero-settings" }) },
       { label: "Sync sources from Zotero…", onSelect: () => setDialog({ kind: "zotero-sync" }) },
     ] : []),
@@ -602,12 +614,25 @@ export default function App() {
   };
 
   /** Right-click in the editor (a misspelled word has its own suggestions menu): notes, selection, clipboard. */
+  /** Cite dialog result: the citation goes where the cursor is (a selection is replaced). */
+  const insertCitation = (text: string) => {
+    const ed = editorRef.current;
+    if (!ed) return notify("Open a scene or note to cite into.");
+    const { from, to } = ed.selection();
+    ed.replace(from, to, text);
+    ed.focus();
+  };
+  const openCite = () => {
+    if (!docRef.current || docRef.current.kind === "dictionary") { notify("Open a scene or note to cite into."); return; }
+    setDialog({ kind: "cite" });
+  };
   const openContextMenu = (info: ContextInfo) => {
     const ed = editorRef.current;
     const denied = (key: string) => (ok: boolean) => { if (!ok) notify(`The clipboard is not available here: use Ctrl ${key}.`); };
     const run = (a: MenuAction) => {
       switch (a.id) {
         case "open-note": void openDoc(a.entityId); break;
+        case "cite": openCite(); break;
         case "create-note": setDialog({ kind: "new-note", name: a.name, openAfter: false }); break;
         case "selection-to-notebook": void sendSelectionToNotebook(); break;
         case "selection-to-dictionary": addSelectionToDictionary(); break;
@@ -617,7 +642,7 @@ export default function App() {
         case "select-all": ed?.selectAll(); break;
       }
     };
-    const actions = contextActions({ span: info.span, word: info.word, selection: info.selection }, ws.entities);
+    const actions = contextActions({ span: info.span, word: info.word, selection: info.selection, research: ws.project.mode === "research" }, ws.entities);
     setMenu({
       anchor: { getBoundingClientRect: () => new DOMRect(info.x, info.y - 4, 0, 0) } as unknown as HTMLElement,
       items: actions.map((a, i) => a.id === "separator"
@@ -736,7 +761,7 @@ export default function App() {
             onNewNote={() => setDialog({ kind: "new-research" })}
             onNew={() => setDialog(rail === "library" ? { kind: "new-note", name: "", openAfter: true } : { kind: "new-scene" })} onMenu={openSceneMenu} />
         )}
-        <Editor story={ws.project.mode !== "research"} script={ws.project.mode === "script"} names={{ characters: ws.entities.filter((e) => e.type === "character").map((e) => e.name), places: ws.entities.filter((e) => e.type === "place").map((e) => e.name) }} doc={doc} scenes={ws.scenes} filter={boardFilter}
+        <Editor story={ws.project.mode !== "research"} script={ws.project.mode === "script"} research={ws.project.mode === "research"} names={{ characters: ws.entities.filter((e) => e.type === "character").map((e) => e.name), places: ws.entities.filter((e) => e.type === "place").map((e) => e.name) }} doc={doc} scenes={ws.scenes} filter={boardFilter}
           onEditCollections={() => setDialog({ kind: "scene-collections" })} parts={ws.parts} unit={unit} words={words} mentions={mentions} reflow={reflow}
           sessionWords={ws.status.sessionWords} sessionMinutes={ws.status.sessionMinutes}
           onEditDetails={() => setDialog({ kind: "details" })} onMoveRequest={(plan) => setDialog({ kind: "move", plan })}
@@ -754,6 +779,7 @@ export default function App() {
             { key: "F7", run: () => resolveAtCursor(true) },
             { key: "F8", run: () => resolveAtCursor(false) },
             { key: "Mod-g", run: startGenerate },
+            ...(ws.project.mode === "research" ? [{ key: CITE_KEY, run: () => { openCite(); return true; } }] : []),
           ]} />
         {showAssistant && (
           <Assistant story={ws.project.mode !== "research"} script={ws.project.mode === "script"} tab={tab} onTab={setTab} mentions={mentions} onPickEntity={showNote}
@@ -769,6 +795,8 @@ export default function App() {
             onRemoveAttachment={(a) => { if (chatIdRef.current) setPersist(true); setAttachments((l) => l.filter((x) => !(x.kind === a.kind && x.id === a.id))); }}
             onSaveReply={(id) => void saveReplyToNotes(id)} onDraftIdea={draftFromIdea} onSaveIdea={(idea) => void saveIdeaToNotes(idea)}
             onQuick={onQuick} onMenu={openAiMenu} canInsert={doc?.kind === "scene"} onClose={() => setAssistantOpen(false)}
+            notesTop={ws.project.mode === "research" && doc?.kind === "entity" && note?.found && (note.type as string) === "source" && note.id === doc.id
+              ? <SourceCard key={doc.id} id={doc.id} notify={notify} /> : null}
             notesExtra={doc?.kind === "scene" ? (
               <CommentsPanel comments={comments} onOpen={openComment}
                 onResolve={(c, resolved) => void commentCall((id, text) => api.resolveComment(id, c.id, resolved, text))} />
@@ -810,7 +838,7 @@ export default function App() {
         chatList={chatList} chatId={chatId} chatIdRef={chatIdRef} setPersist={setPersist} attachments={attachments} setAttachments={setAttachments}
         loadChat={loadChat} newChat={newChat} renameChat={renameChat} deleteChat={deleteChat}
         createResearch={createResearch} researchFromUrl={researchFromUrl} deleteResearch={deleteResearch}
-        researchMode={researchMode} setAssistantOpen={setAssistantOpen} onQuick={onQuick}
+        researchMode={researchMode} setAssistantOpen={setAssistantOpen} onQuick={onQuick} insertCitation={insertCitation}
         createCollection={createCollection} recolorCollection={recolorCollection} renameCollection={renameCollection} deleteCollection={deleteCollection} />
       <Toasts notices={notices} onDismiss={dismiss} />
     </div>
