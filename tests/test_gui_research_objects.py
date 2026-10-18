@@ -11,15 +11,10 @@ from chisel.core import figscripts, settings
 from chisel.core.project import Project
 from chisel.gui import research_objects_api as roa
 from chisel.gui.api import Api
-from chisel.gui.research_objects_api import ResearchObjectsMixin
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"fake-image-data"
 WRITE_PNG = f"OUT.write_bytes({PNG!r})\n"
 SLEEP = "import time\ntime.sleep(60)\n"
-
-
-class RApi(ResearchObjectsMixin, Api):
-    """The lead wires the mixin into ResearchMixin; the test composes it the same way."""
 
 
 def url(data: bytes, mime="image/png") -> str:
@@ -34,7 +29,7 @@ def interpreter():
 @pytest.fixture
 def rapi(tmp_path):
     project = Project.create(tmp_path / "paper", "Paper", "research")
-    api = RApi()
+    api = Api()
     api._load(project)
     (project.root / "figures").mkdir(exist_ok=True)
     (project.root / "data").mkdir(exist_ok=True)
@@ -76,7 +71,7 @@ def wait(api, job, states=("done", "failed", "cancelled"), seconds=20):
 
 def test_non_research_refused(tmp_path):
     project = Project.create(tmp_path / "story", "Story")
-    api = RApi()
+    api = Api()
     api._load(project)
     for call in (lambda: api.list_objects(), lambda: api.object_numbers(), lambda: api.object_render(["fig:a"]),
                  lambda: api.insert_figure(url(PNG), "a"), lambda: api.suggest_latex("x"),

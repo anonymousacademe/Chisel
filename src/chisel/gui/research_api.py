@@ -6,7 +6,12 @@ Stub registered by P0 so later packages touch only this module: P7 adds the meth
 
 from __future__ import annotations
 
+from .research_objects_api import ResearchObjectsMixin
+from .research_sources_api import ResearchSourcesMixin
 
-class ResearchMixin:
+
+class ResearchMixin(ResearchSourcesMixin, ResearchObjectsMixin):
     # Mixin of Api (api.py): every public method here is a bridge method; shared state is on Api.
+    # Sources, Zotero, checks and export: research_sources_api.py. Objects, figures, tables and AI
+    # proposals: research_objects_api.py.
     pass

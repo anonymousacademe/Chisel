@@ -11,7 +11,6 @@ from chisel.core.project import Project
 from chisel.core.zotero import FetchResult, Status
 from chisel.gui import research_sources_api as mod
 from chisel.gui.api import Api
-from chisel.gui.research_sources_api import ResearchSourcesMixin
 from tests.gui_helpers import make_project
 
 SECRET = "sekrit-zotero-key-123"
@@ -19,14 +18,10 @@ CSL = {"type": "article-journal", "title": "A Paper", "author": [{"family": "Smi
        "issued": {"date-parts": [[2024]]}}
 
 
-class SourcesApi(ResearchSourcesMixin, Api):
-    """The lead wires the mixin into Api; the tests do it here."""
-
-
 def research_api(tmp_path):
     root = tmp_path / "paper"
     project = Project.create(root, "Paper", "research")
-    api = SourcesApi()
+    api = Api()
     api._load(project)
     return api, project
 
@@ -66,7 +61,7 @@ def walk(value):
 def test_non_research_project_refused(tmp_path):
     root = tmp_path / "p"
     make_project(root)
-    api = SourcesApi()
+    api = Api()
     assert api.open_project(str(root))["ok"]
     for call in (api.zotero_status, api.zotero_sync_plan, api.list_sources, api.research_checks,
                  api.export_research_start):
