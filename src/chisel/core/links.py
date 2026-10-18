@@ -106,12 +106,25 @@ def _parse_refs(content: str) -> list[CiteRef]:
     return refs
 
 
+_FENCE_RE = re.compile(r"(?ms)^[ \t]*(```|~~~).*?(?:^[ \t]*\1[^\n]*$|\Z)")
+_INLINE_CODE_RE = re.compile(r"`[^`\n]+`")
+
+
+def _mask_code(text: str) -> str:
+    """*text* with fenced blocks and inline code spans blanked (same length, newlines kept), so examples shown
+    as code are never read as citations."""
+    def blank(m: re.Match) -> str:
+        return "".join(c if c == "\n" else " " for c in m.group(0))
+    return _INLINE_CODE_RE.sub(blank, _FENCE_RE.sub(blank, text))
+
+
 def find_citations(text: str) -> list[Citation]:
     """Every citation in *text*, in document order: ``[[@k]]``, ``[[+@k]]`` (narrative),
     ``[[see @a, p. 12; @b]]``, ``[[-@k]]`` and plain pandoc ``[@k; @j]``. Keys are case-sensitive.
     Offsets are code points. The only citation parser; ``find_links`` ignores these."""
     if "@" not in text:
         return []
+    original, text = text, _mask_code(text)
     found: list[Citation] = []
     taken: list[tuple[int, int]] = []
     for m in _BRACKETED_RE.finditer(text):
@@ -125,7 +138,7 @@ def find_citations(text: str) -> list[Citation]:
         refs = _parse_refs(t[1:] if narrative else t)
         if not refs:
             continue
-        found.append(Citation(refs=refs, start=m.start(), end=m.end(), raw=m.group(0),
+        found.append(Citation(refs=refs, start=m.start(), end=m.end(), raw=original[m.start():m.end()],
                               kind="narrative" if narrative else "bracketed"))
         taken.append((m.start(), m.end()))
     for m in _PANDOC_RE.finditer(text):
@@ -133,7 +146,7 @@ def find_citations(text: str) -> list[Citation]:
             continue
         refs = _parse_refs(m.group(1))
         if refs:
-            found.append(Citation(refs=refs, start=m.start(), end=m.end(), raw=m.group(0),
+            found.append(Citation(refs=refs, start=m.start(), end=m.end(), raw=original[m.start():m.end()],
                                   kind="pandoc"))
     return sorted(found, key=lambda c: c.start)
 

@@ -109,3 +109,16 @@ def test_story_index_has_no_citations_and_mode_change_needs_rebuild(tmp_path):
     idx.rebuild(p)
     assert len(idx.citers("a")) == 1 and not idx.needs_rebuild(p)
     idx.close()
+
+
+def test_citations_inside_code_are_not_citations():
+    text = "Use `[[@smith2020]]` or:\n\n```\n[[@jones2021]]\n```\n\nand cite [[@real2022]] here.\n"
+    found = find_citations(text)
+    assert [c.refs[0].key for c in found] == ["real2022"]
+    assert found[0].raw == "[[@real2022]]" and text[found[0].start:found[0].end] == found[0].raw
+
+
+def test_the_research_opening_note_contains_no_live_citation():
+    from chisel.core.project import SAMPLE_RESEARCH_SCENE
+
+    assert find_citations(SAMPLE_RESEARCH_SCENE) == []

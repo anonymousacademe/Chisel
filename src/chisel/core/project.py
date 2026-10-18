@@ -106,14 +106,13 @@ This document is plain Markdown; your project folder is your paper.
    Zotero 10 setting that allows other applications to communicate with Zotero; or paste a read-only web key.
 2. Choose "Sync sources from Zotero..." to pull the papers of a collection (or your whole library) in as
    notes under Sources, with your highlights and notes. Nothing is applied until you tick it.
-3. Cite a paper by typing two opening square brackets and an at sign, or with the Cite button. A citation
-   is the paper's key after an at sign, inside double square brackets (the backslashes below only keep
-   these examples from being live citations; leave them out):
+3. Cite a paper: type `[[@` and pick it from the list, or use the Cite button. A citation is the paper's
+   key after an at sign, inside double square brackets:
 
-   - \[\[@smith2020]]
-   - narrative, with a plus: \[\[+@smith2020]]
-   - with a page number after a comma: \[\[@smith2020, p. 12]]
-   - several papers with semicolons: \[\[@smith2020; @jones2021]]
+   - `[[@smith2020]]`
+   - narrative, with a plus: `[[+@smith2020]]`
+   - with a page number after a comma: `[[@smith2020, p. 12]]`
+   - several papers with semicolons: `[[@smith2020; @jones2021]]`
 
 Your own thoughts about a paper go in its "My notes" section, which a sync never overwrites. AI never edits
 your text and never reads a source unless you attach it.
