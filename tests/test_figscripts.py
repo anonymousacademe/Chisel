@@ -339,3 +339,119 @@ def test_fiction_projects_are_unaffected(tmp_path):
     with pytest.raises(ValueError):
         figscripts.trust_figure(story, "flow", "0" * 64)
     assert sorted(p.relative_to(story.root).as_posix() for p in story.root.rglob("*")) == before
+
+
+# -- hardening: links, interpreter path, bounded reads -----------------------------------
+
+
+def _symlink_or_skip(link, target):
+    try:
+        link.symlink_to(target)
+    except (OSError, NotImplementedError):
+        pytest.skip("cannot create symlinks here")
+
+
+def test_write_atomic_uses_random_exclusive_temp_names(tmp_path, monkeypatch):
+    from chisel.core import objects
+    seen = []
+    real = objects.tempfile.mkstemp
+
+    def spy(*a, **kw):
+        fd, name = real(*a, **kw)
+        seen.append(name)
+        return fd, name
+    monkeypatch.setattr(objects.tempfile, "mkstemp", spy)
+    target = tmp_path / "x.png"
+    objects.write_atomic(target, b"one")
+    objects.write_atomic(target, b"two")
+    assert target.read_bytes() == b"two"
+    assert len(seen) == 2 and seen[0] != seen[1]
+    assert not any(p.name.endswith(".tmp") for p in tmp_path.iterdir())
+    # a file already sitting at the old fixed temp name is neither used nor touched
+    fixed = tmp_path / ".x.png.tmp"
+    fixed.write_bytes(b"mine")
+    objects.write_atomic(target, b"three")
+    assert fixed.read_bytes() == b"mine" and target.read_bytes() == b"three"
+
+
+def test_write_atomic_refuses_a_link_target(tmp_path):
+    from chisel.core import objects
+    outside = tmp_path / "outside.png"
+    outside.write_bytes(b"keep")
+    link = tmp_path / "l.png"
+    _symlink_or_skip(link, outside)
+    with pytest.raises(OSError):
+        objects.write_atomic(link, b"evil")
+    assert outside.read_bytes() == b"keep"
+
+
+def test_symlinked_png_or_planted_temp_never_writes_outside(proj, tmp_path):
+    make_figure(proj)
+    trust(proj)
+    outside = tmp_path / "outside.bin"
+    outside.write_bytes(b"keep")
+    png = proj.root / "figures" / "fig-flow.png"
+    _symlink_or_skip(png, outside)
+    res = figscripts.run_figure(proj, "flow")
+    assert res.refused and "link" in res.error
+    assert outside.read_bytes() == b"keep"
+
+
+def test_planted_temp_symlink_is_not_followed(proj, tmp_path):
+    make_figure(proj)
+    trust(proj)
+    outside = tmp_path / "outside.bin"
+    outside.write_bytes(b"keep")
+    _symlink_or_skip(proj.root / "figures" / ".fig-flow.png.tmp", outside)
+    _symlink_or_skip(proj.root / "figures" / ".fig-flow.md.tmp", outside)
+    assert figscripts.run_figure(proj, "flow").status == "current"
+    assert outside.read_bytes() == b"keep"
+
+
+def test_symlinked_figures_folder_is_refused(tmp_path):
+    p = Project.create(tmp_path / "paper2", "Paper", "research")
+    real = tmp_path / "elsewhere"
+    real.mkdir()
+    (real / "fig-flow.py").write_text(WRITE_PNG, encoding="utf-8", newline="\n")
+    (real / "fig-flow.md").write_text("---\ncaption: F\nsource: script\nscript: fig-flow.py\n---\n",
+                                      encoding="utf-8", newline="\n")
+    folder = p.root / "figures"
+    if folder.exists():
+        folder.rmdir()
+    _symlink_or_skip(folder, real)
+    try:
+        trust(p)
+        res = figscripts.run_figure(p, "flow")
+    except ValueError:
+        return                                   # already refused earlier (path leaves the project)
+    assert res.refused
+    assert not (real / "fig-flow.png").exists()
+
+
+def test_relative_interpreter_is_refused(proj):
+    make_figure(proj)
+    trust(proj)
+    settings.set(figscripts.INTERPRETER_SETTING, "python")
+    res = figscripts.run_figure(proj, "flow")
+    assert res.refused and "full path" in res.error
+
+
+def test_oversized_file_that_grows_after_the_size_check_is_bounded(proj, monkeypatch):
+    monkeypatch.setattr("chisel.core.objects.MAX_IMAGE_BYTES", 100)
+    make_figure(proj, "OUT.write_bytes(b'\\x89PNG\\r\\n\\x1a\\n' + b'x' * 5000)\n")
+    trust(proj)
+    res = figscripts.run_figure(proj, "flow")
+    assert res.status == "failed" and "10 MB" in res.error
+
+
+def test_data_hash_is_chunked_and_capped(proj, monkeypatch):
+    make_figure(proj)
+    small = figscripts._data_sha(proj, [proj.root / "data" / "flow.csv"])
+    assert len(small) == 64
+    monkeypatch.setattr(figscripts, "DATA_CAP_BYTES", 4)
+    with pytest.raises(figscripts.DataTooLarge):
+        figscripts._data_sha(proj, [proj.root / "data" / "flow.csv"])
+    assert figscripts.figure_status(proj, "flow") in ("missing", "stale")
+    trust(proj)
+    res = figscripts.run_figure(proj, "flow")
+    assert res.refused and "larger" in res.error

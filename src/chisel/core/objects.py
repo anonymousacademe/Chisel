@@ -16,7 +16,9 @@ argument can never change a count, a spelling run or a mention scan.
 
 from __future__ import annotations
 
+import os
 import re
+import tempfile
 from pathlib import Path
 
 import yaml
@@ -201,10 +203,24 @@ def sniff_image(data: bytes) -> str | None:
     return None
 
 
+def write_atomic(path: Path, data: bytes) -> None:
+    """Write *data* beside *path* through a fresh, randomly named temp file (``mkstemp``: created exclusively, so a
+    planted symlink at a guessable name is never followed), then replace. OSError when *path* is a symlink."""
+    if path.is_symlink():
+        raise OSError(f"{path.name} is a link; Chisel does not write through links")
+    fd, name = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
+    tmp = Path(name)
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+        fsutil.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
 def _write(path: Path, text: str) -> None:
-    tmp = path.with_name(f".{path.name}.tmp")
-    tmp.write_text(text, encoding="utf-8", newline="\n")
-    fsutil.replace(tmp, path)
+    write_atomic(path, text.encode("utf-8"))
 
 
 def create_figure(project, src_bytes: bytes, label: str, caption: str) -> RefObject:
@@ -227,9 +243,7 @@ def create_figure(project, src_bytes: bytes, label: str, caption: str) -> RefObj
     folder.mkdir(parents=True, exist_ok=True)
     image = folder / f"{stem}.{ext}"
     md = folder / f"{stem}.md"
-    tmp = image.with_name(f".{image.name}.tmp")
-    tmp.write_bytes(bytes(src_bytes))
-    fsutil.replace(tmp, image)
+    write_atomic(image, bytes(src_bytes))
     head = yaml.safe_dump({"caption": caption or "", "file": _rel(project, image)},
                           sort_keys=False, allow_unicode=True, width=10_000, default_flow_style=False)
     try:

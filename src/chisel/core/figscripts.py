@@ -144,13 +144,31 @@ def _sha(data: bytes) -> str:
 def _data_sha(project, paths: list[Path]) -> str:
     """One hash over the listed data files (name and bytes, in the listed order); a missing file counts as such."""
     h = hashlib.sha256()
+    total = 0
     for p in paths:
         h.update(_rel(project, p).encode("utf-8") + b"\0")
         try:
-            h.update(hashlib.sha256(p.read_bytes()).digest())
+            fh = hashlib.sha256()
+            with open(p, "rb") as f:
+                while True:
+                    chunk = f.read(1 << 20)
+                    if not chunk:
+                        break
+                    total += len(chunk)
+                    if total > DATA_CAP_BYTES:
+                        raise DataTooLarge(f"the listed data files are larger than {DATA_CAP_BYTES // (1 << 20)} MB")
+                    fh.update(chunk)
+            h.update(fh.digest())
         except OSError:
             h.update(b"missing")
     return h.hexdigest()
+
+
+DATA_CAP_BYTES = 512 * 1024 * 1024
+
+
+class DataTooLarge(ValueError):
+    """The data files a figure lists are too big to fingerprint."""
 
 
 def _width(project) -> float:
@@ -254,7 +272,7 @@ def figure_status(project, id: str) -> ObjectStatus:
 
 def interpreter() -> Path | None:
     value = settings.get(INTERPRETER_SETTING)
-    return Path(value).expanduser() if isinstance(value, str) and value.strip() else None
+    return Path(value.strip()).expanduser() if isinstance(value, str) and value.strip() else None
 
 
 def _scrubbed_env(tmp: Path) -> dict:
@@ -338,18 +356,28 @@ def run_figure(project, id: str, *, timeout: float | None = None,
     py = interpreter()
     if py is None:
         return _refuse(f"no Python is set for figure scripts; choose one in Settings ({INTERPRETER_SETTING})")
+    if not py.is_absolute():
+        return _refuse(f"the figure Python must be a full path (for example C:\\Python312\\python.exe), "
+                       f"not '{py}'; set it in Settings ({INTERPRETER_SETTING})")
     try:
-        inside = py.resolve().is_relative_to(project.root.resolve())
+        py = py.resolve()
+        inside = Path(os.path.normcase(str(py))).is_relative_to(Path(os.path.normcase(str(project.root.resolve()))))
     except OSError:
-        inside = False
+        return _refuse("cannot resolve the figure Python path")
     if inside:
         return _refuse("the figure Python is inside the project folder; Chisel never runs an interpreter "
                        "that came with a project")
     if not py.is_file():
         return _refuse(f"the figure Python does not exist: {py}")
-    d_sha = _data_sha(project, data_files)
-    seconds = DEFAULT_TIMEOUT if timeout is None else timeout
+    figures = md.parent
     png_final = md.with_suffix(".png")
+    if figures.is_symlink() or png_final.is_symlink() or md.is_symlink():
+        return _refuse("the figures folder or this figure's files are links; Chisel does not write through links")
+    try:
+        d_sha = _data_sha(project, data_files)
+    except DataTooLarge as exc:
+        return _refuse(str(exc))
+    seconds = DEFAULT_TIMEOUT if timeout is None else timeout
 
     out_buf, err_buf = bytearray(), bytearray()
     timed_out = cancelled = False
@@ -406,10 +434,17 @@ def run_figure(project, id: str, *, timeout: float | None = None,
         except (OSError, ValueError):
             run_meta = {}
         if returncode == 0 and not timed_out and not cancelled and out_png.is_file():
-            size = out_png.stat().st_size
-            if size <= objects.MAX_IMAGE_BYTES:
-                produced = out_png.read_bytes()
-        out_size = out_png.stat().st_size if out_png.is_file() else 0
+            limit = objects.MAX_IMAGE_BYTES
+            try:
+                with open(out_png, "rb") as f:
+                    data = f.read(limit + 1)
+            except OSError:
+                data = b""
+            if len(data) <= limit:
+                produced = data
+            out_size = len(data)
+        else:
+            out_size = out_png.stat().st_size if out_png.is_file() else 0
 
     stdout = bytes(out_buf).decode("utf-8", "replace")
     stderr = bytes(err_buf).decode("utf-8", "replace")
@@ -439,12 +474,9 @@ def run_figure(project, id: str, *, timeout: float | None = None,
     if error:
         record["error"] = _tail(error)
     if produced is not None and not error:
-        tmp_final = png_final.with_name(f".{png_final.name}.tmp")
         try:
-            tmp_final.write_bytes(produced)
-            fsutil.replace(tmp_final, png_final)
+            objects.write_atomic(png_final, produced)
         except OSError as exc:
-            tmp_final.unlink(missing_ok=True)
             error = f"cannot save the image: {exc}"
             record["status"], record["error"] = "failed", error
     if not cancelled:                        # a Stop leaves the figure exactly as it was
