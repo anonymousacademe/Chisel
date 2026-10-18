@@ -124,6 +124,22 @@ class ZoteroHTTP:
             raise ZoteroError(f"Zotero could not be reached ({type(reason).__name__}).") from None
 
 
+def csl_of(row: dict, key: str, data: dict) -> dict:
+    """The item's CSL JSON as a dict. The web API sends an object; the local API sends a JSON *string* holding a
+    one-item array (seen on Zotero 10.0.6). Anything else falls back to a minimal record."""
+    raw = row.get("csljson")
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except ValueError:
+            raw = None
+    if isinstance(raw, list):
+        raw = raw[0] if raw else None
+    if isinstance(raw, dict) and raw:
+        return raw
+    return {"id": key, "type": data.get("itemType", ""), "title": data.get("title", "")}
+
+
 class ZoteroLibrary:
     """Items, children and deletions of one library on one Zotero API server (web or local)."""
 
@@ -210,8 +226,7 @@ class ZoteroLibrary:
         items: list[ZItem] = []
         for key, row in tops.items():
             data = row.get("data", {})
-            csl = row.get("csljson") or {"id": key, "type": data.get("itemType", ""),
-                                         "title": data.get("title", "")}
+            csl = csl_of(row, key, data)
             items.append(ZItem(
                 key=key, version=row.get("version"), csl=csl, citation_key=citation_key_of(data),
                 notes=notes_of.get(key, []), annotations=annots_of.get(key, []),

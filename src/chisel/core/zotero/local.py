@@ -19,6 +19,9 @@ LOCAL_BASE = "http://127.0.0.1:23119/api"
 class LocalSource:
     name = "local"
 
+    # A probe is a quick "is it there"; the first real read on a cold Zotero took more than 5 s on Zotero 10.
+    FETCH_TIMEOUT = 60.0
+
     def __init__(self, base: str = LOCAL_BASE, *, timeout: float = 5.0,
                  sleep: Callable[[float], None] = time.sleep,
                  clock: Callable[[], float] = time.monotonic):
@@ -48,6 +51,10 @@ class LocalSource:
     def fetch(self, scope: Scope, since: int | None) -> FetchResult:
         if self._server_id is None:
             self.probe()
-        result = self._lib.fetch(scope, since, "local", self._server_id)
+        quick, self._http.timeout = self._http.timeout, max(self._http.timeout, self.FETCH_TIMEOUT)
+        try:
+            result = self._lib.fetch(scope, since, "local", self._server_id)
+        finally:
+            self._http.timeout = quick
         self.warnings = self._lib.warnings
         return result
