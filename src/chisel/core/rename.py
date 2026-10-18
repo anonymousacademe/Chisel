@@ -264,6 +264,8 @@ def plan_rename(project, entity: ent.Entity, new_name: str, *,
     name that cannot be used)."""
     if entity.path is None:
         raise ValueError("this note has no file")
+    if entity.type == "source":
+        raise ValueError("a source is renamed in Zotero: its citation key changes only through a sync")
     new_name = _clean(new_name)
     renamed = {a: _clean(b) for a, b in (rename_aliases or {}).items()}
     unknown = [a for a in renamed if a not in entity.aliases]

@@ -1,0 +1,464 @@
+"""Source notes and Zotero sync (contract "Source notes and sync"; plan sections 4.3, 5.1-5.2).
+
+A source is an entity of type ``source`` in ``entities/sources/<slugify(key)>.md``. The note keeps the item's
+full CSL JSON in its frontmatter; Zotero notes and highlights live in the block between the zotero markers
+and nothing else is ever regenerated::
+
+    <!-- zotero:begin -->
+    ## From Zotero
+    ...
+    <!-- zotero:end -->
+
+    ## My notes
+    (the author's text: sync never touches it)
+
+Sync is pull only and goes plan -> author ticks rows -> apply:
+
+- ``plan_sync`` never writes. Rows: ``new``, ``changed``, ``missing`` (the item left Zotero; the note is kept
+  and only marked ``zotero_status: missing``) and ``key-mismatch`` (the citation key in Zotero differs from
+  the one stored in the note: reported, never applied).
+- ``apply_sync`` takes only ticked ids, refuses files changed since the plan (before writing anything), writes
+  each note atomically (temp file + rename), splices only the zotero block into the raw text when the
+  frontmatter did not change (so the author's text is byte-identical), and records the library version of the
+  producing backend only after every note was written and nothing was left unticked.
+
+Sync state (``{state_key: library_version}``) is per user and per project, in
+``<state dir>/sources/<project-id>.json`` (``CHISEL_STATE_DIR`` honoured), never in the project.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+from dataclasses import dataclass, field, replace
+from pathlib import Path
+
+from . import entities as ent
+from . import fsutil, recents
+from .paper.types import ZItem
+from .zotero.base import FetchResult, Scope
+from .zotero.html2md import annotation_to_markdown, html_to_markdown
+
+BEGIN = "<!-- zotero:begin -->"
+END = "<!-- zotero:end -->"
+MY_NOTES = "## My notes"
+
+# frontmatter keys owned by sync: compared to decide "changed", rewritten on apply
+SYNC_KEYS = ("key", "key_source", "zotero_key", "zotero_status", "web_version", "csl", "title", "authors",
+             "year")
+
+_FM_RE = re.compile(r"\A---\n(.*?)\n---\n?", re.DOTALL)
+
+
+# -- the zotero block ------------------------------------------------------------------------------
+
+def _marker_spans(body: str) -> tuple[int, int] | None:
+    """(index of the begin marker, index of the end marker) when the block is intact, None when there is
+    no marker at all; ValueError when the markers are damaged (one missing, repeated or out of order)."""
+    nb, ne = body.count(BEGIN), body.count(END)
+    if nb == 0 and ne == 0:
+        return None
+    b, e = body.find(BEGIN), body.find(END)
+    if nb != 1 or ne != 1 or e < b:
+        raise ValueError("the zotero markers in this note are damaged: fix them by hand")
+    return b, e
+
+
+def replace_block(body: str, md: str) -> str:
+    """Replace only the text between the zotero markers with *md*; every other character is returned
+    unchanged. Without markers the block is added in front of the author's text. Idempotent."""
+    inner = "\n" + md.strip("\n") + "\n" if md.strip("\n") else "\n"
+    spans = _marker_spans(body)
+    if spans is not None:
+        b, e = spans
+        return body[:b + len(BEGIN)] + inner + body[e:]
+    block = BEGIN + inner + END
+    if not body.strip():
+        return block + "\n\n" + MY_NOTES + "\n"
+    return block + "\n\n" + body
+
+
+def _block_text(body: str) -> str | None:
+    spans = _marker_spans(body)
+    if spans is None:
+        return None
+    return body[spans[0] + len(BEGIN):spans[1]]
+
+
+def _ann_id(raw: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_-]", "", raw)
+
+
+def block_markdown(item: ZItem) -> str:
+    """The text of the zotero block for *item*: sanitised notes, then highlights with their annotation id."""
+    out = ["## From Zotero"]
+    notes = [n for n in (html_to_markdown(h).strip() for h in item.notes) if n]
+    if notes:
+        out += ["### Notes", "\n\n".join(notes)]
+    if item.annotations:
+        rows = []
+        for a in item.annotations:
+            md = annotation_to_markdown(a.text, a.comment, a.page)
+            lines = (md or "(empty highlight)").split("\n")
+            row = "- " + lines[0] + "\n" + "\n".join(("  " + ln) if ln else "" for ln in lines[1:])
+            rows.append(row.rstrip("\n") + f"\n  <!--zotero-ann:{_ann_id(a.id)}-->")
+        out += ["### Highlights", "\n".join(rows)]
+    return "\n\n".join(out) if len(out) > 1 else out[0]
+
+
+# -- note content ----------------------------------------------------------------------------------
+
+def _authors(csl: dict) -> list[str]:
+    names = []
+    for a in csl.get("author") or []:
+        if not isinstance(a, dict):
+            continue
+        fam, giv = str(a.get("family") or "").strip(), str(a.get("given") or "").strip()
+        lit = str(a.get("literal") or a.get("name") or "").strip()
+        if fam and giv:
+            names.append(f"{fam}, {giv}")
+        elif fam or lit:
+            names.append(fam or lit)
+    return names
+
+
+def _year(csl: dict) -> int | None:
+    issued = csl.get("issued")
+    if isinstance(issued, dict):
+        parts = issued.get("date-parts")
+        try:
+            return int(parts[0][0])
+        except (TypeError, ValueError, IndexError, KeyError):
+            pass
+        m = re.search(r"\b(\d{4})\b", str(issued.get("raw") or issued.get("literal") or ""))
+        if m:
+            return int(m.group(1))
+    return None
+
+
+def _family(author: str) -> str:
+    return author.split(",", 1)[0].strip()
+
+
+def _alias_for(authors: list[str], year: int | None) -> str | None:
+    if not authors or year is None:
+        return None
+    first = _family(authors[0])
+    if len(authors) == 1:
+        return f"{first} {year}"
+    if len(authors) == 2:
+        return f"{first} and {_family(authors[1])} {year}"
+    return f"{first} et al. {year}"
+
+
+def _derived(item: ZItem) -> dict:
+    csl = item.csl if isinstance(item.csl, dict) else {}
+    out: dict = {"title": str(csl.get("title") or "")}
+    authors = _authors(csl)
+    out["authors"] = authors
+    year = _year(csl)
+    if year is not None:
+        out["year"] = year
+    return out
+
+
+def item_to_note(item: ZItem, existing: ent.Entity | None) -> ent.Entity:
+    """The source note for *item*. With *existing*, everything the author owns (name, aliases, body outside
+    the zotero markers, unknown frontmatter keys and their order) is kept and only the sync keys and the
+    zotero block change; the stored citation key is never changed here (a different key is a key-mismatch
+    that the author resolves). Raises ValueError when *existing* has damaged markers."""
+    new_md = block_markdown(item)
+    derived = _derived(item)
+    if existing is None:
+        key = item.citation_key or item.key
+        source = "zotero" if item.citation_key else "none"
+        extra: dict = {"key": key, "key_source": source, "zotero_key": item.key,
+                       "zotero_status": "current", "csl": item.csl}
+        extra.update(derived)
+        alias = _alias_for(derived["authors"], derived.get("year"))
+        return ent.Entity(name=key, type="source", aliases=[alias] if alias else [],
+                          body=replace_block("", new_md), extra=extra)
+    extra = dict(existing.extra)
+    extra.setdefault("key", ent.source_key(existing))
+    extra.setdefault("key_source", "zotero" if item.citation_key else "none")
+    extra["zotero_key"] = item.key
+    extra["zotero_status"] = "current"
+    extra["csl"] = item.csl
+    for k, v in derived.items():
+        extra[k] = v
+    if "year" not in derived:
+        extra.pop("year", None)
+    return replace(existing, type="source", extra=extra, aliases=list(existing.aliases),
+                   body=replace_block(existing.body, new_md))
+
+
+# -- sync state (per user, per project) --------------------------------------------------------------
+
+def _state_path(project) -> Path:
+    from .stats import project_id  # same project-id hash as the writing stats
+    return recents.default_state_dir() / "sources" / f"{project_id(project.root)}.json"
+
+
+def load_sync_state(project) -> dict:
+    """``{state_key: library_version}`` for ``chain_fetch``; empty when nothing was recorded."""
+    try:
+        data = json.loads(_state_path(project).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {str(k): v for k, v in data.items() if isinstance(v, int) and not isinstance(v, bool)}
+
+
+def record_version(project, state_key: str, version: int) -> None:
+    state = load_sync_state(project)
+    state[state_key] = int(version)
+    path = _state_path(project)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8", newline="\n")
+    fsutil.replace(tmp, path)
+
+
+def cached_items(project) -> list[ZItem]:
+    """The project's source notes as ZItems, for the cache backend (citations and export keep working)."""
+    out = []
+    for e in project.load_entities():
+        if not e.is_source:
+            continue
+        csl = e.extra.get("csl")
+        if not isinstance(csl, dict):
+            continue
+        key = ent.source_key(e)
+        out.append(ZItem(key=str(e.extra.get("zotero_key") or key), version=None, csl=csl, citation_key=key))
+    return out
+
+
+# -- plan and apply ----------------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class SyncRow:
+    id: str                 # project-relative path of the note (planned path for a new one)
+    key: str                # the citation key
+    action: str             # new | changed | missing | key-mismatch
+    summary: str
+    blocked: str = ""       # why a ticked row would still be skipped (damaged markers, key-mismatch)
+
+
+@dataclass
+class SyncPlan:
+    rows: list[SyncRow]
+    backend: str = ""
+    library_version: int | None = None
+    state_key: str = ""     # "" when no version may be recorded (limited scope, file, cache, unknown)
+    digests: dict = field(default_factory=dict)   # id -> sha256 of the file at plan time, None for new
+    items: dict = field(default_factory=dict)     # id -> ZItem (None for missing rows)
+    warnings: list = field(default_factory=list)
+
+    @property
+    def actionable(self) -> list[SyncRow]:
+        return [r for r in self.rows if not r.blocked]
+
+
+def _rel(project, path: Path) -> str:
+    return path.relative_to(project.root).as_posix()
+
+
+def _digest_bytes(path: Path) -> str | None:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except FileNotFoundError:
+        return None
+
+
+def _synced(e: ent.Entity) -> dict:
+    return {k: e.extra.get(k) for k in SYNC_KEYS if k != "web_version"}
+
+
+def _title(e: ent.Entity, item: ZItem | None = None) -> str:
+    t = e.extra.get("title") or (item.csl.get("title") if item and isinstance(item.csl, dict) else "")
+    return str(t or "").strip()
+
+
+def plan_sync(project, result: FetchResult, *, scope: Scope | None = None, state_key: str = "") -> SyncPlan:
+    """Compare *result* with the project's source notes. Read-only. *scope* and *state_key* (the
+    ``Status.state_key`` of the backend) only decide whether ``apply_sync`` may record a library version:
+    never for a limited scope, never without a state key (for the local API it is derived from the
+    server id)."""
+    web = result.backend == "web"
+    if not state_key and result.backend == "local" and result.server_id:
+        state_key = f"local:{result.server_id}"
+    plan = SyncPlan([], result.backend, result.library_version,
+                    state_key if (result.backend in ("web", "local") and not (scope and scope.limited)
+                                  and result.library_version is not None) else "")
+    sources = [e for e in project.load_entities() if e.is_source and e.path is not None]
+    by_zkey = {str(e.extra["zotero_key"]): e for e in sources if e.extra.get("zotero_key")}
+    by_key = {ent.source_key(e): e for e in sources}
+    used: set[Path] = set()
+    seen: set[str] = set()
+
+    def new_path(key: str) -> Path:
+        probe = ent.Entity(name=key, type="source", extra={"key": key})
+        path = project.entity_path(probe)
+        n = 1
+        while path.exists() or path in used:
+            n += 1
+            path = path.with_name(f"{ent.slugify(key)}-{n}.md")
+        return path
+
+    def add(row: SyncRow, digest, item):
+        plan.rows.append(row)
+        plan.digests[row.id] = digest
+        plan.items[row.id] = item
+
+    def mark_missing(e: ent.Entity):
+        if e.extra.get("zotero_status") == "missing":
+            return
+        rid = _rel(project, e.path)
+        add(SyncRow(rid, ent.source_key(e), "missing",
+                    f"No longer in Zotero; the note is kept and marked missing ({_title(e) or 'untitled'})"),
+            _digest_bytes(e.path), None)
+
+    for item in result.items:
+        seen.add(item.key)
+        e = by_zkey.get(item.key)
+        if item.deleted:
+            if e is not None:
+                mark_missing(e)
+            continue
+        if e is None:
+            other = by_key.get(item.citation_key) if item.citation_key else None
+            if other is not None and other.extra.get("zotero_key") in (None, ""):
+                e = other  # a note made by hand under this key: adopt it
+            elif other is not None:
+                add(SyncRow(_rel(project, other.path), ent.source_key(other), "key-mismatch",
+                            f"The key {item.citation_key} is already used by another Zotero item "
+                            f"({other.extra.get('zotero_key')}); nothing was changed",
+                            blocked="key-mismatch"), _digest_bytes(other.path), item)
+                continue
+        if e is None:
+            note = item_to_note(item, None)
+            path = new_path(ent.source_key(note))
+            used.add(path)
+            title = _title(note, item) or "untitled"
+            warn = "" if item.citation_key else " (no citation key in Zotero: set one there, then sync again)"
+            add(SyncRow(_rel(project, path), ent.source_key(note), "new", f"New source: {title}{warn}"),
+                None, item)
+            continue
+        stored = ent.source_key(e)
+        rid = _rel(project, e.path)
+        if item.citation_key and item.citation_key != stored:
+            add(SyncRow(rid, stored, "key-mismatch",
+                        f"Zotero now has the key {item.citation_key}, the note has {stored}; "
+                        "the key is not changed by a sync", blocked="key-mismatch"),
+                _digest_bytes(e.path), item)
+            continue
+        try:
+            note = item_to_note(item, e)
+        except ValueError as exc:
+            add(SyncRow(rid, stored, "changed", str(exc), blocked="damaged markers"),
+                _digest_bytes(e.path), item)
+            continue
+        what = []
+        if _synced(note) != _synced(e) or e.extra.get("zotero_status") != "current":
+            what.append("details")
+        if _block_text(note.body) != _block_text(e.body):
+            what.append("notes and highlights")
+        if web and item.version is not None and e.extra.get("web_version") != item.version:
+            what.append("version")
+        if not what:
+            continue
+        if e.extra.get("zotero_status") == "missing":
+            what.insert(0, "back in Zotero")
+        add(SyncRow(rid, stored, "changed", f"{_title(note, item) or stored}: " + ", ".join(what) + " updated"),
+            _digest_bytes(e.path), item)
+
+    for zkey in result.deleted_keys:
+        e = by_zkey.get(zkey)
+        if e is not None and zkey not in seen:
+            mark_missing(e)
+    return plan
+
+
+def _atomic_write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        tmp.write_text(text, encoding="utf-8", newline="\n")
+        fsutil.replace(tmp, path)
+    except BaseException:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
+
+
+def _splice(raw: str, new: ent.Entity, old: ent.Entity) -> str:
+    """The new file text for an existing note: the raw text with only what changed replaced. The frontmatter
+    is re-serialised only when a managed value changed; the body changes only between the markers."""
+    m = _FM_RE.match(raw)
+    head_raw = raw[:m.end()] if m else ""
+    body_raw = raw[m.end():] if m else raw
+    block = _block_text(new.body)
+    body = replace_block(body_raw, block if block is not None else "") if block is not None else body_raw
+    same_head = (new.name == old.name and new.aliases == old.aliases and new.extra == old.extra
+                 and m is not None)
+    if same_head:
+        return head_raw + body
+    head = replace(new, body="").to_markdown()  # ends with "---\n\n"
+    return head[:-1] + body
+
+
+def apply_sync(project, plan: SyncPlan, ticked_ids: list[str]) -> dict:
+    """Write the ticked rows. Raises ValueError, before writing anything, for an unknown id or a file that
+    changed since the plan. Rows that cannot be applied (key-mismatch, damaged markers) are skipped and
+    reported. Returns ``{"changed": [ids], "skipped": [{"id", "reason"}], "recorded": bool}``."""
+    rows = {r.id: r for r in plan.rows}
+    ids = list(dict.fromkeys(ticked_ids))
+    if any(i not in rows for i in ids):
+        raise ValueError("the preview is out of date; preview again")
+    for i in ids:
+        path = project.root / i
+        if plan.digests.get(i) != _digest_bytes(path):
+            raise ValueError(f"{path.name} changed since the preview; preview again")
+    skipped = [{"id": i, "reason": rows[i].blocked} for i in ids if rows[i].blocked]
+    todo = [rows[i] for i in ids if not rows[i].blocked]
+    changed: list[str] = []
+    web = plan.backend == "web"
+    for row in todo:
+        path = project.root / row.id
+        item = plan.items.get(row.id)
+        if row.action == "new":
+            note = item_to_note(item, None)
+            if web and item.version is not None:
+                note.extra["web_version"] = item.version
+            _atomic_write(path, note.to_markdown())
+        else:
+            fsutil.ensure_utf8(path)
+            old = ent.load_entity(path)
+            raw = path.read_bytes().decode("utf-8")  # raw: CRLF in the author's text must survive
+            if row.action == "missing":
+                extra = dict(old.extra)
+                extra["zotero_status"] = "missing"
+                new = replace(old, extra=extra)
+            else:
+                new = item_to_note(item, old)
+                if web and item.version is not None:
+                    new.extra["web_version"] = item.version
+            _atomic_write(path, _splice(raw, new, old))
+        changed.append(row.id)
+    recorded = False
+    done = set(changed)
+    if (plan.state_key and plan.library_version is not None
+            and all(r.id in done for r in plan.actionable) and not skipped_blocking(plan)):
+        record_version(project, plan.state_key, plan.library_version)
+        recorded = True
+    return {"changed": changed, "skipped": skipped, "recorded": recorded}
+
+
+def skipped_blocking(plan: SyncPlan) -> bool:
+    """True when the plan has a row that can never be applied (key-mismatch, damaged markers): the library
+    version is then not recorded, so the next sync shows it again."""
+    return any(r.blocked for r in plan.rows)

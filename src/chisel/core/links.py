@@ -20,7 +20,7 @@ from functools import lru_cache
 from .entities import _QUOTES
 from .paper.types import CiteRef, Citation
 
-WIKILINK_RE =re.compile(r"\[\[([^\[\]|]+?)(?:\|([^\[\]]+?))?\]\]")
+WIKILINK_RE = re.compile(r"(?<!\\)\[\[([^\[\]|]+?)(?:\|([^\[\]]+?))?\]\]")
 
 
 @dataclass(frozen=True)
@@ -66,8 +66,9 @@ def find_links(text: str) -> list[Link]:
 
 # -- citations (research mode; docs/dev/research-mode-contracts.md "Parsing") ----------------
 
-_BRACKETED_RE = re.compile(r"\[\[([^\[\]]+?)\]\]")
-_PANDOC_RE = re.compile(r"(?<!\[)\[([^\[\]]*@[^\[\]]*)\](?![\[(\]])")
+# a backslash before a bracket makes it literal (the Zotero note sanitiser writes \[ and \])
+_BRACKETED_RE = re.compile(r"(?<!\\)\[\[([^\[\]]+?)\]\]")
+_PANDOC_RE = re.compile(r"(?<![\[\\])\[([^\[\]]*@[^\[\]]*?)(?<!\\)\](?![\[(\]])")
 # pandoc keys: a word character, then word characters and internal punctuation, ending in a word char
 _KEY = r"\w(?:[\w:.#$%&\-+?<>~/]*\w)?"
 _REF_RE = re.compile(rf"^(?P<prefix>.*?)(?P<neg>-)?(?<![\w])@(?P<key>{_KEY})(?P<rest>.*)$", re.DOTALL)
