@@ -260,6 +260,11 @@ def _source_year(e: ent.Entity) -> str | None:
     return str(year) if year not in (None, "") else None
 
 
+def _paper_title(e: ent.Entity) -> str:
+    from ..core.spans import source_title
+    return source_title(e)
+
+
 def entity_summaries(project: Project, entities: list[ent.Entity]) -> list[dict]:
     out = []
     for e in entities:
@@ -269,6 +274,9 @@ def entity_summaries(project: Project, entities: list[ent.Entity]) -> list[dict]
                "aliases": list(e.aliases), "words": len(e.body.split())}
         if e.type == "source" and _source_year(e):
             row["year"] = _source_year(e)
+        if e.is_source:
+            row["display"] = e.aliases[0] if e.aliases else ent.source_key(e)
+            row["description"] = f"{ent.source_key(e)} - {_paper_title(e)}".rstrip(" -")
         out.append(row)
     return out
 
@@ -395,7 +403,8 @@ def build_binder(project: Project, scenes: list[dict], entities: list[dict],
         "meta": fmt_words(total), "expanded": True, "children": children,
     }, {
         "id": "group:characters", "title": labels["characters"], "kind": "characters",
-        "children": [{"id": e["id"], "title": e["name"], "kind": "entity",
+        "children": [{"id": e["id"], "title": e.get("display") or e["name"], "kind": "entity",
+                      **({"description": e["description"]} if is_research and e.get("description") else {}),
                       **({"meta": e["year"]} if is_research and e.get("year") else {})}
                      for e in characters],
     }, {

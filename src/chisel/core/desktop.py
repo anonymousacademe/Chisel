@@ -7,6 +7,7 @@ One helper for every platform: ``os.startfile`` on Windows, ``open`` on macOS,
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -27,6 +28,25 @@ def open_path(path: Path | str) -> bool:
         command = ["open" if sys.platform == "darwin" else "xdg-open", target]
         subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                          start_new_session=True)
+    except OSError:
+        return False
+    return True
+
+
+_ZOTERO_URI = re.compile(r"^zotero://select/library/items/[A-Za-z0-9]{8}$")
+
+
+def open_uri(uri: str) -> bool:
+    """Open a ``zotero://select/library/items/<8 characters>`` link in Zotero; any other uri is refused
+    (False). Only ever called from an explicit click."""
+    if not isinstance(uri, str) or not _ZOTERO_URI.fullmatch(uri):
+        return False
+    try:
+        if sys.platform == "win32":
+            os.startfile(uri)  # type: ignore[attr-defined]  # Windows only
+            return True
+        subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", uri],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     except OSError:
         return False
     return True
