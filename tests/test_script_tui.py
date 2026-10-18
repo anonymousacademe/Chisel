@@ -103,3 +103,37 @@ async def test_spell_check_skips_non_prose_in_a_script(tmp_path: Path):
         words = [text[m.start:m.end] for m in __import__("chisel.core.spelling", fromlist=["x"]).check(
             app._spell_text(text), app._accepted())]
         assert words == ["recieve"]
+
+
+async def test_ctrl_g_in_a_script_asks_for_fountain_and_starts_a_block(tmp_path: Path, monkeypatch):
+    import chisel.tui.app as app_mod
+    from chisel.ai.writing import SCRIPT_SYSTEM_PROMPT
+    from chisel.core import drafts
+    from chisel.tui.promptscreen import PromptScreen
+
+    calls = []
+
+    def fake(mode, instruction, context, model, client=None, selection=None, **kw):
+        calls.append(kw)
+        return "BOB\nHello there."
+
+    monkeypatch.setattr(app_mod, "generate", fake)
+    project = make_script(tmp_path / "s")
+    scene = project.list_scenes()[0]
+    app = ChiselApp(project)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.open_file(scene)
+        await pilot.pause()
+        app.editor.move_cursor((app.editor.document.line_count - 1, 0))
+        await pilot.press("ctrl+g")
+        await pilot.pause()
+        assert isinstance(app.screen, PromptScreen)
+        await pilot.press(*"bob arrives")
+        await pilot.press("ctrl+g")
+        await pilot.pause(1.0)
+        assert len(calls) == 1 and calls[0]["script"] is True
+        (pending,) = drafts.find_pending(app.editor.text)
+        body = app.editor.text[pending.body_start:pending.body_end]
+        assert body.rstrip("\n").endswith("BOB\nHello there.")
+        assert SCRIPT_SYSTEM_PROMPT.startswith("You are a ghostwriter helping a screenwriter")

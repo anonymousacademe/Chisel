@@ -31,7 +31,10 @@ All notable changes to Chisel are listed here, newest first. The format follows
   written `<!-- like this -->` because `[[double brackets]]` are links here. In the desktop editor, Tab and
   Shift-Tab turn the current line into the next or previous element (action, scene heading, character,
   parenthetical, transition), and a list offers your characters for capital letters at the start of a block
-  and your places after `INT.` / `EXT.`. AI features for scripts come later.
+  and your places after `INT.` / `EXT.`. In a script project the assistant writes Fountain: draft at the cursor,
+  expand a placeholder and rewrite a selection produce scene headings, action and dialogue in screenplay
+  form, a draft starts on a new line of its own, and the chat proposes script text you can paste in. Continuity
+  checks and voice checks for scripts come later.
 - **Character relationships.** A character note can declare its relationships in a `## Relationships`
   section (`- [[Rook Tanaka]] — father; estranged`); the app reads it wherever the note is shown. The
   note panel (desktop) lists what the note declares, what the other notes say about it ("from their

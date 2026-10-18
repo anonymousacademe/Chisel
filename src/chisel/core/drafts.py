@@ -208,16 +208,33 @@ def fresh_id(project_root: Path, text: str) -> str:
                   | {p.id for p in find_pending(text) if p.id})
 
 
+def _script_breaks(text: str, start: int, body: str) -> str:
+    """*body* for insertion at *start* in a script: it starts a new block (a blank line after text, one newline
+    after a line break) and does not run into the line that follows."""
+    before = text[:start].rstrip(" \t")
+    if before and not before.endswith("\n\n"):
+        body = ("\n" if before.endswith("\n") else "\n\n") + body.lstrip("\n")
+    after = text[start:]
+    if after and not after.startswith("\n"):
+        body = body.rstrip("\n") + "\n\n"
+    elif after.startswith("\n") and not after.startswith("\n\n") and after.strip():
+        body = body.rstrip("\n") + "\n"
+    return body
+
+
 def prepare_draft(text: str, mode: str, body: str, start: int, end: int,
-                  draft_id: str | None = None) -> tuple[str, int, int]:
+                  draft_id: str | None = None, script: bool = False) -> tuple[str, int, int]:
     """How to put generated *body* into *text* as a pending draft:
     ``(insert, from, to)`` — replace ``text[from:to]`` with *insert*.
 
     ``draft`` inserts at *start* (a space is added when it would glue onto the
-    previous word); ``rewrite``/``expand`` replace ``[start, end)`` and need a
+    previous word; in a *script* the draft starts a new block instead, see
+    ``_script_breaks``); ``rewrite``/``expand`` replace ``[start, end)`` and need a
     *draft_id* whose original the caller has stored with add_original()
     **before** the marker is written.
     """
+    if mode == "draft" and script:
+        return wrap(_script_breaks(text, start, body)), start, start
     if mode == "draft":
         if start > 0 and not text[start - 1].isspace() and body \
                 and not body[0].isspace():

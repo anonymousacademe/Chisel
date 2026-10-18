@@ -40,6 +40,30 @@ Rules:
 """
 
 
+SCRIPT_SYSTEM_PROMPT = """\
+You are a ghostwriter helping a screenwriter. You write ONLY the requested script text, in Fountain.
+
+Format (Fountain, plain text):
+- A scene heading is one line: INT. or EXT., a location, a dash and the time (INT. KITCHEN - DAY), in capitals.
+- Action is plain present-tense text: only what can be seen or heard, in short paragraphs, with no camera
+  directions unless the style guide uses them. Do not hard-wrap lines.
+- A character cue is the character's name in capitals on its own line, followed directly (no blank line) by
+  the dialogue. A parenthetical goes on its own line in parentheses between the cue and the speech; use them rarely.
+- Use character and place names exactly as the notes give them (the cue is the name in capitals).
+- Write a transition (CUT TO:) only when asked. Put one blank line between elements.
+- Emphasis is *italics*, **bold** or _underline_ only. No Markdown headings, bullets, bold cues or code fences.
+- Never write notes ([[ ]] or <!-- -->) or /* */.
+
+Rules:
+- Match the author's style guide exactly (the voice of the action lines, how the characters talk).
+- Stay consistent with the story context and the character/place notes given.
+- Output the script text and nothing else: no commentary, no preamble, no title, no quotation marks around it.
+- Continue naturally at <<CURSOR>>; do not repeat the surrounding text and do not write past the request.
+- When passages of the author's own writing are given, they are the voice to match; never copy their events
+  or lines.
+"""
+
+
 def _tail_words(s: str, n: int) -> str:
     words = list(re.finditer(r"\S+", s))
     if len(words) <= n:
@@ -206,8 +230,37 @@ def clean_output(raw: str, selection: str | None = None) -> str:
     return text
 
 
+_SCRIPT_NOTE_RE = re.compile(r"\[\[.*?\]\]|/\*.*?\*/", re.DOTALL)
+_BOLD_LINE_RE = re.compile(r"^[ \t]*\*\*([^*\n]+)\*\*[ \t]*$", re.MULTILINE)
+
+
+def clean_script_output(text: str) -> str:
+    """What a model's script text needs on top of ``clean_output``: no notes or boneyard (a ``[[x]]`` would
+    become a link to a missing note), no bold around a whole line (cues are plain capitals), and no more
+    than one blank line in a row. Raises ValueError if nothing is left."""
+    text = _SCRIPT_NOTE_RE.sub("", text)
+    text = _BOLD_LINE_RE.sub(r"\1", text)
+    text = re.sub(r"\n[ \t]*(?:\n[ \t]*){2,}", "\n\n", text).strip()
+    if not text:
+        raise ValueError("the model returned no text")
+    return text
+
+
 def _user_prompt(mode: str, instruction: str, context: str,
-                 selection: str | None) -> str:
+                 selection: str | None, script: bool = False) -> str:
+    if script:
+        if mode == "rewrite":
+            return (f"{context}\n\nTASK: Rewrite the passage below (Fountain). It currently stands at "
+                    f"{CURSOR}. Keep its meaning and events, and its structure (scene headings, cues, who "
+                    f"speaks) unless the instruction says otherwise; change the writing as instructed. "
+                    f"Return only the rewritten passage as Fountain.\n\n"
+                    f"INSTRUCTION: {instruction}\n\nPASSAGE:\n{selection or ''}")
+        if mode == "expand":
+            return (f"{context}\n\nTASK: Write the script text (Fountain) that replaces the placeholder at "
+                    f"{CURSOR}, fulfilling this note from the author. Return only the new script text.\n\n"
+                    f"AUTHOR'S NOTE: {instruction}")
+        return (f"{context}\n\nTASK: Write new script text (Fountain) to be inserted at {CURSOR}. Begin with a "
+                f"new element; do not continue a half-finished line.\n\nINSTRUCTION: {instruction}")
     if mode == "rewrite":
         return (f"{context}\n\nTASK: Rewrite the passage below. It currently "
                 f"stands at {CURSOR}. Keep its meaning and events; change the "
@@ -222,9 +275,11 @@ def _user_prompt(mode: str, instruction: str, context: str,
             f"INSTRUCTION: {instruction}")
 
 
-def generate_instructions(mode: str, instruction: str, selection: str | None = None) -> Section:
+def generate_instructions(mode: str, instruction: str, selection: str | None = None,
+                          script: bool = False) -> Section:
     """The non-context part of a draft / expand / rewrite request (counted, never dropped)."""
-    return instructions(SYSTEM_PROMPT, _user_prompt(mode, instruction, "", selection))
+    return instructions(SCRIPT_SYSTEM_PROMPT if script else SYSTEM_PROMPT,
+                        _user_prompt(mode, instruction, "", selection, script))
 
 
 def generate(
@@ -236,8 +291,10 @@ def generate(
     selection: str | None = None,
     on_delta=None,
     cancel=None,
+    script: bool = False,
 ) -> str:
-    """Network call: produce prose for *mode* (draft | expand | rewrite).
+    """Network call: produce prose for *mode* (draft | expand | rewrite). With *script* (a script project)
+    the model writes Fountain: its own system prompt, and its reply is cleaned of notes and bold cues.
 
     Synchronous — run it in a worker thread from the TUI. Raises ValueError
     for an unknown mode or an empty reply. With *on_delta* / *cancel* (a
@@ -251,9 +308,9 @@ def generate(
 
         client = make_client(model)
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": SCRIPT_SYSTEM_PROMPT if script else SYSTEM_PROMPT},
         {"role": "user",
-         "content": _user_prompt(mode, instruction, context, selection)},
+         "content": _user_prompt(mode, instruction, context, selection, script)},
     ]
     if on_delta is not None or cancel is not None:
         raw = stream_text(client, model, messages, mode, on_delta, cancel)
@@ -262,7 +319,8 @@ def generate(
             model=model, messages=messages, extra_body=openrouter_extra_body(model=model))
         record_response(response, model, mode)
         raw = response.choices[0].message.content or ""
-    return clean_output(raw, selection)
+    text = clean_output(raw, selection)
+    return clean_script_output(text) if script else text
 
 
 # -- chat: ask the assistant (the GUI's composer) --------------------------------
@@ -281,6 +339,19 @@ Rules:
   this conversation (scenes, notes, research, comments): use them.
 - Never write HTML comments or the text "<!--".
 """
+
+SCRIPT_ASK_SYSTEM_PROMPT = ASK_SYSTEM_PROMPT.replace(
+    "inside a novelist's manuscript editor", "inside a screenwriter's script editor").replace(
+    "- When you propose prose, write it so the author could paste it in as-is.",
+    "- The scene text is Fountain. When you propose script text, write valid Fountain so the author could paste\n"
+    "  it in as-is: scene headings in capitals (INT. KITCHEN - DAY), character cues in capitals on their own\n"
+    "  line directly above their dialogue, no Markdown.")
+
+
+def ask_system_prompt(script: bool = False) -> str:
+    """The chat system prompt for a story or (*script*) a script project."""
+    return SCRIPT_ASK_SYSTEM_PROMPT if script else ASK_SYSTEM_PROMPT
+
 
 PROJECT_CONTEXT_CHARS = 12000
 HISTORY_TURNS = 6

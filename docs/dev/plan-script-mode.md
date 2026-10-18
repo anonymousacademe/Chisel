@@ -43,8 +43,14 @@ a scene (Fountain), how it is drawn, counted and exported.
 
 ## 4. Not built (in order)
 
-1. **AI**: script-aware draft / expand / rewrite prompts that emit valid Fountain; continuity that reads speakers;
-   dialogue voice checks per character. These go through the same context budget and review UI as story mode.
+1. **AI, remaining part**: continuity that reads speakers, and dialogue voice checks per character. These go
+   through the same context budget and review UI as story mode. (Built since: draft / expand / rewrite and the
+   chat write Fountain in a script project. `ai/writing.py` has `SCRIPT_SYSTEM_PROMPT`, the script variants of the
+   three task prompts, `clean_script_output` (no notes or boneyard, no bold cues, no runs of blank lines) and
+   `ask_system_prompt(script)`; a draft inserted at the cursor starts a new block (`drafts.prepare_draft(script=)`);
+   `script=True` is passed to `generate` only for scripts, so story calls and their test fakes are unchanged. The
+   context is the story-mode context: style guide, the notes of the characters and places the scene names
+   (speaker cues count as mentions), the scene details and the window around the cursor.)
 2. **Typing aids, remaining part**: an auto-added `(CONT'D)` and `(MORE)`. (Built since: Tab / Shift-Tab cycle a
    line's element through action, scene heading, character, parenthetical, transition, with the rules in
    `fountain.cycle_element` behind `Api.script_cycle`; a completion list offers character names for capitals typed

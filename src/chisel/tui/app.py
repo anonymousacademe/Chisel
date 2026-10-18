@@ -27,7 +27,7 @@ from ..ai.style import learn_style
 from ..ai.stream import Cancelled
 from ..ai.usage import LEDGER, format_cost
 from ..ai.writing import (
-    ASK_SYSTEM_PROMPT,
+    ask_system_prompt,
     RESEARCH_SYSTEM_PROMPT,
     ask as ask_writer,
     brainstorm as brainstorm_ideas,
@@ -1248,6 +1248,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
         text = self.editor.text
         selection = text[start:end] if end > start else None
         span = (start, end) if end > start else None
+        script = self.project.mode == "script"
         model = self._ai_model("writing")
         sections = build_context_sections(
             text, start, self.entities, self._canon_map(), load_style(self.project),
@@ -1256,7 +1257,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
                 self.project, self.current_path, text, self.entities))
         try:
             context, sent = fit_context(
-                [*sections, generate_instructions(mode, instruction, selection)], model, mode)
+                [*sections, generate_instructions(mode, instruction, selection, script)], model, mode)
         except BudgetError as exc:
             self.notify(str(exc), severity="error", timeout=10)
             return
@@ -1266,16 +1267,17 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
                         timeout=5)
         self.notify(f"Drafting… ({model})", timeout=3)
         self._generate_worker(mode, instruction, context, model, selection,
-                              start, end, self.current_path, text, sent)
+                              start, end, self.current_path, text, sent, script)
 
     @work(exclusive=True, group="generate")
     async def _generate_worker(self, mode, instruction, context, model,
-                               selection, start, end, path, snapshot, sent=None) -> None:
+                               selection, start, end, path, snapshot, sent=None, script=False) -> None:
         calls = LEDGER.count()
         try:
             body = await self._ai_call(
                 "drafting", generate, mode, instruction, context, model,
-                selection=selection, stream=True, preview=True)
+                selection=selection, stream=True, preview=True,
+                **({"script": True} if script else {}))   # only a script passes it (older fakes keep working)
         except Cancelled:
             return                  # stopped: nothing is inserted, saved or registered
         except Exception as exc:
@@ -1299,7 +1301,8 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
         text = self.editor.text
         if mode == "draft":
             pos = start if text == snapshot else self._cursor_offset()
-            insert, a, b = drafts.prepare_draft(text, mode, body, pos, pos)
+            insert, a, b = drafts.prepare_draft(text, mode, body, pos, pos,
+                                                script=self.project.mode == "script")
             self.editor.replace_offsets(a, b, insert)
             return
         if text[start:end] != original:
@@ -1751,7 +1754,8 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
                 sections = self._scene_or_project_sections(entities, canon)
             context, sent = fit_context(
                 [*sections, chat_instructions(
-                    RESEARCH_SYSTEM_PROMPT if mode == "research" else ASK_SYSTEM_PROMPT, prompt, history)],
+                    RESEARCH_SYSTEM_PROMPT if mode == "research" else ask_system_prompt(self.project.mode == "script"),
+                    prompt, history)],
                 model, "research" if mode == "research" else "ask")
         except ValueError as exc:     # includes BudgetError: nothing is sent
             screen.add_message(ChatMsg("assistant", str(exc), error=True))

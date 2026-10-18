@@ -646,7 +646,11 @@ scene is **Fountain** inside the usual `.md` file, with Chisel's own syntax winn
   action, scene heading, character, parenthetical, transition (`fountain.cycle_element`, via `script_cycle`: plain
   Fountain spelling, no forcing marks, the words are kept). A completion list offers the project's characters for
   capitals typed at the start of a block (never over ordinary action) and its places after `INT.` / `EXT.`.
-- **Not yet:** the AI features, side-by-side dual dialogue, `(CONT'D)` / `(MORE)`, form-specific layouts (stage,
+- **AI drafting:** draft / expand / rewrite and the chat write valid Fountain in a script project (own system
+  prompt, prompts per mode, a reply cleaned of notes, bold cues and blank runs); a draft inserted at the cursor
+  starts a new block. Same context budget, "What was sent" report and accept / reject as in story mode; AI never
+  edits the script unprompted.
+- **Not yet:** speaker-aware continuity and per-character voice checks, side-by-side dual dialogue, `(CONT'D)` / `(MORE)`, form-specific layouts (stage,
   audio), scene numbering and revisions, FDX, terminal-editor styling.
 
 ### Rename a character everywhere ✅ (feedback batch 2; plan: docs/dev/plan-feedback-2026-10.md)

@@ -387,6 +387,11 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
     not in the layout module. Export formats are fenced by mode (`export.SCRIPT_FORMATS`, `load_options`,
     `describe`): a script exports `pdf` (screenplay layout only) and `fountain`; a story cannot.
   - Imports only ever create new files (`write_atomic` on fresh paths) and fill empty author details.
+  - AI drafting in a script: `writing.generate(..., script=True)` / `generate_instructions(..., script)` /
+    `ask_system_prompt(script)`. Callers pass `script=True` to `generate_text` **only for scripts** (a story call keeps
+    its old signature, so the many test fakes stay valid), and `gui/mockai.py: generate_text` accepts it. Replies go
+    through `clean_script_output` (a `[[x]]` would become a link to a missing note). Drafts inserted at the cursor
+    use `drafts.prepare_draft(script=True)` (a new block, not a glued space); rewrite / expand replace in place.
   - Typing aids: the Tab ring lives in `fountain.cycle_element` (Python); `editor/script.ts` only decides where
     the completion list applies (`completionSpot`) and reads a line's element from the spans. Tab is bound only in
     script scenes; the editor drops the answer if the line changed while the bridge call was out. Completion needs

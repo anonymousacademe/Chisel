@@ -193,7 +193,15 @@ def install(api_module) -> None:
         return SimpleNamespace(markdown=style_markdown(fields, "## Exemplars\n\n"))
 
     def generate_text(mode, instruction, context, model, selection=None, client=None,
-                      on_delta=None, cancel=None):
+                      on_delta=None, cancel=None, script=False):
+        if script:   # a script project: canned Fountain, never prose
+            body = {"rewrite": "The rain keeps on, warm and metallic, drumming the spur above the stalls.",
+                    "expand": f"{instruction.strip().rstrip('.')}. Nobody in the market looks up."}.get(
+                mode, "A vendor laughs at nothing. The neon koi turn once in the haze.\n\n"
+                      "ROOK\n(under his breath)\nThat is not a good sign.")
+            _stream(body, on_delta, cancel)
+            _spend(mode)
+            return body
         if mode == "rewrite":
             body = "The rain kept on, warm and metallic, drumming the spur above the stalls."
         elif mode == "expand":

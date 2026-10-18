@@ -47,8 +47,8 @@ from ..ai.style import learn_style
 from ..ai.stream import call_ai
 from ..ai.usage import LEDGER
 from ..ai.writing import (
-    ASK_SYSTEM_PROMPT,
     RESEARCH_SYSTEM_PROMPT,
+    ask_system_prompt,
     ask as ask_writer,
     brainstorm as brainstorm_writer,
     brainstorm_instructions,
@@ -988,6 +988,7 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
             project = inp["project"]
             lo, hi = from_utf16(text, start), from_utf16(text, end)
             selection = text[lo:hi] if hi > lo else None
+            script = project.mode == "script"
             style_md = load_style(project)
             sections = build_context_sections(
                 text, lo, inp["entities"], canon_map(inp["entities"]), style_md,
@@ -996,13 +997,14 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
                     project, inp.get("path"), text, inp["entities"]))
             model = resolve_model("writing", project.meta)
             context, sent = fit_context(
-                [*sections, generate_instructions(mode, instruction.strip(), selection)], model, mode)
+                [*sections, generate_instructions(mode, instruction.strip(), selection, script)], model, mode)
             calls = LEDGER.count()
+        # only a script passes `script`: story calls keep the signature they always had
         body = self._stream(generate_text, mode, instruction.strip(), context, model,
-                            selection=selection)
+                            selection=selection, **({"script": True} if script else {}))
         with self._lock:
             draft_id = None if mode == "draft" else drafts.fresh_id(project.root, text)
-            insert, a, b = drafts.prepare_draft(text, mode, body, lo, hi, draft_id)
+            insert, a, b = drafts.prepare_draft(text, mode, body, lo, hi, draft_id, script=script)
         return {
             "mode": mode, "insert": insert, "draftId": draft_id, "original": selection,
             "from": index_to_utf16(text, a), "to": index_to_utf16(text, b),
@@ -1014,9 +1016,9 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
     def draft_from_reply(self, doc_id: str, text: str, body: str, at: int) -> dict:
         """A chat reply inserted at *at* (UTF-16) as a pending draft (no network)."""
         with self._lock:
-            self._scene_inputs(doc_id, text)
+            script = self._scene_inputs(doc_id, text)["project"].mode == "script"
             pos = from_utf16(text, at)
-            insert, a, b = drafts.prepare_draft(text, "draft", body.strip(), pos, pos)
+            insert, a, b = drafts.prepare_draft(text, "draft", body.strip(), pos, pos, script=script)
         return {"insert": insert, "from": index_to_utf16(text, a), "to": index_to_utf16(text, b)}
 
     @bridge
@@ -1091,7 +1093,7 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
             sections = self._chat_sections(scope, doc_id, text, cursor, subject_id)
             sections, attached = self._with_attachments(project, sections, attachments)
             context, sent = fit_context(
-                [*sections, chat_instructions(ASK_SYSTEM_PROMPT, prompt, history)], model, "ask")
+                [*sections, chat_instructions(ask_system_prompt(project.mode == "script"), prompt, history)], model, "ask")
             calls = LEDGER.count()
         reply = self._stream(ask_writer, prompt, context, model, history=history)
         return {"reply": reply, "attached": attached, "cost": self._spent(calls),
