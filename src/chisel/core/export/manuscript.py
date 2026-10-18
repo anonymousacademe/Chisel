@@ -22,7 +22,8 @@ from pathlib import Path
 
 from .. import drafts, scenemeta
 from .. import structure as st
-from ..links import WIKILINK_RE
+from ..links import WIKILINK_RE, is_foreign_target
+from ..paper.types import CiteRef
 
 FORMATS = ("pdf", "docx", "epub", "md", "tex")
 NUMBERINGS = ("words", "numbers", "titles-only")
@@ -97,6 +98,68 @@ class Break:
     """A scene break inside a chapter (drawn as an ornament)."""
 
 
+# -- research additions (core/export/research.py; fiction never produces these) --------------
+# Inline nodes sit in ``Paragraph.runs`` beside ``Run`` and carry an empty ``text`` (math and
+# citations are not words); block nodes sit in ``Chapter.blocks``.
+
+
+@dataclass(frozen=True)
+class Math:
+    """TeX math from ``$...$`` / ``$$...$$`` (inline node; a generated construct, never escaped)."""
+    tex: str
+    display: bool = False
+    text: str = ""
+
+
+@dataclass(frozen=True)
+class Citation:
+    """One citation group (``[[see @a, p. 3; @b]]``); the bibliography is built from the cited keys."""
+    refs: tuple[CiteRef, ...]
+    kind: str = "bracketed"        # bracketed | narrative | pandoc
+    text: str = ""
+
+
+@dataclass(frozen=True)
+class Footnote:
+    """An inline footnote ``^[text]`` (inline node)."""
+    runs: tuple
+    text: str = ""
+
+
+@dataclass(frozen=True)
+class Heading:
+    """A sub-heading inside a chapter. ``level`` is relative to the chapter title (1 = same level)."""
+    level: int
+    runs: tuple
+
+
+@dataclass(frozen=True)
+class Figure:
+    label: str
+    number: str                    # display number ("2", "S1"); "" = never placed
+    caption: tuple                 # inline nodes
+    path: str                      # absolute, forward slashes; "" when the image is missing
+    width: float | None = None     # inches
+    alt: str = ""
+
+
+@dataclass(frozen=True)
+class Table:
+    label: str
+    number: str
+    caption: tuple
+    cells: tuple                   # rows of cells; a cell is a tuple of inline nodes; row 0 is the header
+    align: tuple = ()
+
+
+@dataclass(frozen=True)
+class Equation:
+    label: str
+    number: str
+    tex: str
+    caption: tuple = ()
+
+
 @dataclass
 class Chapter:
     title: str                     # the scene's heading ("" when continuous)
@@ -116,9 +179,17 @@ class Part:
 
 @dataclass(frozen=True)
 class Notice:
-    kind: str                      # "expand" | "draft-missing" | "empty"
+    kind: str                      # "expand" | "draft-missing" | "empty" (research adds the BLOCKING_KINDS)
     scene: str
     message: str
+
+    @property
+    def blocking(self) -> bool:
+        """Research export refuses these unless the author overrides (plan 6.2, section 10)."""
+        return self.kind in BLOCKING_KINDS
+
+
+BLOCKING_KINDS = ("citation-unresolved", "ref-missing", "figure-missing")
 
 
 @dataclass
@@ -135,6 +206,10 @@ class Book:
     scenes: int = 0
     draft_scenes: list[str] = field(default_factory=list)  # titles of scenes with pending AI drafts
     warnings: list[Notice] = field(default_factory=list)
+    # research mode only (empty for a story)
+    cited: list[str] = field(default_factory=list)          # citation keys in order of first use
+    bibliography: list[dict] = field(default_factory=list)  # CSL JSON of the cited sources that resolve
+    unresolved: list[str] = field(default_factory=list)     # cited keys with no source note
 
     def chapters(self):
         for part in self.parts:
@@ -320,7 +395,7 @@ def _deslug(name: str) -> str:
 
 
 def _scene_text(project, path: Path, opts: ExportOptions, book: Book,
-                rel: str) -> tuple[str, str]:
+                rel: str, research: bool = False) -> tuple[str, str]:
     """(title, body text) of one scene, with drafts resolved, details and the
     heading removed, links flattened and expand markers dropped."""
     text = path.read_text(encoding="utf-8")
@@ -358,6 +433,10 @@ def _scene_text(project, path: Path, opts: ExportOptions, book: Book,
         book.warnings.append(Notice(
             "expand", rel, f"{rel}: expand marker removed: {marker.instruction}"))
     text = drafts._EXPAND_RE.sub("", text)
+    if research:  # citations, ![[fig:x]] and [[fig:x]] are parsed later; only real links flatten
+        text = WIKILINK_RE.sub(lambda m: m.group(0) if is_foreign_target(m.group(1))
+                               else (m.group(2) or m.group(1)).strip(), text)
+        return title, text
     text = WIKILINK_RE.sub(lambda m: (m.group(2) or m.group(1)).strip(), text)
     return title, text
 
