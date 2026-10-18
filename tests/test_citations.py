@@ -100,7 +100,11 @@ def test_story_index_has_no_citations_and_mode_change_needs_rebuild(tmp_path):
     idx.rebuild(p)
     assert idx.citers("a") == []
     assert not idx.needs_rebuild(p)
-    p.update_mode("research")
+    # a project never switches mode; this stands in for a hand-edited project.toml
+    toml = p.root / "project.toml"
+    toml.write_text(toml.read_text(encoding="utf-8").replace('mode = "story"', 'mode = "research"'),
+                    encoding="utf-8", newline="\n")
+    p = Project.open(p.root)
     assert idx.needs_rebuild(p)
     idx.rebuild(p)
     assert len(idx.citers("a")) == 1 and not idx.needs_rebuild(p)

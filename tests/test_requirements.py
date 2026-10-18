@@ -40,6 +40,8 @@ def test_every_import_is_declared():
     modules = set().union(*(PROVIDES[n] for n in _requirements() if n in PROVIDES))
     missing = {}
     for path in (ROOT / "src" / "chisel").rglob("*.py"):
+        if path.name == "chisel_runner.py":
+            continue  # runs in the author's own Python (figure scripts), never in Chisel's environment
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if isinstance(node, ast.Import):
                 tops = [a.name.split(".")[0] for a in node.names]
