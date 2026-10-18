@@ -1,7 +1,7 @@
-import { Fragment, type RefObject } from "react";
+import { Fragment, type ReactNode, type RefObject } from "react";
 import {
   FileText, LayoutDashboard, ListTree, Undo2, Redo2, Bold, Italic, Link, MessageSquarePlus,
-  Focus, ChevronRight, BookPlus, type LucideIcon,
+  Focus, ChevronRight, BookPlus, Volume2, type LucideIcon,
 } from "lucide-react";
 import type { CommentRow, DocumentPayload, PartSummary, SceneMention, SceneSummary, Unit } from "../data/types";
 import { fmt } from "../data/tree";
@@ -42,6 +42,8 @@ export function Editor(props: {
   /** The open scene's collections (inspector) and the dialog that changes them. */
   onEditCollections: () => void;
   focus: boolean; onFocus: () => void; onOpen: (id: string) => void;
+  /** Read aloud (desktop): the transport strip, whether it is open, whether this document can be read, and the toggle. */
+  readerBar?: ReactNode; readerActive: boolean; canRead: boolean; onReadAloud: () => void;
   // editing
   editorRef: RefObject<EditorHandle | null>; docRev: number; spansVersion: number;
   cursor: CursorInfo; saveState: SaveState;
@@ -99,6 +101,7 @@ export function Editor(props: {
           <IconButton icon={MessageSquarePlus} label="Add a comment on the selected passage" disabled={!isScene || props.cursor.from === props.cursor.to}
             onMouseDown={(e) => e.preventDefault()} onClick={props.onAddComment} />
           <span className="lw-tool-sep" />
+          <IconButton icon={Volume2} label="Read aloud" active={props.readerActive} disabled={!props.canRead} onClick={props.onReadAloud} />
           <IconButton icon={Focus} label="Focus mode" active={props.focus} onClick={props.onFocus} />
         </div>
       </div>
@@ -124,6 +127,7 @@ export function Editor(props: {
         </div>
       </div>
 
+      {props.readerBar}
       {props.saveState === "conflict" && (
         <div className="lw-conflict" role="alert">
           <span>This file changed on disk while you were editing it (the terminal app may be open on the same project).</span>

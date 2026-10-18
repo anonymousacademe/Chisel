@@ -1,0 +1,22 @@
+/* Read aloud: a strip under the editor toolbar, and the passage being spoken in the text. */
+.lw-reader {
+  flex: none; padding: 6px 16px; display: flex; flex-direction: column; gap: 6px;
+  border-bottom: 1px solid var(--lw-border, rgba(255, 255, 255, 0.08)); background: var(--lw-bg-raised);
+}
+.lw-reader__row { display: flex; align-items: center; gap: 6px; min-height: 32px; flex-wrap: wrap; }
+.lw-reader__start { height: 28px; padding: 0 10px; font-size: 12px; }
+.lw-reader__status { flex: 1; min-width: 140px; font-size: 12px; color: var(--lw-text-muted); padding-left: 6px; }
+.lw-reader__rate { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--lw-text-muted); }
+.lw-reader select { background: var(--lw-bg); color: var(--lw-text); border: 1px solid var(--lw-border, rgba(255, 255, 255, 0.12)); border-radius: 6px; padding: 3px 6px; font-size: 12px; max-width: 280px; }
+.lw-reader__message { margin: 0; font-size: 12px; color: var(--lw-warning); }
+.lw-reader__panel { display: flex; flex-wrap: wrap; gap: 12px 32px; padding: 6px 0 4px; }
+.lw-reader__voices { display: flex; flex-direction: column; gap: 6px; }
+.lw-reader__voice { display: flex; align-items: center; gap: 8px; }
+.lw-reader__role { width: 120px; font-size: 12px; font-weight: 600; color: var(--lw-text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lw-reader__options { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+
+/* the passage being read */
+.lw-cm .lw-reading {
+  background: rgba(141, 124, 246, 0.28); border-radius: 3px; box-decoration-break: clone; -webkit-box-decoration-break: clone;
+  outline: 1px solid rgba(141, 124, 246, 0.45);
+}

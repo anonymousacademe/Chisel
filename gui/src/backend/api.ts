@@ -7,6 +7,7 @@ import type {
 import type { AtmosphereInfo, KeyClass, PackRow, Prefs, Station } from "../data/atmosphere";
 import type { ExportInfo, ExportOptions, ExportStatus, ExportSummary } from "../data/export";
 import type { FountainImport } from "../data/script";
+import type { ReadOptions, ReadPlan } from "../reader/types";
 import { call } from "./transport";
 
 /** AI job kinds (the AI job contract): the first four stream text, the rest answer once. */
@@ -84,6 +85,8 @@ export const api = {
   exportInfo: () => call<ExportInfo>("export_info"),
   /** Script projects: add a .fountain file's scenes (the window asks for the file; path is for the dev server). */
   /** Tab in a script scene: the line rewritten as the next (previous) element; Python holds the rules. */
+  /** Read aloud: what to speak in the open document, with the editor text (python: core/reader.py). */
+  readPlan: (docId: string, text: string, options: ReadOptions) => call<ReadPlan>("read_plan", docId, text, options),
   scriptCycle: (line: string, element: string, reverse = false) => call<{ line: string }>("script_cycle", line, element, reverse),
   importFountain: (path?: string) => call<{ imported: FountainImport | null }>("import_fountain", path),
   exportSummary: (options: ExportOptions) => call<{ summary: ExportSummary }>("export_summary", options),

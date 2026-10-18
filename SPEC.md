@@ -661,6 +661,26 @@ scene is **Fountain** inside the usual `.md` file, with Chisel's own syntax winn
 - **Not yet:** speaker-aware continuity (facts per speaker), side-by-side dual dialogue, `(CONT'D)` / `(MORE)`, form-specific layouts (stage,
   audio), scene numbering and revisions, FDX, terminal-editor styling.
 
+### Read aloud ✅ (desktop only; `core/reader.py`, `gui/src/reader/`; plan: docs/dev/plan-read-aloud.md)
+Hear the open document with the window's own speech service. **Python decides what is read; the editor plays it.**
+- **The reading model** (`core/reader.py`, pure): `plan(text, mode, entities, options)` -> ordered utterances
+  (`kind`, `voice` role, `text` as shown, `say` as spoken, source range, estimated seconds). One adapter per kind of
+  text: a script (scene headings spoken as words, action by `narrator`, dialogue by the speaker, exact from the cues;
+  parentheticals / transitions only on request), story prose (title, headings, paragraphs, quoted speech split out as
+  the `quote` voice), a research section (citations dropped or "citation", math "equation", figure / table / equation
+  references "the figure"..., code, tables and placements skipped) and any other note (frontmatter skipped).
+  Never read: scene details, notes and boneyard, pending AI drafts (not canon), `{{expand}}` markers, comments. A
+  `say:` key in a note respells its name and aliases for the speech service. Duration: 160 words a minute plus pauses.
+- **Bridge:** `Api.read_plan(doc_id, text, options)` (UTF-16 offsets into the editor text; reads and reports only).
+- **Playback** (`ReadSession`, `chunkSpeech`, `browserEngine`): sentence-sized chunks (engines cut off long speech),
+  generation-token safe against a cancelled chunk's late events; follows by utterance (browser speech reports word
+  positions too unreliably). Sound starts only from a click; typing stops the reading and the next Play plans again.
+- **Voices:** a system voice per role, remembered per project in the browser's local storage on this machine (voice ids
+  differ between machines, so they are not in `project.toml`); defaults spread the voices out; a voice no longer
+  installed falls back to a default.
+- **Not yet:** read-my-part and skip-directions table-read features, a speech-server / voice-pack / cloud engine and
+  audio export, AI dialogue attribution for stories, the terminal app (desktop only by decision).
+
 ### Rename a character everywhere ✅ (feedback batch 2; plan: docs/dev/plan-feedback-2026-10.md)
 Deterministic (no AI). Core `core/rename.py`; GUI: Notes tab -> **Rename everywhere...**; terminal palette:
 `Entity · Rename everywhere...` (the open note, or the name under the cursor) and `Entity · Undo last rename`.

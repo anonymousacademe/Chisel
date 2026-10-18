@@ -3,7 +3,7 @@ import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { redo, redoDepth, selectAll, undo, undoDepth } from "@codemirror/commands";
 import { api } from "../backend/api";
-import { setComments, metaCompartment, metaFacet, reflowCompartment, reflowFacet, setSpans, setSpelling, spansField, spellingField, editorExtensions, type Card, type ContextInfo, type CursorInfo, type SpellTarget } from "../editor/cm";
+import { setComments, setReading, metaCompartment, metaFacet, reflowCompartment, reflowFacet, setSpans, setSpelling, spansField, spellingField, editorExtensions, type Card, type ContextInfo, type CursorInfo, type SpellTarget } from "../editor/cm";
 import { replaceRange, toggleWrap } from "../editor/commands";
 import { nextMisspelling, type Span } from "../editor/spans";
 import type { ScriptNames } from "../editor/script";
@@ -36,6 +36,9 @@ export interface EditorHandle {
   selectRange(from: number, to: number): { x: number; y: number } | null;
   /** Refetch the comments now (after adding, resolving or deleting one). */
   reloadComments(): void;
+  /** Read aloud: highlight [from, to) and keep it in view; clearReading removes the highlight. */
+  showReading(from: number, to: number): void;
+  clearReading(): void;
   /** Clipboard and selection, for the right-click menu. They resolve false when the system clipboard refused. */
   copy(): Promise<boolean>;
   cut(): Promise<boolean>;
@@ -151,6 +154,12 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
       return c ? { x: c.left, y: c.bottom } : null;
     },
     reloadComments: () => fetchComments(),
+    showReading: (from, to) => {
+      const v = view.current;
+      if (!v || from < 0 || to > v.state.doc.length || from >= to) return;
+      v.dispatch({ effects: [setReading.of({ from, to }), EditorView.scrollIntoView(from, { y: "nearest", yMargin: 140 })] });
+    },
+    clearReading: () => view.current?.dispatch({ effects: setReading.of(null) }),
     copy: async () => {
       const v = view.current;
       const { from, to } = v?.state.selection.main ?? { from: 0, to: 0 };

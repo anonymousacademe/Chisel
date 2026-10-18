@@ -24,6 +24,15 @@ All notable changes to Chisel are listed here, newest first. The format follows
   title bar now ignores the right button.
 
 ### Added
+- **Read aloud (desktop).** The speaker button in the editor toolbar opens a reading strip: play from the cursor
+  (or from the start), pause, next and previous passage, stop, a speed, and the time left. The passage being read
+  is highlighted in the text. It works on scenes in any kind of project and on notes. A script is read by speaker
+  (scene headings as words, action by a narrator, each character's lines in their own voice; parentheticals and
+  transitions on request); a story's quoted speech gets its own voice; a research section drops citations and says
+  "equation" and "the figure" for math and references. Pick a voice for each role from the voices your system has
+  (remembered per project on this computer), hear a sample, and give a name its pronunciation with a `say:` line
+  in its note (`say: Kee-eth`). Nothing is spoken until you press play, nothing leaves your computer, and nothing
+  in your project changes. The terminal app does not have it.
 - **A right-click menu in the editor (desktop).** A misspelled word still shows its suggestions. On a character
   or place you have a note for, "Go to note" opens that note's page; on a `[[link]]` with no note yet, or on any
   word, "Create note…" opens the new-note dialog (character, place, object or faction). A selection adds Send to

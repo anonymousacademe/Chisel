@@ -17,6 +17,8 @@ export const setSpelling = StateEffect.define<Misspelling[]>();
 /** The scene's comments with positions (see data/types CommentRow); resolved and detached ones are not drawn. */
 export interface CommentMark { id: string; start: number; end: number }
 export const setComments = StateEffect.define<CommentMark[]>();
+/** The passage being read aloud (read-aloud mode), or null: drawn as a highlight, follows edits. */
+export const setReading = StateEffect.define<{ from: number; to: number } | null>();
 /** Holds metaFacet so the mentions line can change without rebuilding the editor. */
 export const metaCompartment = new Compartment();
 /** Show hard-wrapped source lines as flowing paragraphs (display only). */
@@ -107,6 +109,15 @@ const spellingField = StateField.define<Misspelling[]>({
 });
 
 /** Comment passages follow the text through edits until Python re-anchors them. */
+const readingField = StateField.define<{ from: number; to: number } | null>({
+  create: () => null,
+  update(range, tr) {
+    for (const e of tr.effects) if (e.is(setReading)) return e.value;
+    if (!range || !tr.docChanged) return range;
+    return { from: tr.changes.mapPos(range.from, 1), to: tr.changes.mapPos(range.to, -1) };
+  },
+});
+
 const commentsField = StateField.define<CommentMark[]>({
   create: () => [],
   update(list, tr) {
@@ -197,6 +208,12 @@ function build(state: EditorState): Built {
     atomic.push(SPACE.range(pos, pos + 1));
   }
 
+  // read aloud: the passage being spoken
+  const reading = state.field(readingField);
+  if (reading && reading.from < reading.to && reading.to <= doc.length) {
+    ranges.push(Decoration.mark({ class: "lw-reading" }).range(reading.from, reading.to));
+  }
+
   // comments: a subtle highlight on the passage and a marker in the margin of its first line
   const marks = state.field(commentsField).filter((m) => m.start < m.end && m.end <= doc.length);
   const byLine = new Map<number, string[]>();
@@ -257,7 +274,7 @@ const decoField = StateField.define<Built>({
   update(value, tr) {
     const facetChanged = tr.startState.facet(metaFacet) !== tr.state.facet(metaFacet)
       || tr.startState.facet(reflowFacet) !== tr.state.facet(reflowFacet);
-    if (tr.docChanged || tr.selection || facetChanged || tr.effects.some((e) => e.is(setSpans) || e.is(setSpelling) || e.is(setComments))) return build(tr.state);
+    if (tr.docChanged || tr.selection || facetChanged || tr.effects.some((e) => e.is(setSpans) || e.is(setSpelling) || e.is(setComments) || e.is(setReading))) return build(tr.state);
     return value;
   },
   provide: (f) => [
@@ -378,6 +395,7 @@ export function editorExtensions(kind: string, meta: string, reflow: boolean, ho
     spansField,
     spellingField,
     commentsField,
+    readingField,
     decoField,
     keymap.of([
       ...(screenplay ? [

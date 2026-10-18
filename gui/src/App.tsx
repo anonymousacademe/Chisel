@@ -47,6 +47,8 @@ import { useNotices } from "./hooks/useNotices";
 import { useSyncStatus } from "./hooks/useSyncStatus";
 import { useChatState } from "./hooks/useChatState";
 import { useGlobalShortcuts } from "./hooks/useGlobalShortcuts";
+import { READABLE, useReadAloud } from "./hooks/useReadAloud";
+import { ReaderBar } from "./components/ReaderBar";
 import { useSprintClock } from "./hooks/useSprintClock";
 
 const ZOOMS = [90, 100, 110, 125];
@@ -260,7 +262,11 @@ export default function App() {
     useAiActions({ saver, ws, docRef, editorRef, notify, refresh, openDoc, aiCall, requireAi, setDialog, setIssues, setIssuesSent, setTab,
       setAssistantOpen, setSpansVersion, setNoteVersion, setMentions });
   useGlobalShortcuts({ saver, openDoc, notify, setSwitcher, setFocus, setDialog });
- 
+  // read aloud (desktop): speaks what Python plans (core/reader.py); closed when another document opens
+  const reader = useReadAloud({ editorRef, docRef, projectKey: ws?.project.path ?? "", notify });
+  const closeReader = reader.close;
+  useEffect(() => { closeReader(); }, [doc?.id, closeReader]);
+
   // -- focus sprint (the countdown is client-side; the server keeps the start/end and counts the words) --
   const sprint = ws?.status.stats?.sprint ?? null;
   const endSprint = async (cancelled: boolean) => {
@@ -738,7 +744,8 @@ export default function App() {
           onEditDetails={() => setDialog({ kind: "details" })} onMoveRequest={(plan) => setDialog({ kind: "move", plan })}
           mode={mode} onMode={setMode} focus={focus} onFocus={() => setFocus((f) => !f)} onOpen={(id) => void openDoc(id)}
           editorRef={editorRef} docRev={docRev} spansVersion={spansVersion} cursor={cursor} saveState={saveState}
-          onChange={(t) => { saver.edit(t); pingTyping(); }} onCursor={onCursor} onBlur={() => void saver.flush()}
+          onChange={(t) => { saver.edit(t); pingTyping(); reader.noteEdited(); }} onCursor={onCursor}
+          readerBar={<ReaderBar reader={reader} />} readerActive={reader.state.open} canRead={!!doc && READABLE.includes(doc.kind)} onReadAloud={() => void (reader.state.open ? reader.close() : reader.open())} onBlur={() => void saver.flush()}
           onSaveNow={() => void saveNow()} onReload={() => void reloadFromDisk()} onKeepMine={() => void keepMine()}
           onMakeNote={() => makeNote(false)} getCard={getCard} onOpenEntity={openEntitySpan}
           onResolveDraft={(i, a) => void resolveDraft(i, a)}

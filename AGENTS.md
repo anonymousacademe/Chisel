@@ -59,6 +59,7 @@ src/chisel/
     relationships.py    # relationships: the ## Relationships section of a note (parse/set_section) and rows() with derived inverses (never written into the other note)
     fountain.py         # script mode: Fountain parser (parse/spans/cues), elements, layout + paginate + page estimate, import_text / export_text; pure, no Project
     fountainio.py       # script mode: read a .fountain file, write its parts and scenes into a project (new files only)
+    reader.py           # read aloud: plan(text, mode, entities, options) -> utterances (kind, voice role, text, say, range, seconds); script / story / research / note adapters; pure, no audio
     export/             # M7: manuscript.py (assemble -> Book), layouts/ (PDF: book, manuscript, plain, screenplay [scripts only]), script.py (Fountain writer),
                         #   pdfkit.py (fonts), markdown.py, pandoc.py, __init__.py (run_export, options)
   ai/
@@ -83,6 +84,7 @@ src/chisel/
     versions_api.py     # VersionsMixin: snapshots, start_new_draft, git sync
     export_api.py       # ExportMixin: export_info / summary / start / status / open
     script_api.py       # ScriptMixin: import_fountain (script projects; the file dialog is the window's)
+    reader_api.py       # ReaderMixin: read_plan (read aloud; the utterance list the editor speaks; desktop only)
     notebook_api.py     # NotebookMixin: notebook notes (the Ask-my-notebook chat `research` stays in api.py)
     annotations_api.py  # AnnotationsMixin: comments, collections
     inspiration_api.py  # InspirationMixin: picture listing, upload, edit, delete (describe/generate stay in api.py)
@@ -402,6 +404,16 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
     the completion list applies (`completionSpot`) and reads a line's element from the spans. Tab is bound only in
     script scenes; the editor drops the answer if the line changed while the bridge call was out. Completion needs
     `@codemirror/autocomplete` (a direct dependency now) and offers a cue only for text typed in capitals.
+- **Read aloud** (`core/reader.py`, `gui/reader_api.py`, `gui/src/reader/`, `hooks/useReadAloud.ts`, `components/ReaderBar.tsx`;
+  SPEC "Read aloud", docs/dev/plan-read-aloud.md) is **desktop only** (an exception to "change both front ends": the terminal
+  app has no audio and gets nothing). Python decides what is read (`reader.plan`; one adapter per mode, never a second
+  parser in TypeScript) and the editor only speaks the list through `SpeechEngine` (`browserEngine` today; a later engine
+  returns audio clips behind the same interface). Rules: sound starts only from a click (Play), never on open; the reader
+  is read-only (it never changes a file); pending drafts, details, notes and `{{expand}}` are blanked same-length before
+  scanning (`reader.prepare`) so ranges stay valid; ranges cross the bridge in UTF-16; `ReadSession` ignores callbacks
+  of a cancelled chunk (generation token) because speech services report a cancel as an `end` or an `error`; long
+  utterances are spoken in chunks (`chunkSpeech`); voice choices are per project in local storage, never in `project.toml`
+  (voice ids are machine-specific); typing stops reading (`noteEdited`) because the plan's ranges no longer match.
 - **Story time is optional** (`core/timeline.py`; SPEC "Story time"). `when:` (scene frontmatter) and `born:`
   (entity frontmatter) are a year, optional month and day, as `StoryTime(year, month|None, day|None)`: never a
   `datetime` (years past 9999 and negative ones must work; missing month/day sorts first). A scene without
