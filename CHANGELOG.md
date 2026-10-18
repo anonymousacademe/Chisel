@@ -33,8 +33,12 @@ All notable changes to Chisel are listed here, newest first. The format follows
   parenthetical, transition), and a list offers your characters for capital letters at the start of a block
   and your places after `INT.` / `EXT.`. In a script project the assistant writes Fountain: draft at the cursor,
   expand a placeholder and rewrite a selection produce scene headings, action and dialogue in screenplay
-  form, a draft starts on a new line of its own, and the chat proposes script text you can paste in. Continuity
-  checks and voice checks for scripts come later.
+  form, a draft starts on a new line of its own, and the chat proposes script text you can paste in. A new
+  **Voices** check (assistant quick action; "Check dialogue voices" in the terminal app) compares what each
+  character says in the open scene with what the same character says in the rest of the script, nearest scenes
+  first, and flags lines that do not sound like them: a quote of the line, what differs, and a rewrite in their
+  voice. A character with fewer than five lines elsewhere is not judged, and the check says so. Findings are
+  suggestions (dismiss one and it is not reported again); the script is never changed.
 - **Character relationships.** A character note can declare its relationships in a `## Relationships`
   section (`- [[Rook Tanaka]] — father; estranged`); the app reads it wherever the note is shown. The
   note panel (desktop) lists what the note declares, what the other notes say about it ("from their

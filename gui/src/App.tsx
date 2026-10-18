@@ -253,7 +253,7 @@ export default function App() {
     useSceneOps({ saver, ws, doc, docRef, editorRef, notify, refresh, openDoc, setDoc, setDialog, setExpanded, setPartFocus, setMentions, focusNextOpen });
   const { createResearch, researchFromUrl, deleteResearch, sendSelectionToNotebook } =
     useNotebookOps({ saver, docRef, editorRef, notify, refresh, openDoc, setDoc, setDialog, setExpanded, focusNextOpen });
-  const { liveText, quickContinuity, reviewIssue, dismissIssue, restoreWaived, findAliases, applyAliases, suggestRelationships, applyRelationships, updateBible, applyCanon,
+  const { liveText, quickContinuity, quickVoice, reviewIssue, dismissIssue, restoreWaived, findAliases, applyAliases, suggestRelationships, applyRelationships, updateBible, applyCanon,
     openStyle, learnStyle, saveStyle, runGenerate, startGenerate, rewriteSelection, resolveDraft, resolveAtCursor } =
     useAiActions({ saver, ws, docRef, editorRef, notify, refresh, openDoc, aiCall, requireAi, setDialog, setIssues, setIssuesSent, setTab,
       setAssistantOpen, setSpansVersion, setNoteVersion, setMentions });
@@ -487,7 +487,8 @@ export default function App() {
     else if (a === "research") {
       setResearchMode((on) => !on);
       if (!researchMode && !ws?.research.length) notify("Ask my notebook answers from your notebook notes. Add some under Notebook in the binder first (+ New note, or paste a link).");
-    } else void quickContinuity();
+    } else if (a === "voice") void quickVoice();
+    else void quickContinuity();
   };
   const openAiMenu = (anchor: HTMLElement) => setMenu({ anchor, items: [
     { label: "New chat", onSelect: newChat },
@@ -732,7 +733,7 @@ export default function App() {
             { key: "Mod-g", run: startGenerate },
           ]} />
         {showAssistant && (
-          <Assistant story={ws.project.mode !== "research"} tab={tab} onTab={setTab} mentions={mentions} onPickEntity={showNote}
+          <Assistant story={ws.project.mode !== "research"} script={ws.project.mode === "script"} tab={tab} onTab={setTab} mentions={mentions} onPickEntity={showNote}
             note={note} missingTarget={missingTarget} onOpenNote={(id) => void openDoc(id)} onAddAlias={(n, a) => void addAlias(n, a)} onSetBorn={(n, b) => void setBorn(n, b)} onSuggestRelationships={(n) => void suggestRelationships(n)} onRename={(n, al) => setDialog({ kind: "rename-note", name: n, aliases: al })}
             onCreateNote={(t) => setDialog({ kind: "new-note", name: t, openAfter: false })} onOpenBacklink={(id, row) => void openBacklink(id, row)}
             issues={issues} issuesSent={issuesSent} onReviewIssue={reviewIssue} onDismissIssue={(i) => void dismissIssue(i)}

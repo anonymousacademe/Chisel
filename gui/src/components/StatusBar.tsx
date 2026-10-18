@@ -102,7 +102,7 @@ export function StatusBar(props: {
         {props.pagesLabel !== undefined && (
           <>
             <span className="lw-status__div" />
-            <span className="lw-status__item" title="Estimated screenplay pages (Courier 12, 55 lines a page): about a minute of screen time each">{props.pagesLabel} pages</span>
+            <span className="lw-status__item" title="Estimated screenplay pages (Courier 12, 55 lines a page): about a minute of screen time each">{props.pagesLabel} {props.pagesLabel === "1" ? "page" : "pages"}</span>
           </>
         )}
         <span className="lw-status__div" />

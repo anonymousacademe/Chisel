@@ -221,7 +221,16 @@ export interface Issue {
   entity: string;
   evidence: string;       // quoted from the scene
   fix: string;
+  /** Voice checks: what differs from how the character speaks elsewhere (continuity issues have none). */
+  reason?: string;
   row: number | null;     // 0-based line of the evidence in the editor text, if found
+}
+
+/** What check_voice reports besides the issues: who was judged and who had too few lines elsewhere to compare. */
+export interface VoiceCheckInfo {
+  checked: string[]; skipped: { speaker: string; lines: number }[]; minLines: number;
+  /** Speakers with enough lines whose reference lines did not fit the model's window. */
+  notFit: string[];
 }
 
 export interface AliasSuggestion { entity: string; surface: string; alias: string; before: string; after: string }

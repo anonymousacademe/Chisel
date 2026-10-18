@@ -26,6 +26,12 @@ TYPES = (
     "object_custody",
     "present_absent",
     "spelling_drift",
+    # script mode voice checks (ai/voice.py): a character's lines do not sound like the same character elsewhere
+    "voice_vocabulary",
+    "voice_register",
+    "voice_rhythm",
+    "voice_verbal_habit",
+    "voice_out_of_character",
 )
 SEVERITIES = ("error", "warning", "note")
 
@@ -42,6 +48,7 @@ class Contradiction:
     suggested_fix: str
     scene: str = ""  # project-relative path of the offending scene
     row: int | None = None  # 0-based line in that scene, if locatable
+    reason: str = ""  # voice checks: what differs (continuity flags leave it empty)
 
     def waiver_key(self) -> str:
         """Stable identity for waivers — survives re-checks even if the
@@ -67,7 +74,7 @@ def contradiction_from_dict(
         return None
     if not entity or not evidence:
         return None
-    return Contradiction(ctype, severity, entity, evidence, fix, scene, row)
+    return Contradiction(ctype, severity, entity, evidence, fix, scene, row, str(data.get("reason") or ""))
 
 
 # -- waivers ---------------------------------------------------------------

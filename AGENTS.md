@@ -392,6 +392,12 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
     its old signature, so the many test fakes stay valid), and `gui/mockai.py: generate_text` accepts it. Replies go
     through `clean_script_output` (a `[[x]]` would become a link to a missing note). Drafts inserted at the cursor
     use `drafts.prepare_draft(script=True)` (a new block, not a glued space); rewrite / expand replace in place.
+  - Voice checks (`core/voice.py`, `ai/voice.py`, `Api.check_voice`, TUI `check_voice`; plan section 5): who speaks is
+    read from the cues (`voice.speeches`), never asked of the AI. The reply is validated app-side (`parse_findings`:
+    the character must speak in the scene and the quote must be words they speak there). Findings are `Contradiction`s
+    with a `voice_*` type and a `reason`, so waivers, the issue cards and `ContinuityScreen` are shared; the mocked name
+    is `chisel.gui.api.voice_check` (in `mockai` and the signature test). References go through the budget
+    (`Item.cap`, farthest scene cut first, reported); a speaker with under `MIN_REFERENCE_LINES` is returned as skipped.
   - Typing aids: the Tab ring lives in `fountain.cycle_element` (Python); `editor/script.ts` only decides where
     the completion list applies (`completionSpot`) and reads a line's element from the spans. Tab is bound only in
     script scenes; the editor drops the answer if the line changed while the bridge call was out. Completion needs

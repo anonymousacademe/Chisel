@@ -1,6 +1,7 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { api } from "../backend/api";
-import type { AliasSuggestion, CanonProposal, DocumentPayload, GenerateResult, Issue, RelationshipSuggestion, SceneMention, SentReport as SentInfo, Workspace } from "../data/types";
+import type { AliasSuggestion, CanonProposal, DocumentPayload, GenerateResult, Issue, RelationshipSuggestion, SceneMention, SentReport as SentInfo, VoiceCheckInfo, Workspace } from "../data/types";
+import { voiceNotice } from "../data/script";
 import type { Dialog } from "../data/dialog";
 import type { AiKind } from "../backend/api";
 import { anchorDraft } from "../editor/drafts";
@@ -49,6 +50,16 @@ export function useAiActions(d: Deps) {
     const waived = r.waived ? ` (${r.waived} waived)` : "";
     notify((r.issues.length ? `${r.issues.length} possible conflict${r.issues.length === 1 ? "" : "s"}` : "No continuity issues found") + waived + cost(r.cost)
       + (isTrimmed(r.sent) ? `; ${sentSummary(r.sent)}` : ""), "info", { label: "What was sent", run: () => setDialog({ kind: "sent", report: r.sent }) });
+  };
+  const quickVoice = async () => {
+    const d = docRef.current;
+    if (!d || d.kind !== "scene") return notify("Open a scene first.");
+    const r = await aiCall<VoiceCheckInfo & { issues: Issue[]; waived: number; cost: number | null; sent: SentInfo }>(
+      "Checking voices…", "checking voices", "voice", { doc_id: d.id, text: liveText() });
+    if (!r || docRef.current?.id !== d.id) return;
+    setIssues(r.issues); setIssuesSent(r.sent); setTab("assistant"); setAssistantOpen(true);
+    notify(voiceNotice(r) + cost(r.cost) + (isTrimmed(r.sent) ? `; ${sentSummary(r.sent)}` : ""), "info",
+      { label: "What was sent", run: () => setDialog({ kind: "sent", report: r.sent }) });
   };
   const reviewIssue = (it: Issue) => {
     if (it.row === null) notify("Could not locate that passage; the quote on the card is what the assistant flagged.");
@@ -209,6 +220,6 @@ export function useAiActions(d: Deps) {
     return true;
   };
 
-  return { liveText, quickContinuity, reviewIssue, dismissIssue, restoreWaived, findAliases, applyAliases, suggestRelationships, applyRelationships, updateBible, applyCanon,
+  return { liveText, quickContinuity, quickVoice, reviewIssue, dismissIssue, restoreWaived, findAliases, applyAliases, suggestRelationships, applyRelationships, updateBible, applyCanon,
     openStyle, learnStyle, saveStyle, runGenerate, startGenerate, rewriteSelection, resolveDraft, resolveAtCursor };
 }

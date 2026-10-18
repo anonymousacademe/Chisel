@@ -113,10 +113,11 @@ async def test_palette_search_empty_query_matches_all(tmp_path: Path):
         scenes = [h async for h in SceneProvider(app.screen).search("  ")]
         # git actions are listed only when they apply (Wave 2.3): no repo here, so
         # only "Initialize git" is among them
-        # and "Import Fountain file" only in script projects
+        # and "Import Fountain file" / "Check dialogue voices" only in script projects
+        script_only = ("import_fountain_prompt", "check_voice")
         listed = [m for _, m, _ in ActionProvider.ACTIONS
-                  if (not m.startswith("sync_") or app.sync_visible(m)) and m != "import_fountain_prompt"]
-    assert len(hits) == len(listed) == len(ActionProvider.ACTIONS) - 3
+                  if (not m.startswith("sync_") or app.sync_visible(m)) and m not in script_only]
+    assert len(hits) == len(listed) == len(ActionProvider.ACTIONS) - 4
     assert len(scenes) == 3
 
 

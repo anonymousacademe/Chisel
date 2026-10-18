@@ -210,6 +210,8 @@ class ActionProvider(_Provider):
          "AI: propose relationships for the open note, from its point of view"),
         ("Check scene for continuity issues", "check_continuity",
          "AI: flag contradictions with the story bible"),
+        ("Check dialogue voices", "check_voice",
+         "AI (script projects): does each character sound like themselves, compared with their lines in other scenes"),
         ("Restore waived continuity issues (this scene)", "restore_waived",
          "Un-waive this scene's continuity flags so the next check reports them"),
         ("Update story bible from scene", "update_bible",
@@ -253,8 +255,9 @@ class ActionProvider(_Provider):
             visible = getattr(app, "sync_visible", None)
             if visible is not None and method.startswith("sync_") and not visible(method):
                 continue
-            if method == "import_fountain_prompt" and not (app.project is not None and app.project.mode == "script"):
-                continue   # only script projects import Fountain
+            if method in ("import_fountain_prompt", "check_voice") and not (
+                    app.project is not None and app.project.mode == "script"):
+                continue   # only script projects import Fountain or check voices
             if method == "toggle_unit":  # names the switch it performs
                 title = "Call them scenes" if chapters else "Call them chapters"
             elif chapters:  # the manuscript's unit is a label only

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Sparkles, History, PanelRightClose, Lightbulb, WandSparkles, ScanSearch, BookSearch, LocateFixed, Copy,
-  RefreshCw, BookmarkPlus, UserRound, X, FileText, ArrowUpRight, Paperclip, ArrowUp, Ellipsis, TextCursorInput, Feather,
+  RefreshCw, BookmarkPlus, UserRound, X, FileText, ArrowUpRight, Paperclip, ArrowUp, Ellipsis, TextCursorInput, Feather, MessageSquareQuote,
   type LucideIcon,
 } from "lucide-react";
 import type { ChatMessage, EntityInfo, Issue, SceneMention, SentReport as Report, StyleStatus } from "../data/types";
@@ -17,7 +17,7 @@ import { stopOnEsc, useElapsed, secs, type AiRunView } from "./aiRun";
 
 export type AssistantTab = "assistant" | "context" | "notes" | "inspiration";
 import { ASK_NOTEBOOK_HINT } from "../data/notebook";
-export type QuickAction = "brainstorm" | "rewrite" | "continuity" | "research";
+export type QuickAction = "brainstorm" | "rewrite" | "continuity" | "voice" | "research";
 type Tab = AssistantTab;
 const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 
@@ -25,17 +25,22 @@ const tools: { icon: LucideIcon; title: string; detail: string; action?: QuickAc
   { icon: Lightbulb, title: "Brainstorm", detail: "Plot, character, image", action: "brainstorm" },
   { icon: WandSparkles, title: "Rewrite", detail: "Tone, clarity, rhythm", action: "rewrite" },
   { icon: ScanSearch, title: "Continuity", detail: "Facts, timeline, logic", action: "continuity" },
+  { icon: MessageSquareQuote, title: "Voices", detail: "Does each character sound like themselves", action: "voice" },
   { icon: BookSearch, title: "Ask my notebook", detail: ASK_NOTEBOOK_HINT, action: "research" },
 ];
 
 const TYPE_LABEL: Record<string, string> = {
   physical_attribute: "Physical attribute", timeline: "Timeline", character_knowledge: "Character knowledge",
   object_custody: "Object custody", present_absent: "Present / absent", spelling_drift: "Spelling drift",
+  voice_vocabulary: "Word choice", voice_register: "Register", voice_rhythm: "Rhythm",
+  voice_verbal_habit: "Verbal habit", voice_out_of_character: "Out of character",
 };
 
 export function Assistant(props: {
   /** False in research mode (see NotesPanel). */
   story?: boolean;
+  /** Script mode: the Voices quick action is offered. */
+  script?: boolean;
   tab: AssistantTab; onTab: (t: AssistantTab) => void;
   mentions: SceneMention[]; onPickEntity: (name: string) => void;
   note: EntityInfo | null; missingTarget: string | null;
@@ -139,7 +144,7 @@ export function Assistant(props: {
                 <span className="lw-mono lw-faint">{isMac ? "⌘ J" : "Ctrl J"}</span>
               </div>
               <div className="lw-quick__grid">
-                {tools.map((t) => (
+                {tools.filter((t) => t.action !== "voice" || props.script).map((t) => (
                   <button key={t.title} className={`lw-tool${t.action === "research" && props.researchMode ? " is-on" : ""}`} aria-pressed={t.action === "research" ? props.researchMode : undefined}
                     disabled={!!t.action && (busy || !props.aiReady)}
                     {...(t.action ? { onClick: () => props.onQuick(t.action!) } : placeholderProps)}>
@@ -162,14 +167,15 @@ export function Assistant(props: {
               <section key={it.key} className="lw-insight">
                 <div className="lw-insight__heading">
                   <span className="lw-row lw-gap-6">
-                    <Icon icon={ScanSearch} size={14} stroke={1.7} color="var(--lw-accent-text)" />
-                    <strong>Continuity check</strong>
+                    <Icon icon={it.type.startsWith("voice_") ? MessageSquareQuote : ScanSearch} size={14} stroke={1.7} color="var(--lw-accent-text)" />
+                    <strong>{it.type.startsWith("voice_") ? "Voice check" : "Continuity check"}</strong>
                   </span>
-                  <Tag>1 conflict</Tag>
+                  <Tag>{it.type.startsWith("voice_") ? "off voice" : "1 conflict"}</Tag>
                 </div>
                 <p className="lw-insight__kind">{TYPE_LABEL[it.type] ?? it.type} · {it.entity}</p>
                 <p className="lw-insight__quote">“{it.evidence}”</p>
-                {it.fix && <p>{it.fix}</p>}
+                {it.reason && <p>{it.reason}</p>}
+                {it.fix && <p>{it.type.startsWith("voice_") ? <><strong>Try:</strong> {it.fix}</> : it.fix}</p>}
                 <div className="lw-row lw-gap-8">
                   <button className="lw-btn lw-btn--grow" onClick={() => props.onReviewIssue(it)}>
                     <Icon icon={LocateFixed} size={14} stroke={1.8} /> Review passage

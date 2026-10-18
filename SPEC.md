@@ -650,7 +650,15 @@ scene is **Fountain** inside the usual `.md` file, with Chisel's own syntax winn
   prompt, prompts per mode, a reply cleaned of notes, bold cues and blank runs); a draft inserted at the cursor
   starts a new block. Same context budget, "What was sent" report and accept / reject as in story mode; AI never
   edits the script unprompted.
-- **Not yet:** speaker-aware continuity and per-character voice checks, side-by-side dual dialogue, `(CONT'D)` / `(MORE)`, form-specific layouts (stage,
+- **Voice checks** (`core/voice.py`, `ai/voice.py`; plan docs/dev/plan-script-mode.md section 5): the desktop
+  "Voices" quick action and the terminal "Check dialogue voices" judge each speaker's lines in the open scene
+  against the same speaker's lines in the other scenes (nearest first; cues are exact, so no AI finds who speaks).
+  Same shape as continuity: a plan through the context budget with a "What was sent" report, one structured call
+  with the strong model, findings validated app-side (the character must speak in the scene and the quote must be
+  words they speak there, verbatim), shown as continuity-style issues with waivers (`voice_vocabulary`,
+  `voice_register`, `voice_rhythm`, `voice_verbal_habit`, `voice_out_of_character`; a `reason` and a suggested
+  line). A speaker with fewer than five lines elsewhere is reported as not judged. Reads and reports only.
+- **Not yet:** speaker-aware continuity (facts per speaker), side-by-side dual dialogue, `(CONT'D)` / `(MORE)`, form-specific layouts (stage,
   audio), scene numbering and revisions, FDX, terminal-editor styling.
 
 ### Rename a character everywhere ✅ (feedback batch 2; plan: docs/dev/plan-feedback-2026-10.md)

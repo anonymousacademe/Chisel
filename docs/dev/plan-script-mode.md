@@ -43,8 +43,8 @@ a scene (Fountain), how it is drawn, counted and exported.
 
 ## 4. Not built (in order)
 
-1. **AI, remaining part**: continuity that reads speakers, and dialogue voice checks per character. These go
-   through the same context budget and review UI as story mode. (Built since: draft / expand / rewrite and the
+1. **AI, remaining part**: continuity that reads speakers (facts per speaker). It goes through the same context
+   budget and review UI as story mode. (Built since: voice checks, see section 5, built 2026-10-19; and: draft / expand / rewrite and the
    chat write Fountain in a script project. `ai/writing.py` has `SCRIPT_SYSTEM_PROMPT`, the script variants of the
    three task prompts, `clean_script_output` (no notes or boneyard, no bold cues, no runs of blank lines) and
    `ask_system_prompt(script)`; a draft inserted at the cursor starts a new block (`drafts.prepare_draft(script=)`);
@@ -62,3 +62,29 @@ a scene (Fountain), how it is drawn, counted and exported.
    locked pages, FDX export.
 6. **Terminal editor formatting.**
 7. Reports: per-character line counts and scenes, per-location lists (a plain query over the parse).
+
+## 5. Voice checks (design, 2026-10-19)
+
+**Goal.** Tell the author when a character's lines in the open scene do not sound like that character elsewhere in
+the script. Script projects only: a script marks every speaker (the cue), so who says what is exact and needs no AI.
+
+**Shape (the continuity shape, so both front ends and the waivers are reused):**
+1. `core/voice.py` (pure, no AI): `speeches(text)` groups each cue with its spoken lines (parentheticals and notes
+   left out) and the row of each; `by_speaker` files them under the character note's name when the cue resolves to
+   one (aliases, any case), else under the cue as written, so a recurring character with no note is still checked;
+   `gather_references` collects the same speaker's lines from the OTHER scenes, closest scene first.
+2. `ai/voice.py`: `plan_voice` (before any network call) builds sections through the context budget - instructions
+   and schema (never dropped), the style guide, the notes of the speakers, each speaker's reference lines
+   (`Item.cap`, farthest scenes cut first, everything cut named in the "What was sent" report) and the scene -
+   and raises `BudgetError` when the scene alone does not fit. A speaker with fewer than 5 reference lines is not
+   judged: it is returned as skipped, with its line count, never guessed at. `check_voice` is one structured call
+   with the strong model. `parse_findings` keeps a finding only if its character speaks in the scene and its
+   evidence is words that character speaks there, verbatim (a quote from anywhere else is dropped).
+3. A finding is a `Contradiction` of type `voice_vocabulary | voice_register | voice_rhythm | voice_verbal_habit |
+   voice_out_of_character` (new `reason` field: what differs), `evidence` the line, `suggested_fix` that line in the
+   character's voice. Waivers, "jump to the line" and the issue cards are the continuity ones.
+4. Suggest and confirm: the check reads and reports; it never changes the script. Applying a suggestion is the
+   author's edit (or a rewrite draft they ask for).
+
+**Not in v1:** a deterministic voice report (line counts, words per speech per character), checking several
+scenes at once, story-mode dialogue (no reliable speaker marks), a "talk as this character" mode.

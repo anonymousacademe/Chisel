@@ -42,14 +42,15 @@ class ContinuityScreen(ModalScreen[Contradiction | None]):
         Binding("escape", "done", "Done"),
     ]
 
-    def __init__(self, contradictions: list[Contradiction]) -> None:
+    def __init__(self, contradictions: list[Contradiction], noun: str = "continuity issue(s)") -> None:
         super().__init__()
         self._contradictions = contradictions
+        self._noun = noun
         self._waived: set[str] = set()
 
     def compose(self) -> ComposeResult:
         yield Label(
-            f"{len(self._contradictions)} continuity issue(s) — your call"
+            f"{len(self._contradictions)} {self._noun} — your call"
             " on every one.",
             id="continuity-header",
         )
@@ -76,10 +77,12 @@ class ContinuityScreen(ModalScreen[Contradiction | None]):
         evidence = " ".join(c.evidence.split())
         if len(evidence) > 70:
             evidence = evidence[:67] + "..."
+        why = f"    why: {c.reason}\n" if c.reason else ""
         return Text(
             f"[{mark}] {c.type} — {c.entity}{where}{waived}\n"
             f"    {evidence}\n"
-            f"    fix: {c.suggested_fix}"
+            f"{why}"
+            f"    {'try' if c.type.startswith('voice_') else 'fix'}: {c.suggested_fix}"
         )
 
     def _refresh_row(self, i: int) -> None:

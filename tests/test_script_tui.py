@@ -137,3 +137,74 @@ async def test_ctrl_g_in_a_script_asks_for_fountain_and_starts_a_block(tmp_path:
         body = app.editor.text[pending.body_start:pending.body_end]
         assert body.rstrip("\n").endswith("BOB\nHello there.")
         assert SCRIPT_SYSTEM_PROMPT.startswith("You are a ghostwriter helping a screenwriter")
+
+
+# -- voice checks ---------------------------------------------------------------------------------
+
+
+async def test_the_palette_offers_voice_checks_only_to_scripts(tmp_path: Path):
+    script = ChiselApp(make_script(tmp_path / "s"))
+    async with script.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        assert "Check dialogue voices" in entries(script)
+    story = ChiselApp(Project.create(tmp_path / "n", "Novel"))
+    async with story.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        assert "Check dialogue voices" not in entries(story)
+
+
+async def test_check_voice_shows_findings_in_the_review_screen(tmp_path: Path, monkeypatch):
+    import chisel.ai.voice as ai_voice
+    from chisel.core.continuity import Contradiction
+    from chisel.tui.continuityscreen import ContinuityScreen
+    from tests.test_voice_ai import make
+
+    project, cur = make(tmp_path)
+    seen = {}
+
+    def fake(scene_text, plan, entities, model, client=None, scene_rel=""):
+        seen["checked"] = plan.checked
+        return [Contradiction("voice_register", "warning", "Keith", "Notwithstanding the aforementioned obligation",
+                              "Nah, I'm not paying that.", scene_rel, 6, "Keith never talks this formally.")]
+
+    monkeypatch.setattr(ai_voice, "check_voice", fake)
+    app = ChiselApp(project)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.open_file(cur)
+        await pilot.pause()
+        app.check_voice()
+        await pilot.pause(1.0)
+        screen = app.screen
+        assert isinstance(screen, ContinuityScreen)
+        assert seen["checked"] == ("Keith",)
+        text = str(screen._row_text(0))
+        assert "voice_register" in text and "why: Keith never talks this formally." in text
+        assert "try: Nah, I'm not paying that." in text
+        assert "1 voice issue(s)" in str(screen.query_one("#continuity-header").render())
+
+
+async def test_check_voice_is_refused_for_stories_and_for_nothing_to_compare(tmp_path: Path, monkeypatch):
+    import chisel.ai.voice as ai_voice
+    from chisel.tui.continuityscreen import ContinuityScreen
+    from tests.test_voice_ai import make
+
+    monkeypatch.setattr(ai_voice, "check_voice", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no call expected")))
+    story = Project.create(tmp_path / "n", "Novel")
+    app = ChiselApp(story)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.open_file(story.list_scenes()[0])
+        await pilot.pause()
+        app.check_voice()
+        await pilot.pause(0.5)
+        assert not isinstance(app.screen, ContinuityScreen)
+    project, cur = make(tmp_path / "x", with_refs=False)          # one line elsewhere: nothing to compare
+    app = ChiselApp(project)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.open_file(cur)
+        await pilot.pause()
+        app.check_voice()
+        await pilot.pause(1.0)
+        assert not isinstance(app.screen, ContinuityScreen)

@@ -44,6 +44,7 @@ from ..ai.relationships import (
     suggest_relationships,
 )
 from ..ai.style import learn_style
+from ..ai.voice import check_voice as voice_check, plan_voice
 from ..ai.stream import call_ai
 from ..ai.usage import LEDGER
 from ..ai.writing import (
@@ -79,6 +80,7 @@ from ..core.continuity import (
     locate_evidence,
     save_waiver,
 )
+from ..core import voice as dialogue_voice
 from ..core.project import Project, default_project_path, write_atomic
 from ..core.spans import compute_spans, from_utf16, index_to_utf16, to_utf16
 from ..core.style import (
@@ -730,7 +732,7 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
     AI_JOBS = {
         "ask": "ask", "research": "research", "brainstorm": "brainstorm", "generate": "generate",
         "continuity": "check_continuity", "canon": "propose_canon", "aliases": "find_aliases",
-        "relationships": "suggest_relationships",
+        "relationships": "suggest_relationships", "voice": "check_voice",
         "style": "learn_style", "image": "generate_inspiration", "describe_scene": "describe_scene",
         "image_regenerate": "regenerate_inspiration",
     }
@@ -886,6 +888,36 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
         } for c in shown]
         return {"issues": issues, "waived": len(found) - len(shown),
                 "cost": self._spent(calls), "sent": sent.to_dict()}
+
+    @bridge
+    def check_voice(self, doc_id: str, text: str | None = None) -> dict:
+        """Script projects: do each character's lines in this scene sound like that character elsewhere?
+        Issues in the continuity shape (waived ones omitted) plus `checked` / `skipped` speakers: a speaker with
+        too few lines elsewhere is named in `skipped`, never guessed at. Reads and reports; changes nothing."""
+        with self._lock:
+            inp = self._scene_inputs(doc_id, text)
+            project = inp["project"]
+            if project.mode != "script":
+                raise ValueError("Voice checks are for script projects: a script marks who speaks every line")
+            scene_text = drafts.strip_pending(inp["text"], inp["originals"])
+            model = resolve_model("strong", project.meta)
+            canon, style_md, budget = canon_map(inp["entities"]), load_style(project), Budget.for_model(model)
+        # outside the lock: planning reads and parses every other scene, and a held lock freezes saves
+        plan = plan_voice(scene_text, inp["path"], project, inp["entities"], canon, style_md, budget)
+        calls = LEDGER.count()
+        found = voice_check(scene_text, plan, inp["entities"], model, scene_rel=inp["rel"]) if plan.checked else []
+        with self._lock:
+            waived = load_waivers(project.root)
+        shown = filter_waived(found, waived)
+        issues = [{
+            "key": c.waiver_key(), "type": c.type, "severity": c.severity, "entity": c.entity,
+            "evidence": c.evidence, "fix": c.suggested_fix, "reason": c.reason,
+            "row": locate_evidence(inp["text"], c.evidence),     # in the text the author sees
+        } for c in shown]
+        return {"issues": issues, "waived": len(found) - len(shown), "checked": list(plan.checked),
+                "skipped": [{"speaker": n, "lines": k} for n, k in plan.skipped],
+                "notFit": list(plan.dropped), "minLines": dialogue_voice.MIN_REFERENCE_LINES,
+                "cost": self._spent(calls), "sent": plan.report.to_dict()}
 
     @bridge
     def waive(self, key: str, doc_id: str) -> dict:

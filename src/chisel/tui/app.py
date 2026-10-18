@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import logging
 import time
 from dataclasses import replace
@@ -1459,6 +1460,65 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
         if cost:
             self.notify(f"Continuity check done{cost}", timeout=3)
         self.push_screen(ContinuityScreen(results), self._continuity_closed)
+
+    def action_check_voice(self) -> None:
+        """AI (script projects): does each character sound like themselves in the open scene?"""
+        if self.project is None or not self._is_scene(self.current_path):
+            self.notify("Open a scene first", severity="warning")
+            return
+        if self.project.mode != "script":
+            self.notify("Voice checks are for script projects: a script marks who speaks every line",
+                        severity="warning")
+            return
+        self.notify("Checking voices…", timeout=2)
+        self._check_voice_worker()
+
+    check_voice = action_check_voice
+
+    @work(exclusive=True)
+    async def _check_voice_worker(self) -> None:
+        from ..ai.voice import check_voice as voice_check, plan_voice
+        from ..core.voice import MIN_REFERENCE_LINES
+
+        entities = list(self.entities)
+        scene_text = drafts.strip_pending(self.editor.text, self._originals(self.editor.text))
+        scene_rel = self.current_path.relative_to(self.project.root).as_posix()
+        calls = LEDGER.count()
+        model = self._ai_strong_model()
+        try:
+            plan = await asyncio.to_thread(     # it reads every other scene: not on the UI thread
+                plan_voice, scene_text, self.current_path, self.project, entities, self._canon_map(),
+                load_style(self.project), Budget.for_model(model))
+            results = await self._ai_call(
+                "checking voices", voice_check, scene_text, plan, entities, model,
+                scene_rel=scene_rel) if plan.checked else []
+        except Cancelled:
+            return
+        except ValueError as exc:     # nobody speaks here, or the scene does not fit: nothing was sent
+            self.notify(str(exc), severity="warning", timeout=8)
+            return
+        except Exception as exc:
+            log_exc("_check_voice_worker failed", exc, level=logging.WARNING)
+            self.notify(f"Voice check failed: {exc}", severity="error", timeout=6)
+            return
+        cost = self._cost_note(calls, plan.report)
+        skipped = ""
+        if plan.skipped:
+            skipped = (f" Not judged (fewer than {MIN_REFERENCE_LINES} lines elsewhere): "
+                       + ", ".join(f"{n} ({k})" for n, k in plan.skipped) + ".")
+        if plan.dropped:
+            skipped += (" Not compared (their lines did not fit the model's window): "
+                        + ", ".join(plan.dropped) + ".")
+        if not plan.checked:
+            self.notify("Nothing to compare yet." + skipped, timeout=8)
+            return
+        results = filter_waived(results, load_waivers(self.project.root))
+        if not results:
+            self.notify("Every checked line sounds like its character." + skipped + cost, timeout=6)
+            return
+        if cost or skipped:
+            self.notify(f"Voice check done.{skipped}{cost}", timeout=6)
+        self.push_screen(ContinuityScreen(results, "voice issue(s)"), self._continuity_closed)
 
     def on_waive_toggled(self, message: WaiveToggled) -> None:
         if self.project is None:

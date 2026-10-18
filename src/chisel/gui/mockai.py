@@ -171,6 +171,21 @@ def install(api_module) -> None:
             "physical_attribute", "error", who, sentence,
             f"Check this against {who}'s note: the established details differ.")]
 
+    def voice_check(scene_text, plan, entities, model, client=None, scene_rel=""):
+        """Canned: the first judged speaker's first line is 'off', with a plausible rewrite."""
+        from ..core import voice as dialogue
+        _pause(1.5)
+        _spend("voice")
+        spoken = dialogue.by_speaker(scene_text, entities)
+        name = next((n for n in plan.checked if n in spoken), None)
+        if name is None:
+            return []
+        line = spoken[name][0].lines[0]
+        return [Contradiction(
+            "voice_register", "warning", name, line,
+            "Keep it short and plain: " + " ".join(line.split()[:4]).rstrip(".,!?") + ".", scene_rel, None,
+            f"{name} speaks more formally here than in the other scenes.")]
+
     def propose_canon_updates(scene_text, entities, model):
         _pause(1.5)
         _spend("canon")
@@ -283,6 +298,7 @@ def install(api_module) -> None:
     api_module.suggest_links = suggest_links
     api_module.suggest_relationships = suggest_relationships
     api_module.check_scene = check_scene
+    api_module.voice_check = voice_check
     api_module.propose_canon_updates = propose_canon_updates
     api_module.learn_style = learn_style
     api_module.generate_text = generate_text
