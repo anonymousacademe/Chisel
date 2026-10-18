@@ -1,0 +1,4 @@
+The .csl files in this folder (apa, ieee, chicago-author-date) are citation styles from the Citation Style
+Language project, https://github.com/citation-style-language/styles, copied unchanged. Each is licensed under
+the Creative Commons Attribution-ShareAlike 3.0 License (http://creativecommons.org/licenses/by-sa/3.0/); the
+authors and contributors are named inside each file. The licence covers these style files only, not Chisel.
