@@ -1,0 +1,22 @@
+"""Starter figure script. Chisel runs it only when you click Run and have confirmed this exact file.
+
+It runs in the Python you chose in Settings, with matplotlib installed there, in an empty temporary folder.
+Chisel gives it DATA_DIR (the project's data folder), STYLE (the shared figure style), OUT (where to write
+the PNG) and WIDTH (figure width in inches). Change the file and Chisel asks you to confirm it again.
+"""
+import csv
+
+import matplotlib.pyplot as plt
+
+
+def make_figure(data_dir, style, out):
+    x, y = [], []
+    with open(data_dir / "data.csv", newline="", encoding="utf-8-sig") as fh:
+        for row in csv.DictReader(fh):
+            x.append(float(row["x"]))
+            y.append(float(row["y"]))
+    fig, ax = plt.subplots()
+    ax.plot(x, y, marker="o")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    fig.savefig(out, dpi=300)

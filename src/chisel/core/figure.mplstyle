@@ -1,0 +1,18 @@
+# Chisel's shared figure style (research mode). Applied to every generated figure; width comes from the
+# project setting [research] figure_width (inches). Colour-blind-safe palette: Okabe and Ito.
+figure.dpi: 100
+savefig.dpi: 300
+savefig.bbox: tight
+font.family: sans-serif
+font.size: 9
+axes.titlesize: 10
+axes.labelsize: 9
+xtick.labelsize: 8
+ytick.labelsize: 8
+legend.fontsize: 8
+legend.frameon: False
+lines.linewidth: 1.5
+axes.linewidth: 0.8
+axes.spines.top: False
+axes.spines.right: False
+axes.prop_cycle: cycler('color', ['0072B2', 'E69F00', '009E73', 'D55E00', 'CC79A7', '56B4E9', 'F0E442', '000000'])
