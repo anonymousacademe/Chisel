@@ -387,6 +387,10 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
     not in the layout module. Export formats are fenced by mode (`export.SCRIPT_FORMATS`, `load_options`,
     `describe`): a script exports `pdf` (screenplay layout only) and `fountain`; a story cannot.
   - Imports only ever create new files (`write_atomic` on fresh paths) and fill empty author details.
+  - Typing aids: the Tab ring lives in `fountain.cycle_element` (Python); `editor/script.ts` only decides where
+    the completion list applies (`completionSpot`) and reads a line's element from the spans. Tab is bound only in
+    script scenes; the editor drops the answer if the line changed while the bridge call was out. Completion needs
+    `@codemirror/autocomplete` (a direct dependency now) and offers a cue only for text typed in capitals.
 - **Story time is optional** (`core/timeline.py`; SPEC "Story time"). `when:` (scene frontmatter) and `born:`
   (entity frontmatter) are a year, optional month and day, as `StoryTime(year, month|None, day|None)`: never a
   `datetime` (years past 9999 and negative ones must work; missing month/day sorts first). A scene without

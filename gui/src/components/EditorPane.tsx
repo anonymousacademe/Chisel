@@ -6,6 +6,7 @@ import { api } from "../backend/api";
 import { setComments, metaCompartment, metaFacet, reflowCompartment, reflowFacet, setSpans, setSpelling, spansField, spellingField, editorExtensions, type Card, type CursorInfo, type SpellTarget } from "../editor/cm";
 import { replaceRange, toggleWrap } from "../editor/commands";
 import { nextMisspelling, type Span } from "../editor/spans";
+import type { ScriptNames } from "../editor/script";
 import type { CommentRow } from "../data/types";
 
 export interface EditorHandle {
@@ -45,6 +46,8 @@ interface Props {
   reflow: boolean;
   /** A scene of a script project: Fountain lines are drawn as screenplay elements. */
   script?: boolean;
+  /** Script scenes: character and place names for the completion list (read when the list opens). */
+  names?: ScriptNames;
   /** Bump to refetch spans (entity notes or aliases changed). */
   spansVersion: number;
   onChange(text: string): void;
@@ -215,6 +218,8 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
           getCard: (sp) => hooks.current.getCard(sp),
           onOpenEntity: (sp) => hooks.current.onOpenEntity(sp),
           onResolveDraft: (i, a) => hooks.current.onResolveDraft(i, a),
+          onCycleElement: (line, element, reverse) => api.scriptCycle(line, element, reverse).then((r) => (r.ok ? r.line : null)),
+          getNames: () => hooks.current.names ?? { characters: [], places: [] },
           // keys are fixed at mount; their handlers always come from the latest render
           extraKeys: hooks.current.extraKeys?.map((k) => ({
             key: k.key, run: () => hooks.current.extraKeys?.find((x) => x.key === k.key)?.run() ?? false,

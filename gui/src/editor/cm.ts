@@ -7,6 +7,8 @@ import { Decoration, type DecorationSet, EditorView, WidgetType, drawSelection, 
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { ensureSyntaxTree } from "@codemirror/language";
 import { markdown } from "@codemirror/lang-markdown";
+import { autocompletion, type CompletionContext, type CompletionResult } from "@codemirror/autocomplete";
+import { completionSpot, elementOfLine, upperNames, type ScriptNames } from "./script";
 import { formatSpecs } from "./format";
 import { frontmatterRange, misspellingAt, sceneFrontmatter, misspellSpecs, scriptLineSpecs, softBreaks, specsFor, titleLine, type Misspelling, type Span } from "./spans";
 
@@ -316,6 +318,43 @@ export interface Hooks {
   onResolveDraft(index: number, accept: boolean): void;
   /** Extra key bindings (e.g. f7/f8) supplied by the host. */
   extraKeys?: { key: string; run: () => boolean }[];
+  /** Script scenes: Tab rewrites a line as the next element (Python decides how); null = leave it. */
+  onCycleElement?(line: string, element: string, reverse: boolean): Promise<string | null>;
+  /** Script scenes: the project's character and place names, for the completion list. */
+  getNames?(): ScriptNames;
+}
+
+/** Tab / Shift-Tab in a script scene: the current line becomes the next (previous) element. */
+function cycleLine(view: EditorView, hooks: Hooks, reverse: boolean): boolean {
+  if (!hooks.onCycleElement) return false;
+  const line = view.state.doc.lineAt(view.state.selection.main.head);
+  const { from, text } = line;
+  const element = elementOfLine(view.state.field(spansField), line.from, line.to);
+  void hooks.onCycleElement(text, element, reverse).then((next) => {
+    if (next === null) return;
+    const doc = view.state.doc;
+    if (from > doc.length) return;
+    const now = doc.lineAt(from);
+    if (now.from !== from || now.text !== text) return;     // the author kept typing: drop the answer
+    view.dispatch({ changes: { from: now.from, to: now.to, insert: next }, selection: { anchor: now.from + next.length } });
+  });
+  return true;
+}
+
+/** Completion for script scenes: places after INT./EXT., characters for capitals at the start of a block. */
+function scriptCompletions(hooks: Hooks) {
+  return (ctx: CompletionContext): CompletionResult | null => {
+    const doc = ctx.state.doc;
+    const line = doc.lineAt(ctx.pos);
+    const before = line.text.slice(0, ctx.pos - line.from);
+    const prevBlank = line.number === 1 || doc.line(line.number - 1).text.trim() === "";
+    const spot = completionSpot(before, prevBlank);
+    const names = hooks.getNames?.();
+    if (!spot || !names) return null;
+    const list = upperNames(spot.kind === "place" ? names.places : names.characters);
+    if (!list.length) return null;
+    return { from: line.from + spot.from, options: list.map((label) => ({ label, type: "text" })), validFor: /^[A-Za-z .'-]*$/ };
+  };
 }
 
 export function editorExtensions(kind: string, meta: string, reflow: boolean, hooks: Hooks, undoDepth: (s: EditorState) => number, redoDepth: (s: EditorState) => number, script = false): Extension[] {
@@ -330,12 +369,17 @@ export function editorExtensions(kind: string, meta: string, reflow: boolean, ho
     history(),
     drawSelection(),
     ...(kind === "dictionary" ? [] : [markdown()]),
+    ...(screenplay ? [autocompletion({ override: [scriptCompletions(hooks)], icons: false })] : []),
     EditorView.lineWrapping,
     spansField,
     spellingField,
     commentsField,
     decoField,
     keymap.of([
+      ...(screenplay ? [
+        { key: "Tab", run: (view: EditorView) => cycleLine(view, hooks, false), preventDefault: true },
+        { key: "Shift-Tab", run: (view: EditorView) => cycleLine(view, hooks, true), preventDefault: true },
+      ] : []),
       { key: "Mod-s", run: () => { hooks.onSaveNow(); return true; }, preventDefault: true },
       { key: "Mod-.", run: (view) => {
         const t = spellTargetAt(view, null);

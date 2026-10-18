@@ -9,6 +9,7 @@ import { Icon, IconButton, SectionLabel, Tag } from "./primitives";
 import { EditorPane, type EditorHandle } from "./EditorPane";
 import type { Card, CursorInfo, SpellTarget } from "../editor/cm";
 import type { Span } from "../editor/spans";
+import type { ScriptNames } from "../editor/script";
 import { titleLine } from "../editor/spans";
 import type { SaveState } from "../editor/saveController";
 import { sceneGroups, type MovePlan } from "../data/reorder";
@@ -27,6 +28,8 @@ export function Editor(props: {
   story?: boolean;
   /** Script mode: scenes are Fountain, drawn as screenplay elements and never reflowed. */
   script?: boolean;
+  /** Script mode: names offered by the completion list (characters after a blank line, places after INT.). */
+  names?: ScriptNames;
   doc: DocumentPayload | null; scenes: SceneSummary[]; parts: PartSummary[]; unit: Unit; words: number; mentions: SceneMention[]; reflow: boolean;
   sessionWords: number; sessionMinutes: number;
   mode: ViewMode; onMode: (m: ViewMode) => void;
@@ -144,7 +147,7 @@ export function Editor(props: {
                   )}
                 </header>
                 <EditorPane key={`${doc.id}:${props.docRev}`} ref={editorRef} docId={doc.id} kind={doc.kind}
-                  initialText={doc.text} meta={meta} reflow={props.reflow && !props.script} script={props.script} spansVersion={props.spansVersion}
+                  initialText={doc.text} meta={meta} reflow={props.reflow && !props.script} script={props.script} names={props.names} spansVersion={props.spansVersion}
                   spellVersion={props.spellVersion} onSpellCount={props.onSpellCount} onSpell={props.onSpell} onSelectionMenu={props.onSelectionMenu}
                   onComments={props.onComments}
                   onChange={props.onChange} onCursor={props.onCursor} onBlur={props.onBlur} onSaveNow={props.onSaveNow}

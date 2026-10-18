@@ -28,7 +28,10 @@ All notable changes to Chisel are listed here, newest first. The format follows
   skips headings, cues and notes. *Export* writes a Fountain file or a screenplay PDF (Courier 12, standard
   margins, title page, numbered pages); *Import a Fountain file* (project menu; terminal palette) adds a
   `.fountain` script's parts and scenes after the ones you have. Scenes stay Markdown files; a Fountain note is
-  written `<!-- like this -->` because `[[double brackets]]` are links here. AI features for scripts come later.
+  written `<!-- like this -->` because `[[double brackets]]` are links here. In the desktop editor, Tab and
+  Shift-Tab turn the current line into the next or previous element (action, scene heading, character,
+  parenthetical, transition), and a list offers your characters for capital letters at the start of a block
+  and your places after `INT.` / `EXT.`. AI features for scripts come later.
 - **Character relationships.** A character note can declare its relationships in a `## Relationships`
   section (`- [[Rook Tanaka]] — father; estranged`); the app reads it wherever the note is shown. The
   note panel (desktop) lists what the note declares, what the other notes say about it ("from their

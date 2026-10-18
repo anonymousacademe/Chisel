@@ -83,6 +83,8 @@ export const api = {
   // export (M7): the file is written by a worker thread; poll exportStatus. Open only on a click.
   exportInfo: () => call<ExportInfo>("export_info"),
   /** Script projects: add a .fountain file's scenes (the window asks for the file; path is for the dev server). */
+  /** Tab in a script scene: the line rewritten as the next (previous) element; Python holds the rules. */
+  scriptCycle: (line: string, element: string, reverse = false) => call<{ line: string }>("script_cycle", line, element, reverse),
   importFountain: (path?: string) => call<{ imported: FountainImport | null }>("import_fountain", path),
   exportSummary: (options: ExportOptions) => call<{ summary: ExportSummary }>("export_summary", options),
   exportStart: (options: ExportOptions) => call<{ job: string }>("export_start", options),

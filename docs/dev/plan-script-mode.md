@@ -45,8 +45,10 @@ a scene (Fountain), how it is drawn, counted and exported.
 
 1. **AI**: script-aware draft / expand / rewrite prompts that emit valid Fountain; continuity that reads speakers;
    dialogue voice checks per character. These go through the same context budget and review UI as story mode.
-2. **Typing aids**: Tab to cycle the element of a line, character-name autocomplete after a blank line, an
-   auto-added `(CONT'D)` and `(MORE)`.
+2. **Typing aids, remaining part**: an auto-added `(CONT'D)` and `(MORE)`. (Built since: Tab / Shift-Tab cycle a
+   line's element through action, scene heading, character, parenthetical, transition, with the rules in
+   `fountain.cycle_element` behind `Api.script_cycle`; a completion list offers character names for capitals typed
+   at the start of a block and place names after `INT.` / `EXT.`, from the notes the project already has.)
 3. **Dual dialogue** drawn side by side (it prints one speaker after the other now) and the pagination rules
    for it.
 4. **Form-specific layouts**: stage play (centered cues), audio drama (sound cues and a timing estimate).

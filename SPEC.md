@@ -642,8 +642,12 @@ scene is **Fountain** inside the usual `.md` file, with Chisel's own syntax winn
 - **Import:** a `# Section` becomes a part, each scene heading a scene; a synopsis directly above a heading names
   the scene; `FADE IN:` starts the first scene; notes become comments; the title page fills author, contact and
   copyright only where the project has none. New files only; nothing existing is touched.
-- **Not yet:** the AI features, typing aids (Tab cycles the element), side-by-side dual dialogue, `(CONT'D)`,
-  form-specific layouts (stage, audio), scene numbering and revisions, FDX, terminal-editor styling.
+- **Typing aids (desktop):** Tab / Shift-Tab rewrite the current line as the next / previous element in the ring
+  action, scene heading, character, parenthetical, transition (`fountain.cycle_element`, via `script_cycle`: plain
+  Fountain spelling, no forcing marks, the words are kept). A completion list offers the project's characters for
+  capitals typed at the start of a block (never over ordinary action) and its places after `INT.` / `EXT.`.
+- **Not yet:** the AI features, side-by-side dual dialogue, `(CONT'D)` / `(MORE)`, form-specific layouts (stage,
+  audio), scene numbering and revisions, FDX, terminal-editor styling.
 
 ### Rename a character everywhere ✅ (feedback batch 2; plan: docs/dev/plan-feedback-2026-10.md)
 Deterministic (no AI). Core `core/rename.py`; GUI: Notes tab -> **Rename everywhere...**; terminal palette:

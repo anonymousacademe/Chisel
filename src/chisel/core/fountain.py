@@ -580,6 +580,53 @@ def word_count(text: str) -> int:
     return sum(len(ln.clean.split()) for ln in parse(text) if ln.kind not in SILENT and ln.kind != PAGE_BREAK)
 
 
+# typing aids -------------------------------------------------------------------------------------------
+
+CYCLE = (ACTION, SCENE_HEADING, CHARACTER, PARENTHETICAL, TRANSITION)    # Tab walks this ring
+_HEADING_PREFIX_RE = re.compile(r"^(?:INT\./EXT|INT/EXT|INT|EXT|EST|I/E)[. ]+", re.IGNORECASE)
+
+
+def _bare(line: str) -> str:
+    """The words of a line without what marks its element: forcing characters, a scene prefix, parentheses,
+    a trailing ``TO:`` or dual-dialogue caret."""
+    s = line.strip()
+    s = _SCENE_NUMBER_RE.sub("", s)
+    if s[:1] in ("@", "!", "~"):
+        s = s[1:].strip()
+    elif s.startswith(".") and len(s) > 1 and s[1].isalnum():
+        s = s[1:].strip()
+    elif s.startswith(">"):
+        s = s[1:].rstrip("<").strip()
+    s = _DUAL_RE.sub("", s)
+    s = _HEADING_PREFIX_RE.sub("", s)
+    if s.startswith("(") and s.endswith(")"):
+        s = s[1:-1].strip()
+    if s.upper().endswith("TO:"):
+        s = s[:-3].strip()
+    return s
+
+
+def cycle_element(line: str, element: str, reverse: bool = False) -> str:
+    """The line rewritten as the next element in the ring action -> scene heading -> character ->
+    parenthetical -> transition (the previous one with *reverse*), in the plain spelling Fountain recognises
+    without forcing marks: ``INT. KITCHEN``, ``KEITH``, ``(quietly)``, ``CUT TO:``. *element* is the line's
+    current element as the editor knows it (anything not in the ring counts as action). Text is kept; only
+    its marks and case change."""
+    at = CYCLE.index(element) if element in CYCLE else 0
+    target = CYCLE[(at + (-1 if reverse else 1)) % len(CYCLE)]
+    core = _bare(line)
+    if target == SCENE_HEADING:
+        return "INT. " + core.upper()
+    if target == CHARACTER:
+        return core.upper()
+    if target == PARENTHETICAL:
+        return f"({core.lower()})"
+    if target == TRANSITION:
+        core = core.rstrip(" .:;!")
+        return f"{core.upper()} TO:" if core else "CUT TO:"
+    return core.capitalize() if core.isupper() and len(core) > 1 else core
+
+
 # title page ------------------------------------------------------------------------------------------
 
 _TITLE_KEY_RE = re.compile(r"^([A-Za-z][A-Za-z ]*?)\s*:\s*(.*)$")

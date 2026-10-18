@@ -712,7 +712,7 @@ export default function App() {
             onNewNote={() => setDialog({ kind: "new-research" })}
             onNew={() => setDialog(rail === "library" ? { kind: "new-note", name: "", openAfter: true } : { kind: "new-scene" })} onMenu={openSceneMenu} />
         )}
-        <Editor story={ws.project.mode !== "research"} script={ws.project.mode === "script"} doc={doc} scenes={ws.scenes} filter={boardFilter}
+        <Editor story={ws.project.mode !== "research"} script={ws.project.mode === "script"} names={{ characters: ws.entities.filter((e) => e.type === "character").map((e) => e.name), places: ws.entities.filter((e) => e.type === "place").map((e) => e.name) }} doc={doc} scenes={ws.scenes} filter={boardFilter}
           onEditCollections={() => setDialog({ kind: "scene-collections" })} parts={ws.parts} unit={unit} words={words} mentions={mentions} reflow={reflow}
           sessionWords={ws.status.sessionWords} sessionMinutes={ws.status.sessionMinutes}
           onEditDetails={() => setDialog({ kind: "details" })} onMoveRequest={(plan) => setDialog({ kind: "move", plan })}

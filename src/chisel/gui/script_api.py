@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ..core import fountainio
+from ..core import fountain, fountainio
 from ._bridge import bridge
 
 
@@ -29,3 +29,10 @@ class ScriptMixin:
             result = fountainio.import_into(project, text, Path(path).name)
             self.index.rebuild(project)
         return {"imported": result}
+
+    @bridge
+    def script_cycle(self, line: str, element: str = "action", reverse: bool = False) -> dict:
+        """Tab in a script scene: *line* rewritten as the next element (the previous with *reverse*) in the
+        ring action, scene heading, character, parenthetical, transition. Pure text in, text out: nothing is
+        read or written (the editor applies it)."""
+        return {"line": fountain.cycle_element(str(line), str(element), bool(reverse))}
