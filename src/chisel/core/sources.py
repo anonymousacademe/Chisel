@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -48,7 +49,7 @@ MY_NOTES = "## My notes"
 SYNC_KEYS = ("key", "key_source", "zotero_key", "zotero_status", "web_version", "csl", "title", "authors",
              "year")
 
-_FM_RE = re.compile(r"\A---\n(.*?)\n---\n?", re.DOTALL)
+_FM_RE = re.compile(r"\A(\ufeff?)---\r?\n(.*?)\r?\n---\r?\n?", re.DOTALL)
 
 
 # -- the zotero block ------------------------------------------------------------------------------
@@ -297,6 +298,8 @@ def plan_sync(project, result: FetchResult, *, scope: Scope | None = None, state
     by_key = {ent.source_key(e): e for e in sources}
     used: set[Path] = set()
     seen: set[str] = set()
+    claimed: set[Path] = set()      # existing notes already taken by an earlier item
+    new_keys: set[str] = set()      # citation keys already given to a planned new note
 
     def new_path(key: str) -> Path:
         probe = ent.Entity(name=key, type="source", extra={"key": key})
@@ -311,6 +314,14 @@ def plan_sync(project, result: FetchResult, *, scope: Scope | None = None, state
         plan.rows.append(row)
         plan.digests[row.id] = digest
         plan.items[row.id] = item
+
+    def blocked_dup(rid: str, key: str, summary: str, digest, item):
+        """A blocked key-mismatch row; its id must be unique, so a clash gets the would-be file name."""
+        if rid in plan.digests:
+            path = new_path(key)
+            used.add(path)
+            rid, digest = _rel(project, path), None
+        add(SyncRow(rid, key, "key-mismatch", summary, blocked="key-mismatch"), digest, item)
 
     def mark_missing(e: ent.Entity):
         if e.extra.get("zotero_status") == "missing":
@@ -332,14 +343,29 @@ def plan_sync(project, result: FetchResult, *, scope: Scope | None = None, state
             if other is not None and other.extra.get("zotero_key") in (None, ""):
                 e = other  # a note made by hand under this key: adopt it
             elif other is not None:
-                add(SyncRow(_rel(project, other.path), ent.source_key(other), "key-mismatch",
+                blocked_dup(_rel(project, other.path), ent.source_key(other),
                             f"The key {item.citation_key} is already used by another Zotero item "
                             f"({other.extra.get('zotero_key')}); nothing was changed",
-                            blocked="key-mismatch"), _digest_bytes(other.path), item)
+                            _digest_bytes(other.path), item)
                 continue
+        if e is not None and e.path in claimed:
+            key = item.citation_key or item.key
+            blocked_dup(_rel(project, e.path), key,
+                        f"Two Zotero items share the key {key}; this one was not applied. "
+                        "Give one of them a different citation key in Zotero", None, item)
+            continue
+        if e is not None:
+            claimed.add(e.path)
         if e is None:
             note = item_to_note(item, None)
-            path = new_path(ent.source_key(note))
+            nkey = ent.source_key(note)
+            if nkey.casefold() in new_keys:
+                blocked_dup(_rel(project, new_path(nkey)), nkey,
+                            f"Two Zotero items share the key {nkey}; this one was not applied. "
+                            "Give one of them a different citation key in Zotero", None, item)
+                continue
+            new_keys.add(nkey.casefold())
+            path = new_path(nkey)
             used.add(path)
             title = _title(note, item) or "untitled"
             warn = "" if item.citation_key else " (no citation key in Zotero: set one there, then sync again)"
@@ -349,10 +375,9 @@ def plan_sync(project, result: FetchResult, *, scope: Scope | None = None, state
         stored = ent.source_key(e)
         rid = _rel(project, e.path)
         if item.citation_key and item.citation_key != stored:
-            add(SyncRow(rid, stored, "key-mismatch",
+            blocked_dup(rid, stored,
                         f"Zotero now has the key {item.citation_key}, the note has {stored}; "
-                        "the key is not changed by a sync", blocked="key-mismatch"),
-                _digest_bytes(e.path), item)
+                        "the key is not changed by a sync", _digest_bytes(e.path), item)
             continue
         try:
             note = item_to_note(item, e)
@@ -381,40 +406,56 @@ def plan_sync(project, result: FetchResult, *, scope: Scope | None = None, state
     return plan
 
 
-def _atomic_write(path: Path, text: str) -> None:
+def _atomic_write(path: Path, text: str, *, exclusive: bool = False) -> None:
+    """Write via a temp file + rename. *exclusive* (a new note) first claims the name with O_EXCL, so a file
+    that appeared after the plan raises FileExistsError instead of being overwritten."""
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
+    claimed = False
     try:
+        if exclusive:
+            os.close(os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o666))
+            claimed = True
         tmp.write_text(text, encoding="utf-8", newline="\n")
         fsutil.replace(tmp, path)
     except BaseException:
-        try:
-            tmp.unlink()
-        except OSError:
-            pass
+        for p in (tmp, path if claimed else None):
+            if p is not None:
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
         raise
 
 
-def _splice(raw: str, new: ent.Entity, old: ent.Entity) -> str:
+def _splice(raw: str, new: ent.Entity, old: ent.Entity, *, frontmatter_only: bool = False) -> str:
     """The new file text for an existing note: the raw text with only what changed replaced. The frontmatter
-    is re-serialised only when a managed value changed; the body changes only between the markers."""
+    is re-serialised only when a managed value changed (keeping a leading BOM and the file's newline style);
+    the body changes only between the markers, and not at all with *frontmatter_only*."""
     m = _FM_RE.match(raw)
     head_raw = raw[:m.end()] if m else ""
     body_raw = raw[m.end():] if m else raw
-    block = _block_text(new.body)
-    body = replace_block(body_raw, block if block is not None else "") if block is not None else body_raw
+    if frontmatter_only:
+        body = body_raw
+    else:
+        block = _block_text(new.body)
+        body = replace_block(body_raw, block) if block is not None else body_raw
     same_head = (new.name == old.name and new.aliases == old.aliases and new.extra == old.extra
                  and m is not None)
     if same_head:
         return head_raw + body
     head = replace(new, body="").to_markdown()  # ends with "---\n\n"
-    return head[:-1] + body
+    head = head[:-1]
+    if "\r\n" in head_raw:
+        head = head.replace("\n", "\r\n")
+    return (m.group(1) if m else "") + head + body
 
 
 def apply_sync(project, plan: SyncPlan, ticked_ids: list[str]) -> dict:
     """Write the ticked rows. Raises ValueError, before writing anything, for an unknown id or a file that
-    changed since the plan. Rows that cannot be applied (key-mismatch, damaged markers) are skipped and
-    reported. Returns ``{"changed": [ids], "skipped": [{"id", "reason"}], "recorded": bool}``."""
+    changed since the plan. Rows that cannot be applied (key-mismatch, damaged markers, a file that changed
+    or appeared after the plan, an unreadable file) are skipped and reported; one bad row never stops the
+    others. Returns ``{"changed": [ids], "skipped": [{"id", "reason"}], "recorded": bool}``."""
     rows = {r.id: r for r in plan.rows}
     ids = list(dict.fromkeys(ticked_ids))
     if any(i not in rows for i in ids):
@@ -430,28 +471,34 @@ def apply_sync(project, plan: SyncPlan, ticked_ids: list[str]) -> dict:
     for row in todo:
         path = project.root / row.id
         item = plan.items.get(row.id)
-        if row.action == "new":
-            note = item_to_note(item, None)
-            if web and item.version is not None:
-                note.extra["web_version"] = item.version
-            _atomic_write(path, note.to_markdown())
-        else:
-            fsutil.ensure_utf8(path)
-            old = ent.load_entity(path)
-            raw = path.read_bytes().decode("utf-8")  # raw: CRLF in the author's text must survive
-            if row.action == "missing":
-                extra = dict(old.extra)
-                extra["zotero_status"] = "missing"
-                new = replace(old, extra=extra)
-            else:
-                new = item_to_note(item, old)
+        try:
+            if plan.digests.get(row.id) != _digest_bytes(path):   # re-check right before writing
+                raise ValueError(f"{path.name} changed since the preview; preview again")
+            if row.action == "new":
+                note = item_to_note(item, None)
                 if web and item.version is not None:
-                    new.extra["web_version"] = item.version
-            _atomic_write(path, _splice(raw, new, old))
+                    note.extra["web_version"] = item.version
+                _atomic_write(path, note.to_markdown(), exclusive=True)
+            else:
+                fsutil.ensure_utf8(path)
+                old = ent.load_entity(path)
+                raw = path.read_bytes().decode("utf-8")  # raw: CRLF in the author's text must survive
+                if row.action == "missing":
+                    extra = dict(old.extra)
+                    extra["zotero_status"] = "missing"
+                    new = replace(old, extra=extra)
+                else:
+                    new = item_to_note(item, old)
+                    if web and item.version is not None:
+                        new.extra["web_version"] = item.version
+                _atomic_write(path, _splice(raw, new, old, frontmatter_only=row.action == "missing"))
+        except (ValueError, OSError) as exc:   # NotUtf8Error and FileExistsError are among these
+            skipped.append({"id": row.id, "reason": str(exc) or type(exc).__name__})
+            continue
         changed.append(row.id)
     recorded = False
     done = set(changed)
-    if (plan.state_key and plan.library_version is not None
+    if (plan.state_key and plan.library_version is not None and not skipped
             and all(r.id in done for r in plan.actionable) and not skipped_blocking(plan)):
         record_version(project, plan.state_key, plan.library_version)
         recorded = True

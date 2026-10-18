@@ -112,7 +112,7 @@ class Entity:
         """Parse a note file. Tolerates missing/malformed frontmatter."""
         meta: dict = {}
         body = text
-        m = re.match(r"\A---\n(.*?)\n---\n?", text, re.DOTALL)
+        m = re.match(r"\A\ufeff?---\r?\n(.*?)\r?\n---\r?\n?", text, re.DOTALL)
         if m:
             try:
                 meta = yaml.safe_load(m.group(1)) or {}

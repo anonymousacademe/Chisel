@@ -164,12 +164,12 @@ def test_interrupted_apply_leaves_valid_notes_and_no_version(project, monkeypatc
         return real(src, dst)
 
     monkeypatch.setattr(fsutil, "replace", flaky)
-    with pytest.raises(OSError):
-        apply_sync(project, plan, [r.id for r in plan.rows])
+    out = apply_sync(project, plan, [r.id for r in plan.rows])   # the failed row is reported, the rest written
     monkeypatch.undo()
+    assert len(out["skipped"]) == 1 and len(out["changed"]) == 2 and not out["recorded"]
     assert sources.load_sync_state(project) == {}
     files = sorted((project.root / "entities/sources").glob("*.md"))
-    assert len(files) == 1
+    assert len(files) == 2
     assert ent.load_entity(files[0]).type == "source" and ent.load_entity(files[0]).extra["csl"]
     # the leftover temp file is not a note
     assert all(p.suffix == ".md" for p in project.list_entity_files())
@@ -203,3 +203,113 @@ def test_cached_items_roundtrip(project):
     assert z.key == "A1" and z.citation_key == "smith2024" and z.csl["title"] == "T"
     # a cache-backend result of the same notes plans nothing
     assert plan_sync(project, result([z], backend="cache", version=None)).rows == []
+
+
+def test_crlf_note_round_trips_with_one_frontmatter(project):
+    sync_all(project, result([item(notes=["<p>one</p>"])]))
+    path = project.root / "entities/sources/smith2024.md"
+    raw = path.read_bytes().decode("utf-8")
+    mine = "\n\n## My notes\r\nmy words é\r\nend"
+    crlf = raw.replace("\r\n", "\n").replace("\n", "\r\n") + mine
+    path.write_bytes(crlf.encode("utf-8"))
+    before = path.read_bytes().decode("utf-8")
+    plan, out = sync_all(project, result([item(notes=["<p>two</p>"])]))
+    assert out["changed"] and not out["skipped"]
+    after = path.read_bytes().decode("utf-8")
+    assert after.count("---\r\n") == 2 and after.count("zotero_key") == 1
+    assert before[before.index(END):] == after[after.index(END):]
+    assert "two" in after and "one" not in after
+    # a changed frontmatter value is rewritten in the file's own newline style
+    csl = dict(CSL, title="New title")
+    sync_all(project, result([ZItem(key="A1", version=6, csl=csl, citation_key="smith2024")]))
+    after2 = path.read_bytes().decode("utf-8")
+    assert after2.count("zotero_key") == 1 and "New title" in after2
+    assert "\n" not in after2[:after2.index(BEGIN)].replace("\r\n", "")
+    assert after2[after2.index(END):] == before[before.index(END):]
+
+
+def test_bom_note_is_recognised_and_bom_kept(project):
+    sync_all(project, result([item()]))
+    path = project.root / "entities/sources/smith2024.md"
+    path.write_bytes(b"\xef\xbb\xbf" + path.read_bytes())
+    plan = plan_sync(project, result([item(notes=["<p>n</p>"])]))
+    assert [(r.id, r.action) for r in plan.rows] == [("entities/sources/smith2024.md", "changed")]
+    apply_sync(project, plan, [plan.rows[0].id])
+    data = path.read_bytes()
+    assert data.startswith(b"\xef\xbb\xbf---") and data.count(b"zotero_key") == 1
+    assert not (project.root / "entities/sources/smith2024-2.md").exists()
+    sync_all(project, result([ZItem(key="A1", version=6, csl=dict(CSL, title="Z"), citation_key="smith2024")]))
+    data = path.read_bytes()
+    assert data.startswith(b"\xef\xbb\xbf---") and data.count(b"zotero_key") == 1
+
+
+def test_one_bad_row_does_not_abort_the_others(project):
+    sync_all(project, result([item(), item("B2", "lee2023")]))
+    bad = project.root / "entities/sources/smith2024.md"
+    bad.write_text(bad.read_text(encoding="utf-8").replace(END, ""), encoding="utf-8")
+    plan = plan_sync(project, result([], deleted=["A1", "B2"]), state_key="web:users/1")
+    assert {r.action for r in plan.rows} == {"missing"} and len(plan.rows) == 2
+    out = apply_sync(project, plan, [r.id for r in plan.rows])
+    assert len(out["changed"]) == 2 and not out["skipped"]       # a missing row only touches frontmatter
+    assert ent.load_entity(bad).extra["zotero_status"] == "missing"
+    # an unreadable file is skipped and reported, the rest is written, no version recorded
+    sync_all(project, result([item("C3", "roe2022"), item("D4", "kim2021")]))
+    plan = plan_sync(project, result([item("C3", "roe2022", notes=["<p>x</p>"]),
+                                      item("D4", "kim2021", notes=["<p>y</p>"])]), state_key="web:users/1")
+    recorded_before = sources.load_sync_state(project)
+    first = project.root / plan.rows[0].id
+    first.write_bytes(first.read_bytes())
+    real = fsutil.ensure_utf8
+
+    def picky(path):
+        if path == first:
+            raise fsutil.NotUtf8Error(path)
+        return real(path)
+
+    import pytest as _pt
+    mp = _pt.MonkeyPatch()
+    mp.setattr(fsutil, "ensure_utf8", picky)
+    try:
+        out = apply_sync(project, plan, [r.id for r in plan.rows])
+    finally:
+        mp.undo()
+    assert len(out["changed"]) == 1 and [s["id"] for s in out["skipped"]] == [plan.rows[0].id]
+    assert not out["recorded"] and sources.load_sync_state(project) == recorded_before
+
+
+def test_duplicate_keys_are_blocked_not_duplicated(project):
+    plan = plan_sync(project, result([item("A1", "dup"), item("B2", "dup")]))
+    assert [r.action for r in plan.rows] == ["new", "key-mismatch"]
+    assert plan.rows[1].blocked and "share the key" in plan.rows[1].summary
+    out = apply_sync(project, plan, [r.id for r in plan.rows])
+    assert len(out["changed"]) == 1 and len(out["skipped"]) == 1
+    assert len(list((project.root / "entities/sources").glob("dup*.md"))) == 1
+    # two items with one key and a hand-made note: only one adopts it, rows keep distinct ids
+    project.create_entity("lee2023", "source")
+    plan = plan_sync(project, result([item("L1", "lee2023"), item("L2", "lee2023")]))
+    assert len({r.id for r in plan.rows}) == len(plan.rows) == 2
+    assert sorted(r.action for r in plan.rows) == ["changed", "key-mismatch"]
+
+
+def test_file_appearing_or_changing_after_digest_check_is_skipped(project, monkeypatch):
+    plan = plan_sync(project, result([item(), item("B2", "lee2023")]))
+    target = project.root / plan.rows[0].id
+    real = sources._digest_bytes
+    calls = {"n": 0}
+
+    def late(path):
+        # the up-front check sees the planned state; the re-check before the write sees a new file
+        calls["n"] += 1
+        if path == target and calls["n"] > 2:
+            target.write_text("mine", encoding="utf-8")
+        return real(path)
+
+    monkeypatch.setattr(sources, "_digest_bytes", late)
+    out = apply_sync(project, plan, [r.id for r in plan.rows])
+    assert target.read_text(encoding="utf-8") == "mine"
+    assert [s["id"] for s in out["skipped"]] == [plan.rows[0].id] and len(out["changed"]) == 1
+    assert not out["recorded"]
+    # exclusive create: a file that exists is never replaced
+    with pytest.raises(FileExistsError):
+        sources._atomic_write(target, "x", exclusive=True)
+    assert target.read_text(encoding="utf-8") == "mine"
