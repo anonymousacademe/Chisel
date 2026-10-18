@@ -49,6 +49,13 @@ class LocalSource:
         return Status(True, "Local Zotero is reachable.", resp.int_header("Last-Modified-Version"),
                       self._server_id, f"local:{sid}")
 
+    def collections(self) -> list[dict]:
+        quick, self._http.timeout = self._http.timeout, max(self._http.timeout, self.FETCH_TIMEOUT)
+        try:
+            return self._lib.collections()
+        finally:
+            self._http.timeout = quick
+
     def fetch(self, scope: Scope, since: int | None) -> FetchResult:
         if self._server_id is None:
             self.probe()

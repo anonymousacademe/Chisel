@@ -181,6 +181,27 @@ class ResearchSourcesMixin:
         return {"backends": rows, "keySet": bool(_get_zotero_key())}
 
     @bridge
+    def zotero_collections(self) -> dict:
+        with self._lock:
+            project = self._research_project()
+            cache = src_notes.cached_items(project)
+        sources = zotero.open_sources(self._zotero_settings(cache))   # network below: no lock
+        problems: list[str] = []
+        for source in sources:
+            lister = getattr(source, "collections", None)
+            if lister is None:       # file and cache backends have no collections
+                continue
+            try:
+                st = source.probe()
+                if not st.ok:
+                    problems.append(st.message)
+                    continue
+                return {"collections": list(lister())}
+            except zotero.ZoteroError as exc:
+                problems.append(str(exc))
+        raise RuntimeError(problems[0] if problems else "No Zotero source that lists collections is set up.")
+
+    @bridge
     def zotero_sync_plan(self, scope: dict | None = None) -> dict:
         scope = scope or {}
         sc = zotero.Scope(collection=str(scope.get("collection") or "") or None,

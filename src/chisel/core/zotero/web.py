@@ -140,6 +140,34 @@ def csl_of(row: dict, key: str, data: dict) -> dict:
     return {"id": key, "type": data.get("itemType", ""), "title": data.get("title", "")}
 
 
+def collection_paths(rows: list[dict]) -> list[dict]:
+    """Collection rows from the API to [{key, path, items}] sorted by path; parents joined with " / "."""
+    data = {}
+    for r in rows:
+        d = r.get("data") if isinstance(r.get("data"), dict) else {}
+        key = str(r.get("key") or d.get("key") or "")
+        if not key:
+            continue
+        parent = d.get("parentCollection")
+        meta = r.get("meta") if isinstance(r.get("meta"), dict) else {}
+        n = meta.get("numItems")
+        data[key] = (str(d.get("name") or key), str(parent) if parent else "",
+                     n if isinstance(n, int) and not isinstance(n, bool) else None)
+
+    def path(key: str) -> str:
+        parts, seen = [], set()
+        while key in data and key not in seen:
+            seen.add(key)
+            name, parent, _ = data[key]
+            parts.append(name)
+            key = parent
+        return " / ".join(reversed(parts))
+
+    out = [{"key": k, "path": path(k), "items": v[2]} for k, v in data.items()]
+    out.sort(key=lambda c: (c["path"].casefold(), c["key"]))
+    return out
+
+
 class ZoteroLibrary:
     """Items, children and deletions of one library on one Zotero API server (web or local)."""
 
@@ -151,6 +179,25 @@ class ZoteroLibrary:
         # listing has them, each naming its PDF as parentItem), so the local backend reads them from the listing.
         self.annotations_by_listing = False
         self._annotation_rows_cache: dict[str, list[dict]] | None = None
+
+    def collections(self) -> list[dict]:
+        """Every collection as {key, path ("A / B / C"), items (int or None)}, sorted by path. Read-only,
+        paged (a page holds at most PAGE_LIMIT collections)."""
+        rows: list[dict] = []
+        start = 0
+        while True:
+            resp = self.http.get(self.user_path + "/collections",
+                                 {"limit": PAGE_LIMIT, "start": start, "format": "json"})
+            self._ok(resp, "the collections")
+            page = resp.json()
+            if not isinstance(page, list):
+                raise ZoteroError("Zotero returned the collections in an unexpected shape.")
+            rows.extend(r for r in page if isinstance(r, dict))
+            start += len(page)
+            total = resp.int_header("Total-Results")
+            if not page or (total is not None and start >= total) or (total is None and len(page) < PAGE_LIMIT):
+                break
+        return collection_paths(rows)
 
     # -- plumbing ------------------------------------------------------------------------------------
     def _ok(self, resp: _Response, what: str) -> _Response:
@@ -365,6 +412,9 @@ class WebSource:
                           None, f"web:users/{self._user_id}")
         except ZoteroError as exc:
             return Status(False, str(exc))
+
+    def collections(self) -> list[dict]:
+        return self._library().collections()
 
     def fetch(self, scope: Scope, since: int | None) -> FetchResult:
         lib = self._library()
