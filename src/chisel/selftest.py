@@ -108,7 +108,7 @@ def _tls() -> str:
 def _layouts() -> str:
     from .core.export import layouts
     names = [layout.name for layout in layouts.all_layouts()]
-    if names != ["book", "manuscript", "plain"]:
+    if names != ["book", "manuscript", "plain", "screenplay"]:
         raise RuntimeError(f"layouts: {names}")
     return ", ".join(names)
 
@@ -126,6 +126,22 @@ def _pdf() -> str:
         if not data.startswith(b"%PDF") or len(data) < 1500:
             raise RuntimeError("the exported PDF is not valid")
         return f"{res.pages} pages, {len(data)} bytes"
+
+
+def _screenplay() -> str:
+    """A script exports as a screenplay PDF and as Fountain (the layout and its bundled mono font load frozen)."""
+    from .core.export import ExportOptions, run_export
+    from .core.project import Project
+    with tempfile.TemporaryDirectory(prefix="chisel-selftest-") as tmp:
+        project = Project.create(Path(tmp) / "script", "Self Test", "script")
+        res = run_export(project, ExportOptions(format="pdf"))
+        data = res.path.read_bytes()
+        if not data.startswith(b"%PDF") or res.pages < 2:
+            raise RuntimeError("the screenplay PDF is not valid")
+        text = run_export(project, ExportOptions(format="fountain")).path.read_text(encoding="utf-8")
+        if "INT. KITCHEN - DAY" not in text:
+            raise RuntimeError("the Fountain export is missing the scene heading")
+        return f"{res.pages} pages, {len(data)} bytes; fountain {len(text)} characters"
 
 
 def _gui_backend() -> str:
@@ -187,6 +203,7 @@ CHECKS: list[tuple[str, Callable[[], str]]] = [
     ("tls", _tls),
     ("export layouts", _layouts),
     ("pdf export", _pdf),
+    ("screenplay export", _screenplay),
     ("gui backend", _gui_backend),
     ("webengine render", _render),
 ]

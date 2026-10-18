@@ -285,7 +285,10 @@ def test_new_project_takes_a_mode(tmp_path):
     assert Project.open(tmp_path / "paper").mode == "research"
     assert api.new_project("Tale", str(tmp_path / "tale"))["ok"] is True
     assert api.get_workspace()["workspace"]["project"]["mode"] == "story"
-    assert api.new_project("Odd", str(tmp_path / "odd"), "script")["ok"] is False
+    assert api.new_project("Play", str(tmp_path / "play"), "script")["ok"] is True
+    assert api.get_workspace()["workspace"]["project"]["mode"] == "script"
+    assert Project.open(tmp_path / "play").mode == "script"
+    assert api.new_project("Odd", str(tmp_path / "odd"), "poetry")["ok"] is False
     assert not (tmp_path / "odd").exists()
 
 

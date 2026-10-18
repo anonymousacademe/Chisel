@@ -25,6 +25,8 @@ const modes: { id: ViewMode; icon: LucideIcon; label: string }[] = [
 export function Editor(props: {
   /** False in research mode: the POV / place field is left out. */
   story?: boolean;
+  /** Script mode: scenes are Fountain, drawn as screenplay elements and never reflowed. */
+  script?: boolean;
   doc: DocumentPayload | null; scenes: SceneSummary[]; parts: PartSummary[]; unit: Unit; words: number; mentions: SceneMention[]; reflow: boolean;
   sessionWords: number; sessionMinutes: number;
   mode: ViewMode; onMode: (m: ViewMode) => void;
@@ -142,7 +144,7 @@ export function Editor(props: {
                   )}
                 </header>
                 <EditorPane key={`${doc.id}:${props.docRev}`} ref={editorRef} docId={doc.id} kind={doc.kind}
-                  initialText={doc.text} meta={meta} reflow={props.reflow} spansVersion={props.spansVersion}
+                  initialText={doc.text} meta={meta} reflow={props.reflow && !props.script} script={props.script} spansVersion={props.spansVersion}
                   spellVersion={props.spellVersion} onSpellCount={props.onSpellCount} onSpell={props.onSpell} onSelectionMenu={props.onSelectionMenu}
                   onComments={props.onComments}
                   onChange={props.onChange} onCursor={props.onCursor} onBlur={props.onBlur} onSaveNow={props.onSaveNow}

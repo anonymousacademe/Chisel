@@ -101,6 +101,7 @@ from .export_api import ExportMixin
 from .inspiration_api import InspirationMixin
 from .notebook_api import NotebookMixin
 from .research_api import ResearchMixin
+from .script_api import ScriptMixin
 from .spelling_api import SpellingMixin
 from .stats_api import StatsMixin
 from .structure_api import StructureMixin
@@ -110,7 +111,7 @@ from .window_api import WindowMixin
 
 class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMixin,
           NotebookMixin, AnnotationsMixin, InspirationMixin, AtmosphereMixin, StatsMixin,
-          ChatsMixin, WindowMixin, ResearchMixin):
+          ChatsMixin, WindowMixin, ResearchMixin, ScriptMixin):
     def __init__(self) -> None:
         self._lock = threading.RLock()  # guards every project write
         self._window: Any = None  # set by gui.app once the window exists
@@ -223,7 +224,7 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
         return ws.rel_id(self._require(), path)
 
     def _author_words(self, project: Project, path: Path, text: str) -> int:
-        return drafts.count_words(text, drafts.load_originals(project.root, path))
+        return project.count_words(text, drafts.load_originals(project.root, path))
 
     # -- documents ------------------------------------------------------------
 
@@ -268,9 +269,10 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
                 kicker = ws.scene_kicker(project, path)
                 part = project.part_of(path)
                 parent = (project.part_title(part) if part
-                          else ws.PARKED_TITLE if project.is_unplaced(path) else "Manuscript")
+                          else ws.PARKED_TITLE if project.is_unplaced(path)
+                          else ws.LABELS["script"]["manuscript"] if project.mode == "script" else "Manuscript")
                 if self.stats is not None:  # baseline for the stats; nothing is counted here
-                    self.stats.seen(self._scene_key(path), drafts.count_words(text, originals))
+                    self.stats.seen(self._scene_key(path), project.count_words(text, originals))
                 extra = {
                     "details": scenemeta.details(text),
                     "bodyStart": index_to_utf16(text, scenemeta.body_offset(text)),
@@ -288,13 +290,13 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
                 kicker, parent = "NOTEBOOK", "Notebook"
             else:
                 title, kicker, parent = "Style guide", "STYLE GUIDE", "Project"
-            mentions = (ws.scene_context(text, self.entities, self.index)
+            mentions = (ws.scene_context(text, self.entities, self.index, project.mode == "script")
                         if kind == "scene" else [])
             return {
                 "id": doc_id, "kind": kind, "title": title, "kicker": kicker,
                 "parent": parent, "text": text,
                 "mtime": str(path.stat().st_mtime_ns),
-                "words": drafts.count_words(text, originals),
+                "words": project.count_words(text, originals),
                 "mentions": mentions,
                 **extra,
             }
@@ -345,9 +347,9 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
             self._index_file(path, kind, text)
             _, originals = ws.read_text(project, path)
             if kind == "scene" and self.stats is not None:
-                self.stats.record(self._scene_key(path), drafts.count_words(text, originals))
+                self.stats.record(self._scene_key(path), project.count_words(text, originals))
             return {"saved": True, "mtime": current,
-                    "words": drafts.count_words(text, originals),
+                    "words": project.count_words(text, originals),
                     **({"snapshotAt": self._snapshot_at(path)} if kind == "scene" else {})}
 
     @bridge
@@ -356,7 +358,8 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
         editor's unsaved buffer), offsets in UTF-16 units."""
         with self._lock:
             _, kind = self.resolve_document(doc_id)
-            spans = compute_spans(text, self.entities, mentions=kind == "scene")
+            spans = compute_spans(text, self.entities, mentions=kind == "scene",
+                                  script=kind == "scene" and self._require().mode == "script")
             return {"spans": to_utf16(text, spans)}
 
     @bridge
@@ -370,7 +373,7 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
                 return {"mentions": []}
             if text is None:
                 text, _ = ws.read_text(project, path)
-            return {"mentions": ws.scene_context(text, self.entities, self.index)}
+            return {"mentions": ws.scene_context(text, self.entities, self.index, project.mode == "script")}
 
     # -- Ask my notebook (the notes themselves: notebook_api.py) ----------------------------
 

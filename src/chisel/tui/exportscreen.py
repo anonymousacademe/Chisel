@@ -36,9 +36,9 @@ class ExportScreen(ModalScreen["ExportOptions | None"]):
     """
 
     def __init__(self, info: dict, options: ExportOptions, summary_line: str,
-                 notes: list[str], unit: str = "scene") -> None:
+                 notes: list[str], unit: str = "scene", script: bool = False) -> None:
         super().__init__()
-        self._info, self._opts, self._unit = info, options, unit
+        self._info, self._opts, self._unit, self._script = info, options, unit, script
         self._summary, self._notes = summary_line, notes
         self._formats = {f["key"]: f for f in info["formats"]}
         self._layouts = {l["name"]: l for l in info["layouts"]}
@@ -62,7 +62,7 @@ class ExportScreen(ModalScreen["ExportOptions | None"]):
         o, word = self._opts, self._unit.capitalize()
         layout = self._layout()
         with Vertical(id="export-box"):
-            yield Label("Export manuscript", id="export-header")
+            yield Label("Export script" if self._script else "Export manuscript", id="export-header")
             yield Label(self._summary, id="export-summary")
             with VerticalScroll(id="export-scroll"):
                 with Horizontal(classes="export-row"):
@@ -78,14 +78,16 @@ class ExportScreen(ModalScreen["ExportOptions | None"]):
                     yield Label("Page size (PDF)", classes="export-label")
                     yield Select(pages, value=o.page_size if o.page_size in {v for _, v in pages} else pages[0][1],
                                  allow_blank=False, id="export-page")
-                with Horizontal(classes="export-row"):
-                    yield Label(f"{word} headings", classes="export-label")
-                    yield Select([(f"“{word} 3”", "words"), ("Numbers", "numbers"),
-                                  ("Titles only", "titles-only")], value=o.numbering,
-                                 allow_blank=False, id="export-numbering")
-                yield Checkbox("Table of contents", o.toc, id="export-toc")
+                if not self._script:   # a script has no chapter headings, contents page or ornaments
+                    with Horizontal(classes="export-row"):
+                        yield Label(f"{word} headings", classes="export-label")
+                        yield Select([(f"“{word} 3”", "words"), ("Numbers", "numbers"),
+                                      ("Titles only", "titles-only")], value=o.numbering,
+                                     allow_blank=False, id="export-numbering")
+                    yield Checkbox("Table of contents", o.toc, id="export-toc")
                 yield Checkbox("Include front matter", o.include_front_matter, id="export-front")
-                yield Checkbox(f"Run {self._unit}s on with a break ornament", o.continuous, id="export-continuous")
+                if not self._script:
+                    yield Checkbox(f"Run {self._unit}s on with a break ornament", o.continuous, id="export-continuous")
                 yield Checkbox("Include pending AI drafts", o.include_drafts, id="export-drafts")
                 with Horizontal(classes="export-row"):
                     yield Label("Copyright override", classes="export-label")
@@ -104,7 +106,8 @@ class ExportScreen(ModalScreen["ExportOptions | None"]):
         for wid in ("export-layout", "export-page", "export-copyright"):
             self.query_one(f"#{wid}").disabled = not pdf
         layout = self._layout(self.query_one("#export-layout", Select).value) if pdf else None
-        self.query_one("#export-toc", Checkbox).disabled = bool(layout) and not layout["toc"]
+        if not self._script:
+            self.query_one("#export-toc", Checkbox).disabled = bool(layout) and not layout["toc"]
 
     def on_select_changed(self, event: Select.Changed) -> None:
         if event.select.id == "export-layout":
@@ -126,9 +129,10 @@ class ExportScreen(ModalScreen["ExportOptions | None"]):
         layout = str(q("export-layout", Select).value) if self._layouts else self._opts.layout
         self.dismiss(replace(
             self._opts, format=fmt, layout=layout, page_size=str(q("export-page", Select).value),
-            numbering=str(q("export-numbering", Select).value),
-            toc=q("export-toc", Checkbox).value, include_front_matter=q("export-front", Checkbox).value,
-            continuous=q("export-continuous", Checkbox).value,
+            numbering=self._opts.numbering if self._script else str(q("export-numbering", Select).value),
+            toc=self._opts.toc if self._script else q("export-toc", Checkbox).value,
+            include_front_matter=q("export-front", Checkbox).value,
+            continuous=self._opts.continuous if self._script else q("export-continuous", Checkbox).value,
             include_drafts=q("export-drafts", Checkbox).value,
             copyright=q("export-copyright", Input).value.strip()))
 

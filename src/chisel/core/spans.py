@@ -20,11 +20,13 @@ _OFFSET_KEYS = ("start", "end", "innerStart", "innerEnd", "bodyStart", "bodyEnd"
 
 
 def compute_spans(text: str, entities: list[ent.Entity], *,
-                  mentions: bool = True) -> list[dict]:
+                  mentions: bool = True, script: bool = False) -> list[dict]:
     """Spans in document order. *mentions*: also report plain-text mentions of
     entity names/aliases (scenes do; entity notes and the style guide only
     show explicit links). Links and mentions inside pending AI drafts are
-    ignored: unaccepted text is not canon."""
+    ignored: unaccepted text is not canon. With *script* (a scene of a script project) the speaker of
+    every character cue also counts as a mention (``KEITH`` is the character Keith), and one
+    ``{"kind": "script", "element", ...}`` span per formatted line is added (core/fountain.py)."""
     pending = drafts.find_pending(text)
     names = [n for e in entities for n in e.names] if mentions else None
     spans: list[dict] = []
@@ -54,8 +56,29 @@ def compute_spans(text: str, entities: list[ent.Entity], *,
     for marker in drafts.find_expand_markers(drafts.blank_pending(text)):
         spans.append({"kind": "expand", "start": marker.start,
                       "end": marker.end, "instruction": marker.instruction})
+    if script:
+        from . import fountain
+        spans += _cue_mentions(text, entities, spans, pending) if mentions else []
+        spans += fountain.spans(text)
     spans.sort(key=lambda s: (s["start"], s["end"]))
     return spans
+
+
+def _cue_mentions(text: str, entities: list[ent.Entity], spans: list[dict], pending) -> list[dict]:
+    """Mention spans for the speakers of character cues that name an entity (case-insensitive), skipping a cue
+    that already carries a link or mention and cues inside pending AI drafts."""
+    from . import fountain
+    taken = [(s["start"], s["end"]) for s in spans if s["kind"] in ("mention", "link", "unresolved")]
+    out = []
+    for start, end, name in fountain.cues(text):
+        if any(p.start <= start < p.end for p in pending) or any(a < end and start < b for a, b in taken):
+            continue
+        entity = ent.resolve(name, entities)
+        if entity is None:
+            continue
+        out.append({"kind": "mention", "start": start, "end": end, "target": name,
+                    "entity": entity.name, "etype": entity.type})
+    return out
 
 
 def to_utf16(text: str, spans: list[dict]) -> list[dict]:

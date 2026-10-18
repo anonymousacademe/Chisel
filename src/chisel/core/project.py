@@ -33,9 +33,11 @@ TYPE_SUBDIRS = {
 FICTION_KINDS = ("character", "place", "object", "faction")
 
 # What kind of work a project is. "story" is the default and what every project made before modes was;
-# "research" is papers and proposals (docs/dev/plan-research-mode.md). A script mode is planned: add its
-# name here when it exists. The old plan called story mode "fiction", which still reads as story.
-MODES = ("story", "research")
+# "research" is papers and proposals (docs/dev/plan-research-mode.md); "script" is a variant of story for
+# film, TV, stage and audio scripts: the same notes, links and scenes, with the scene text in Fountain
+# (core/fountain.py, docs/dev/plan-script-mode.md). The old plan called story mode "fiction", which still
+# reads as story.
+MODES = ("story", "research", "script")
 DEFAULT_MODE = "story"
 
 PROJECT_TEMPLATE = """\
@@ -75,6 +77,29 @@ open its note (creating it first if needed).
 
 Everything is plain Markdown on disk — your project folder *is* the novel.
 """
+
+SAMPLE_SCRIPT_SCENE = """# Opening
+
+INT. KITCHEN - DAY
+
+Morning light. [[New Character]] stands at the counter, staring at a slice of toast.
+
+NEW CHARACTER
+(to the toast)
+You and me, then.
+
+<!-- Notes to yourself go in comments like this. They never print. -->
+
+CUT TO:
+
+EXT. GARDEN - CONTINUOUS
+
+A blackbird watches through the window.
+"""
+
+
+def sample_scene(mode: str) -> str:
+    return SAMPLE_SCRIPT_SCENE if mode == "script" else SAMPLE_SCENE
 
 
 def write_atomic(path: Path, text: str) -> None:
@@ -128,7 +153,7 @@ class Project(Structure):
                                          encoding="utf-8", newline="\n")
         sample = root / MANUSCRIPT_DIR / "01-opening.md"
         if not sample.exists():
-            sample.write_text(SAMPLE_SCENE, encoding="utf-8", newline="\n")
+            sample.write_text(sample_scene(mode), encoding="utf-8", newline="\n")
         gitignore = root / ".gitignore"
         if not gitignore.exists():
             gitignore.write_text(f"{CACHE_DIR}/\n", encoding="utf-8", newline="\n")
@@ -155,6 +180,14 @@ class Project(Structure):
         """The kind of project (project.toml [project] mode): one of ``MODES``."""
         proj = self.meta.get("project")
         return normalize_mode(proj.get("mode") if isinstance(proj, dict) else None)
+
+    def count_words(self, text: str, originals: dict[str, str] | None = None) -> int:
+        """Words of a scene, as every counter (status bar, stats, sprints, snapshots, export) must count them:
+        not unaccepted AI drafts, not the details block, and in a script not notes, synopses or boneyard."""
+        if self.mode == "script":
+            from . import fountain
+            return fountain.word_count(scenemeta.strip(drafts.strip_pending(text, originals)))
+        return drafts.count_words(text, originals)
 
     def author_info(self) -> dict:
         """Project and author details from project.toml [project].

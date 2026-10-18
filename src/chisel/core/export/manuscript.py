@@ -20,12 +20,12 @@ import re
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 
-from .. import drafts, scenemeta
+from .. import drafts, fountain, scenemeta
 from .. import structure as st
 from ..links import WIKILINK_RE, is_foreign_target
 from ..paper.types import CiteRef
 
-FORMATS = ("pdf", "docx", "epub", "md", "tex")
+FORMATS = ("pdf", "docx", "epub", "md", "tex", "fountain")
 NUMBERINGS = ("words", "numbers", "titles-only")
 PAGE_SIZES = ("trade", "a5", "letter", "a4")
 
@@ -33,7 +33,7 @@ PAGE_SIZES = ("trade", "a5", "letter", "a4")
 @dataclass(frozen=True)
 class ExportOptions:
     format: str = "pdf"
-    layout: str = "book"           # pdf only: book | manuscript | plain-proof
+    layout: str = "book"           # pdf only: book | manuscript | plain-proof (scripts: screenplay)
     page_size: str = "trade"       # trade (6x9 in) | a5 | letter | a4
     font: str = ""                 # "" = the layout's default
     numbering: str = "words"       # "Chapter 3" | "3" | title only
@@ -96,6 +96,13 @@ class Paragraph:
 @dataclass(frozen=True)
 class Break:
     """A scene break inside a chapter (drawn as an ornament)."""
+
+
+@dataclass(frozen=True)
+class ScriptText:
+    """A script scene's text as Fountain (script mode only): kept whole, because line breaks mean something
+    in a script. Notes are already ``[[notes]]``; links are flattened, details and AI drafts resolved."""
+    text: str
 
 
 # -- research additions (core/export/research.py; fiction never produces these) --------------
@@ -450,6 +457,7 @@ def assemble(project, options: ExportOptions | None = None) -> Book:
                 subtitle=info["subtitle"], copyright=opts.copyright.strip() or info["copyright"],
                 contact=info["contact"], language=info["language"])
     unit_word = "Chapter" if project.unit == "chapter" else "Scene"
+    script = project.mode == "script"
 
     groups: list[tuple[Part, list[Path]]] = []
     top = project.part_scenes(None)
@@ -476,7 +484,11 @@ def assemble(project, options: ExportOptions | None = None) -> Book:
         for path in scenes:
             rel = path.relative_to(project.root).as_posix()
             title, body = _scene_text(project, path, opts, book, rel)
-            blocks = parse_blocks(body)
+            if script:
+                text = fountain.notes_to_fountain(body).strip("\n")
+                blocks = [ScriptText(text)] if text.strip() else []
+            else:
+                blocks = parse_blocks(body)
             if not blocks:
                 book.warnings.append(Notice("empty", rel, f"{rel}: the scene has no text"))
             ch = Chapter(title=title, blocks=blocks, scene=rel)
@@ -489,8 +501,9 @@ def assemble(project, options: ExportOptions | None = None) -> Book:
                     ch.label = str(number)
             chapters.append(ch)
             book.scenes += 1
-            book.words += count_words(blocks)
-        if opts.continuous and chapters and not part.front:
+            book.words += (sum(fountain.word_count(b.text) for b in blocks) if script
+                           else count_words(blocks))
+        if opts.continuous and chapters and not part.front and not script:
             merged = Chapter(title="", blocks=[], scene=chapters[0].scene,
                              number=chapters[0].number)
             for ch in chapters:

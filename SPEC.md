@@ -241,7 +241,7 @@ rejection — the author explicitly wants a lightweight version.*
 fiction workflow is solid.*
 
 - **Technical documents/textbooks**: figures, tables, captions, and LaTeX equations become the "entities" (first-class linkable, checked for consistency); AI format-consistency checking; figure generation from a figure/table design guide
-- **Screenplay mode**: screenplay formatting rules in the editor, same AI toolset, LaTeX screenplay export
+- **Screenplay mode**: built as *Script mode* (see "Script mode" below; plan: docs/dev/plan-script-mode.md). Its AI features and LaTeX export are still open.
 
 ### Inspiration images ✅ (implemented 2026-10-01; plan: docs/dev/plan-inspiration.md)
 
@@ -620,6 +620,31 @@ book by story time.
   (`set_entity_born`, `check_story_time`, `get_entity(name, scene_id)`; scene summaries carry `when`, the workspace
   `timeline`). **Terminal:** the details form has the field. There is no timeline view yet.
 
+### Script mode ✅ (variant of story mode; `core/fountain.py`; plan: docs/dev/plan-script-mode.md)
+For film, TV, stage and audio scripts. `project.toml` `[project] mode = "script"`, chosen when the project is
+created. Everything of story mode stays (notes, links, relationships, story time, snapshots, comments); the text of a
+scene is **Fountain** inside the usual `.md` file, with Chisel's own syntax winning where they overlap.
+- **Files:** scenes are `.md` (`# Scene title`, then Fountain); parts are acts or sequences. Fountain interchange is an
+  export (`.fountain`) and an import. `[[Name]]` is a Chisel link; a Fountain note is written `<!-- note -->`
+  (converted to `[[note]]` on export and back on import); links are flattened to their text on export.
+- **Elements** (parsed in Python, never in the editor): scene heading (`INT.`/`EXT.`/`EST`/`INT./EXT`/`I/E` or a
+  forced `.`), action (default; `!` forces), character cue (all caps with a line after, or `@`; extensions and a
+  trailing `^` for dual dialogue), dialogue, parenthetical, transition (`... TO:` or `>`), centered `> text <`,
+  lyrics `~`, section `#`, synopsis `=`, page break `===`, boneyard `/* */`, note `<!-- -->`. Ambiguous text is action.
+- **Pages:** the layout (`fountain.layout`/`paginate`) puts elements at the standard positions (action and headings at
+  the margin, dialogue 10 characters in and 35 wide, parentheticals 16, cues 22, transitions right) on 55-line pages;
+  the status bar shows the estimate in eighths ("7 3/8 pages"), the PDF draws exactly that layout.
+- **Editor:** a monospaced 60-character column, each line styled by its element; no reflow. Speaker cues are
+  mentions of the character; spell check skips headings, cues, transitions and notes.
+- **Export:** *Fountain* (title page, `# Part` sections, scenes as written, `= title` synopses where the title says
+  more than the heading) and the *Screenplay* PDF layout (Liberation Mono 12 pt, title page, page numbers from page 2,
+  a heading or cue never ends a page). A script exports only these two; stories cannot export them.
+- **Import:** a `# Section` becomes a part, each scene heading a scene; a synopsis directly above a heading names
+  the scene; `FADE IN:` starts the first scene; notes become comments; the title page fills author, contact and
+  copyright only where the project has none. New files only; nothing existing is touched.
+- **Not yet:** the AI features, typing aids (Tab cycles the element), side-by-side dual dialogue, `(CONT'D)`,
+  form-specific layouts (stage, audio), scene numbering and revisions, FDX, terminal-editor styling.
+
 ### Rename a character everywhere ✅ (feedback batch 2; plan: docs/dev/plan-feedback-2026-10.md)
 Deterministic (no AI). Core `core/rename.py`; GUI: Notes tab -> **Rename everywhere...**; terminal palette:
 `Entity · Rename everywhere...` (the open note, or the name under the cursor) and `Entity · Undo last rename`.
@@ -924,6 +949,9 @@ Done (see the sections named for details; the user-visible list is in CHANGELOG.
 - **Character relationships** (plan: docs/dev/plan-relationships.md): a `## Relationships` section in notes,
   derived inverses (read from the other note, never written), unresolved links kept, AI suggestions through
   the context budget with a per-row review in both front ends.
+
+- **Script mode** (plan: docs/dev/plan-script-mode.md): a variant of story mode whose scenes are Fountain, with
+  the screenplay layout, a page estimate, Fountain import and export, and the Screenplay PDF.
 
 Planned next, in this order (no dates; each is designed before it is built):
 1. **Talk as a character**: a persona chat with an as-of point; it never sends scenes later than that story

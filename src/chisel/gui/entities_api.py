@@ -116,7 +116,7 @@ class EntitiesMixin:
             path = project.root / rel
             if project.is_scene_path(path) and path.is_file():
                 text, originals = ws.read_text(project, path)
-                self.stats.seen(self._scene_key(path), drafts.count_words(text, originals))
+                self.stats.seen(self._scene_key(path), project.count_words(text, originals))
 
     @bridge
     def rename_preview(self, name: str, new_name: str, keep_old_as_alias: bool = True,

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../backend/api";
 import {
-  fitOptions, layoutOf, PAGE_SIZE_LABEL, summaryLine, usableFormat,
+  fitOptions, isScriptInfo, layoutOf, PAGE_SIZE_LABEL, summaryLine, usableFormat,
   type ExportInfo, type ExportOptions, type ExportResult, type ExportSummary,
 } from "../data/export";
 import { Modal } from "./Dialogs";
@@ -99,6 +99,7 @@ export function ExportDialog({ unit, onClose, notify }: {
   }
 
   const layout = layoutOf(info, opts);
+  const script = isScriptInfo(info);   // scripts have no chapter headings, contents page or ornaments
   const busy = run !== null;
   const current = info.formats.find((f) => f.key === opts.format);
   const check = (label: string, name: "toc" | "include_front_matter" | "include_drafts" | "continuous") => (
@@ -119,7 +120,7 @@ export function ExportDialog({ unit, onClose, notify }: {
   );
 
   return (
-    <Modal title="Export the book" wide onClose={onClose}>
+    <Modal title={script ? "Export the script" : "Export the book"} wide onClose={onClose}>
       <p className="lw-export__summary" role="status">
         {summary ? summaryLine(summary, unit) : "Counting…"}
       </p>
@@ -131,13 +132,13 @@ export function ExportDialog({ unit, onClose, notify }: {
       {layout && <p className="lw-faint lw-export__hint">{layout.description}</p>}
       {layout && layout.page_sizes.length > 1 && chips("Page size", layout.page_sizes.map((p) => ({ value: p, text: PAGE_SIZE_LABEL[p] ?? p })), opts.page_size, (v) => set({ page_size: v }))}
       {layout && layout.fonts.length > 1 && chips("Font", layout.fonts.map((f) => ({ value: f.key, text: f.label, disabled: !f.available, title: f.available ? undefined : "not installed" })), opts.font, (v) => set({ font: v }))}
-      {chips(`${unit[0].toUpperCase()}${unit.slice(1)} headings`, [
+      {!script && chips(`${unit[0].toUpperCase()}${unit.slice(1)} headings`, [
         { value: "words", text: `“${unit === "scene" ? "Scene" : "Chapter"} 3”` }, { value: "numbers", text: "Numbers" }, { value: "titles-only", text: "Titles only" },
       ], opts.numbering, (v) => set({ numbering: v as ExportOptions["numbering"] }))}
       <div className="lw-export__checks">
-        {(!layout || layout.toc) && check("Table of contents", "toc")}
+        {!script && (!layout || layout.toc) && check("Table of contents", "toc")}
         {check("Include front matter", "include_front_matter")}
-        {(!layout || layout.continuous) && check(`Run ${unit}s on with a break ornament (no ${unit} pages)`, "continuous")}
+        {!script && (!layout || layout.continuous) && check(`Run ${unit}s on with a break ornament (no ${unit} pages)`, "continuous")}
         {check("Include pending AI drafts", "include_drafts")}
       </div>
       {summary?.draft_scenes ? (

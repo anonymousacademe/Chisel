@@ -58,6 +58,8 @@ export interface SceneSummary {
   unplaced: boolean;
   details: SceneDetails;
   when: WhenInfo;
+  /** Estimated screenplay pages (script projects only; core/fountain.py). */
+  pages?: number;
 }
 
 /** A part of the book (a folder under manuscript/), in book order. */
@@ -144,8 +146,8 @@ export interface RenamePreview { plan: string; name: string; newName: string; al
 export interface RenameDone { undoId: string; replacements: number; scenes: number; changed: string[]; remap: Record<string, string>; id: string; name: string }
 export interface RenameUndone { restored: string[]; skipped: string[]; id: string }
 
-/** What kind of work a project is (project.toml [project] mode). A script mode is planned. */
-export type ProjectMode = "story" | "research";
+/** What kind of work a project is (project.toml [project] mode). Script is a story whose scenes are Fountain. */
+export type ProjectMode = "story" | "research" | "script";
 /** Mode-dependent binder words, from Python (gui/workspace.py LABELS). */
 export interface ProjectLabels { manuscript: string; parked: string; characters: string; world: string }
 
@@ -161,6 +163,9 @@ export interface Workspace {
   entities: EntitySummary[];
   status: {
     projectWords: number;
+    /** Script projects: estimated pages, and the same as text ("7 3/8"), both from Python. */
+    projectPages?: number;
+    pagesLabel?: string;
     /** Net words since the project was opened (may be negative). */
     sessionWords: number;
     sessionMinutes: number;

@@ -59,7 +59,7 @@ class SnapshotsMixin:
             return
         self.save_current()
         text = self.editor.text
-        words = drafts.count_words(text, self._originals(text))
+        words = self.project.count_words(text, self._originals(text))
         items = snapshots.list_snapshots(self.project, path)
         title = self.project.scene_title(path)
 

@@ -43,7 +43,7 @@ class PathPrompt(ModalScreen[Path | None]):
 
 
 class NewProjectPrompt(ModalScreen[tuple[str, Path, str] | None]):
-    """Prompt for a new project's title, location and mode (story or research)."""
+    """Prompt for a new project's title, location and mode (story, research or script)."""
 
     def __init__(self, default_parent: Path) -> None:
         super().__init__()
@@ -54,7 +54,8 @@ class NewProjectPrompt(ModalScreen[tuple[str, Path, str] | None]):
         yield Input(placeholder="Title, e.g. The Salt Road", id="title-input")
         yield Input(placeholder="Folder", id="path-input")
         yield Select([("Story: scenes, characters, places", "story"),
-                      ("Research: sections, sources, citations", "research")],
+                      ("Research: sections, sources, citations", "research"),
+                      ("Script: Fountain scenes, characters, places", "script")],
                      value="story", allow_blank=False, id="mode-select")
 
     def on_mount(self) -> None:

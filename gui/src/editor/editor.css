@@ -83,3 +83,18 @@
   background: var(--lw-warning); opacity: 0.8; border-radius: 3px 3px 3px 0;
 }
 .lw-cm .cm-line.lw-has-comment:hover::before { opacity: 1; }
+
+/* Script mode (Fountain): a monospaced 60-character column with the standard element positions. Python
+   decides each line's element (core/fountain.py); positions are in characters, as on the printed page. */
+.lw-cm .lw-script .cm-scroller { font-family: var(--lw-font-mono); font-size: calc(15px * var(--lw-zoom, 1)); line-height: 1.55; }
+.lw-cm .lw-script .cm-content { max-width: 60ch; }
+.lw-cm .lw-script .lw-title-line { font-family: var(--lw-font-ui); }
+.lw-cm .lw-sc--scene_heading { font-weight: 700; text-transform: uppercase; color: var(--lw-text-strong); margin-top: 10px; }
+.lw-cm .lw-sc--character { padding-left: 22ch; text-transform: uppercase; color: var(--lw-text-strong); }
+.lw-cm .lw-sc--parenthetical { padding-left: 16ch; padding-right: 19ch; font-style: italic; }
+.lw-cm .lw-sc--dialogue { padding-left: 10ch; padding-right: 15ch; }
+.lw-cm .lw-sc--transition { text-align: right; text-transform: uppercase; color: var(--lw-text-strong); }
+.lw-cm .lw-sc--centered { text-align: center; }
+.lw-cm .lw-sc--lyrics { font-style: italic; padding-left: 4ch; }
+.lw-cm .lw-sc--synopsis, .lw-cm .lw-sc--note, .lw-cm .lw-sc--boneyard { color: var(--lw-text-faint); font-style: italic; }
+.lw-cm .lw-sc--page_break { border-bottom: 1px dashed var(--lw-text-faint); color: var(--lw-text-faint); }

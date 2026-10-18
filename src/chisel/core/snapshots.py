@@ -107,7 +107,8 @@ def _originals(path: Path) -> dict[str, str]:
             if isinstance(k, str) and isinstance(v, str)} if isinstance(data, dict) else {}
 
 
-def _snapshot(path: Path) -> Snapshot | None:
+def _snapshot(path: Path, count=None) -> Snapshot | None:
+    count = count or drafts.count_words   # a project's own counter (scripts do not count notes)
     parsed = _parse(path)
     if parsed is None:
         return None
@@ -116,7 +117,7 @@ def _snapshot(path: Path) -> Snapshot | None:
     except (OSError, ValueError):  # unreadable or not UTF-8: not listed
         return None
     return Snapshot(path.stem, path, parsed[0], parsed[1],
-                    drafts.count_words(text, _originals(path)))
+                    count(text, _originals(path)))
 
 
 # -- create / read -----------------------------------------------------------
@@ -142,7 +143,7 @@ def create(project, scene: Path, label: str = "", text: str | None = None,
         _write(folder / f"{stem}.json", json.dumps(originals, indent=2, ensure_ascii=False))
     _write(folder / f"{stem}.md", text)
     return Snapshot(stem, folder / f"{stem}.md", when, clean_label(label),
-                    drafts.count_words(text, originals))
+                    project.count_words(text, originals))
 
 
 def list_snapshots(project, scene: Path) -> list[Snapshot]:
@@ -151,7 +152,7 @@ def list_snapshots(project, scene: Path) -> list[Snapshot]:
         files = list(scene_dir(project.root, scene).glob("*.md"))
     except OSError:
         return []
-    snaps = [s for s in map(_snapshot, files) if s is not None]
+    snaps = [s for s in (_snapshot(f, project.count_words) for f in files) if s is not None]
 
     def newest(s: Snapshot) -> tuple:  # same second: the later write wins
         try:

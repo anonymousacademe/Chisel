@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from . import workspace as ws
-from ..core import settings as user_settings, spelling
+from ..core import fountain, settings as user_settings, spelling
 from ..core.spans import to_utf16
 from ._bridge import bridge
 
@@ -28,6 +28,8 @@ class SpellingMixin:
             accepted = spelling.accepted_terms(
                 project, entities=self.entities,
                 ignored=self._spell_ignores.for_project(project.root))
+            if project.mode == "script":   # headings, cues, transitions and notes are not prose
+                text = fountain.blank_non_prose(text)
         found = spelling.check(text, accepted)
         spans = to_utf16(text, [{"start": m.start, "end": m.end, "word": m.word}
                                 for m in found])

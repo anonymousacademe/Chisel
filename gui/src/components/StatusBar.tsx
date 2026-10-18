@@ -13,6 +13,8 @@ import { activeCount, ambienceLabel } from "../data/atmosphere";
 
 export function StatusBar(props: {
   projectWords: number; aiCost: number;
+  /** Script projects: the estimated page count as text ("7 3/8"); absent otherwise. */
+  pagesLabel?: string;
   line: number; col: number; zoom: number; onZoom: () => void;
   /** Misspellings in the open scene (null: spell check does not apply here). */
   spelling: number | null; onSpelling: () => void;
@@ -97,6 +99,12 @@ export function StatusBar(props: {
           </>
         )}
         <span className="lw-status__item">{fmt(props.projectWords)} project words</span>
+        {props.pagesLabel !== undefined && (
+          <>
+            <span className="lw-status__div" />
+            <span className="lw-status__item" title="Estimated screenplay pages (Courier 12, 55 lines a page): about a minute of screen time each">{props.pagesLabel} pages</span>
+          </>
+        )}
         <span className="lw-status__div" />
         <span className="lw-status__item" title="AI spend this session"><Icon icon={Coins} size={12} stroke={1.5} color="var(--lw-text-faint)" />AI ${props.aiCost.toFixed(4)}</span>
         <span className="lw-status__div" />

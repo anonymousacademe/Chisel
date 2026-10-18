@@ -173,6 +173,8 @@ class ActionProvider(_Provider):
          "Timed writing sprint (15 / 25 / 45 / custom minutes): countdown in the status bar, optional writer mode"),
         ("Export manuscript", "export_manuscript",
          "Write the book as PDF (book / manuscript review / plain proof), DOCX, EPUB, Markdown or LaTeX into exports/"),
+        ("Import Fountain file", "import_fountain_prompt",
+         "Script projects: add the scenes of a .fountain file after the current ones (nothing is overwritten)"),
         ("Open exports folder", "open_exports_folder",
          "Show the folder the exported files are saved in"),
         ("Start new draft", "start_new_draft",
@@ -251,6 +253,8 @@ class ActionProvider(_Provider):
             visible = getattr(app, "sync_visible", None)
             if visible is not None and method.startswith("sync_") and not visible(method):
                 continue
+            if method == "import_fountain_prompt" and not (app.project is not None and app.project.mode == "script"):
+                continue   # only script projects import Fountain
             if method == "toggle_unit":  # names the switch it performs
                 title = "Call them scenes" if chapters else "Call them chapters"
             elif chapters:  # the manuscript's unit is a label only

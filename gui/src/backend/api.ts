@@ -6,6 +6,7 @@ import type {
 } from "../data/types";
 import type { AtmosphereInfo, KeyClass, PackRow, Prefs, Station } from "../data/atmosphere";
 import type { ExportInfo, ExportOptions, ExportStatus, ExportSummary } from "../data/export";
+import type { FountainImport } from "../data/script";
 import { call } from "./transport";
 
 /** AI job kinds (the AI job contract): the first four stream text, the rest answer once. */
@@ -81,6 +82,8 @@ export const api = {
   syncInit: () => call<{ sync: SyncInfo | null }>("sync_init"),
   // export (M7): the file is written by a worker thread; poll exportStatus. Open only on a click.
   exportInfo: () => call<ExportInfo>("export_info"),
+  /** Script projects: add a .fountain file's scenes (the window asks for the file; path is for the dev server). */
+  importFountain: (path?: string) => call<{ imported: FountainImport | null }>("import_fountain", path),
   exportSummary: (options: ExportOptions) => call<{ summary: ExportSummary }>("export_summary", options),
   exportStart: (options: ExportOptions) => call<{ job: string }>("export_start", options),
   exportStatus: (job: string) => call<ExportStatus>("export_status", job),

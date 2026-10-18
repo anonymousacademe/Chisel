@@ -8,6 +8,7 @@ import { Logo } from "./Logo";
 const MODES: { id: ProjectMode; label: string; hint: string }[] = [
   { id: "story", label: "Story", hint: "A novel or stories: scenes, characters and places." },
   { id: "research", label: "Research", hint: "A paper, proposal or thesis: sections, sources and citations." },
+  { id: "script", label: "Script", hint: "A screenplay, TV, stage or audio script: Fountain scenes, characters and places." },
 ];
 
 /** Shown when no project is open: pick a recent one, open a folder, or start a new project. */

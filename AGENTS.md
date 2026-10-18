@@ -57,7 +57,9 @@ src/chisel/
     inspiration.py      # inspiration/ pictures + .md sidecars: save/list/update/pin, `for:` link (any item), sniff_ext, remap_links / remap_paths
     rename.py           # rename an entity everywhere: plan (read-only) / apply (snapshots first) / undo
     relationships.py    # relationships: the ## Relationships section of a note (parse/set_section) and rows() with derived inverses (never written into the other note)
-    export/             # M7: manuscript.py (assemble -> Book), layouts/ (PDF: book, manuscript, plain),
+    fountain.py         # script mode: Fountain parser (parse/spans/cues), elements, layout + paginate + page estimate, import_text / export_text; pure, no Project
+    fountainio.py       # script mode: read a .fountain file, write its parts and scenes into a project (new files only)
+    export/             # M7: manuscript.py (assemble -> Book), layouts/ (PDF: book, manuscript, plain, screenplay [scripts only]), script.py (Fountain writer),
                         #   pdfkit.py (fonts), markdown.py, pandoc.py, __init__.py (run_export, options)
   ai/
     client.py           # OpenRouter via openai SDK; keyring/env key resolution
@@ -80,6 +82,7 @@ src/chisel/
     structure_api.py    # StructureMixin: scenes, parts, Trash, scene details
     versions_api.py     # VersionsMixin: snapshots, start_new_draft, git sync
     export_api.py       # ExportMixin: export_info / summary / start / status / open
+    script_api.py       # ScriptMixin: import_fountain (script projects; the file dialog is the window's)
     notebook_api.py     # NotebookMixin: notebook notes (the Ask-my-notebook chat `research` stays in api.py)
     annotations_api.py  # AnnotationsMixin: comments, collections
     inspiration_api.py  # InspirationMixin: picture listing, upload, edit, delete (describe/generate stay in api.py)
@@ -363,6 +366,27 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   rewrite, `set_entity_born`. Never construct `Entity(name=..., aliases=...)` to overwrite an existing note.
   YAML comments inside the block are not preserved (documented, accepted). Malformed frontmatter reads as
   empty, as before.
+- **Script mode** (`core/fountain.py`, `core/fountainio.py`, `core/export/script.py`, `layouts/screenplay.py`,
+  `gui/script_api.py`; SPEC "Script mode", docs/dev/plan-script-mode.md) is a **variant of story mode**
+  (`project.mode == "script"`; anything that is "not research" still applies to it - use `mode != "research"`, never
+  `mode == "story"`, for story features). Scenes stay `.md`; the body is Fountain, parsed ONLY in Python:
+  the editor receives `{"kind": "script", "element", start, end}` spans from `compute_spans(script=True)` and only
+  turns them into line classes (`scriptLineSpecs`). Things that bit or will bite:
+  - `[[x]]` is a Chisel link, so a Fountain note is `<!-- x -->` (`notes_to_fountain` / `notes_from_fountain`);
+    never export a `[[Name]]` link (`_scene_text` flattens it first, then notes are converted).
+  - The first `# ` line of a scene is Chisel's title (`TITLE`); later `#` lines are Fountain sections. The first
+    `# ` line of a file passed to `import_text` is therefore classified TITLE and handled as a section there.
+  - Line breaks are meaningful: never run script text through `parse_blocks` / Markdown reflow
+    (`assemble` keeps each scene as one `ScriptText` block; the editor turns reflow off for script scenes).
+  - Parse text that went through `fountain.prepare` (details and AI-draft markers blanked, same length) or
+    `scenemeta.strip` + `drafts.strip_pending`; offsets are code points, convert with `to_utf16` at the bridge.
+  - Prose scanners must skip non-prose lines: spell check uses `fountain.blank_non_prose` (GUI and TUI), name
+    scanning adds cue mentions case-insensitively via `fountain.cues` (`compute_spans(script=True)`,
+    `workspace.mention_counts(script=True)`). Story output must stay byte-identical (tests lock it).
+  - The page estimate, the PDF and the layout tests share `fountain.layout`/`paginate`; change the rules there,
+    not in the layout module. Export formats are fenced by mode (`export.SCRIPT_FORMATS`, `load_options`,
+    `describe`): a script exports `pdf` (screenplay layout only) and `fountain`; a story cannot.
+  - Imports only ever create new files (`write_atomic` on fresh paths) and fill empty author details.
 - **Story time is optional** (`core/timeline.py`; SPEC "Story time"). `when:` (scene frontmatter) and `born:`
   (entity frontmatter) are a year, optional month and day, as `StoryTime(year, month|None, day|None)`: never a
   `datetime` (years past 9999 and negative ones must work; missing month/day sorts first). A scene without

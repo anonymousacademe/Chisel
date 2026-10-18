@@ -26,14 +26,14 @@ class StatsMixin:
         path = path or self.current_path
         if self.stats is None or not self._is_scene(path):
             return
-        self.stats.seen(self._stats_key(path), drafts.count_words(text, self._originals(text, path)))
+        self.stats.seen(self._stats_key(path), self.project.count_words(text, self._originals(text, path)))
 
     def _stats_record(self, text: str) -> None:
         if self.stats is None or not self._is_scene(self.current_path):
             return
         try:
             self.stats.record(self._stats_key(self.current_path),
-                              drafts.count_words(text, self._originals(text)))
+                              self.project.count_words(text, self._originals(text)))
             self._refresh_stats()
         except OSError:
             pass  # stats are a convenience; never block a save
@@ -156,7 +156,7 @@ class StatsMixin:
             notes.insert(0, f"{summary['draft_scenes']} {project.unit}(s) have unaccepted AI drafts; "
                             "their original text is exported unless you tick the box.")
         self.push_screen(ExportScreen(info, opts, exporting.summary_line(summary, project.unit),
-                                      notes[:4], project.unit), self._start_export)
+                                      notes[:4], project.unit, project.mode == "script"), self._start_export)
 
     def _start_export(self, opts) -> None:
         if opts is None or self.project is None:
@@ -205,7 +205,7 @@ class StatsMixin:
         for path in self.project.counted_scenes():  # front matter isn't the book
             try:
                 text = fsutil.read_text_lenient(path)
-                total += drafts.count_words(text, self._originals(text, path))
+                total += self.project.count_words(text, self._originals(text, path))
             except OSError:
                 continue
         self._project_words = total

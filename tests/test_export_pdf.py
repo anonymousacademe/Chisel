@@ -34,7 +34,7 @@ def text_of(pdf, first=None, last=None):
 
 
 def test_registry():
-    assert [l.name for l in layouts.all_layouts()] == ["book", "manuscript", "plain"]
+    assert [l.name for l in layouts.all_layouts()] == ["book", "manuscript", "plain", "screenplay"]
     book = layouts.get("book")
     forced = book.resolve(ExportOptions(page_size="a4", font="liberation-mono"))
     assert (forced.page_size, forced.font) == ("trade", "noto-serif")

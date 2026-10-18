@@ -280,7 +280,7 @@ export function AppDialogs(p: AppDialogsProps) {
           onManage={() => setDialog({ kind: "collections" })} onClose={() => setDialog(null)} />
       )}
       {dialog?.kind === "details" && doc?.kind === "scene" && doc.details && (
-        <DetailsDialog details={doc.details} entities={ws.entities} unit={unit} story={ws.project.mode === "story"}
+        <DetailsDialog details={doc.details} entities={ws.entities} unit={unit} story={ws.project.mode !== "research"}
           when={ws.scenes.find((s) => s.id === doc.id)?.when} timeline={ws.timeline}
           onSave={(patch) => void saveDetails(patch)} onClose={() => setDialog(null)} />
       )}

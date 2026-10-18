@@ -750,7 +750,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
             state = f"saved {time.strftime('%H:%M', time.localtime(self._last_save))}"
         else:
             state = "saved"
-        words = (_word_count(self._editor.text, self._originals(self._editor.text))
+        words = (self.project.count_words(self._editor.text, self._originals(self._editor.text))
                  if self._editor else 0)
         if self._editor is not None:
             row, col = self._editor.cursor_location

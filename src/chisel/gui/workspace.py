@@ -12,7 +12,7 @@ from pathlib import Path
 
 from ..core import collections as coll
 from ..core import research as research_notes
-from ..core import drafts, fsutil, scenemeta, timeline
+from ..core import drafts, fountain, fsutil, scenemeta, timeline
 from ..core import entities as ent
 from ..core.continuity import get_canon
 from ..core.links import find_all_links
@@ -100,31 +100,41 @@ def headings(text: str) -> list[str]:
             if re.match(r"#{1,6}\s+\S", ln)]
 
 
-def mention_counts(text: str, entities: list[ent.Entity]) -> list[tuple[ent.Entity, int]]:
+def mention_counts(text: str, entities: list[ent.Entity], script: bool = False) -> list[tuple[ent.Entity, int]]:
     """(entity, occurrences) for everything a scene links to or mentions,
     ordered by first appearance. Pending AI drafts don't count, nor does the
-    details block (except a POV / place that names an entity)."""
+    details block (except a POV / place that names an entity). In a script
+    (*script*) the speaker of a character cue counts as a mention too."""
     names = [n for e in entities for n in e.names]
     order: list[ent.Entity] = []
     counts: dict[str, int] = {}
     scan = scenemeta.blank(drafts.blank_pending(text), keep=scenemeta.MENTION_FIELDS)
+    hits: list[tuple[int, int, str]] = []
     for link in find_all_links(scan, names):
         entity = ent.resolve(link.target, entities)
-        if entity is None:
-            continue
-        if entity.name not in counts:
-            order.append(entity)
-        counts[entity.name] = counts.get(entity.name, 0) + 1
+        if entity is not None:
+            hits.append((link.start, link.end, entity.name))
+    if script:
+        for start, end, name in fountain.cues(drafts.blank_pending(text)):
+            entity = ent.resolve(name, entities)
+            if entity is not None and not any(a < end and start < b for a, b, _ in hits):
+                hits.append((start, end, entity.name))
+        hits.sort()
+    by_name = {e.name: e for e in entities}
+    for _start, _end, name in hits:
+        if name not in counts:
+            order.append(by_name[name])
+        counts[name] = counts.get(name, 0) + 1
     return [(e, counts[e.name]) for e in order]
 
 
-def scene_context(text: str, entities: list[ent.Entity], index) -> list[dict]:
+def scene_context(text: str, entities: list[ent.Entity], index, script: bool = False) -> list[dict]:
     """The "retrieved context" of a scene: entities it mentions, how often,
     and how many lines across the project link to each."""
     return [{
         "name": e.name, "type": e.type, "count": n,
         "backlinks": len(index.backlinks(e)) if index is not None else 0,
-    } for e, n in mention_counts(text, entities)]
+    } for e, n in mention_counts(text, entities, script)]
 
 
 def summary_line(body: str, limit: int = 240) -> str:
@@ -207,11 +217,11 @@ def scene_summaries(project: Project) -> list[dict]:
             continue
         title, _ = split_title(text)
         part = project.part_of(path)
-        out.append({
+        row = {
             "id": rel_id(project, path),
             "number": project.scene_number(path),
             "title": title or path.stem,
-            "words": drafts.count_words(text, originals),
+            "words": project.count_words(text, originals),
             "excerpt": excerpt(text),
             "headings": headings(text),
             "part": part_id(project, part) if part else None,
@@ -219,8 +229,16 @@ def scene_summaries(project: Project) -> list[dict]:
             "unplaced": project.is_unplaced(path),
             "details": scenemeta.details(text),
             "when": when_payload(project, text, times.get(rel_id(project, path)), era),
-        })
+        }
+        if project.mode == "script":   # the page estimate of a screenplay (core/fountain.py)
+            row["pages"] = fountain.estimate_pages(scenemeta.strip(drafts.strip_pending(text, originals)))
+        out.append(row)
     return out
+
+
+def book_pages(scenes: list[dict]) -> float:
+    """Estimated screenplay pages of the book (scripts only); front matter and parked scenes do not count."""
+    return sum(s.get("pages", 0) for s in scenes if not s["frontMatter"] and not s["unplaced"])
 
 
 def book_words(scenes: list[dict]) -> int:
@@ -309,6 +327,8 @@ LABELS = {
               "world": "World Bible"},
     "research": {"manuscript": "Sections", "parked": "Parked paragraphs", "characters": "Sources",
                  "world": "Concepts and methods"},
+    "script": {"manuscript": "Script", "parked": "Parked scenes", "characters": "Characters",
+               "world": "Locations and props"},
 }
 
 PARKED_TITLE = "Parked scenes"
@@ -403,6 +423,7 @@ def build_workspace(project: Project, entities: list[ent.Entity], *,
     parts = part_summaries(project, scenes)
     has_style = style_path(project).is_file()
     project_words = book_words(scenes)
+    pages = book_pages(scenes)
     trash_count = len(project.list_trash())
     research = research_summaries(project)
     info = project.author_info()
@@ -433,5 +454,7 @@ def build_workspace(project: Project, entities: list[ent.Entity], *,
             "hasStyle": has_style,
             "trashCount": trash_count,
             "stats": stats,
+            **({"projectPages": pages, "pagesLabel": fountain.format_pages(pages)}
+               if project.mode == "script" else {}),
         },
     }

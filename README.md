@@ -33,6 +33,8 @@ or both.
 ## Features
 
 **Writing**
+- Script mode for screenplays, TV, stage and audio scripts: Fountain scenes drawn as a screenplay, a page
+  estimate, Fountain import and export, a screenplay PDF.
 - Markdown editor with autosave, word counts, writer/focus mode and an offline
   spell check (spelling only; your characters' names are never flagged; personal
   and project dictionaries are plain text files).

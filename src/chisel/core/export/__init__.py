@@ -9,14 +9,14 @@ over an earlier export. The last options used are remembered per project in
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
 from .. import desktop
 from .. import entities as ent
-from . import layouts, markdown, pandoc
+from . import layouts, markdown, pandoc, script
 from .manuscript import Book, ExportOptions, assemble
 from .. import fsutil
 
@@ -27,7 +27,9 @@ FORMATS = {  # key -> (label, extension)
     "epub": ("EPUB", "epub"),
     "md": ("Markdown", "md"),
     "tex": ("LaTeX source", "tex"),
+    "fountain": ("Fountain", "fountain"),
 }
+SCRIPT_FORMATS = ("pdf", "fountain")       # what a script project can export
 Progress = Callable[[str, float], None]
 
 
@@ -56,11 +58,19 @@ def exports_dir(project) -> Path:
 
 def load_options(project) -> ExportOptions:
     """The options last used for this project (defaults when none, or when the
-    stored values are not valid)."""
+    stored values are not valid). A script keeps to its own formats and page layout, and a story to its
+    own, so options remembered from before the project's mode (or from a copied project.toml) are usable."""
     try:
-        return ExportOptions.from_dict(project.meta.get("export") or {})
+        opts = ExportOptions.from_dict(project.meta.get("export") or {})
     except ValueError:
-        return ExportOptions()
+        opts = ExportOptions()
+    if project.mode == "script":
+        return replace(opts, layout="screenplay",
+                       format=opts.format if opts.format in SCRIPT_FORMATS else "pdf")
+    if opts.format == "fountain" or opts.layout == "screenplay":
+        return replace(opts, format="pdf" if opts.format == "fountain" else opts.format,
+                       layout="book" if opts.layout == "screenplay" else opts.layout)
+    return opts
 
 
 def save_options(project, opts: ExportOptions) -> None:
@@ -79,7 +89,10 @@ def describe(project) -> dict:
     has_pdf = layouts.reportlab_available()
     has_pandoc = pandoc.find() is not None
     formats = []
+    is_script = project.mode == "script"
     for key, (label, ext) in FORMATS.items():
+        if (is_script and key not in SCRIPT_FORMATS) or (not is_script and key == "fountain"):
+            continue
         reason = ""
         if key == "pdf" and not has_pdf:
             reason = "install ReportLab: pip install 'chisel-writer[export]'"
@@ -88,7 +101,8 @@ def describe(project) -> dict:
         formats.append({"key": key, "label": label, "ext": ext, "available": not reason,
                         "reason": reason})
     return {"formats": formats,
-            "layouts": [l.describe() for l in layouts.all_layouts()] if has_pdf else [],
+            "layouts": [l.describe() for l in layouts.all_layouts()
+                        if (l.name == "screenplay") == is_script] if has_pdf else [],
             "options": load_options(project).to_dict(),
             "project_copyright": project.author_info()["copyright"]}
 
@@ -134,6 +148,12 @@ def run_export(project, options: ExportOptions, progress: Progress | None = None
     RuntimeError with a message for the author (nothing to export, missing
     tool); a failed export leaves no partial file behind."""
     note = progress or (lambda stage, fraction: None)
+    if project.mode == "script":
+        if options.format not in SCRIPT_FORMATS:
+            raise ValueError("A script exports as a PDF (screenplay layout) or as a Fountain file.")
+        options = replace(options, layout="screenplay")
+    elif options.format == "fountain" or options.layout == "screenplay":
+        raise ValueError("The Fountain and screenplay exports are for script projects.")
     opts = options
     warnings: list[str] = []
     layout = None
@@ -170,6 +190,8 @@ def run_export(project, options: ExportOptions, progress: Progress | None = None
         note("Typesetting" if layout else "Writing the file", 0.4)
         if layout:
             pages = layout.render(book, opts, tmp)
+        elif opts.format == "fountain":
+            tmp.write_text(script.to_fountain(book), encoding="utf-8", newline="\n")
         elif opts.format == "md":
             tmp.write_text(markdown.to_markdown(book), encoding="utf-8", newline="\n")
         else:

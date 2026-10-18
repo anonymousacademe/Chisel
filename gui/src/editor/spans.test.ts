@@ -1,7 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { frontmatterRange, sceneFrontmatter, misspellingAt, misspellSpecs, nextMisspelling, softBreaks, specsFor, titleLine, pendingAt, type Span } from "./spans";
+import { frontmatterRange, sceneFrontmatter, misspellingAt, misspellSpecs, nextMisspelling, scriptLineSpecs, softBreaks, specsFor, titleLine, pendingAt, type Span } from "./spans";
 
 const span = (s: Partial<Span> & Pick<Span, "kind" | "start" | "end">): Span => s as Span;
+
+describe("scriptLineSpecs", () => {
+  it("turns Python's script spans into one line class each, leaving the title and sections alone", () => {
+    const spans = [
+      span({ kind: "script", element: "title", start: 0, end: 9 }),
+      span({ kind: "script", element: "scene_heading", start: 11, end: 29 }),
+      span({ kind: "script", element: "section", start: 30, end: 40 }),
+      span({ kind: "script", element: "dialogue", start: 41, end: 50 }),
+      span({ kind: "mention", start: 12, end: 15 }),
+    ];
+    expect(scriptLineSpecs(spans, 60)).toEqual([
+      { from: 11, cls: "lw-sc lw-sc--scene_heading" },
+      { from: 41, cls: "lw-sc lw-sc--dialogue" },
+    ]);
+  });
+  it("ignores spans outside the document (the text shrank before fresh spans arrived)", () => {
+    expect(scriptLineSpecs([span({ kind: "script", element: "action", start: 90, end: 99 })], 50)).toEqual([]);
+  });
+  it("is never produced by specsFor (script lines are decorated as lines, not marks)", () => {
+    expect(specsFor([span({ kind: "script", element: "dialogue", start: 0, end: 5 })], 0, 10)).toEqual([]);
+  });
+});
 
 describe("specsFor", () => {
   it("colours plain mentions without hiding anything", () => {

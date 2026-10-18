@@ -8,7 +8,7 @@ import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { ensureSyntaxTree } from "@codemirror/language";
 import { markdown } from "@codemirror/lang-markdown";
 import { formatSpecs } from "./format";
-import { frontmatterRange, misspellingAt, sceneFrontmatter, misspellSpecs, softBreaks, specsFor, titleLine, type Misspelling, type Span } from "./spans";
+import { frontmatterRange, misspellingAt, sceneFrontmatter, misspellSpecs, scriptLineSpecs, softBreaks, specsFor, titleLine, type Misspelling, type Span } from "./spans";
 
 export const setSpans = StateEffect.define<Span[]>();
 export const setSpelling = StateEffect.define<Misspelling[]>();
@@ -25,6 +25,8 @@ export const reflowCompartment = new Compartment();
 export const metaFacet = Facet.define<string, string>({ combine: (v) => v[v.length - 1] ?? "" });
 /** "scene" | "entity" | "style": entity notes show their frontmatter as a mono block. */
 export const kindFacet = Facet.define<string, string>({ combine: (v) => v[v.length - 1] ?? "scene" });
+/** A scene of a script project: its lines are drawn as screenplay elements (Python classifies them). */
+export const scriptFacet = Facet.define<boolean, boolean>({ combine: (v) => (v.length ? v[v.length - 1] : false) });
 
 class MetaWidget extends WidgetType {
   readonly text: string;
@@ -132,6 +134,17 @@ function build(state: EditorState): Built {
     if (sp.from === sp.to) continue;
     if (sp.type === "hide") { ranges.push(hide.range(sp.from, sp.to)); atomic.push(hide.range(sp.from, sp.to)); }
     else ranges.push(Decoration.mark({ class: sp.cls, attributes: sp.attrs }).range(sp.from, sp.to));
+  }
+
+  // script scenes: one class per Fountain line (scene heading, cue, dialogue ...), positions from Python
+  if (state.facet(scriptFacet)) {
+    const seen = new Set<number>();
+    for (const l of scriptLineSpecs(state.field(spansField), doc.length)) {
+      const at = doc.lineAt(l.from).from;
+      if (seen.has(at)) continue;
+      seen.add(at);
+      ranges.push(Decoration.line({ class: l.cls }).range(at));
+    }
   }
 
   // misspelled words (scenes only: Python sends nothing for other documents)
@@ -305,9 +318,12 @@ export interface Hooks {
   extraKeys?: { key: string; run: () => boolean }[];
 }
 
-export function editorExtensions(kind: string, meta: string, reflow: boolean, hooks: Hooks, undoDepth: (s: EditorState) => number, redoDepth: (s: EditorState) => number): Extension[] {
+export function editorExtensions(kind: string, meta: string, reflow: boolean, hooks: Hooks, undoDepth: (s: EditorState) => number, redoDepth: (s: EditorState) => number, script = false): Extension[] {
+  const screenplay = script && kind === "scene";
   return [
     kindFacet.of(kind),
+    scriptFacet.of(screenplay),
+    ...(screenplay ? [EditorView.editorAttributes.of({ class: "lw-script" })] : []),
     draftFacet.of((i, a) => hooks.onResolveDraft(i, a)),
     metaCompartment.of(metaFacet.of(meta)),
     reflowCompartment.of(reflowFacet.of(reflow)),

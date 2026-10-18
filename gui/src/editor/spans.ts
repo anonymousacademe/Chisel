@@ -1,10 +1,12 @@
 // Spans come from Python (chisel.core.spans) in UTF-16 offsets. This file
 // only maps them to editor decorations; it never decides what a mention is.
 
-export type SpanKind = "mention" | "link" | "unresolved" | "pending" | "expand";
+export type SpanKind = "mention" | "link" | "unresolved" | "pending" | "expand" | "script";
 
 export interface Span {
   kind: SpanKind;
+  /** script: the Fountain element of the line (core/fountain.py): scene_heading, character, dialogue... */
+  element?: string;
   start: number;
   end: number;
   target?: string;
@@ -91,6 +93,20 @@ export function specsFor(spans: Span[], head: number, docLength: number): Spec[]
         out.push({ from: s.start, to: s.end, type: "mark", cls: "lw-expand" });
         break;
     }
+  }
+  return out;
+}
+
+/**
+ * Line classes for a script scene, one per formatted line. Python (core.fountain) decides which element a
+ * line is; this only turns that into a class. The title line keeps its own style and Markdown draws sections.
+ */
+export function scriptLineSpecs(spans: Span[], docLength: number): { from: number; cls: string }[] {
+  const out: { from: number; cls: string }[] = [];
+  for (const s of spans) {
+    if (s.kind !== "script" || !s.element || s.element === "title" || s.element === "section") continue;
+    if (s.start < 0 || s.start > docLength) continue;
+    out.push({ from: s.start, cls: `lw-sc lw-sc--${s.element}` });
   }
   return out;
 }

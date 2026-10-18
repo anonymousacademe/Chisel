@@ -5,6 +5,7 @@ A mixin for ChiselApp.
 
 from __future__ import annotations
 
+from ..core import fountain
 from ..core import settings as user_settings
 from ..core import spelling
 from ..core.applog import log_exc
@@ -25,6 +26,10 @@ class SpellMixin:
         return spelling.accepted_terms(
             self.project, entities=self.entities,
             ignored=self._spell_ignores.for_project(self.project.root))
+
+    def _spell_text(self, text: str) -> str:
+        """What the checker reads: in a script, scene headings, cues, transitions and notes are not prose."""
+        return fountain.blank_non_prose(text) if self.project.mode == "script" else text
 
     def _spelling_edited(self) -> None:
         """Keep underlines honest between checks: a line-count change shifts
@@ -55,7 +60,7 @@ class SpellMixin:
         self._spell_lines = self.editor.document.line_count
 
         def work() -> None:
-            found = spelling.check(text, accepted)
+            found = spelling.check(self._spell_text(text), accepted)
             try:
                 self.call_from_thread(self._spell_apply, text, found)
             except Exception as exc:  # app shutting down
@@ -77,7 +82,7 @@ class SpellMixin:
             return
         self._spell_lines = self.editor.document.line_count
         self.editor.set_misspellings(
-            spelling.check(self.editor.text, self._accepted()))
+            spelling.check(self._spell_text(self.editor.text), self._accepted()))
 
     def toggle_spellcheck(self) -> None:
         on = not user_settings.get("spellcheck", True)
@@ -91,7 +96,7 @@ class SpellMixin:
             self.notify("Spell check applies to scenes", timeout=2)
             return
         text = self.editor.text
-        found = spelling.check(text, self._accepted())
+        found = spelling.check(self._spell_text(text), self._accepted())
         if not found:
             self.notify("No misspellings", timeout=2)
             return

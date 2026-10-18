@@ -20,6 +20,15 @@ All notable changes to Chisel are listed here, newest first. The format follows
   title bar now ignores the right button.
 
 ### Added
+- **Script mode** for screenplays, TV, stage and audio scripts. Start a project and choose *Script*: it is a
+  story (characters, places, links, relationships, story time, snapshots and comments all work) whose scenes
+  are written in Fountain, the plain-text screenplay format. The desktop editor draws scene headings, character
+  cues, dialogue, parentheticals and transitions at the standard positions in a monospaced column, the status
+  bar shows an estimated page count, a character cue counts as a mention of that character, and spell check
+  skips headings, cues and notes. *Export* writes a Fountain file or a screenplay PDF (Courier 12, standard
+  margins, title page, numbered pages); *Import a Fountain file* (project menu; terminal palette) adds a
+  `.fountain` script's parts and scenes after the ones you have. Scenes stay Markdown files; a Fountain note is
+  written `<!-- like this -->` because `[[double brackets]]` are links here. AI features for scripts come later.
 - **Character relationships.** A character note can declare its relationships in a `## Relationships`
   section (`- [[Rook Tanaka]] — father; estranged`); the app reads it wherever the note is shown. The
   note panel (desktop) lists what the note declares, what the other notes say about it ("from their

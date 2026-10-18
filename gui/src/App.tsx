@@ -30,6 +30,7 @@ import { AppDialogs } from "./components/AppDialogs";
 import { Toasts } from "./components/Toast";
 import type { Dialog } from "./data/dialog";
 import { firstScene, sentence } from "./data/appLogic";
+import { importedLine } from "./data/script";
 import { useComments } from "./hooks/useComments";
 import { useRenameEverywhere } from "./hooks/useRenameEverywhere";
 import { useCollectionOps } from "./hooks/useCollectionOps";
@@ -538,6 +539,15 @@ export default function App() {
     if (!(await saver.flush())) return notify("Could not save the current document first.", "error");
     setDialog({ kind: "export" });
   };
+  const importFountain = async () => {
+    if (!(await saver.flush())) return notify("Could not save the current document first.", "error");
+    const r = await api.importFountain();
+    if (!r.ok) return notify(r.error, "error");
+    if (!r.imported) return;   // the file dialog was cancelled
+    await refresh(); setSpansVersion((v) => v + 1);
+    notify(importedLine(r.imported));
+    if (r.imported.first) await openDoc(r.imported.first);
+  };
   const switchProject = async () => {
     if (!(await saver.flush())) return notify("Could not save the current document first.", "error");
     saver.detach(); setDoc(null); setWs(null);
@@ -545,6 +555,7 @@ export default function App() {
   const openProjectMenu = (anchor: HTMLElement) => setMenu({ anchor, items: [
     { label: "Switch project…", onSelect: () => void switchProject() },
     { label: "Export…", onSelect: () => void openExport() },
+    ...(ws.project.mode === "script" ? [{ label: "Import a Fountain file…", onSelect: () => void importFountain() }] : []),
     { label: "Rebuild the link index", onSelect: async () => {
       const r = await api.rebuildIndex();
       if (!r.ok) return notify(r.error, "error");
@@ -701,7 +712,7 @@ export default function App() {
             onNewNote={() => setDialog({ kind: "new-research" })}
             onNew={() => setDialog(rail === "library" ? { kind: "new-note", name: "", openAfter: true } : { kind: "new-scene" })} onMenu={openSceneMenu} />
         )}
-        <Editor story={ws.project.mode === "story"} doc={doc} scenes={ws.scenes} filter={boardFilter}
+        <Editor story={ws.project.mode !== "research"} script={ws.project.mode === "script"} doc={doc} scenes={ws.scenes} filter={boardFilter}
           onEditCollections={() => setDialog({ kind: "scene-collections" })} parts={ws.parts} unit={unit} words={words} mentions={mentions} reflow={reflow}
           sessionWords={ws.status.sessionWords} sessionMinutes={ws.status.sessionMinutes}
           onEditDetails={() => setDialog({ kind: "details" })} onMoveRequest={(plan) => setDialog({ kind: "move", plan })}
@@ -721,7 +732,7 @@ export default function App() {
             { key: "Mod-g", run: startGenerate },
           ]} />
         {showAssistant && (
-          <Assistant story={ws.project.mode === "story"} tab={tab} onTab={setTab} mentions={mentions} onPickEntity={showNote}
+          <Assistant story={ws.project.mode !== "research"} tab={tab} onTab={setTab} mentions={mentions} onPickEntity={showNote}
             note={note} missingTarget={missingTarget} onOpenNote={(id) => void openDoc(id)} onAddAlias={(n, a) => void addAlias(n, a)} onSetBorn={(n, b) => void setBorn(n, b)} onSuggestRelationships={(n) => void suggestRelationships(n)} onRename={(n, al) => setDialog({ kind: "rename-note", name: n, aliases: al })}
             onCreateNote={(t) => setDialog({ kind: "new-note", name: t, openAfter: false })} onOpenBacklink={(id, row) => void openBacklink(id, row)}
             issues={issues} issuesSent={issuesSent} onReviewIssue={reviewIssue} onDismissIssue={(i) => void dismissIssue(i)}
@@ -749,7 +760,7 @@ export default function App() {
       {aiRun?.mode === "strip" && <ProgressStrip run={aiRun} onStop={stopAi} />}
       {aiRun?.mode === "draft" && <DraftPanel run={aiRun} onStop={stopAi} />}
       <StatusBar onSound={() => setDialog({ kind: "sound" })} ai={aiRun} onStopAi={stopAi} stats={ws.status.stats} onStats={() => setDialog({ kind: "stats" })}
-        sprintLeft={sprint ? remaining(sprint, nowMs) : null} onSprint={() => setDialog(sprint ? { kind: "stop-sprint" } : { kind: "sprint" })} projectWords={ws.status.projectWords} aiCost={ws.status.aiCost}
+        sprintLeft={sprint ? remaining(sprint, nowMs) : null} onSprint={() => setDialog(sprint ? { kind: "stop-sprint" } : { kind: "sprint" })} projectWords={ws.status.projectWords} pagesLabel={ws.status.pagesLabel} aiCost={ws.status.aiCost}
         line={cursor.line} col={cursor.col} zoom={zoom} onZoom={cycleZoom}
         spelling={isScene ? spellCount : null} onSpelling={jumpToMisspelling}
         snapshotAt={isScene ? snapshotAt : undefined} onSnapshots={openHistory}

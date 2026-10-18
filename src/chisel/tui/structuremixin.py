@@ -6,7 +6,7 @@ A mixin for ChiselApp (same pattern as aimixin); the app owns the state it uses.
 from __future__ import annotations
 
 from pathlib import Path
-from ..core import fsutil, inspiration
+from ..core import fountainio, fsutil, inspiration
 from ..core import research as research_notes
 from ..core.project import retitle_text
 from .structurescreens import ChoiceScreen, TrashScreen
@@ -29,6 +29,36 @@ class StructureMixin:
             self.open_file(path)
 
         self.push_screen(NamePrompt(f"New {self.project.unit} title:"), _create)
+
+    def import_fountain_prompt(self) -> None:
+        """Script projects: ask for a .fountain file and add its parts and scenes (new files only)."""
+        if self.project is None:
+            return
+        if self.project.mode != "script":
+            self.notify("Importing Fountain is for script projects: start a new project and choose Script",
+                        severity="warning")
+            return
+
+        def _import(raw: str | None) -> None:
+            if not raw:
+                return
+            path = Path(raw.strip().strip("\"'"))   # a path pasted with quotes
+            try:
+                result = fountainio.import_into(self.project, fountainio.read_file(path), path.name)
+            except (ValueError, OSError) as exc:
+                self.notify(str(exc), severity="error", timeout=8)
+                return
+            self.idx.rebuild(self.project)
+            self.refresh_sidebar()
+            self.update_status()
+            s, p = result["scenes"], result["parts"]
+            line = f"Imported {s} scene" + ("" if s == 1 else "s")
+            if p:
+                line += f" in {p} part" + ("" if p == 1 else "s")
+            self.notify(f"{line} from {result['name']}", timeout=8)
+
+        self.save_current()
+        self.push_screen(NamePrompt("Fountain file to import (path):"), _import)
 
     # -- scene organization -----------------------------------------------------
 

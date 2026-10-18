@@ -43,6 +43,8 @@ interface Props {
   initialText: string;
   meta: string;
   reflow: boolean;
+  /** A scene of a script project: Fountain lines are drawn as screenplay elements. */
+  script?: boolean;
   /** Bump to refetch spans (entity notes or aliases changed). */
   spansVersion: number;
   onChange(text: string): void;
@@ -217,7 +219,7 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
           extraKeys: hooks.current.extraKeys?.map((k) => ({
             key: k.key, run: () => hooks.current.extraKeys?.find((x) => x.key === k.key)?.run() ?? false,
           })),
-        }, undoDepth, redoDepth),
+        }, undoDepth, redoDepth, hooks.current.script),
       }),
     });
     view.current = v;

@@ -41,7 +41,7 @@ class Layout:
                 "toc": self.toc, "continuous": self.continuous, "numbering": self.numbering}
 
 
-_REGISTRY = ("book", "manuscript", "plain")
+_REGISTRY = ("book", "manuscript", "plain", "screenplay")
 
 
 def reportlab_available() -> bool:

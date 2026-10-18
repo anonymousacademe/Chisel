@@ -1,6 +1,6 @@
 /** Types and pure helpers for the Export dialog (the work happens in Python: core/export). */
 
-export type ExportFormatKey = "pdf" | "docx" | "epub" | "md" | "tex";
+export type ExportFormatKey = "pdf" | "docx" | "epub" | "md" | "tex" | "fountain";
 
 export type ExportOptions = {
   format: ExportFormatKey; layout: string; page_size: string; font: string;
@@ -38,6 +38,11 @@ export function summaryLine(s: ExportSummary, unit: string): string {
   let line = bits.join(", ");
   if (s.draft_scenes) line += `; ${plural(s.draft_scenes, unit)} ${s.draft_scenes === 1 ? "has" : "have"} unaccepted AI drafts`;
   return line;
+}
+
+/** A script project: the server offers the Fountain format only to scripts. */
+export function isScriptInfo(info: ExportInfo): boolean {
+  return info.formats.some((f) => f.key === "fountain");
 }
 
 /** The layout an options set uses (PDF only). */

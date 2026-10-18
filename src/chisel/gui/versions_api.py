@@ -36,7 +36,7 @@ class VersionsMixin:
                 text, originals = ws.read_text(project, path)
             else:
                 originals = drafts.load_originals(project.root, path)
-            now = drafts.count_words(text, originals)
+            now = project.count_words(text, originals)
             return {"items": [self._snapshot_row(s, now)
                               for s in snapshots.list_snapshots(project, path)],
                     "words": now, "snapshotAt": self._snapshot_at(path)}
