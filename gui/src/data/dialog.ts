@@ -41,4 +41,6 @@ export type Dialog =
   | { kind: "canon"; items: CanonProposal[]; sent?: SentInfo }
   | { kind: "style"; markdown: string; replacing: boolean }
   | { kind: "settings"; info: SettingsInfo }
+  | { kind: "zotero-settings" }
+  | { kind: "zotero-sync" }
   | null;

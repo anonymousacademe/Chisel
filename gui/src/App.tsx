@@ -559,6 +559,10 @@ export default function App() {
     { label: "Switch project…", onSelect: () => void switchProject() },
     { label: "Export…", onSelect: () => void openExport() },
     ...(ws.project.mode === "script" ? [{ label: "Import a Fountain file…", onSelect: () => void importFountain() }] : []),
+    ...(ws.project.mode === "research" ? [
+      { label: "Zotero settings…", onSelect: () => setDialog({ kind: "zotero-settings" }) },
+      { label: "Sync sources from Zotero…", onSelect: () => setDialog({ kind: "zotero-sync" }) },
+    ] : []),
     { label: "Rebuild the link index", onSelect: async () => {
       const r = await api.rebuildIndex();
       if (!r.ok) return notify(r.error, "error");

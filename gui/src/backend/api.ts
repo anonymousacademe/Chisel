@@ -7,6 +7,7 @@ import type {
 import type { AtmosphereInfo, KeyClass, PackRow, Prefs, Station } from "../data/atmosphere";
 import type { ExportInfo, ExportOptions, ExportStatus, ExportSummary } from "../data/export";
 import type { FountainImport } from "../data/script";
+import type { SourceRow, SyncApplied, SyncPlan, SyncScope, ZoteroCollection, ZoteroSettings, ZoteroStatus } from "../data/research";
 import { call } from "./transport";
 
 /** AI job kinds (the AI job contract): the first four stream text, the rest answer once. */
@@ -90,6 +91,17 @@ export const api = {
   exportStart: (options: ExportOptions) => call<{ job: string }>("export_start", options),
   exportStatus: (job: string) => call<ExportStatus>("export_status", job),
   exportOpen: (name: string, folder = false) => call("export_open", name, folder),
+  // Research mode: Zotero settings, sync (the preview never writes) and the Sources list
+  zoteroCollections: () => call<{ collections: ZoteroCollection[] }>("zotero_collections"),
+  zoteroGetSettings: () => call<ZoteroSettings>("zotero_get_settings"),
+  zoteroSetSettings: (userId: string, webBase: string, local: boolean, localBase: string, file: string) =>
+    call<ZoteroSettings>("zotero_set_settings", userId, webBase, local, localBase, file),
+  zoteroSetKey: (key: string) => call<{ keySet: boolean }>("zotero_set_key", key),
+  zoteroClearKey: () => call<{ keySet: boolean }>("zotero_clear_key"),
+  zoteroStatus: () => call<ZoteroStatus>("zotero_status"),
+  zoteroSyncPlan: (scope: SyncScope = {}) => call<SyncPlan>("zotero_sync_plan", scope),
+  zoteroSyncApply: (ticked: string[]) => call<SyncApplied>("zotero_sync_apply", ticked),
+  listSources: () => call<{ sources: SourceRow[] }>("list_sources"),
   // Notebook notes (notebook/; "research" internally): plain Markdown, never indexed
   newResearchNote: (title: string, template = "") => call<{ id: string }>("new_research_note", title, template),
   /** Copies the selected passage into notebook/clippings.md (the scene is not changed). */
