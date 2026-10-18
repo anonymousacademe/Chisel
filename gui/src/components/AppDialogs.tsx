@@ -22,6 +22,8 @@ import { CollectionsManager, SceneCollectionsDialog } from "./CollectionDialogs"
 import { AttachDialog, ChatHistoryDialog } from "./ChatDialogs";
 import { NewNoteDialog, NotebookDialog } from "./NotebookDialogs";
 import { SettingsDialog } from "./SettingsDialog";
+import { ZoteroSettingsDialog } from "./research/ZoteroSettingsDialog";
+import { SyncReviewDialog } from "./research/SyncReviewDialog";
 
 type Notify = (text: string, tone?: Notice["tone"], action?: Notice["action"]) => void;
 type Collections = ComponentProps<typeof CollectionsManager>;
@@ -206,6 +208,8 @@ export function AppDialogs(p: AppDialogsProps) {
         <SnapshotsDialog docId={doc.id} title={doc.title} unit={unit} getText={liveText} notify={notify}
           onChanged={setSnapshotAt} onRestore={restoreSnapshot} onClose={() => setDialog(null)} />
       )}
+      {dialog?.kind === "zotero-settings" && <ZoteroSettingsDialog notify={notify} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "zotero-sync" && <SyncReviewDialog notify={notify} onApplied={() => void refresh()} onClose={() => setDialog(null)} />}
       {dialog?.kind === "export" && <ExportDialog unit={unit} notify={notify} onClose={() => setDialog(null)} />}
       {dialog?.kind === "new-draft" && (
         <ConfirmDialog title={`Start draft ${ws.project.draft + 1}`} confirm="Start new draft" tone="primary"

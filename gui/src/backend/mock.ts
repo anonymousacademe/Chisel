@@ -192,6 +192,24 @@ export const openedUrls: string[] = [];
 export function mockCall(method: string, args: unknown[]): object {
   switch (method) {
     case "ping": return { ok: true };
+    case "zotero_collections": return { ok: true, collections: [
+      { key: "AB12CD34", path: "AI and Computing / WRRI - AI and Process Modeling", items: 42 },
+      { key: "EF56GH78", path: "Hydrology / Rainfall-runoff", items: null },
+    ] };
+    case "zotero_get_settings": case "zotero_set_settings": return { ok: true, userId: "", webBase: "https://api.zotero.org", local: true, localBase: "http://127.0.0.1:23119", file: "", keySet: false };
+    case "zotero_set_key": return { ok: true, keySet: true };
+    case "zotero_clear_key": return { ok: true, keySet: false };
+    case "zotero_status": return { ok: true, keySet: false, backends: [
+      { backend: "local", ok: true, message: "Zotero on this computer answered." },
+      { backend: "web", ok: false, message: "No web API key is saved." },
+    ] };
+    case "zotero_sync_plan": return { ok: true, backend: "local", report: ["Read 3 items from Zotero on this computer."], rows: [
+      { id: "src-1", key: "AB12CD34", action: "new", summary: "Add “Process modeling with machine learning” (Smith 2023)", blocked: "" },
+      { id: "src-2", key: "EF56GH78", action: "changed", summary: "Title and year changed in Zotero", blocked: "" },
+      { id: "src-3", key: "IJ90KL12", action: "key-mismatch", summary: "The note’s citation key differs from Zotero’s", blocked: "Fix the key in the note first" },
+    ] };
+    case "zotero_sync_apply": return { ok: true, changed: args[0] as string[], skipped: [], recorded: true };
+    case "list_sources": return { ok: true, sources: [] };
     case "open_external": openedUrls.push(String(args[0])); return { ok: true };
     case "ai_start": return aiStart(String(args[0]), (args[1] ?? {}) as Record<string, unknown>);
     case "ai_poll": return aiPoll(String(args[0]), Number(args[1] ?? 0));
