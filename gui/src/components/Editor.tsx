@@ -28,6 +28,8 @@ export function Editor(props: {
   story?: boolean;
   /** Script mode: scenes are Fountain, drawn as screenplay elements and never reflowed. */
   script?: boolean;
+  /** Research mode: [[@ offers the synced sources. */
+  research?: boolean;
   /** Script mode: names offered by the completion list (characters after a blank line, places after INT.). */
   names?: ScriptNames;
   doc: DocumentPayload | null; scenes: SceneSummary[]; parts: PartSummary[]; unit: Unit; words: number; mentions: SceneMention[]; reflow: boolean;
@@ -147,7 +149,7 @@ export function Editor(props: {
                   )}
                 </header>
                 <EditorPane key={`${doc.id}:${props.docRev}`} ref={editorRef} docId={doc.id} kind={doc.kind}
-                  initialText={doc.text} meta={meta} reflow={props.reflow && !props.script} script={props.script} names={props.names} spansVersion={props.spansVersion}
+                  initialText={doc.text} meta={meta} reflow={props.reflow && !props.script} script={props.script} research={props.research} names={props.names} spansVersion={props.spansVersion}
                   spellVersion={props.spellVersion} onSpellCount={props.onSpellCount} onSpell={props.onSpell} onContextMenu={props.onContextMenu}
                   onComments={props.onComments}
                   onChange={props.onChange} onCursor={props.onCursor} onBlur={props.onBlur} onSaveNow={props.onSaveNow}

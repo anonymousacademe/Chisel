@@ -7,7 +7,7 @@ import type {
 import type { AtmosphereInfo, KeyClass, PackRow, Prefs, Station } from "../data/atmosphere";
 import type { ExportInfo, ExportOptions, ExportStatus, ExportSummary } from "../data/export";
 import type { FountainImport } from "../data/script";
-import type { SourceRow, SyncApplied, SyncPlan, SyncScope, ZoteroCollection, ZoteroSettings, ZoteroStatus } from "../data/research";
+import type { SourceCardInfo, SourceHit, SourceRow, SyncApplied, SyncPlan, SyncScope, ZoteroCollection, ZoteroSettings, ZoteroStatus } from "../data/research";
 import { call } from "./transport";
 
 /** AI job kinds (the AI job contract): the first four stream text, the rest answer once. */
@@ -102,6 +102,10 @@ export const api = {
   zoteroSyncPlan: (scope: SyncScope = {}) => call<SyncPlan>("zotero_sync_plan", scope),
   zoteroSyncApply: (ticked: string[]) => call<SyncApplied>("zotero_sync_apply", ticked),
   listSources: () => call<{ sources: SourceRow[] }>("list_sources"),
+  searchSources: (query: string, limit = 30) => call<{ sources: SourceHit[] }>("search_sources", query, limit),
+  sourceCard: (id: string) => call<SourceCardInfo>("source_card", id),
+  zoteroItemCollections: (id: string) => call<{ collections: string[] }>("zotero_item_collections", id),
+  openInZotero: (id: string) => call("open_in_zotero", id),
   // Notebook notes (notebook/; "research" internally): plain Markdown, never indexed
   newResearchNote: (title: string, template = "") => call<{ id: string }>("new_research_note", title, template),
   /** Copies the selected passage into notebook/clippings.md (the scene is not changed). */

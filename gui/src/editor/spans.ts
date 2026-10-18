@@ -1,7 +1,7 @@
 // Spans come from Python (chisel.core.spans) in UTF-16 offsets. This file
 // only maps them to editor decorations; it never decides what a mention is.
 
-export type SpanKind = "mention" | "link" | "unresolved" | "pending" | "expand" | "script";
+export type SpanKind = "mention" | "link" | "unresolved" | "pending" | "expand" | "script" | "citation";
 
 export interface Span {
   kind: SpanKind;
@@ -18,6 +18,11 @@ export interface Span {
   bodyEnd?: number;
   id?: string | null;
   instruction?: string;
+  /** citation: Python resolves it (core.links.find_citations + the source notes). */
+  status?: "resolved" | "unresolved";
+  keys?: string[];
+  label?: string;
+  title?: string;
 }
 
 /** A misspelled word from Python (chisel.core.spelling), UTF-16 offsets. */
@@ -89,6 +94,13 @@ export function specsFor(spans: Span[], head: number, docLength: number): Spec[]
         if (a < b) out.push({ from: a, to: b, type: "mark", cls: "lw-draft", attrs: { "data-draft": s.id ?? "" } });
         break;
       }
+      case "citation":
+        out.push({
+          from: s.start, to: s.end, type: "mark",
+          cls: s.status === "resolved" ? "lw-cite lw-cite--resolved" : "lw-cite lw-cite--unresolved",
+          attrs: { "data-keys": (s.keys ?? []).join(" ") },
+        });
+        break;
       case "expand":
         out.push({ from: s.start, to: s.end, type: "mark", cls: "lw-expand" });
         break;
