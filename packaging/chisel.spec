@@ -24,6 +24,11 @@ BUNDLE_ID = "io.github.anonymousacademe.chisel"
 datas = [
     (str(SRC / "chisel" / "gui" / "web"), "chisel/gui/web"),
     (str(SRC / "chisel" / "core" / "export" / "fonts"), "chisel/core/export/fonts"),
+    (str(SRC / "chisel" / "core" / "export" / "csl"), "chisel/core/export/csl"),
+    # research mode: the runner is copied out and run by the author's own Python, so it must be a real file
+    (str(SRC / "chisel" / "core" / "chisel_runner.py"), "chisel/core"),
+    (str(SRC / "chisel" / "core" / "figscript_template.py.txt"), "chisel/core"),
+    (str(SRC / "chisel" / "core" / "figure.mplstyle"), "chisel/core"),
 ]
 binaries = []
 hiddenimports = collect_submodules("chisel")  # layouts and export writers load by name

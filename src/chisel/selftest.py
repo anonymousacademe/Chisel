@@ -44,6 +44,18 @@ def _fonts() -> str:
     return ", ".join(sorted(present))
 
 
+def _research_data() -> str:
+    """Research mode's data files: CSL styles, the figure template and style, and the runner (a real file)."""
+    from pathlib import Path
+    core = Path(__file__).parent / "core"
+    needed = [core / "chisel_runner.py", core / "figscript_template.py.txt", core / "figure.mplstyle",
+              *(core / "export" / "csl" / f"{n}.csl" for n in ("apa", "chicago-author-date", "ieee"))]
+    missing = sorted(p.name for p in needed if not p.is_file())
+    if missing:
+        raise RuntimeError(f"research data files missing: {', '.join(missing)}")
+    return f"{len(needed)} files"
+
+
 def _spelling() -> str:
     from .core import spelling
     flagged = [m.word for m in spelling.check("This sentense has a mispelled wrd.")]
@@ -167,6 +179,7 @@ def _render() -> str:
 CHECKS: list[tuple[str, Callable[[], str]]] = [
     ("web ui", _web),
     ("fonts", _fonts),
+    ("research data", _research_data),
     ("spelling", _spelling),
     ("hyphenation", _pyphen),
     ("textual", _textual),

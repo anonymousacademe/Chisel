@@ -1,0 +1,9 @@
+# Text files use LF in the repository; checkouts keep the platform default.
+* text=auto
+*.png binary
+*.jpg binary
+*.ico binary
+*.icns binary
+*.ttf binary
+*.pdf binary
+*.mp4 binary

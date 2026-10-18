@@ -72,7 +72,9 @@ where = ["src"]
 [tool.setuptools.package-data]
 # the built UI (npm run build in gui/) and the vendored export fonts
 "chisel.gui" = ["web/*", "web/**/*", "icon.png", "icon.ico"]
-"chisel.core.export" = ["fonts/*"]
+"chisel.core.export" = ["fonts/*", "csl/*"]
+# research mode: the figure-script template and matplotlib style (the runner itself is a module)
+"chisel.core" = ["figscript_template.py.txt", "figure.mplstyle"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
