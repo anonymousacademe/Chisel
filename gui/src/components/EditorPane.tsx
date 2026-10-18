@@ -1,9 +1,9 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { redo, redoDepth, undo, undoDepth } from "@codemirror/commands";
+import { redo, redoDepth, selectAll, undo, undoDepth } from "@codemirror/commands";
 import { api } from "../backend/api";
-import { setComments, metaCompartment, metaFacet, reflowCompartment, reflowFacet, setSpans, setSpelling, spansField, spellingField, editorExtensions, type Card, type CursorInfo, type SpellTarget } from "../editor/cm";
+import { setComments, metaCompartment, metaFacet, reflowCompartment, reflowFacet, setSpans, setSpelling, spansField, spellingField, editorExtensions, type Card, type ContextInfo, type CursorInfo, type SpellTarget } from "../editor/cm";
 import { replaceRange, toggleWrap } from "../editor/commands";
 import { nextMisspelling, type Span } from "../editor/spans";
 import type { ScriptNames } from "../editor/script";
@@ -36,6 +36,11 @@ export interface EditorHandle {
   selectRange(from: number, to: number): { x: number; y: number } | null;
   /** Refetch the comments now (after adding, resolving or deleting one). */
   reloadComments(): void;
+  /** Clipboard and selection, for the right-click menu. They resolve false when the system clipboard refused. */
+  copy(): Promise<boolean>;
+  cut(): Promise<boolean>;
+  paste(): Promise<boolean>;
+  selectAll(): void;
 }
 
 interface Props {
@@ -62,7 +67,7 @@ interface Props {
   /** Misspelling count of the document, or null when spell check does not apply. */
   onSpellCount(count: number | null): void;
   onSpell(target: SpellTarget): void;
-  onSelectionMenu?(x: number, y: number): void;
+  onContextMenu?(info: ContextInfo): void;
   /** Comments with positions, refetched after edits (scenes only; null otherwise). */
   onComments(rows: CommentRow[] | null): void;
   extraKeys?: { key: string; run: () => boolean }[];
@@ -146,6 +151,31 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
       return c ? { x: c.left, y: c.bottom } : null;
     },
     reloadComments: () => fetchComments(),
+    copy: async () => {
+      const v = view.current;
+      const { from, to } = v?.state.selection.main ?? { from: 0, to: 0 };
+      if (!v || from === to) return false;
+      try { await navigator.clipboard.writeText(v.state.sliceDoc(from, to)); return true; } catch { return false; }
+    },
+    cut: async () => {
+      const v = view.current;
+      const { from, to } = v?.state.selection.main ?? { from: 0, to: 0 };
+      if (!v || from === to) return false;
+      try { await navigator.clipboard.writeText(v.state.sliceDoc(from, to)); } catch { return false; }
+      v.dispatch({ changes: { from, to }, userEvent: "delete.cut" });   // only after the clipboard has it
+      v.focus();
+      return true;
+    },
+    paste: async () => {
+      const v = view.current;
+      if (!v) return false;
+      let text: string;
+      try { text = await navigator.clipboard.readText(); } catch { return false; }
+      v.dispatch({ ...v.state.replaceSelection(text), userEvent: "input.paste", scrollIntoView: true });
+      v.focus();
+      return true;
+    },
+    selectAll: () => { const v = view.current; if (v) { selectAll(v); v.focus(); } },
   }), []);
 
   // Spelling is checked in Python, off the typing path (debounced, stale answers dropped).
@@ -211,7 +241,7 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
         extensions: editorExtensions(hooks.current.kind, hooks.current.meta, hooks.current.reflow, {
           onChange: (t) => { hooks.current.onChange(t); schedule(); scheduleSpelling(); scheduleComments(); },
           onSpell: (t) => hooks.current.onSpell(t),
-          onSelectionMenu: (x, y) => hooks.current.onSelectionMenu?.(x, y),
+          onContextMenu: (info) => hooks.current.onContextMenu?.(info),
           onCursor: (c) => hooks.current.onCursor(c),
           onBlur: () => hooks.current.onBlur(),
           onSaveNow: () => hooks.current.onSaveNow(),

@@ -6,6 +6,10 @@ All notable changes to Chisel are listed here, newest first. The format follows
 ## Unreleased
 
 ### Fixed
+- **Clicking in the manuscript puts the cursor where you click.** The extra space above the title rule and above
+  headings (and scene headings in scripts) was margin, which the editor cannot measure, so everything below the
+  title drifted and a click on the second row of a wrapped line landed on the line below. Right-click had the
+  same offset, which is why it often found nothing. That space is padding now.
 - **The desktop window no longer jitters or overshoots when dragged.** Dragging the title bar now
   uses the native Windows move loop instead of repositioning the window on every mouse move (the
   old way also mishandled display scaling, so the window raced ahead of the cursor on scaled
@@ -20,6 +24,11 @@ All notable changes to Chisel are listed here, newest first. The format follows
   title bar now ignores the right button.
 
 ### Added
+- **A right-click menu in the editor (desktop).** A misspelled word still shows its suggestions. On a character
+  or place you have a note for, "Go to note" opens that note's page; on a `[[link]]` with no note yet, or on any
+  word, "Create note…" opens the new-note dialog (character, place, object or faction). A selection adds Send to
+  notebook and Add to dictionary. Cut, Copy, Paste and Select all are there too, and the cursor moves to where
+  you right-clicked.
 - **Script mode** for screenplays, TV, stage and audio scripts. Start a project and choose *Script*: it is a
   story (characters, places, links, relationships, story time, snapshots and comments all work) whose scenes
   are written in Fountain, the plain-text screenplay format. The desktop editor draws scene headings, character

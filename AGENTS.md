@@ -470,6 +470,13 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   the client `detach()`es the `SaveController` before deleting.
 - **Autosave vs the TUI**: saves carry the file's `mtime` (ns, as a string);
   a mismatch with different text is a conflict, never a silent overwrite.
+- **No vertical margins on editor lines or block widgets.** CodeMirror measures a box without its margins, so a
+  margin is space it cannot see: every line below drifts and clicks / right-clicks land on the wrong line (it shows
+  on wrapped lines and below the title). Use `padding-top` / `padding-bottom` (and `display: flow-root` on a block
+  widget with margined children). `editor/css.test.ts` fails on a margin in `editor.css`'s line and widget rules.
+- **The editor's right-click menu** (`cm.ts` `contextmenu` -> `Hooks.onContextMenu` -> `App.openContextMenu`):
+  a misspelled word keeps the spelling popover (`onSpell`); everything else is `data/editorMenu.contextActions`
+  (pure, tested), which only lists what to show - whether a name has a note is Python's answer (`span.entity`).
 - **CodeMirror decorations live in one `StateField`** (`editor/cm.ts`): block
   widgets and line-break-spanning replaces cannot come from a `ViewPlugin`.
   Hard-wrapped lines are joined by replacing the `\n` with a space widget (display

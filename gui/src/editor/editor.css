@@ -16,13 +16,16 @@
 .lw-cm .lw-title-line {
   font-size: 30px; font-weight: 600; line-height: 1.15; letter-spacing: -0.4px; color: var(--lw-text-strong);
 }
-.lw-cm .lw-page__meta { font-family: var(--lw-font-ui); font-size: 11px; line-height: 13px; letter-spacing: 0; color: var(--lw-text-faint); margin-top: 8px; }
-.lw-cm .lw-page__meta::after { content: ""; display: block; width: 44px; height: 2px; margin: 16px 0 4px; border-radius: 999px; background: var(--lw-accent); }
+/* Vertical space on lines and block widgets is PADDING, never margin: CodeMirror measures a box without its
+   margins, so a margin is space it cannot see, and every line below drifts by it (clicks then land a line off).
+   display: flow-root keeps the ::after rule's margins inside the measured box. */
+.lw-cm .lw-page__meta { display: flow-root; font-family: var(--lw-font-ui); font-size: 11px; line-height: 13px; letter-spacing: 0; color: var(--lw-text-faint); padding-top: 8px; padding-bottom: 4px; }
+.lw-cm .lw-page__meta::after { content: ""; display: block; width: 44px; height: 2px; margin: 16px 0 0; border-radius: 999px; background: var(--lw-accent); }
 
 /* markdown structure */
 .lw-cm .lw-h { color: var(--lw-text-strong); font-weight: 600; }
-.lw-cm .lw-h1 { font-size: 1.5em; line-height: 1.25; margin-top: 10px; }
-.lw-cm .lw-h2 { font-size: 1.22em; line-height: 1.4; margin-top: 6px; }
+.lw-cm .lw-h1 { font-size: 1.5em; line-height: 1.25; padding-top: 10px; }
+.lw-cm .lw-h2 { font-size: 1.22em; line-height: 1.4; padding-top: 6px; }
 .lw-cm .lw-h3, .lw-cm .lw-h4 { font-size: 1.08em; }
 .lw-cm .lw-strong { font-weight: 700; color: var(--lw-text-strong); }
 .lw-cm .lw-em { font-style: italic; }
@@ -89,7 +92,7 @@
 .lw-cm .lw-script .cm-scroller { font-family: var(--lw-font-mono); font-size: calc(15px * var(--lw-zoom, 1)); line-height: 1.55; }
 .lw-cm .lw-script .cm-content { max-width: 60ch; }
 .lw-cm .lw-script .lw-title-line { font-family: var(--lw-font-ui); }
-.lw-cm .lw-sc--scene_heading { font-weight: 700; text-transform: uppercase; color: var(--lw-text-strong); margin-top: 10px; }
+.lw-cm .lw-sc--scene_heading { font-weight: 700; text-transform: uppercase; color: var(--lw-text-strong); padding-top: 10px; }
 .lw-cm .lw-sc--character { padding-left: 22ch; text-transform: uppercase; color: var(--lw-text-strong); }
 .lw-cm .lw-sc--parenthetical { padding-left: 16ch; padding-right: 19ch; font-style: italic; }
 .lw-cm .lw-sc--dialogue { padding-left: 10ch; padding-right: 15ch; }

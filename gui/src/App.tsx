@@ -31,6 +31,8 @@ import { Toasts } from "./components/Toast";
 import type { Dialog } from "./data/dialog";
 import { firstScene, sentence } from "./data/appLogic";
 import { importedLine } from "./data/script";
+import { contextActions, type MenuAction } from "./data/editorMenu";
+import type { ContextInfo } from "./editor/cm";
 import { useComments } from "./hooks/useComments";
 import { useRenameEverywhere } from "./hooks/useRenameEverywhere";
 import { useCollectionOps } from "./hooks/useCollectionOps";
@@ -595,13 +597,30 @@ export default function App() {
     notify("Saved to research/assistant-notes.md", "info", { label: "Open", run: () => { void openDoc(r.id); } });
   };
 
-  const openSelectionMenu = (x: number, y: number) => setMenu({
-    anchor: { getBoundingClientRect: () => new DOMRect(x, y - 4, 0, 0) } as unknown as HTMLElement,
-    items: [
-      { label: "Send selection to notebook", onSelect: () => void sendSelectionToNotebook() },
-      { label: "Add selection to dictionary", onSelect: addSelectionToDictionary },
-    ],
-  });
+  /** Right-click in the editor (a misspelled word has its own suggestions menu): notes, selection, clipboard. */
+  const openContextMenu = (info: ContextInfo) => {
+    const ed = editorRef.current;
+    const denied = (key: string) => (ok: boolean) => { if (!ok) notify(`The clipboard is not available here: use Ctrl ${key}.`); };
+    const run = (a: MenuAction) => {
+      switch (a.id) {
+        case "open-note": void openDoc(a.entityId); break;
+        case "create-note": setDialog({ kind: "new-note", name: a.name, openAfter: false }); break;
+        case "selection-to-notebook": void sendSelectionToNotebook(); break;
+        case "selection-to-dictionary": addSelectionToDictionary(); break;
+        case "copy": void ed?.copy().then(denied("C")); break;
+        case "cut": void ed?.cut().then(denied("X")); break;
+        case "paste": void ed?.paste().then(denied("V")); break;
+        case "select-all": ed?.selectAll(); break;
+      }
+    };
+    const actions = contextActions({ span: info.span, word: info.word, selection: info.selection }, ws.entities);
+    setMenu({
+      anchor: { getBoundingClientRect: () => new DOMRect(info.x, info.y - 4, 0, 0) } as unknown as HTMLElement,
+      items: actions.map((a, i) => a.id === "separator"
+        ? { label: `sep-${i}`, separator: true, onSelect: () => {} }
+        : { label: a.label, disabled: "disabled" in a ? a.disabled : false, onSelect: () => run(a) }),
+    });
+  };
 
   const openHistory = () => {
     if (docRef.current?.kind !== "scene") return notify(`Open a ${unit} to see its history.`);
@@ -723,7 +742,7 @@ export default function App() {
           onSaveNow={() => void saveNow()} onReload={() => void reloadFromDisk()} onKeepMine={() => void keepMine()}
           onMakeNote={() => makeNote(false)} getCard={getCard} onOpenEntity={openEntitySpan}
           onResolveDraft={(i, a) => void resolveDraft(i, a)}
-          spellVersion={spellVersion} onSpellCount={setSpellCount} onSpell={setSpellTarget} onSelectionMenu={openSelectionMenu} onAddPhrase={addSelectionToDictionary}
+          spellVersion={spellVersion} onSpellCount={setSpellCount} onSpell={setSpellTarget} onContextMenu={openContextMenu} onAddPhrase={addSelectionToDictionary}
           onAddComment={startAddComment} onComments={setComments}
           onComment={(id, x, y) => setCommentPop({ id, x, y })}
           extraKeys={[

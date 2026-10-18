@@ -301,11 +301,15 @@ function spellTargetAt(view: EditorView, pos: number | null): SpellTarget | null
   return { kind: "word", from: hit.start, to: hit.end, word: view.state.sliceDoc(hit.start, hit.end), ...place(hit.start, hit.end) };
 }
 
+/** What a right-click landed on (see data/editorMenu.ts for the menu built from it). */
+export interface ContextInfo { x: number; y: number; span?: Span; word?: string; selection?: string }
+
 export interface Hooks {
   /** Open the spelling popover (click on a misspelled word, right-click, Ctrl+.). */
   onSpell?(target: SpellTarget): void;
   /** Right-click with text selected: the selection menu (Send selection to notebook, ...), at the pointer. */
-  onSelectionMenu?(x: number, y: number): void;
+  /** Any other right-click: the pointer position and what is under it (a mention or link, a word, the selection). */
+  onContextMenu?(info: ContextInfo): void;
   /** Hover card for a span (null = none). */
   getCard(span: Span): Promise<Card | null>;
   /** ctrl/cmd+click on a mention or link. */
@@ -434,17 +438,26 @@ export function editorExtensions(kind: string, meta: string, reflow: boolean, ho
       blur: () => { hooks.onBlur(); return false; },
       contextmenu: (e, view) => {
         const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
-        const t = pos === null ? null : spellTargetAt(view, pos);
         const sel = view.state.selection.main;
         const inSelection = !sel.empty && pos !== null && pos >= sel.from && pos <= sel.to;
-        if (inSelection && hooks.onSelectionMenu) {
+        // a misspelled word (also when it is the selection): the spelling suggestions
+        const t = pos === null ? null : spellTargetAt(view, pos);
+        if (t && t.kind === "word" && hooks.onSpell) {
           e.preventDefault();
-          hooks.onSelectionMenu(e.clientX, e.clientY);
+          hooks.onSpell(t);
           return true;
         }
-        if (!t || !hooks.onSpell) return false;
+        if (!hooks.onContextMenu) return false;
         e.preventDefault();
-        hooks.onSpell(t);
+        // as in most editors, the caret goes where you right-click (unless that is inside the selection)
+        if (!inSelection && pos !== null) view.dispatch({ selection: { anchor: pos } });
+        const range = pos === null || inSelection ? null : view.state.wordAt(pos);
+        hooks.onContextMenu({
+          x: e.clientX, y: e.clientY,
+          span: pos === null ? undefined : spanAt(view.state, pos),
+          word: range ? view.state.sliceDoc(range.from, range.to) : undefined,
+          selection: inSelection ? view.state.sliceDoc(sel.from, sel.to) : undefined,
+        });
         return true;
       },
       click: (e, view) => {

@@ -7,7 +7,7 @@ import type { CommentRow, DocumentPayload, PartSummary, SceneMention, SceneSumma
 import { fmt } from "../data/tree";
 import { Icon, IconButton, SectionLabel, Tag } from "./primitives";
 import { EditorPane, type EditorHandle } from "./EditorPane";
-import type { Card, CursorInfo, SpellTarget } from "../editor/cm";
+import type { Card, ContextInfo, CursorInfo, SpellTarget } from "../editor/cm";
 import type { Span } from "../editor/spans";
 import type { ScriptNames } from "../editor/script";
 import { titleLine } from "../editor/spans";
@@ -49,7 +49,7 @@ export function Editor(props: {
   onReload: () => void; onKeepMine: () => void; onMakeNote: () => void;
   getCard: (span: Span) => Promise<Card | null>; onOpenEntity: (span: Span) => void;
   onResolveDraft: (index: number, accept: boolean) => void;
-  spellVersion: number; onSpellCount: (count: number | null) => void; onSpell: (t: SpellTarget) => void; onSelectionMenu: (x: number, y: number) => void;
+  spellVersion: number; onSpellCount: (count: number | null) => void; onSpell: (t: SpellTarget) => void; onContextMenu: (info: ContextInfo) => void;
   onAddPhrase: () => void;
   /** Comment on the selected passage; the host opens the dialog. */
   onAddComment: () => void;
@@ -148,7 +148,7 @@ export function Editor(props: {
                 </header>
                 <EditorPane key={`${doc.id}:${props.docRev}`} ref={editorRef} docId={doc.id} kind={doc.kind}
                   initialText={doc.text} meta={meta} reflow={props.reflow && !props.script} script={props.script} names={props.names} spansVersion={props.spansVersion}
-                  spellVersion={props.spellVersion} onSpellCount={props.onSpellCount} onSpell={props.onSpell} onSelectionMenu={props.onSelectionMenu}
+                  spellVersion={props.spellVersion} onSpellCount={props.onSpellCount} onSpell={props.onSpell} onContextMenu={props.onContextMenu}
                   onComments={props.onComments}
                   onChange={props.onChange} onCursor={props.onCursor} onBlur={props.onBlur} onSaveNow={props.onSaveNow}
                   getCard={props.getCard} onOpenEntity={props.onOpenEntity} onResolveDraft={props.onResolveDraft} extraKeys={props.extraKeys} />
