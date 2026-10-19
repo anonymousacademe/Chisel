@@ -120,7 +120,7 @@ export const api = {
   zoteroStatus: () => call<ZoteroStatus>("zotero_status"),
   zoteroSavedCollections: () => call<{ keys: string[] }>("zotero_saved_collections"),
   zoteroSyncPlan: (scope: SyncScope = {}) => call<SyncPlan>("zotero_sync_plan", scope),
-  zoteroSyncApply: (ticked: string[]) => call<SyncApplied>("zotero_sync_apply", ticked),
+  zoteroSyncApply: (ticked: string[], token: string) => call<SyncApplied>("zotero_sync_apply", ticked, token),
   listSources: () => call<{ sources: SourceRow[] }>("list_sources"),
   searchSources: (query: string, limit = 30) => call<{ sources: SourceHit[] }>("search_sources", query, limit),
   sourceCard: (id: string) => call<SourceCardInfo>("source_card", id),

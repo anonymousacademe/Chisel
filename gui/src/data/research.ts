@@ -42,7 +42,7 @@ export interface ZoteroStatus { backends: ZoteroBackendStatus[]; keySet: boolean
 
 export type SyncAction = "new" | "changed" | "missing" | "key-mismatch";
 export interface SyncRow { id: string; key: string; action: SyncAction; summary: string; blocked: string | boolean }
-export interface SyncPlan { rows: SyncRow[]; report: string[]; backend: string }
+export interface SyncPlan { rows: SyncRow[]; report: string[]; backend: string; token: string }
 export interface SyncScope { collection?: string; collections?: string[]; includeSubcollections?: boolean; tag?: string }
 export interface SyncApplied { changed: string[]; skipped: { id: string; reason: string }[]; recorded: boolean }
 

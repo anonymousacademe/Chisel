@@ -61,7 +61,7 @@ describe("SyncReviewDialog", () => {
     m.zoteroCollections.mockResolvedValue({ ok: true, collections: [
       { key: "C1", path: "AI and Computing / WRRI", items: 4 }, { key: "C2", path: "Hydrology / Runoff", items: null },
     ] });
-    m.zoteroSyncPlan.mockResolvedValue({ ok: true, rows, report: ["Read 3 items."], backend: "local" });
+    m.zoteroSyncPlan.mockResolvedValue({ ok: true, rows, report: ["Read 3 items."], backend: "local", token: "t1" });
     m.zoteroSyncApply.mockResolvedValue({ ok: true, changed: ["a"], skipped: [{ id: "b", reason: "edited" }], recorded: true });
   });
 
@@ -78,7 +78,7 @@ describe("SyncReviewDialog", () => {
     expect(boxes[2].disabled).toBe(true);
     await act(async () => { boxes[1].click(); });
     await act(async () => { button(host, "Apply 1 change").click(); });
-    expect(m.zoteroSyncApply).toHaveBeenCalledWith(["a"]);
+    expect(m.zoteroSyncApply).toHaveBeenCalledWith(["a"], "t1");
     expect(onApplied).toHaveBeenCalled();
     expect(host.textContent).toContain("b: edited");
   });
@@ -131,6 +131,16 @@ describe("SyncReviewDialog", () => {
     expect(host.textContent).not.toContain("Add A");
   });
 
+  it("starting a new preview drops the old one, so it cannot be applied against the new plan", async () => {
+    const { host } = await mount(<SyncReviewDialog notify={() => {}} onApplied={() => {}} onClose={() => {}} />);
+    await act(async () => { button(host, "Preview changes").click(); });
+    expect(host.textContent).toContain("Add A");
+    m.zoteroSyncPlan.mockReturnValue(new Promise(() => {}));
+    await act(async () => { button(host, "Preview changes").click(); });
+    expect(host.textContent).not.toContain("Add A");
+    expect(host.textContent).not.toMatch(/Apply \d+ change/);
+  });
+
   it("select all / none, search and the selected count", async () => {
     const { host } = await mount(<SyncReviewDialog notify={() => {}} onApplied={() => {}} onClose={() => {}} />);
     await act(async () => { button(host, "Preview changes").click(); });
@@ -145,6 +155,6 @@ describe("SyncReviewDialog", () => {
     await act(async () => { button(host, "Select all").click(); });
     expect(host.textContent).toContain("1 of 3 selected");
     await act(async () => { button(host, "Apply 1 change").click(); });
-    expect(m.zoteroSyncApply).toHaveBeenCalledWith(["b"]);
+    expect(m.zoteroSyncApply).toHaveBeenCalledWith(["b"], "t1");
   });
 });

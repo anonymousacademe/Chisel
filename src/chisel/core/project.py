@@ -383,14 +383,42 @@ class Project(Structure):
         return dict(raw) if isinstance(raw, dict) else {}
 
     def update_research_settings(self, zotero_collections: list[str] | tuple[str, ...] | None = None) -> None:
-        """Write [research] into project.toml, MERGING with every key already in the table (other waves
-        keep their own keys there). ``zotero_collections`` is the saved Zotero collection selection."""
-        raw = self.research_settings()
-        if zotero_collections is not None:
-            raw["zotero_collections"] = [str(k) for k in zotero_collections if str(k)]
-        body = "".join(f"{_toml_key(k)} = {_toml_value(v)}\n" for k, v in raw.items()
-                       if _toml_value(v) is not None)
-        self._write_section("research", body)
+        """Set ``zotero_collections`` in the [research] table of project.toml. Only that one line is
+        replaced (or added at the end of the table); every other line, comment and value stays byte for byte.
+        A table that cannot be edited that way (the key written as a multi-line array, say) raises
+        ``ValueError`` instead of losing anything."""
+        if zotero_collections is None:
+            return
+        value = _toml_value([str(k) for k in zotero_collections if str(k)])
+        if value is None:
+            raise ValueError("The collection list could not be written.")
+        new_line = f"zotero_collections = {value}\n"
+        path = self.root / PROJECT_FILE
+        text = path.read_text(encoding="utf-8")
+        head = re.search(r"(?m)^\[research\][ \t]*(#.*)?$", text)
+        if head is None:
+            text = text.rstrip("\n") + "\n\n[research]\n" + new_line
+        else:
+            nxt = re.compile(r"(?m)^\[").search(text, head.end())
+            end = nxt.start() if nxt else len(text)
+            block = text[head.end():end]
+            line = re.search(r'(?m)^[ \t]*(?:zotero_collections|"zotero_collections")[ \t]*=.*$', block)
+            if line:
+                old = line.group(0)
+                if old.count("[") != old.count("]") or old.rstrip().endswith(("[", ",")):
+                    raise ValueError("zotero_collections spans several lines in project.toml; edit it there.")
+                block = block[:line.start()] + new_line.rstrip("\n") + block[line.end():]
+            else:
+                stripped = block.rstrip("\n")
+                tail = block[len(stripped):]
+                block = stripped + "\n" + new_line + tail[1:]
+            text = text[:head.end()] + block + text[end:]
+        try:
+            check = tomllib.loads(text)
+        except tomllib.TOMLDecodeError as exc:
+            raise ValueError("project.toml could not be updated safely.") from exc
+        write_atomic(path, text)
+        self.meta = check
 
     def _write_section(self, name: str, body: str) -> None:
         """Replace (or append) the [name] table of project.toml, preserving

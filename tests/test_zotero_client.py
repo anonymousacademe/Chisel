@@ -383,3 +383,25 @@ def test_scope_limited_and_legacy_collection():
     assert Scope(collections=("X",)).limited and Scope(collection="X").limited and Scope(tag="t").limited
     assert not Scope().limited
     assert Scope(collection="X", collections=("X", "Y")).collection_keys == ("X", "Y")
+
+
+def test_expansion_failure_warns_and_still_reads_ticked(fake):
+    fake.routes["/users/42/collections"] = lambda q, h, n: (500, {}, b"{}")
+    fake.routes["/users/42/collections/C1/items"] = lambda q, h, n: fake.ok([item("A")])
+    src, _ = web(fake)
+    got = src.fetch(Scope(collections=("C1",)), None)
+    assert [i.key for i in got.items] == ["A"]
+    assert any("did not list the subcollections" in w for w in src.warnings)
+
+
+def test_overlapping_collections_read_children_once_and_deleted_once(fake):
+    fake.routes["/users/42/collections/C1/items"] = lambda q, h, n: fake.ok([item("SHARED")], version=9)
+    fake.routes["/users/42/collections/C2/items"] = lambda q, h, n: fake.ok([item("SHARED")], version=9)
+    fake.routes["/users/42/items/SHARED/children"] = lambda q, h, n: fake.ok([])
+    fake.routes["/users/42/deleted"] = lambda q, h, n: (200, {}, {"items": ["GONE"]})
+    src, _ = web(fake)
+    got = src.fetch(Scope(collections=("C1", "C2"), include_subcollections=False), 5)
+    assert [i.key for i in got.items] == ["SHARED"] and got.deleted_keys == ["GONE"]
+    paths = [p for p, _, _ in fake.log]
+    assert paths.count("/users/42/deleted") == 1
+    assert paths.count("/users/42/items/SHARED/children") <= 1

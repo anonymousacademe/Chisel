@@ -210,7 +210,7 @@ export function mockCall(method: string, args: unknown[]): object {
       { backend: "local", ok: true, message: "Zotero on this computer answered." },
       { backend: "web", ok: false, message: "No web API key is saved." },
     ] };
-    case "zotero_sync_plan": return { ok: true, backend: "local", report: ["Read 3 items from Zotero on this computer."], rows: [
+    case "zotero_sync_plan": return { ok: true, backend: "local", token: "mock-1", report: ["Read 3 items from Zotero on this computer."], rows: [
       { id: "src-1", key: "AB12CD34", action: "new", summary: "Add “Process modeling with machine learning” (Smith 2023)", blocked: "" },
       { id: "src-2", key: "EF56GH78", action: "changed", summary: "Title and year changed in Zotero", blocked: "" },
       { id: "src-3", key: "IJ90KL12", action: "key-mismatch", summary: "The note’s citation key differs from Zotero’s", blocked: "Fix the key in the note first" },

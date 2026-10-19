@@ -277,19 +277,24 @@ class ZoteroLibrary:
         warnings = ["Zotero did not list the subcollections; only the ticked collections were read."] \
             if scope.include_subcollections and self._expand_failed else []
         for k in keys:
-            part = self._fetch_one(replace(scope, collection=k, collections=()), since, backend, server_id)
+            part = self._fetch_one(replace(scope, collection=k, collections=()), since, backend, server_id,
+                                   skip=frozenset(merged), want_deleted=False)
             warnings.extend(w for w in self.warnings if w not in warnings)
             for it in part.items:
                 merged.setdefault(it.key, it)
-            deleted.extend(d for d in part.deleted_keys if d not in deleted)
             if version is None:
                 version = part.library_version
         self.warnings = warnings
+        if since is not None:
+            deleted = self._deleted(since)      # one call for all collections (may add a warning)
         # An item that left a ticked collection is simply absent: only deleted keys ever become "missing".
         return FetchResult(backend, list(merged.values()), deleted, version, server_id)
 
     def _fetch_one(self, scope: Scope, since: int | None, backend: str,
-                   server_id: str | None = None) -> FetchResult:
+                   server_id: str | None = None, *, skip: frozenset = frozenset(),
+                   want_deleted: bool = True) -> FetchResult:
+        """``skip``: item keys already merged from an earlier collection (their children are not read again);
+        ``want_deleted`` false leaves the deleted-keys call to the caller (one call for all collections)."""
         self.warnings = []
         self._annotation_rows_cache = None
         base = "/items"
@@ -326,10 +331,14 @@ class ZoteroLibrary:
         annots_of: dict[str, list[Annotation]] = {}
         refetch = since is not None or scope.limited
         for key, row in tops.items():
+            if key in skip:
+                continue
             notes_of[key], annots_of[key] = self._kids_of(key, row, grouped.get(key, []), refetch)
 
         items: list[ZItem] = []
         for key, row in tops.items():
+            if key in skip:
+                continue
             data = row.get("data", {})
             csl = csl_of(row, key, data)
             items.append(ZItem(
@@ -338,7 +347,7 @@ class ZoteroLibrary:
                 deleted=bool(data.get("deleted"))))
 
         deleted: list[str] = []
-        if since is not None:
+        if since is not None and want_deleted:
             deleted = self._deleted(since)
         return FetchResult(backend, items, deleted, version, server_id)
 

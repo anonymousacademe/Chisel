@@ -21,6 +21,7 @@ from ..core import export as exporting
 from ..core import settings as user_settings
 from ..core import sources as src_notes
 from ..core import zotero
+from ..core.applog import log_exc
 from ..core.export import research as research_export
 from ..core.export.manuscript import ExportOptions
 from ..core.desktop import open_uri
@@ -33,6 +34,8 @@ log = logging.getLogger("chisel")
 
 _ZKEY = re.compile(r"[A-Za-z0-9]{8}")
 KEYRING_USER_ZOTERO = "zotero"
+_ZOTERO_SEQ = itertools.count(1)
+_STALE_PREVIEW = "The preview is out of date; preview again."
 SETTING_USER_ID = "zotero_web_user_id"
 SETTING_WEB_BASE = "zotero_web_base"
 SETTING_LOCAL = "zotero_local"
@@ -226,6 +229,8 @@ class ResearchSourcesMixin:
             project = self._research_project()
             state = src_notes.load_sync_state(project)
             cache = src_notes.cached_items(project)
+            token = str(next(_ZOTERO_SEQ))     # the newest request owns the held plan
+            self._zotero_latest = token
         sources = zotero.open_sources(self._zotero_settings(cache))
         result, report = zotero.chain_fetch(sources, sc, state)     # network: no lock held
         state_key = ""
@@ -238,27 +243,34 @@ class ResearchSourcesMixin:
                 break
         with self._lock:
             project = self._research_project()
+            if token != getattr(self, "_zotero_latest", ""):     # a newer preview was started meanwhile
+                raise ValueError(_STALE_PREVIEW)
             plan = src_notes.plan_sync(project, result, scope=sc, state_key=state_key)
-            self._zotero_plan = (project.root, plan)
+            self._zotero_plan = (project.root, plan, token)
             self._zotero_picked = list(sc.collection_keys)
             rows = [{"id": r.id, "key": r.key, "action": r.action, "summary": r.summary,
                      "blocked": r.blocked} for r in plan.rows]
         return {"rows": rows, "report": list(report) + [str(w) for w in plan.warnings],
-                "backend": plan.backend}
+                "backend": plan.backend, "token": token}
 
     @bridge
-    def zotero_sync_apply(self, ticked: list) -> dict:
+    def zotero_sync_apply(self, ticked: list, token: str = "") -> dict:
         with self._lock:
             project = self._research_project()
             held = getattr(self, "_zotero_plan", None)
             if held is None or held[0] != project.root:
                 raise ValueError("There is no sync preview to apply; preview again.")
+            if not token or held[2] != str(token):
+                raise ValueError(_STALE_PREVIEW)
             ids = [str(i) for i in (ticked or [])]
             outcome = src_notes.apply_sync(project, held[1], ids)
             self._zotero_plan = None
             picked = getattr(self, "_zotero_picked", None)
-            if picked is not None:
-                project.update_research_settings(zotero_collections=picked)   # remembered for "Sync again"
+            if picked:      # a whole-library sync leaves the remembered selection alone
+                try:
+                    project.update_research_settings(zotero_collections=picked)   # remembered for "Sync again"
+                except Exception as exc:     # the sync itself succeeded: never report it as failed
+                    log_exc("zotero remember collections", exc)
             if outcome["changed"]:
                 self._entities_changed()    # reload entities and rebuild the index
         return {"changed": outcome["changed"], "skipped": outcome["skipped"],

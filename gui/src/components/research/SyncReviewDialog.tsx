@@ -58,6 +58,7 @@ export function SyncReviewDialog({ onClose, notify, onApplied }: { onClose: () =
   const preview = async () => {
     const id = ++run.current;
     setPhase("previewing"); setElapsed(0); setDone(null); setCancelled(false);
+    setPlan(null); setOn(new Set());      // the previous preview must not stay applicable
     const keys = [...picked];
     const r = await api.zoteroSyncPlan(keys.length ? { collections: keys, includeSubcollections: subs } : {});
     if (id !== run.current) return;      // cancelled meanwhile: the late answer is discarded
@@ -79,7 +80,7 @@ export function SyncReviewDialog({ onClose, notify, onApplied }: { onClose: () =
     const ticked = plan.rows.filter((x) => on.has(x.id) && !blockedReason(x)).map((x) => x.id);
     if (!ticked.length) return;
     setPhase("applying"); setElapsed(0);
-    const r = await api.zoteroSyncApply(ticked);
+    const r = await api.zoteroSyncApply(ticked, plan.token);
     setPhase("idle");
     if (!r.ok) return notify(r.error, "error");
     setDone(r); setPlan(null); setOn(new Set());

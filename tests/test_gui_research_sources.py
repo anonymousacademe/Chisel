@@ -78,7 +78,7 @@ def test_plan_then_apply_only_ticked(tmp_path, monkeypatch):
     assert {"id", "key", "action", "summary"} <= set(plan["rows"][0])
     assert plan["report"]
     by_key = {r["key"]: r for r in plan["rows"]}
-    out = api.zotero_sync_apply([by_key["smith2024"]["id"]])
+    out = api.zotero_sync_apply([by_key["smith2024"]["id"]], plan["token"])
     assert out["ok"] and out["changed"] == [by_key["smith2024"]["id"]] and out["skipped"] == []
     assert (project.root / by_key["smith2024"]["id"]).is_file()
     assert not (project.root / by_key["jones2023"]["id"]).exists()
@@ -87,7 +87,7 @@ def test_plan_then_apply_only_ticked(tmp_path, monkeypatch):
     assert [r["key"] for r in rows] == ["smith2024"]
     assert set(rows[0]) >= {"id", "title", "key", "status"}
     # the plan is spent
-    again = api.zotero_sync_apply([by_key["jones2023"]["id"]])
+    again = api.zotero_sync_apply([by_key["jones2023"]["id"]], plan["token"])
     assert again["ok"] is False
 
 
@@ -100,8 +100,8 @@ def test_apply_without_plan(tmp_path):
 def test_apply_unknown_id_refused(tmp_path, monkeypatch):
     api, _ = research_api(tmp_path)
     patch_fetch(monkeypatch, [zitem()])
-    api.zotero_sync_plan({})
-    r = api.zotero_sync_apply(["../elsewhere.md"])
+    plan = api.zotero_sync_plan({})
+    r = api.zotero_sync_apply(["../elsewhere.md"], plan["token"])
     assert r["ok"] is False
 
 
@@ -274,7 +274,7 @@ def test_saved_collections_round_trip_keeps_other_research_keys(tmp_path, monkey
     project.meta = tomllib.loads(path.read_text(encoding="utf-8"))
     patch_fetch(monkeypatch, [zitem()])
     plan = api.zotero_sync_plan({"collections": ["C1", 'we"ird']})
-    assert api.zotero_sync_apply([plan["rows"][0]["id"]])["ok"]
+    assert api.zotero_sync_apply([plan["rows"][0]["id"]], plan["token"])["ok"]
     assert api.zotero_saved_collections()["keys"] == ["C1", 'we"ird']
     r = Project.open(project.root).research_settings()
     assert r["figure_width"] == 5.5 and r["numbering"] == "by-section" and r["flag"] is True
@@ -285,7 +285,108 @@ def test_departed_paper_is_never_marked_missing(tmp_path, monkeypatch):
     api, project = research_api(tmp_path)
     patch_fetch(monkeypatch, [zitem("A1", "smith2024"), zitem("B2", "jones2023")])
     plan = api.zotero_sync_plan({})
-    assert api.zotero_sync_apply([r["id"] for r in plan["rows"]])["ok"]
+    assert api.zotero_sync_apply([r["id"] for r in plan["rows"]], plan["token"])["ok"]
     patch_fetch(monkeypatch, [zitem("A1", "smith2024")])      # B2 left the ticked collection
     plan = api.zotero_sync_plan({"collections": ["C1"]})
     assert not [r for r in plan["rows"] if r["action"] == "missing"]
+
+
+def test_stale_token_is_refused_and_late_plan_does_not_replace_newer(tmp_path, monkeypatch):
+    api, project = research_api(tmp_path)
+    patch_fetch(monkeypatch, [zitem("A1", "smith2024")])
+    first = api.zotero_sync_plan({"collections": ["C1"]})
+    # a slow preview B starts; before it finishes the author starts preview C, which finishes first
+    results = {}
+
+    def slow_fetch(sources, scope, state):
+        if scope.collection_keys == ("B",):
+            results["c"] = api.zotero_sync_plan({"collections": ["C"]})
+        return FetchResult("web", [zitem("B2", "jones2023")], [], 5, None), ["Read."]
+
+    monkeypatch.setattr(mod.zotero, "chain_fetch", slow_fetch)
+    late = api.zotero_sync_plan({"collections": ["B"]})
+    assert late["ok"] is False and "out of date" in late["error"]
+    newest = results["c"]
+    assert newest["ok"]
+    stale = api.zotero_sync_apply([r["id"] for r in first["rows"]], first["token"])
+    assert stale["ok"] is False and "out of date" in stale["error"]
+    assert api.zotero_sync_apply([r["id"] for r in newest["rows"]], "")["ok"] is False
+    assert api.zotero_sync_apply([r["id"] for r in newest["rows"]], newest["token"])["ok"]
+    assert api.zotero_saved_collections()["keys"] == ["C"]
+
+
+def test_whole_library_sync_keeps_remembered_selection(tmp_path, monkeypatch):
+    api, project = research_api(tmp_path)
+    patch_fetch(monkeypatch, [zitem("A1", "smith2024")])
+    plan = api.zotero_sync_plan({"collections": ["C1"]})
+    assert api.zotero_sync_apply([r["id"] for r in plan["rows"]], plan["token"])["ok"]
+    plan = api.zotero_sync_plan({})
+    assert api.zotero_sync_apply([], plan["token"])["ok"]
+    assert api.zotero_saved_collections()["keys"] == ["C1"]
+
+
+def test_settings_write_failure_does_not_fail_the_sync(tmp_path, monkeypatch):
+    api, project = research_api(tmp_path)
+    patch_fetch(monkeypatch, [zitem("A1", "smith2024")])
+    plan = api.zotero_sync_plan({"collections": ["C1"]})
+
+    def boom(self, **kw):
+        raise OSError("locked")
+
+    monkeypatch.setattr(Project, "update_research_settings", boom)
+    out = api.zotero_sync_apply([r["id"] for r in plan["rows"]], plan["token"])
+    assert out["ok"] and out["changed"]
+
+
+def test_research_settings_edit_only_its_line(tmp_path):
+    api, project = research_api(tmp_path)
+    path = project.root / "project.toml"
+    base = path.read_text(encoding="utf-8").rstrip("\n")
+    body = ('\n\n[research]\n# keep this comment\nstyle = { name = "apa", year = 2020 }\n'
+            'when = 2024-01-02\nflag = true\n\n[other]\nx = 1\n')
+    path.write_text(base + body, encoding="utf-8", newline="\n")
+    project = Project.open(project.root)
+    project.update_research_settings(zotero_collections=["C1", "C2"])
+    text = path.read_text(encoding="utf-8")
+    assert text == base + body.replace("flag = true\n", 'flag = true\nzotero_collections = ["C1", "C2"]\n')
+    project.update_research_settings(zotero_collections=["Z"])
+    assert path.read_text(encoding="utf-8") == base + body.replace(
+        "flag = true\n", 'flag = true\nzotero_collections = ["Z"]\n')
+    assert Project.open(project.root).research_settings()["style"] == {"name": "apa", "year": 2020}
+
+
+def test_research_settings_multiline_array_refused(tmp_path):
+    api, project = research_api(tmp_path)
+    path = project.root / "project.toml"
+    text = path.read_text(encoding="utf-8").rstrip("\n") + '\n\n[research]\nzotero_collections = [\n  "A",\n]\n'
+    path.write_text(text, encoding="utf-8", newline="\n")
+    project = Project.open(project.root)
+    with pytest.raises(ValueError):
+        project.update_research_settings(zotero_collections=["B"])
+    assert path.read_text(encoding="utf-8") == text
+
+
+def test_overlapping_collections_one_row_through_the_bridge(tmp_path, monkeypatch):
+    from chisel.core.zotero import Scope, WebSource
+    from tests.test_zotero_client import Fake, item
+    api, _ = research_api(tmp_path)
+    fake = Fake()
+    try:
+        fake.routes["/users/42/collections/C1/items"] = lambda q, h, n: fake.ok([item("SHARED", ckey="sh2024")])
+        fake.routes["/users/42/collections/C2/items"] = lambda q, h, n: fake.ok(
+            [item("SHARED", ckey="sh2024"), item("B2", ckey="b2024")])
+        fake.routes["/users/42/items/SHARED/children"] = lambda q, h, n: fake.ok([])
+        fake.routes["/users/42/items/B2/children"] = lambda q, h, n: fake.ok([])
+        fake.routes["/users/42/items"] = lambda q, h, n: fake.ok([])      # the probe
+        monkeypatch.setattr(mod.zotero, "open_sources",
+                            lambda settings: [WebSource("k", user_id=42, base=fake.base)])
+        scope = {"collections": ["C1", "C2"], "includeSubcollections": False}
+        plan = api.zotero_sync_plan(scope)
+        assert plan["ok"], plan
+        assert sorted(r["key"] for r in plan["rows"]) == ["b2024", "sh2024"]
+        assert api.zotero_sync_apply([r["id"] for r in plan["rows"]], plan["token"])["ok"]
+        again = api.zotero_sync_plan(scope)
+        assert not [r for r in again["rows"] if r["action"] == "missing"]
+        assert len([r for r in again["rows"] if r["key"] == "sh2024"]) <= 1
+    finally:
+        fake.close()
