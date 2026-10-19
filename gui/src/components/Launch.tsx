@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { FolderOpen, Plus } from "lucide-react";
 import type { ProjectMode, RecentProject } from "../data/types";
 import { api } from "../backend/api";
+import { defaultJournal, type ResearchKind } from "../data/research";
 import { Icon } from "./primitives";
+import { JournalPicker, useProfiles } from "./research/JournalPicker";
 import { Logo } from "./Logo";
 
 const MODES: { id: ProjectMode; label: string; hint: string }[] = [
@@ -23,6 +25,11 @@ export function Launch({ onOpened }: { onOpened: () => void }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
+  const { profiles, failed: profilesFailed } = useProfiles();
+  const [kind, setKind] = useState<ResearchKind>("manuscript");
+  const [journal, setJournal] = useState<string | null>(null);   // null: not chosen yet, use the kind's first profile
+  const chosenJournal = journal ?? defaultJournal(profiles, kind);
+
   useEffect(() => { api.recentProjects().then((r) => r.ok && setRecents(r.recents)); }, []);
 
   const run = async (fn: () => Promise<{ ok: boolean; error?: string }>) => {
@@ -41,7 +48,9 @@ export function Launch({ onOpened }: { onOpened: () => void }) {
     const r = await api.suggestProjectPath(value);
     if (r.ok) setNewPath(r.path);
   };
-  const create = () => run(() => api.newProject(title.trim(), newPath.trim(), mode));
+  const create = () => run(() => mode === "research"
+    ? api.newProject(title.trim(), newPath.trim(), mode, kind, chosenJournal)
+    : api.newProject(title.trim(), newPath.trim(), mode));
 
   return (
     <div className="lw-launch">
@@ -81,6 +90,10 @@ export function Launch({ onOpened }: { onOpened: () => void }) {
             ))}
           </div>
           <span className="lw-faint">{MODES.find((m) => m.id === mode)?.hint}</span>
+          {mode === "research" && (
+            <JournalPicker profiles={profiles} failed={profilesFailed} kind={kind} journal={chosenJournal}
+              onChange={(k, j) => { setKind(k); setJournal(j); }} />
+          )}
           <div className="lw-row lw-gap-8">
             <input className="lw-launch__input lw-mono" value={newPath}
               onChange={(e) => { setNewPath(e.target.value); setNewPathEdited(true); }}

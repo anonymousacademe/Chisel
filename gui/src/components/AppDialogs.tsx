@@ -23,6 +23,9 @@ import { AttachDialog, ChatHistoryDialog } from "./ChatDialogs";
 import { NewNoteDialog, NotebookDialog } from "./NotebookDialogs";
 import { SettingsDialog } from "./SettingsDialog";
 import { ZoteroSettingsDialog } from "./research/ZoteroSettingsDialog";
+import { ProjectSettingsDialog } from "./research/ProjectSettingsDialog";
+import { RequirementsDialog } from "./research/RequirementsDialog";
+import { GuidelinesDialog } from "./research/GuidelinesDialog";
 import { SyncReviewDialog } from "./research/SyncReviewDialog";
 import { CiteDialog } from "./research/CiteDialog";
 
@@ -39,6 +42,8 @@ export interface AppDialogsProps {
   setDialog: Dispatch<SetStateAction<Dialog>>;
   notify: Notify;
   refresh: () => Promise<unknown>;
+  /** The target journal changed: the citation style follows the profile, so spans are recomputed. */
+  onProjectSettingsSaved: () => void;
   openDoc: (id: string, opts?: { force?: boolean; keepMode?: boolean }) => Promise<void>;
   liveText: () => string;
   // notes
@@ -115,7 +120,7 @@ export interface AppDialogsProps {
 /** Renders whichever modal dialog (and the comment popover) is open. Pure view: App owns all state and logic. */
 export function AppDialogs(p: AppDialogsProps) {
   const {
-    ws, doc, unit, dialog, setDialog, notify, refresh, openDoc, liveText, noteType, setNoteType, createNote, runGenerate,
+    ws, doc, unit, dialog, setDialog, notify, refresh, onProjectSettingsSaved, openDoc, liveText, noteType, setNoteType, createNote, runGenerate,
     applyAliases, applyRelationships, applyCanon, saveStyle, settingsSaved, renamePreview, renameApply, renameUndo, createScene, renameScene, deleteScene,
     createPart, renamePart, deletePart, placeScene, performMove, saveDetails, sprintFocus, startSprint, endSprint, setInspRev,
     restoreSnapshot, flushSave, setSnapshotAt, startNewDraft, syncCommit, syncPush, syncInit, addComment, commentPop, setCommentPop, popComment,
@@ -212,6 +217,9 @@ export function AppDialogs(p: AppDialogsProps) {
         <SnapshotsDialog docId={doc.id} title={doc.title} unit={unit} getText={liveText} notify={notify}
           onChanged={setSnapshotAt} onRestore={restoreSnapshot} onClose={() => setDialog(null)} />
       )}
+      {dialog?.kind === "project-settings" && <ProjectSettingsDialog notify={notify} onSaved={onProjectSettingsSaved} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "requirements" && <RequirementsDialog notify={notify} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "guidelines" && <GuidelinesDialog notify={notify} onClose={() => setDialog(null)} />}
       {dialog?.kind === "zotero-settings" && <ZoteroSettingsDialog notify={notify} onClose={() => setDialog(null)} />}
       {dialog?.kind === "cite" && <CiteDialog notify={notify} onInsert={insertCitation} onSync={() => setDialog({ kind: "zotero-sync" })} onClose={() => setDialog(null)} />}
       {dialog?.kind === "zotero-sync" && <SyncReviewDialog notify={notify} onApplied={() => void refresh()} onClose={() => setDialog(null)} />}

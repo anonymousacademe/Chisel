@@ -44,4 +44,7 @@ export type Dialog =
   | { kind: "zotero-settings" }
   | { kind: "zotero-sync" }
   | { kind: "cite" }
+  | { kind: "project-settings" }
+  | { kind: "requirements" }
+  | { kind: "guidelines" }
   | null;

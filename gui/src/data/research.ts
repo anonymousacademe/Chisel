@@ -111,3 +111,54 @@ export function citationCard(span: { status?: string; keys?: string[]; label?: s
 
 /** Plain-words fallback when the paper's Zotero collections cannot be read. */
 export const COLLECTIONS_FALLBACK = "Zotero's collections could not be read. Is Zotero running?";
+
+// -- Journal profiles, requirements and guidelines (project settings, Journal requirements, Guidelines) ----
+
+export type ResearchKind = "manuscript" | "proposal";
+
+export interface JournalProfile { id: string; name: string; publisher: string; kind: ResearchKind; source: string; readOn: string }
+
+/** research_get_settings / research_set_settings. journal "" means no target journal. */
+export interface ResearchSettings {
+  kind: ResearchKind; journal: string; journalName: string; citationStyle: string; source: string; readOn: string;
+}
+
+export type RequirementStatus = "ok" | "warn" | "info" | "na" | "advice";
+export interface RequirementItem { id: string; title: string; status: RequirementStatus; message: string }
+export interface RequirementGroup { title: string; items: RequirementItem[] }
+export interface RequirementsReport {
+  journal: string; name: string; source: string; readOn: string;
+  summary: { ok: number; warn: number; info: number; advice: number };
+  groups: RequirementGroup[];
+}
+
+export type GuidelineType = "pdf" | "docx" | "md" | "txt" | "note";
+export interface GuidelineFile { name: string; type: GuidelineType; size: number; chars: number; extracted: boolean; message: string }
+export interface GuidelineText { name: string; text: string; truncated: boolean; chars: number }
+
+/** Profiles of one kind, in the order Python sent them (Environmental Modelling & Software first). */
+export const profilesOf = (all: JournalProfile[], kind: ResearchKind) => all.filter((p) => p.kind === kind);
+/** Real journals of a kind: the generic "manuscript" / "proposal" profiles (id equal to the kind, no publisher) are the "no journal" case. */
+export const journalsOf = (all: JournalProfile[], kind: ResearchKind) =>
+  profilesOf(all, kind).filter((p) => p.id !== p.kind && p.publisher !== "");
+/** The journal a project of this kind starts with: the first real journal of a manuscript; a proposal (or no list) starts with none. */
+export const defaultJournal = (all: JournalProfile[], kind: ResearchKind) =>
+  kind === "manuscript" ? journalsOf(all, kind)[0]?.id ?? "" : "";
+
+/** Words shown for each requirement status (text, not colour alone). */
+export const REQUIREMENT_LABEL: Record<RequirementStatus, string> = {
+  ok: "Ok", warn: "Needs attention", info: "Note", na: "Not applicable", advice: "Reminder",
+};
+
+/** "12 ok, 3 need attention, 14 reminders". */
+export function requirementSummary(s: RequirementsReport["summary"]): string {
+  const n = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
+  return [`${s.ok} ok`, n(s.warn, "needs attention", "need attention"), n(s.advice, "reminder", "reminders")].join(", ");
+}
+
+/** A readable size: "1.2 MB". */
+export function fileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}

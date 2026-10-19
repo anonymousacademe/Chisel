@@ -596,6 +596,9 @@ export default function App() {
     ...(ws.project.mode === "script" ? [{ label: "Import a Fountain file…", onSelect: () => void importFountain() }] : []),
     ...(ws.project.mode === "research" ? [
       { label: `Cite a source… (${CITE_KEY_LABEL})`, onSelect: openCite },
+      { label: "Project settings…", onSelect: () => setDialog({ kind: "project-settings" }) },
+      { label: "Journal requirements…", onSelect: () => setDialog({ kind: "requirements" }) },
+      { label: "Guidelines…", onSelect: () => setDialog({ kind: "guidelines" }) },
       { label: "Zotero settings…", onSelect: () => setDialog({ kind: "zotero-settings" }) },
       { label: "Sync sources from Zotero…", onSelect: () => setDialog({ kind: "zotero-sync" }) },
     ] : []),
@@ -859,7 +862,7 @@ export default function App() {
           onIgnore={() => void spellIgnore(spellTarget)} />
       )}
       {menu && <Menu anchor={menu.anchor} items={menu.items} onClose={() => setMenu(null)} />}
-      <AppDialogs ws={ws} doc={doc} unit={unit} dialog={dialog} setDialog={setDialog} notify={notify} refresh={refresh} openDoc={openDoc} liveText={liveText}
+      <AppDialogs ws={ws} doc={doc} unit={unit} dialog={dialog} setDialog={setDialog} notify={notify} refresh={refresh} onProjectSettingsSaved={() => { void refresh(); setSpansVersion((v) => v + 1); }} openDoc={openDoc} liveText={liveText}
         noteType={noteType} setNoteType={setNoteType} createNote={createNote} runGenerate={runGenerate}
         applyAliases={applyAliases} applyRelationships={applyRelationships} applyCanon={applyCanon} saveStyle={saveStyle} settingsSaved={settingsSaved}
         renamePreview={renamePreview} renameApply={renameApply} renameUndo={renameUndo}

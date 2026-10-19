@@ -11,7 +11,7 @@ import type {
   DownloadStatus, EndpointCost, EngineId, KokoroStatus, OpenRouterModel, ReadOptions, ReadPlan, SpeechInfo, SpeechPrefs,
   VoiceInfo,
 } from "../reader/types";
-import type { SourceCardInfo, SourceHit, SourceRow, SyncApplied, SyncPlan, SyncScope, ZoteroCollection, ZoteroSettings, ZoteroStatus } from "../data/research";
+import type { GuidelineFile, GuidelineText, JournalProfile, RequirementsReport, ResearchKind, ResearchSettings, SourceCardInfo, SourceHit, SourceRow, SyncApplied, SyncPlan, SyncScope, ZoteroCollection, ZoteroSettings, ZoteroStatus } from "../data/research";
 import { call } from "./transport";
 
 /** AI job kinds (the AI job contract): the first four stream text, the rest answer once. */
@@ -36,7 +36,8 @@ export const api = {
   getWorkspace: () => call<{ workspace: Workspace | null }>("get_workspace"),
   readDocument: (id: string) => call<DocumentPayload>("read_document", id),
   openProject: (path: string) => call("open_project", path),
-  newProject: (title: string, path: string, mode: ProjectMode = "story") => call("new_project", title, path, mode),
+  newProject: (title: string, path: string, mode: ProjectMode = "story", kind?: ResearchKind, journal?: string) =>
+    kind === undefined ? call("new_project", title, path, mode) : call("new_project", title, path, mode, kind, journal ?? ""),
   suggestProjectPath: (title: string) => call<{ path: string }>("suggest_project_path", title),
   recentProjects: () => call<{ recents: RecentProject[] }>("recent_projects"),
   chooseFolder: () => call<{ path: string | null }>("choose_folder"),
@@ -126,6 +127,16 @@ export const api = {
   sourceCard: (id: string) => call<SourceCardInfo>("source_card", id),
   zoteroItemCollections: (id: string) => call<{ collections: string[] }>("zotero_item_collections", id),
   openInZotero: (id: string) => call("open_in_zotero", id),
+  // Research mode: journal profile, requirements check, guideline files
+  researchProfiles: () => call<{ profiles: JournalProfile[] }>("research_profiles"),
+  researchGetSettings: () => call<ResearchSettings>("research_get_settings"),
+  researchSetSettings: (kind: ResearchKind, journal: string) => call<ResearchSettings>("research_set_settings", kind, journal),
+  researchRequirements: () => call<RequirementsReport>("research_requirements"),
+  guidelinesList: () => call<{ files: GuidelineFile[] }>("guidelines_list"),
+  guidelinesAdd: () => call<{ added: string[]; skipped: { name: string; reason: string }[] }>("guidelines_add"),
+  guidelinesAddText: (title: string, text: string) => call<{ name: string }>("guidelines_add_text", title, text),
+  guidelinesRead: (name: string, limit = 20000) => call<GuidelineText>("guidelines_read", name, limit),
+  guidelinesRemove: (name: string) => call("guidelines_remove", name),
   // Notebook notes (notebook/; "research" internally): plain Markdown, never indexed
   newResearchNote: (title: string, template = "") => call<{ id: string }>("new_research_note", title, template),
   /** Copies the selected passage into notebook/clippings.md (the scene is not changed). */
