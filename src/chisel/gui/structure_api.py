@@ -145,7 +145,10 @@ class StructureMixin:
             remap = self._rel_map()   # later parts were renumbered
             if remap:
                 self.index.rebuild(project)
-            return {"remap": remap}
+            out: dict = {"remap": remap}
+            if project.renumber_warning:
+                out["warning"] = project.renumber_warning
+            return out
 
     @bridge
     def list_trash(self) -> dict:

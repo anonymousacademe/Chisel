@@ -219,5 +219,81 @@ def test_gui_delete_part_returns_a_remap(tmp_path: Path):
     assert (root / "manuscript" / "01-two" / "01-b.md").is_file()
 
 
+def test_delete_part_keeps_front_matter_first(proj: Project):
+    fm = proj.new_part("Front Matter")
+    a = proj.new_part("Act A")
+    proj.new_part("Act B")
+    assert [p.name for p in proj.list_parts()] == ["01-front-matter", "02-act-a", "03-act-b"]
+    proj.delete_part(a)
+    assert [p.name for p in proj.list_parts()] == ["01-front-matter", "02-act-b"]
+    assert proj.last_renames == {proj.manuscript_dir / "03-act-b": proj.manuscript_dir / "02-act-b"}
+    assert fm.is_dir()
+
+
+def test_delete_part_with_two_front_matter_parts(proj: Project):
+    m = proj.manuscript_dir
+    for name in ("00-front-matter", "01-front-matter-2", "02-a", "03-b", "04-c"):
+        (m / name).mkdir()
+        (m / name / "_part.md").write_text("# T\n", encoding="utf-8", newline="\n")
+    proj.delete_part(m / "02-a")
+    assert [p.name for p in proj.list_parts()] == [
+        "00-front-matter", "01-front-matter-2", "02-b", "03-c"]
+
+
+def test_delete_part_survives_a_locked_rename(proj: Project, monkeypatch):
+    m = proj.manuscript_dir
+    for name in ("01-a", "02-b", "03-c", "04-d"):
+        _mk(m / name / "01-s.md", name)
+    (m / "01-a" / "01-s.md").unlink()
+    real, calls = fsutil.rename, {"n": 0}
+
+    def flaky(a, b):
+        calls["n"] += 1
+        if calls["n"] > 3:      # the first renumbered part goes through, a later one fails
+            raise OSError("injected")
+        return real(a, b)
+
+    monkeypatch.setattr(fsutil, "rename", flaky)
+    proj.delete_part(m / "01-a")                 # must not raise
+    monkeypatch.setattr(fsutil, "rename", real)
+    assert proj.renumber_warning
+    assert proj.last_renames                     # what moved is reported
+    assert not list(m.rglob(".mv*"))
+    assert len(list(m.rglob("01-s.md"))) == 3    # no scene lost
+    for old, new in proj.last_renames.items():
+        assert not old.exists() and new.exists()
+
+
+def test_gui_delete_part_reports_the_warning(tmp_path: Path, monkeypatch):
+    root = tmp_path / "p"
+    p = Project.create(root, "P")
+    for f in p.manuscript_dir.glob("*.md"):
+        f.unlink()
+    for name in ("01-a", "02-b", "03-c"):
+        _mk(root / "manuscript" / name / "01-s.md", name)
+    (root / "manuscript" / "01-a" / "01-s.md").unlink()
+    api = Api()
+    assert api.open_project(str(root))["ok"]
+    real = fsutil.rename
+
+    def locked(a, b):
+        raise OSError("x")
+
+    monkeypatch.setattr(fsutil, "rename", locked)
+    r = api.delete_part("manuscript/01-a")
+    monkeypatch.setattr(fsutil, "rename", real)
+    assert r["ok"] and r.get("warning")
+
+
+def test_restore_keeps_a_three_digit_folder_width(proj: Project):
+    one = proj.manuscript_dir / "01-one"
+    for n, s in enumerate("abc", 1):
+        _mk(one / f"{n:03d}-{s}.md", s)
+    proj.delete_scene(one / "002-b.md")
+    assert _names(one) == ["001-a.md", "002-c.md"]
+    back = proj.restore_scene(proj.list_trash()[0].name)
+    assert _names(one) == ["001-a.md", "002-b.md", "003-c.md"] and back.name == "002-b.md"
+
+
 def test_helpers_unchanged_names():
     assert structure._slug_of("03-c.md") == "c"

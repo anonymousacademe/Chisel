@@ -121,6 +121,8 @@ class Structure:
     #: {old path: new path} of everything the last renaming operation moved
     #: (scenes, and part folders for move_part); lets a UI follow open files.
     last_renames: dict[Path, Path] = {}
+    #: plain-words note when the last renumbering stopped early (else empty)
+    renumber_warning: str = ""
 
     # -- reading -----------------------------------------------------------
 
@@ -326,6 +328,13 @@ class Structure:
 
     # -- closing gaps (after a delete or a restore) -----------------------------
 
+    def _folder_width(self, folder: Path, count: int) -> int:
+        """Digits for numbering *count* scenes in *folder*: at least 2, enough for
+        the count, and never narrower than the folder already uses (001- stays 3)."""
+        used = [len(re.match(r"\d+", p.name).group()) for p in self._scene_files(folder)
+                if _prefix(p.name) is not None]
+        return max([2, len(str(count))] + used)
+
     def renumber_folder(self, folder: Path) -> dict[Path, Path]:
         """Renumber the numbered scenes of *folder* contiguously (01, 02, ...),
         keeping each slug and the order. Files without a numeric prefix, the
@@ -338,37 +347,50 @@ class Structure:
             self.last_renames = {}
             return {}
         files = [p for p in self._scene_files(folder) if _prefix(p.name) is not None]
-        width = max([2, len(str(len(files)))]
-                    + [len(re.match(r"\d+", p.name).group()) for p in files])
+        width = self._folder_width(folder, len(files))
         pairs = [(p, folder / f"{_num(n + 1, width)}-{_slug_of(p.name)}.md")
                  for n, p in enumerate(files)]
         self._apply_renames(pairs)
         return dict(self.last_renames)
 
     def renumber_parts(self) -> dict[Path, Path]:
-        """Renumber the part folders (front matter excluded) 01, 02, ... in
-        order. Every scene inside moves through ``_apply_renames`` first, then
-        the folder's other files (``_part.md``) follow and the empty folder
-        goes. A target that exists and is not empty is skipped, never
-        overwritten. ``last_renames`` holds scenes and folders."""
-        parts = [p for p in self.list_parts()
-                 if not self.part_is_front_matter(p) and _prefix(p.name) is not None]
+        """Renumber the part folders 01, 02, ... in order, closing gaps. Front
+        matter parts keep their own number and place; story parts are numbered
+        after the highest number seen so far, so the order never changes. Every
+        scene inside moves through ``_apply_renames`` first, then the folder's
+        other files (``_part.md``) follow and the empty folder goes. A target
+        that exists and is not empty is skipped, never overwritten.
+        ``last_renames`` holds scenes and folders. A failed rename (a locked
+        file) stops the pass: what was renamed stays in ``last_renames``, no
+        file is lost, and ``renumber_warning`` says so in plain words."""
+        self.renumber_warning = ""
+        parts = [p for p in self.list_parts() if _prefix(p.name) is not None]
         width = max([2, len(str(len(parts)))]
                     + [len(re.match(r"\d+", p.name).group()) for p in parts])
         total: dict[Path, Path] = {}
-        for n, old in enumerate(parts):
-            new = old.with_name(f"{_num(n + 1, width)}-{_slug_of(old.name)}")
-            if new == old:
-                continue
-            if new.exists() and (not new.is_dir() or any(new.iterdir())):
-                continue
-            self._apply_renames([(p, new / p.name) for p in self._scene_files(old)])
-            total.update(self.last_renames)
-            for rest in list(old.iterdir()):
-                new.mkdir(parents=True, exist_ok=True)
-                fsutil.rename(rest, new / rest.name)
-            old.rmdir()
-            total[old] = new
+        counter = 0
+        try:
+            for old in parts:
+                if self.part_is_front_matter(old):
+                    counter = max(counter, _prefix(old.name) or 0)
+                    continue
+                counter += 1
+                new = old.with_name(f"{_num(counter, width)}-{_slug_of(old.name)}")
+                if new == old:
+                    continue
+                if new.exists() and (not new.is_dir() or any(new.iterdir())):
+                    continue
+                self._apply_renames([(p, new / p.name) for p in self._scene_files(old)])
+                total.update(self.last_renames)
+                for rest in list(old.iterdir()):
+                    new.mkdir(parents=True, exist_ok=True)
+                    fsutil.rename(rest, new / rest.name)
+                old.rmdir()
+                total[old] = new
+        except OSError as exc:
+            applog.log_exc("renumber parts", exc)
+            self.renumber_warning = ("Some parts could not be renumbered because a file "
+                                     "was in use. Nothing was lost; the numbers may have gaps.")
         self.last_renames = total
         return total
 
@@ -413,7 +435,7 @@ class Structure:
         others = [p for p in self._scene_files(dest) if p != path]
         at = len(others) if index is None else max(0, min(int(index), len(others)))
         ordered = others[:at] + [path] + others[at:]
-        width = len(str(len(ordered)))
+        width = self._folder_width(dest, len(ordered))
         pairs = [(p, dest / f"{_num(n + 1, width)}-{_slug_of(p.name)}.md")
                  for n, p in enumerate(ordered)]
         self._apply_renames(pairs)
