@@ -38,7 +38,10 @@ export function citeReplaced(
   if (s.kind !== "citation" || !s.display) return false;
   if (s.start < 0 || s.end > text.length || s.start >= s.end) return false;
   if (selections.some((r) => r.from <= s.end && r.to >= s.start)) return false;
-  if (text.slice(s.start, s.end).includes("\n")) return false;
+  const raw = text.slice(s.start, s.end);
+  if (raw.includes("\n")) return false;
+  // spans are mapped through edits until the next bridge answer: never hide text that no longer reads as a citation
+  if (!/^\[.*@.*\]$/.test(raw)) return false;
   for (let p = s.start; p < s.end; p++) if (softBreaks.has(p)) return false;
   return true;
 }

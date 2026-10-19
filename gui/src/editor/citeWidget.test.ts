@@ -107,6 +107,9 @@ describe("citation display", () => {
     expect(citeReplaced(cite(), [{ from: 0, to: 0 }], DOC, new Set([12]))).toBe(false);
     expect(citeReplaced(cite(), [{ from: 0, to: 0 }], DOC, new Set())).toBe(true);
     expect(citeReplaced(cite({ display: undefined }), [{ from: 0, to: 0 }], DOC, new Set())).toBe(false);
+    // a span mapped through an edit that broke the citation (closing brackets deleted, key removed) never hides text
+    expect(citeReplaced(cite(), [{ from: 0, to: 0 }], "As shown [[@wang2026 here, and more.", new Set())).toBe(false);
+    expect(citeReplaced(cite(), [{ from: 0, to: 0 }], "As shown [[wang2026]] here.", new Set())).toBe(false);
   });
 
   it("a document with no citation spans has no citation widgets", () => {

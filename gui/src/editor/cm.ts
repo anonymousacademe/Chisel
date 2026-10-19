@@ -85,7 +85,7 @@ export class CiteWidget extends WidgetType {
     super();
     this.display = display; this.status = status; this.title = title; this.keys = keys;
   }
-  eq(o: CiteWidget) { return o.display === this.display && o.status === this.status && o.title === this.title; }
+  eq(o: CiteWidget) { return o.display === this.display && o.status === this.status && o.title === this.title && o.keys === this.keys; }
   toDOM() {
     const el = document.createElement("span");
     el.className = `lw-cite lw-cite--shown ${this.status === "resolved" ? "lw-cite--resolved" : "lw-cite--unresolved"}`;
