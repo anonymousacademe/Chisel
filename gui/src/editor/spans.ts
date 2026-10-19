@@ -23,6 +23,24 @@ export interface Span {
   keys?: string[];
   label?: string;
   title?: string;
+  /** citation: the in-text form Python formats ("(Wang et al., 2026)"); the bare key when unresolved. */
+  display?: string;
+}
+
+/**
+ * Whether a citation is drawn as its display text instead of the raw `[[@key]]`: it must carry a display,
+ * not be touched by any selection range (edges count, so the cursor entering it reveals the raw text), and
+ * not cross a line break or a soft-break (hard-wrapped line) position.
+ */
+export function citeReplaced(
+  s: Span, selections: readonly { from: number; to: number }[], text: string, softBreaks: ReadonlySet<number>,
+): boolean {
+  if (s.kind !== "citation" || !s.display) return false;
+  if (s.start < 0 || s.end > text.length || s.start >= s.end) return false;
+  if (selections.some((r) => r.from <= s.end && r.to >= s.start)) return false;
+  if (text.slice(s.start, s.end).includes("\n")) return false;
+  for (let p = s.start; p < s.end; p++) if (softBreaks.has(p)) return false;
+  return true;
 }
 
 /** A misspelled word from Python (chisel.core.spelling), UTF-16 offsets. */

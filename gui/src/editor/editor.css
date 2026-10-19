@@ -59,6 +59,7 @@
 }
 .lw-hovercard__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .lw-hovercard__head strong { font-size: 12px; color: var(--lw-text-strong); }
+.lw-hovercard__hint { font-size: 11px; opacity: 0.7; }
 .lw-hovercard__head span { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--lw-accent-text); }
 .lw-hovercard p { margin: 0; }
 
@@ -106,3 +107,5 @@
 .lw-cm .lw-cite { cursor: pointer; border-bottom: 1px dotted currentColor; }
 .lw-cm .lw-cite--resolved { color: var(--lw-accent-text); }
 .lw-cm .lw-cite--unresolved { color: var(--lw-warning); }
+/* the formatted in-text citation reads like ordinary prose; the missing treatment stays */
+.lw-cm .lw-cite--shown.lw-cite--resolved { color: inherit; border-bottom: none; }

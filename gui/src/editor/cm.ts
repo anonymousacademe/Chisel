@@ -11,7 +11,7 @@ import { autocompletion, type CompletionContext, type CompletionResult } from "@
 import { completionSpot, elementOfLine, upperNames, type ScriptNames } from "./script";
 import { formatSpecs } from "./format";
 import { citeCompletion } from "../data/research";
-import { frontmatterRange, misspellingAt, sceneFrontmatter, misspellSpecs, scriptLineSpecs, softBreaks, specsFor, titleLine, type Misspelling, type Span } from "./spans";
+import { citeReplaced, frontmatterRange, misspellingAt, sceneFrontmatter, misspellSpecs, scriptLineSpecs, softBreaks, specsFor, titleLine, type Misspelling, type Span } from "./spans";
 
 export const setSpans = StateEffect.define<Span[]>();
 export const setSpelling = StateEffect.define<Misspelling[]>();
@@ -75,6 +75,28 @@ class DraftBar extends WidgetType {
   ignoreEvent() { return true; }
 }
 
+/** An in-text citation drawn as its formatted text; the raw [[@key]] stays in the document. */
+export class CiteWidget extends WidgetType {
+  readonly display: string;
+  readonly status: string;
+  readonly title: string;
+  readonly keys: string;
+  constructor(display: string, status: string, title: string, keys: string) {
+    super();
+    this.display = display; this.status = status; this.title = title; this.keys = keys;
+  }
+  eq(o: CiteWidget) { return o.display === this.display && o.status === this.status && o.title === this.title; }
+  toDOM() {
+    const el = document.createElement("span");
+    el.className = `lw-cite lw-cite--shown ${this.status === "resolved" ? "lw-cite--resolved" : "lw-cite--unresolved"}`;
+    el.setAttribute("data-keys", this.keys);
+    el.textContent = this.display;
+    return el;
+  }
+  // false: a click on it must still move the cursor in (which reveals the raw text), and Ctrl-click / hover keep working
+  ignoreEvent() { return false; }
+}
+
 class SpaceWidget extends WidgetType {
   eq() { return true; }
   toDOM() { const el = document.createElement("span"); el.textContent = " "; return el; }
@@ -110,7 +132,7 @@ const spellingField = StateField.define<Misspelling[]>({
 });
 
 /** Comment passages follow the text through edits until Python re-anchors them. */
-const readingField = StateField.define<{ from: number; to: number } | null>({
+export const readingField = StateField.define<{ from: number; to: number } | null>({
   create: () => null,
   update(range, tr) {
     for (const e of tr.effects) if (e.is(setReading)) return e.value;
@@ -119,7 +141,7 @@ const readingField = StateField.define<{ from: number; to: number } | null>({
   },
 });
 
-const commentsField = StateField.define<CommentMark[]>({
+export const commentsField = StateField.define<CommentMark[]>({
   create: () => [],
   update(list, tr) {
     for (const e of tr.effects) if (e.is(setComments)) return e.value;
@@ -144,9 +166,11 @@ function build(state: EditorState): Built {
   const head = state.selection.main.head;
 
   // span decorations (mentions, links, drafts, expand markers)
+  const citeMarks: Range<Decoration>[] = []; // citations: a widget or this mark, decided once the soft breaks are known
   for (const sp of specsFor(state.field(spansField), head, doc.length)) {
     if (sp.from === sp.to) continue;
-    if (sp.type === "hide") { ranges.push(hide.range(sp.from, sp.to)); atomic.push(hide.range(sp.from, sp.to)); }
+    if (sp.cls?.startsWith("lw-cite")) citeMarks.push(Decoration.mark({ class: sp.cls, attributes: sp.attrs }).range(sp.from, sp.to));
+    else if (sp.type === "hide") { ranges.push(hide.range(sp.from, sp.to)); atomic.push(hide.range(sp.from, sp.to)); }
     else ranges.push(Decoration.mark({ class: sp.cls, attributes: sp.attrs }).range(sp.from, sp.to));
   }
 
@@ -209,6 +233,20 @@ function build(state: EditorState): Built {
     atomic.push(SPACE.range(pos, pos + 1));
   }
 
+  // citations (research projects only: Python sends no citation spans elsewhere): the formatted text as a widget
+  // unless the cursor touches it or it crosses a line / soft break, then the raw text with the dotted mark
+  const cites = state.field(spansField).filter((x) => x.kind === "citation");
+  const replaced = new Set<number>();
+  for (const x of cites) {
+    if (citeReplaced(x, state.selection.ranges, text, softBreakSet)) {
+      replaced.add(x.start);
+      ranges.push(Decoration.replace({
+        widget: new CiteWidget(x.display ?? "", x.status ?? "unresolved", x.title ?? "", (x.keys ?? []).join(" ")),
+      }).range(x.start, x.end));
+    }
+  }
+  for (const m of citeMarks) if (!replaced.has(m.from)) ranges.push(m);
+
   // read aloud: the passage being spoken
   const reading = state.field(readingField);
   if (reading && reading.from < reading.to && reading.to <= doc.length) {
@@ -270,7 +308,7 @@ function build(state: EditorState): Built {
   return { all: Decoration.set(ranges, true), atomic: Decoration.set(atomic, true) };
 }
 
-const decoField = StateField.define<Built>({
+export const decoField = StateField.define<Built>({
   create: (state) => build(state),
   update(value, tr) {
     const facetChanged = tr.startState.facet(metaFacet) !== tr.state.facet(metaFacet)
@@ -470,6 +508,12 @@ export function editorExtensions(kind: string, meta: string, reflow: boolean, ho
           const body = document.createElement("p");
           body.textContent = card.body;
           dom.append(head, body);
+          if (span.kind === "citation") {
+            const hint = document.createElement("p");
+            hint.className = "lw-hovercard__hint";
+            hint.textContent = "Shown in an approximate APA form; click it to see and edit the raw [[@key]].";
+            dom.append(hint);
+          }
           return { dom };
         },
       };
@@ -526,4 +570,4 @@ export function editorExtensions(kind: string, meta: string, reflow: boolean, ho
   ];
 }
 
-export { spansField, spellingField, commentsField };
+export { spansField, spellingField };
