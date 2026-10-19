@@ -11,6 +11,8 @@ RESEARCH_METHODS = [
     "object_image", "read_table", "save_table", "build_table", "apply_table", "insert_figure",
     "figure_trust_info", "trust_figure", "figure_run_start", "figure_run_status", "figure_run_cancel",
     "suggest_latex", "suggest_plot_code",
+    "research_profiles", "research_get_settings", "research_set_settings", "research_requirements",
+    "guidelines_list", "guidelines_add", "guidelines_add_text", "guidelines_read", "guidelines_remove",
 ]
 
 

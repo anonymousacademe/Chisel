@@ -142,8 +142,14 @@ describe("RequirementsDialog", () => {
     expect(host.textContent).toContain("Requirements");
     expect(host.querySelector("a")).toBeNull();
   });
-  it("explains an empty result when no report arrives", async () => {
+  it("says a failed check failed, and does not call it 'no journal'", async () => {
     m.researchRequirements.mockResolvedValue({ ok: false, error: "x" });
+    const { host } = await mount(<RequirementsDialog notify={() => {}} onClose={() => {}} />);
+    expect(host.textContent).toContain("Could not check the requirements: x");
+    expect(host.textContent).not.toContain("no journal selected");
+  });
+  it("explains a project with no journal selected", async () => {
+    m.researchRequirements.mockResolvedValue({ ok: true, journal: "", name: "", source: "", readOn: "", summary: { ok: 0, warn: 0, info: 0, advice: 0 }, groups: [] });
     const { host } = await mount(<RequirementsDialog notify={() => {}} onClose={() => {}} />);
     expect(host.textContent).toContain("This project has no journal selected. Choose one in Project settings.");
   });

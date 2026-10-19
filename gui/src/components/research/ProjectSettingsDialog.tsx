@@ -22,7 +22,7 @@ export function ProjectSettingsDialog({ onClose, notify, onSaved }: { onClose: (
       const r = await api.researchGetSettings();
       if (!live) return;
       if (!r.ok) { setLoadError(r.error); notify(r.error, "error"); }
-      else { setSaved(r); setKind(r.kind); setJournal(r.journal); setLoaded(true); }
+      else { setSaved(r); setKind(r.kind); setJournal(r.journal === r.kind ? "" : r.journal); setLoaded(true); }
     })();
     return () => { live = false; };
   }, [notify]);

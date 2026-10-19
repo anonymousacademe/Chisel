@@ -15,13 +15,14 @@ export function RequirementsDialog({ onClose, notify }: { onClose: () => void; n
   const [report, setReport] = useState<RequirementsReport | null>(null);
   const [busy, setBusy] = useState(true);
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     setBusy(true);
     const r = await api.researchRequirements();
     setBusy(false); setLoaded(true);
-    if (!r.ok) return notify(r.error, "error");
-    setReport(r);
+    if (!r.ok) { setError(r.error); return notify(r.error, "error"); }
+    setError(""); setReport(r);
   }, [notify]);
   useEffect(() => {
     let live = true;
@@ -29,7 +30,7 @@ export function RequirementsDialog({ onClose, notify }: { onClose: () => void; n
       const r = await api.researchRequirements();
       if (!live) return;
       setBusy(false); setLoaded(true);
-      if (!r.ok) notify(r.error, "error"); else setReport(r);
+      if (!r.ok) { setError(r.error); notify(r.error, "error"); } else setReport(r);
     })();
     return () => { live = false; };
   }, [notify]);
@@ -38,7 +39,8 @@ export function RequirementsDialog({ onClose, notify }: { onClose: () => void; n
     <Modal title="Journal requirements" wide onClose={onClose}>
       <div className="lw-settings">
         {!report && busy && <p className="lw-dialog__message">Checking…</p>}
-        {!report && loaded && !busy && <p className="lw-dialog__message">This project has no journal selected. Choose one in Project settings.</p>}
+        {!report && loaded && !busy && <p className="lw-dialog__message" role="alert">Could not check the requirements{error ? ": " + error : "."}</p>}
+        {report && !report.journal && <p className="lw-dialog__message">This project has no journal selected. Choose one in Project settings.</p>}
         {report && (
           <>
             <section className="lw-settings__section">

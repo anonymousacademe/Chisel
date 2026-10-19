@@ -12,13 +12,8 @@ from chisel.core import research as research_notes
 from chisel.core.paper import guidelines as gl
 from chisel.core.project import Project
 from chisel.gui.api import Api
-from chisel.gui.research_guidelines_api import ResearchGuidelinesMixin
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-
-
-class GApi(ResearchGuidelinesMixin, Api):
-    pass
 
 
 @pytest.fixture
@@ -235,7 +230,7 @@ def test_pdf_without_pypdf(project, monkeypatch):
 # -- the bridge -------------------------------------------------------------------------------------------
 
 def research_api(tmp_path):
-    api = GApi()
+    api = Api()
     api._load(Project.create(tmp_path / "paper", "Paper", "research"))
     return api
 
@@ -262,7 +257,7 @@ def test_bridge_roundtrip(tmp_path):
 
 
 def test_bridge_research_only(tmp_path):
-    api = GApi()
+    api = Api()
     api._load(Project.create(tmp_path / "novel", "Novel"))
     for res in (api.guidelines_list(), api.guidelines_add_text("a", "b"), api.guidelines_read("a.md"),
                 api.guidelines_remove("a.md"), api.guidelines_add([])):
@@ -415,3 +410,27 @@ def test_cache_key_includes_extractor_version(project, monkeypatch):
     monkeypatch.setattr(gl, "EXTRACTOR_VERSION", gl.EXTRACTOR_VERSION + 1)
     gl.read_text(project, name)
     assert len(list((project.root / ".chisel" / "guidelines").glob("*.json"))) == 2
+
+
+def test_a_missing_pypdf_refusal_is_not_cached(tmp_path, monkeypatch):
+    """Installing pypdf later must work without the file changing: the 'needs pypdf' refusal is never cached."""
+    import sys
+    from pathlib import Path
+
+    from chisel.core.paper import guidelines
+    from chisel.core.project import Project
+
+    project = Project.create(tmp_path / "p", "P", "research")
+    src = guidelines.Source(Path("x.pdf"), b"%PDF-1.4\n%fake\n")
+    monkeypatch.setitem(sys.modules, "pypdf", None)          # "import pypdf" raises ImportError
+    with pytest.raises(guidelines.GuidelineError, match="pypdf"):
+        guidelines.extract(project, src)
+    cache = project.root / ".chisel" / "guidelines"
+    assert not cache.exists() or list(cache.glob("*.json")) == []
+
+
+def test_image_errors_reach_the_author_without_a_class_prefix():
+    from chisel.ai.images import ImageError
+    from chisel.gui._bridge import USER_ERRORS
+
+    assert ImageError in USER_ERRORS

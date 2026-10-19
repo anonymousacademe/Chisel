@@ -7,6 +7,7 @@ import logging
 from typing import Any, Callable
 
 from ..ai.budget import BudgetError
+from ..ai.images import ImageError
 from ..core import fsutil, sync
 from ..core.paper.guidelines import GuidelineError
 from ..core.zotero.base import ZoteroError
@@ -16,7 +17,7 @@ log = logging.getLogger("chisel")
 # Errors the core raises on purpose, with a message written for the author:
 # shown as-is. Anything else keeps its class name (it is a bug worth reporting).
 USER_ERRORS = (ValueError, FileNotFoundError, FileExistsError, LookupError, IndexError, RuntimeError,
-               sync.GitError, fsutil.NotUtf8Error, BudgetError, GuidelineError, ZoteroError)
+               sync.GitError, fsutil.NotUtf8Error, BudgetError, GuidelineError, ZoteroError, ImageError)
 
 
 def bridge(fn: Callable[..., dict]) -> Callable[..., dict]:

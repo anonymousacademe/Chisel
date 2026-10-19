@@ -13,11 +13,6 @@ from chisel.core.paper.types import Citation, CiteRef
 from chisel.core.project import Project
 from chisel.core.spans import compute_spans
 from chisel.gui.api import Api
-from chisel.gui.research_project_api import ResearchProjectMixin
-
-
-class RApi(ResearchProjectMixin, Api):
-    pass
 
 
 def make(tmp_path, journal="ems", kind="manuscript"):
@@ -211,7 +206,7 @@ def test_ems_checks_on_a_fresh_project(tmp_path):
     assert rows["figures-captioned"]["status"] == "na"
     assert rows["citations-resolve"]["status"] == "na"
     assert rows["genai-declaration"]["status"] == "na"
-    assert rows["acknowledgements-before-references"]["status"] == "ok"      # Acknowledgements is last
+    assert rows["acknowledgements-before-references"]["status"] == "na"      # empty: nothing to check yet
     assert set(r["status"] for r in rows.values()) <= {"ok", "warn", "info", "na", "advice"}
 
 
@@ -281,7 +276,7 @@ def test_update_keeps_indent_and_trailing_comment(tmp_path):
 
 
 def test_profiles_catalogue_needs_no_project():
-    r = RApi().research_profiles()
+    r = Api().research_profiles()
     assert r["ok"] and r["profiles"]
 
 
@@ -316,7 +311,7 @@ def test_section_presence_and_last_section(tmp_path):
     assert rows["funding"]["status"] == "warn" and '"funding"' in rows["funding"]["message"]
     assert rows["acknowledgements-before-references"]["status"] == "na"
     p.next_scene_path("Appendix", p.list_parts()[-1]).write_text("# Appendix\n", encoding="utf-8")
-    p.next_scene_path("Acknowledgements", p.list_parts()[1]).write_text("# Acknowledgements\n", encoding="utf-8")
+    p.next_scene_path("Acknowledgements", p.list_parts()[1]).write_text("# Acknowledgements\n\nThanks to the reviewers.\n", encoding="utf-8")
     rows = by_id(requirements.evaluate(p))
     assert rows["acknowledgements-before-references"]["status"] == "info"
     assert "followed by" in rows["acknowledgements-before-references"]["message"]
@@ -396,7 +391,7 @@ def test_spans_use_the_project_style(tmp_path):
     har = [s for s in compute_spans(text, entities, mentions=False, citations=True, citation_style=p.citation_style)
            if s["kind"] == "citation"]
     assert apa[0]["display"] == "(Smith & Jones, 2020)" and har[0]["display"] == "(Smith and Jones, 2020)"
-    api = RApi()
+    api = Api()
     api._load(p)
     got = api.link_spans("manuscript/02-article/01-introduction.md", text)
     assert [s["display"] for s in got["spans"] if s["kind"] == "citation"] == ["(Smith and Jones, 2020)"]
@@ -406,7 +401,7 @@ def test_spans_use_the_project_style(tmp_path):
 
 
 def test_bridge_profiles_settings_requirements(tmp_path):
-    api = RApi()
+    api = Api()
     assert api.new_project("Paper", str(tmp_path / "paper"), "research", "manuscript", "ems")["ok"] is True
     r = api.research_profiles()
     assert r["ok"] and [x["id"] for x in r["profiles"]][:3] == ["ems", "manuscript", "proposal"]
@@ -435,7 +430,7 @@ def test_bridge_profiles_settings_requirements(tmp_path):
 
 
 def test_bridge_refuses_story_projects_and_bad_new_project(tmp_path):
-    api = RApi()
+    api = Api()
     assert api.new_project("Tale", str(tmp_path / "tale"))["ok"] is True
     for call in (api.research_get_settings, api.research_requirements,
                  lambda: api.research_set_settings("manuscript", "")):
@@ -445,3 +440,11 @@ def test_bridge_refuses_story_projects_and_bad_new_project(tmp_path):
         r = api.new_project("P", str(tmp_path / f"p-{kind}-{journal}"), "research", kind, journal)
         assert r["ok"] is False
         assert not (tmp_path / f"p-{kind}-{journal}").exists()
+
+
+def test_a_note_after_a_bullet_list_is_not_part_of_the_last_bullet():
+    from chisel.core.paper.requirements import _Section, _list_items
+
+    sec = _Section.__new__(_Section)
+    sec.text = "- one\n- two\n- three\n\nThese were drafted quickly and need work.\n"
+    assert _list_items(sec, lines_only=True) == ["one", "two", "three"]

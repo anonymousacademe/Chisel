@@ -233,8 +233,10 @@ def _pdf_text(data: bytes) -> tuple[str, str]:
     try:
         import pypdf
     except ImportError:
-        raise GuidelineError("Reading PDFs needs the optional pypdf package. Paste the text instead, "
-                             "or install it (pip install pypdf).") from None
+        err = GuidelineError("Reading PDFs needs the optional pypdf package. Paste the text instead, "
+                             "or install it (pip install pypdf).")
+        err.transient = True        # fixed by installing pypdf, not by changing the file: never cached
+        raise err from None
     note = ""
     try:
         reader = pypdf.PdfReader(io.BytesIO(data))
@@ -337,6 +339,8 @@ def extract(project, src: Source) -> tuple[str, bool, str]:
                     note = (note + " " if note else "") + "Only the first part of the text was kept."
                 entry = {"text": text, "note": note}
             except GuidelineError as exc:
+                if getattr(exc, "transient", False):
+                    raise
                 entry = {"error": str(exc)}
             try:
                 cached.parent.mkdir(parents=True, exist_ok=True)

@@ -89,17 +89,20 @@ def _list_items(section: _Section, lines_only: bool) -> list[str]:
     text = section.text
     if lines_only or any(_BULLET_RE.match(line) for line in text.splitlines()):
         items: list[str] = []
+        continuing = False      # a blank line ends a bullet: text after it is not part of it
         for line in text.splitlines():
             if not line.strip():
+                continuing = False
                 continue
             m = _BULLET_RE.match(line)
             if m:
                 items.append(m.group(1).strip())
+                continuing = True
             elif lines_only and not any(_BULLET_RE.match(x) for x in text.splitlines()):
                 items.append(line.strip())
-            elif items:         # lazy continuation of the previous bullet
+            elif items and continuing:   # lazy continuation of the previous bullet
                 items[-1] += " " + line.strip()
-            # else: an intro line before the first bullet
+            # else: an intro line before the first bullet, or a note after the list
         return items
     return [p.strip() for p in re.split(r"[,;\n]", text) if p.strip()]
 
@@ -157,8 +160,9 @@ def _check(req: journals.Requirement, ctx: _Context) -> tuple[str, str]:
         if not hit:
             return "na", f"There is no section with {_pattern_text(pats)} in its title yet."
         sec = next((s for s in hit if s.text), hit[0])
-        if not sec.text and kind != "section-no-citations":
-            return _fail(req), f"{sec.title} is empty."
+        if not sec.text:
+            # nothing written yet: a limit or a count is not met; "no citations" has nothing to look at
+            return ("na" if kind == "section-no-citations" else _fail(req)), f"{sec.title} is empty."
         if kind == "section-words-max":
             limit = int(req.params.get("max", 0))
             if sec.words > limit:
@@ -174,6 +178,8 @@ def _check(req: journals.Requirement, ctx: _Context) -> tuple[str, str]:
         hit = _find(ctx.sections, pats)
         if not hit:
             return "na", f"There is no section with {_pattern_text(pats)} in its title yet."
+        if not any(s.text for s in hit):
+            return "na", f"{hit[0].title} is empty."
         last = ctx.sections[-1]
         if last in hit:
             return "ok", f'"{last.title}" is the last section.'
