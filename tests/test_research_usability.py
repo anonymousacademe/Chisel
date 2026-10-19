@@ -134,3 +134,18 @@ def test_item_collections(tmp_path, monkeypatch):
     assert out["collections"] == ["A / B", "C9"]
     monkeypatch.setattr(mod.zotero, "open_sources", lambda s: [])
     assert api.zotero_item_collections("entities/sources/daneshgar2024.md")["ok"] is False
+
+
+def test_search_ranks_first_author_above_coauthor(tmp_path):
+    project = Project.create(tmp_path / "r", "R", "research")
+    rows = [("fan2026", "Fan", "Wang", "Alpha study"), ("wang2026", "Wang", "Fan", "Beta study"),
+            ("lee2026", "Lee", "Kim", "Wang method in 2026")]
+    for key, first, second, title in rows:
+        csl = {"title": title, "author": [{"family": first}, {"family": second}], "issued": {"date-parts": [[2026]]}}
+        ent.save_entity(ent.Entity(name=key, type="source", extra={"key": key, "title": title, "authors": [f"{first}, A", f"{second}, B"],
+                                                    "year": 2026, "csl": csl}),
+                        project.root / "entities" / "sources" / f"{key}.md")
+    api = Api()
+    api._load(project)
+    assert [s["key"] for s in api.search_sources("wang 2026")["sources"]] == ["wang2026", "lee2026", "fan2026"]
+    assert api.search_sources("wang zzz")["sources"] == []   # every word must match

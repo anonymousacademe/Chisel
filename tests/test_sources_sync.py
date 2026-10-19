@@ -313,3 +313,33 @@ def test_file_appearing_or_changing_after_digest_check_is_skipped(project, monke
     with pytest.raises(FileExistsError):
         sources._atomic_write(target, "x", exclusive=True)
     assert target.read_text(encoding="utf-8") == "mine"
+
+
+def test_block_is_readable_markdown_in_order():
+    csl = dict(CSL, abstract="<p>First para.</p><p>Second &amp; last.</p>", DOI="10.1/x",
+               URL="https://example.org/p", **{"container-title": "Water Research"})
+    it = ZItem(key="A1", version=5, csl=csl, citation_key="smith2024", notes=["<p>My note</p>"],
+               annotations=[Annotation(id="AN1", text="quoted", comment="c", page="3")])
+    md = sources.block_markdown(it)
+    assert md.startswith("## From Zotero\n\n**T**\n\nSmith, J\n\n*Water Research* · 2024 · [DOI](https://doi.org/10.1/x)"
+                         " · [URL](https://example.org/p)\n\n### Abstract\n\nFirst para.\n\nSecond & last.")
+    assert md.index("### Abstract") < md.index("### Notes") < md.index("### Highlights")
+    assert md.count("<!--zotero-ann:AN1-->") == 1
+    bad = ZItem(key="K", version=1, csl=dict(CSL, URL="javascript:alert(1)"), citation_key="k")
+    assert "javascript:" not in sources.block_markdown(bad)
+
+
+def test_old_format_note_is_reformatted_once(project):
+    it = item(notes=["<p>keep</p>"])
+    old = sources.item_to_note(it, None)
+    old.body = sources.replace_block("", sources.legacy_block_markdown(it)) + "\n\n## My notes\nmine\n"
+    path = project.root / "entities" / "sources" / "smith2024.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(old.to_markdown(), encoding="utf-8", newline="\n")
+    plan = plan_sync(project, result([it]))
+    assert [(r.action, "reformatted" in r.summary) for r in plan.rows] == [("changed", True)]
+    assert path.read_text(encoding="utf-8") == old.to_markdown()   # nothing written until ticked
+    out = apply_sync(project, plan, [plan.rows[0].id])
+    text = path.read_text(encoding="utf-8")
+    assert out["changed"] and "**T**" in text and text.endswith("## My notes\nmine\n")
+    assert plan_sync(project, result([it])).rows == []
