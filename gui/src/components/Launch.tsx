@@ -25,7 +25,7 @@ export function Launch({ onOpened }: { onOpened: () => void }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const profiles = useProfiles();
+  const { profiles, failed: profilesFailed } = useProfiles();
   const [kind, setKind] = useState<ResearchKind>("manuscript");
   const [journal, setJournal] = useState<string | null>(null);   // null: not chosen yet, use the kind's first profile
   const chosenJournal = journal ?? defaultJournal(profiles, kind);
@@ -91,7 +91,7 @@ export function Launch({ onOpened }: { onOpened: () => void }) {
           </div>
           <span className="lw-faint">{MODES.find((m) => m.id === mode)?.hint}</span>
           {mode === "research" && (
-            <JournalPicker profiles={profiles} kind={kind} journal={chosenJournal}
+            <JournalPicker profiles={profiles} failed={profilesFailed} kind={kind} journal={chosenJournal}
               onChange={(k, j) => { setKind(k); setJournal(j); }} />
           )}
           <div className="lw-row lw-gap-8">

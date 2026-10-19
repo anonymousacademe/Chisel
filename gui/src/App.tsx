@@ -862,7 +862,7 @@ export default function App() {
           onIgnore={() => void spellIgnore(spellTarget)} />
       )}
       {menu && <Menu anchor={menu.anchor} items={menu.items} onClose={() => setMenu(null)} />}
-      <AppDialogs ws={ws} doc={doc} unit={unit} dialog={dialog} setDialog={setDialog} notify={notify} refresh={refresh} openDoc={openDoc} liveText={liveText}
+      <AppDialogs ws={ws} doc={doc} unit={unit} dialog={dialog} setDialog={setDialog} notify={notify} refresh={refresh} onProjectSettingsSaved={() => { void refresh(); setSpansVersion((v) => v + 1); }} openDoc={openDoc} liveText={liveText}
         noteType={noteType} setNoteType={setNoteType} createNote={createNote} runGenerate={runGenerate}
         applyAliases={applyAliases} applyRelationships={applyRelationships} applyCanon={applyCanon} saveStyle={saveStyle} settingsSaved={settingsSaved}
         renamePreview={renamePreview} renameApply={renameApply} renameUndo={renameUndo}

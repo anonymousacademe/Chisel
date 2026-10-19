@@ -13,12 +13,13 @@ const ICON = { ok: Check, warn: AlertTriangle, info: Info, na: Info, advice: Inf
 /** Journal requirements: the paper checked against the target journal's rules (Python decides each status). */
 export function RequirementsDialog({ onClose, notify }: { onClose: () => void; notify: Notify }) {
   const [report, setReport] = useState<RequirementsReport | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(true);
+  const [loaded, setLoaded] = useState(false);
 
   const load = useCallback(async () => {
     setBusy(true);
     const r = await api.researchRequirements();
-    setBusy(false);
+    setBusy(false); setLoaded(true);
     if (!r.ok) return notify(r.error, "error");
     setReport(r);
   }, [notify]);
@@ -27,6 +28,7 @@ export function RequirementsDialog({ onClose, notify }: { onClose: () => void; n
     void (async () => {
       const r = await api.researchRequirements();
       if (!live) return;
+      setBusy(false); setLoaded(true);
       if (!r.ok) notify(r.error, "error"); else setReport(r);
     })();
     return () => { live = false; };
@@ -35,12 +37,13 @@ export function RequirementsDialog({ onClose, notify }: { onClose: () => void; n
   return (
     <Modal title="Journal requirements" wide onClose={onClose}>
       <div className="lw-settings">
-        {!report && <p className="lw-dialog__message">{busy ? "Checking…" : "No requirements to show."}</p>}
+        {!report && busy && <p className="lw-dialog__message">Checking…</p>}
+        {!report && loaded && !busy && <p className="lw-dialog__message">This project has no journal selected. Choose one in Project settings.</p>}
         {report && (
           <>
             <section className="lw-settings__section">
-              <h3>{report.name}</h3>
-              <SourceLine source={report.source} readOn={report.readOn} />
+              <h3>{report.name || "Requirements"}</h3>
+              {report.source && <SourceLine source={report.source} readOn={report.readOn} />}
               <p className="lw-dialog__message" aria-label="Summary"><strong>{requirementSummary(report.summary)}</strong></p>
             </section>
             {report.groups.map((g) => (

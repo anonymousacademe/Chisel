@@ -9,8 +9,9 @@ type Notify = (text: string, tone?: "info" | "error") => void;
 
 /** Project settings of a research project: what is being written and the target journal. */
 export function ProjectSettingsDialog({ onClose, notify, onSaved }: { onClose: () => void; notify: Notify; onSaved?: () => void }) {
-  const profiles = useProfiles();
+  const { profiles, failed } = useProfiles();
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [saved, setSaved] = useState<ResearchSettings | null>(null);
   const [kind, setKind] = useState<ResearchKind>("manuscript");
   const [journal, setJournal] = useState("");
@@ -20,9 +21,8 @@ export function ProjectSettingsDialog({ onClose, notify, onSaved }: { onClose: (
     void (async () => {
       const r = await api.researchGetSettings();
       if (!live) return;
-      if (!r.ok) notify(r.error, "error");
-      else { setSaved(r); setKind(r.kind); setJournal(r.journal); }
-      setLoaded(true);
+      if (!r.ok) { setLoadError(r.error); notify(r.error, "error"); }
+      else { setSaved(r); setKind(r.kind); setJournal(r.journal); setLoaded(true); }
     })();
     return () => { live = false; };
   }, [notify]);
@@ -36,7 +36,8 @@ export function ProjectSettingsDialog({ onClose, notify, onSaved }: { onClose: (
   return (
     <Modal title="Project settings" wide onClose={onClose}>
       <div className="lw-settings">
-        <JournalPicker profiles={profiles} kind={kind} journal={journal} disabled={!loaded}
+        {loadError && <p className="lw-dialog__message" role="alert">Could not read this project's settings: {loadError}</p>}
+        <JournalPicker profiles={profiles} failed={failed} kind={kind} journal={journal} disabled={!loaded}
           onChange={(k, j) => { setKind(k); setJournal(j); }} />
         {saved && saved.source && (
           <section className="lw-settings__section">

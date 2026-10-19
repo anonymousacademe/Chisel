@@ -138,8 +138,12 @@ export interface GuidelineText { name: string; text: string; truncated: boolean;
 
 /** Profiles of one kind, in the order Python sent them (Environmental Modelling & Software first). */
 export const profilesOf = (all: JournalProfile[], kind: ResearchKind) => all.filter((p) => p.kind === kind);
-/** The journal a project of this kind starts with: the first profile of the kind, or none. */
-export const defaultJournal = (all: JournalProfile[], kind: ResearchKind) => profilesOf(all, kind)[0]?.id ?? "";
+/** Real journals of a kind: the generic "manuscript" / "proposal" profiles (id equal to the kind, no publisher) are the "no journal" case. */
+export const journalsOf = (all: JournalProfile[], kind: ResearchKind) =>
+  profilesOf(all, kind).filter((p) => p.id !== p.kind && p.publisher !== "");
+/** The journal a project of this kind starts with: the first real journal of a manuscript; a proposal (or no list) starts with none. */
+export const defaultJournal = (all: JournalProfile[], kind: ResearchKind) =>
+  kind === "manuscript" ? journalsOf(all, kind)[0]?.id ?? "" : "";
 
 /** Words shown for each requirement status (text, not colour alone). */
 export const REQUIREMENT_LABEL: Record<RequirementStatus, string> = {

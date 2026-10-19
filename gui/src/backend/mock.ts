@@ -194,8 +194,8 @@ const MOCK_SOURCES = [
 
 const MOCK_PROFILES = [
   { id: "ems", name: "Environmental Modelling & Software", publisher: "Elsevier", kind: "manuscript", source: "https://www.sciencedirect.com/journal/environmental-modelling-and-software/publish/guide-for-authors", readOn: "2026-10-01" },
-  { id: "generic-manuscript", name: "Generic manuscript", publisher: "", kind: "manuscript", source: "", readOn: "" },
-  { id: "generic-proposal", name: "Generic proposal", publisher: "", kind: "proposal", source: "", readOn: "" },
+  { id: "manuscript", name: "Research manuscript (no target journal)", publisher: "", kind: "manuscript", source: "", readOn: "" },
+  { id: "proposal", name: "Research proposal (no specific funder)", publisher: "", kind: "proposal", source: "", readOn: "" },
 ];
 const mockResearch = { kind: "manuscript", journal: "ems" };
 const mockSettings = () => {

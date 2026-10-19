@@ -22,8 +22,8 @@ const m = api as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
 const PROFILES = [
   { id: "ems", name: "Environmental Modelling & Software", publisher: "Elsevier", kind: "manuscript", source: "https://example.org/guide", readOn: "2026-10-01" },
-  { id: "generic-manuscript", name: "Generic manuscript", publisher: "", kind: "manuscript", source: "", readOn: "" },
-  { id: "generic-proposal", name: "Generic proposal", publisher: "", kind: "proposal", source: "", readOn: "" },
+  { id: "manuscript", name: "Research manuscript (no target journal)", publisher: "", kind: "manuscript", source: "", readOn: "" },
+  { id: "proposal", name: "Research proposal (no specific funder)", publisher: "", kind: "proposal", source: "", readOn: "" },
 ];
 
 async function mount(el: React.ReactElement) {
@@ -59,7 +59,7 @@ describe("Launch", () => {
     expect(host.textContent).toContain("What are you writing?");
     expect(host.textContent).toContain("Starts with the journal's section layout");
     const select = host.querySelector<HTMLSelectElement>('select[aria-label="Target journal"]')!;
-    expect([...select.options].map((o) => o.textContent)).toEqual(["Environmental Modelling & Software", "Generic manuscript", "No target journal (standard structure)"]);
+    expect([...select.options].map((o) => o.textContent)).toEqual(["Environmental Modelling & Software", "No target journal (standard structure)"]);
     expect(select.value).toBe("ems");
     await act(async () => { setValue(host.querySelector<HTMLInputElement>('input[aria-label="New project title"]')!, "Paper"); });
     await act(async () => { button(host, "Create").click(); });
@@ -72,7 +72,19 @@ describe("Launch", () => {
     await act(async () => { button(host, "Proposal").click(); });
     await act(async () => { setValue(host.querySelector<HTMLInputElement>('input[aria-label="New project title"]')!, "Grant"); });
     await act(async () => { button(host, "Create").click(); });
-    expect(m.newProject).toHaveBeenCalledWith("Grant", "/tmp/p", "research", "proposal", "generic-proposal");
+    expect(m.newProject).toHaveBeenCalledWith("Grant", "/tmp/p", "research", "proposal", "");
+    const select = host.querySelector<HTMLSelectElement>('select[aria-label="Proposal guide"]')!;
+    expect([...select.options].map((o) => o.textContent)).toEqual(["No target journal (standard structure)"]);
+  });
+
+  it("explains a failed journal list and still creates", async () => {
+    m.researchProfiles.mockResolvedValue({ ok: false, error: "no project" });
+    const { host } = await mount(<Launch onOpened={() => {}} />);
+    await act(async () => { button(host, "Research").click(); });
+    expect(host.textContent).toContain("Could not load the journal list. You can still create the project and choose a journal later in Project settings.");
+    await act(async () => { setValue(host.querySelector<HTMLInputElement>('input[aria-label="New project title"]')!, "Paper"); });
+    await act(async () => { button(host, "Create").click(); });
+    expect(m.newProject).toHaveBeenCalledWith("Paper", "/tmp/p", "research", "manuscript", "");
   });
 
   it("passes nothing new for a story", async () => {
@@ -85,21 +97,56 @@ describe("Launch", () => {
 
 describe("ProjectSettingsDialog", () => {
   it("saves the kind and journal", async () => {
-    const saved = { ok: true, kind: "manuscript", journal: "generic-manuscript", journalName: "Generic manuscript", citationStyle: "apa", source: "", readOn: "" };
+    const saved = { ok: true, kind: "manuscript", journal: "", journalName: "", citationStyle: "apa", source: "", readOn: "" };
     m.researchGetSettings.mockResolvedValue({ ...saved, journal: "ems", journalName: "Environmental Modelling & Software", source: "https://example.org/guide", readOn: "2026-10-01" });
     m.researchSetSettings.mockResolvedValue(saved);
     const onClose = vi.fn(); const notify = vi.fn();
     const { host } = await mount(<ProjectSettingsDialog notify={notify} onClose={onClose} />);
     expect(host.textContent).toContain("Rules read on 2026-10-01");
     expect(host.textContent).toContain("never moves or deletes your sections");
-    await act(async () => { setValue(document.body.querySelector<HTMLSelectElement>("select")!, "generic-manuscript"); });
+    await act(async () => { setValue(document.body.querySelector<HTMLSelectElement>("select")!, ""); });
     await act(async () => { button(host, "Save").click(); });
-    expect(m.researchSetSettings).toHaveBeenCalledWith("manuscript", "generic-manuscript");
+    expect(m.researchSetSettings).toHaveBeenCalledWith("manuscript", "");
     expect(onClose).toHaveBeenCalled();
   });
 });
 
+describe("ProjectSettingsDialog load failure", () => {
+  it("keeps Save disabled when the settings could not be read", async () => {
+    m.researchGetSettings.mockResolvedValue({ ok: false, error: "Open a project first." });
+    const notify = vi.fn();
+    const { host } = await mount(<ProjectSettingsDialog notify={notify} onClose={() => {}} />);
+    expect(host.textContent).toContain("Open a project first.");
+    expect(button(host, "Save").disabled).toBe(true);
+    await act(async () => { button(host, "Save").click(); });
+    expect(m.researchSetSettings).not.toHaveBeenCalled();
+  });
+  it("calls onSaved after a save", async () => {
+    const s = { ok: true, kind: "manuscript", journal: "ems", journalName: "E", citationStyle: "apa", source: "", readOn: "" };
+    m.researchGetSettings.mockResolvedValue(s); m.researchSetSettings.mockResolvedValue(s);
+    const onSaved = vi.fn();
+    const { host } = await mount(<ProjectSettingsDialog notify={() => {}} onClose={() => {}} onSaved={onSaved} />);
+    await act(async () => { button(host, "Save").click(); });
+    expect(onSaved).toHaveBeenCalled();
+  });
+});
+
 describe("RequirementsDialog", () => {
+  it("shows a plain message for a project with no journal, after loading", async () => {
+    let done!: (v: unknown) => void;
+    m.researchRequirements.mockReturnValue(new Promise((res) => { done = res; }));
+    const { host } = await mount(<RequirementsDialog notify={() => {}} onClose={() => {}} />);
+    expect(host.textContent).toContain("Checking");
+    expect(host.textContent).not.toContain("no journal selected");
+    await act(async () => { done({ ok: true, journal: "", name: "", source: "", readOn: "", summary: { ok: 0, warn: 0, info: 0, advice: 0 }, groups: [] }); });
+    expect(host.textContent).toContain("Requirements");
+    expect(host.querySelector("a")).toBeNull();
+  });
+  it("explains an empty result when no report arrives", async () => {
+    m.researchRequirements.mockResolvedValue({ ok: false, error: "x" });
+    const { host } = await mount(<RequirementsDialog notify={() => {}} onClose={() => {}} />);
+    expect(host.textContent).toContain("This project has no journal selected. Choose one in Project settings.");
+  });
   const report = {
     ok: true, journal: "ems", name: "Environmental Modelling & Software", source: "https://example.org/guide", readOn: "2026-10-01",
     summary: { ok: 12, warn: 3, info: 1, advice: 14 },
