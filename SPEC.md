@@ -693,6 +693,13 @@ Hear the open document with the window's own speech service. **Python decides wh
     on Play. A server on this machine or a private network costs nothing; otherwise the published price
     (`endpoint.PRICES`, US$ per million characters) gives an estimate per hour of listening, and each new clip's
     estimate is added to the session's AI spend ledger.
+  - *OpenRouter* (`speech/openrouter.py`): `POST https://openrouter.ai/api/v1/audio/speech` with the OpenRouter key the
+    AI features use (`client.get_api_key`); the model is the `orModel` setting. The catalogue
+    (`GET /models?output_modalities=speech`, public) is fetched once a session when the author picks this engine:
+    models without `supported_voices` are left out; `pricing.prompt` is US$ per character when `completion` is 0, else
+    the price is shown as unknown. Clips are requested as MP3 (OpenRouter's raw PCM does not state its sample rate),
+    so they are not trimmed for pacing; `speed` is sent only when it is not 1 (some services refuse it). OpenAI's
+    speech models are not in OpenRouter's catalogue as of 2026-10; the Speech server has OpenAI shortcuts.
   - Clips are cached in `<state dir>/speech/clips/` (key: engine, model, voice, speed, text; 200 MB, oldest first):
     a passage heard again is not rendered or paid for again. Casts are kept per engine (voice ids differ).
 - **Not yet:** read-my-part and skip-directions table-read features, audio export, tone and pronunciation per engine,

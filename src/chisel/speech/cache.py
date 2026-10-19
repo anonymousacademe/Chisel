@@ -1,7 +1,7 @@
 """Rendered clips, so a passage heard twice is not rendered (or paid for) twice.
 
-``<state dir>/speech/clips/<sha256>.wav`` (``CHISEL_STATE_DIR`` in tests), keyed by everything that changes the
-sound: engine, model, voice, speed and the text. Personal and disposable, never in the project folder; trimmed to
+``<state dir>/speech/clips/<sha256>.wav`` (or ``.mp3``; ``CHISEL_STATE_DIR`` in tests), keyed by everything that
+changes the sound: engine, model, voice, speed and the text. Personal and disposable, never in the project folder; trimmed to
 ``LIMIT`` bytes, oldest first."""
 
 from __future__ import annotations
@@ -26,23 +26,33 @@ def key(engine: str, model: str, voice: str, speed: float, text: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+EXTS = ("wav", "mp3")
+
+
 def get(clip_key: str) -> bytes | None:
-    path = clips_dir() / f"{clip_key}.wav"
-    try:
-        data = path.read_bytes()
-        path.touch()                    # recently heard: kept longest
-        return data
-    except OSError:
-        return None
+    for ext in EXTS:
+        path = clips_dir() / f"{clip_key}.{ext}"
+        try:
+            data = path.read_bytes()
+            path.touch()                # recently heard: kept longest
+            return data
+        except OSError:
+            continue
+    return None
+
+
+def _files() -> list[Path]:
+    return [p for ext in EXTS for p in clips_dir().glob(f"*.{ext}")]
 
 
 def put(clip_key: str, data: bytes) -> None:
     folder = clips_dir()
+    ext = "wav" if data[:4] == b"RIFF" else "mp3"
     try:
         folder.mkdir(parents=True, exist_ok=True)
         tmp = folder / f"{clip_key}.{threading.get_ident()}.tmp"     # a prefetch and a play may write the same clip
         tmp.write_bytes(data)
-        fsutil.replace(tmp, folder / f"{clip_key}.wav")
+        fsutil.replace(tmp, folder / f"{clip_key}.{ext}")
         prune()
     except OSError:
         pass                            # a cache that cannot be written only costs a re-render
@@ -50,7 +60,7 @@ def put(clip_key: str, data: bytes) -> None:
 
 def prune(limit: int = LIMIT) -> None:
     files = []
-    for p in clips_dir().glob("*.wav"):
+    for p in _files():
         try:
             st = p.stat()
         except OSError:
@@ -70,7 +80,7 @@ def prune(limit: int = LIMIT) -> None:
 def clear() -> int:
     """Delete every cached clip; returns how many."""
     n = 0
-    for p in clips_dir().glob("*.wav"):
+    for p in _files():
         try:
             p.unlink()
             n += 1

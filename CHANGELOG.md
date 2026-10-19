@@ -39,6 +39,9 @@ All notable changes to Chisel are listed here, newest first. The format follows
   checksum), then free and offline; a good voice is suggested for each character. *Speech server* is any service
   with the OpenAI speech API: a local server is free, a cloud service such as OpenAI shows its price per hour of
   listening and adds what you spend to the AI cost in the status bar. Its key is kept in your system's keychain.
+  Shortcut buttons fill in OpenAI (gpt-4o-mini-tts or tts-1; bring an OpenAI key). *OpenRouter* uses the key you
+  already have for AI and offers its speech models (ElevenLabs, Google, Microsoft, xAI, Kokoro and more), each
+  listed with its approximate cost per hour of listening.
   Clips you have heard are cached, so hearing them again costs nothing. The natural voices need
   `pip install "chisel-writer[speech-local]"` and are not in the installers yet.
 - **A right-click menu in the editor (desktop).** A misspelled word still shows its suggestions. On a character

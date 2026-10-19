@@ -1,14 +1,51 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../backend/api";
 import type { useReadAloud } from "../hooks/useReadAloud";
 import { costLine, megabytes } from "../reader/format";
-import type { EngineId } from "../reader/types";
+import type { EngineId, OpenRouterModel } from "../reader/types";
 
 const ENGINES: { id: EngineId; label: string }[] = [
   { id: "browser", label: "System voices (free)" },
   { id: "kokoro", label: "Natural voices on this computer (free)" },
   { id: "endpoint", label: "Speech server (local or cloud)" },
+  { id: "openrouter", label: "OpenRouter (cloud, uses your AI key)" },
 ];
+
+/** Shortcuts that fill in a well-known speech server (the key is still the author's to add). */
+const PRESETS = [
+  { label: "OpenAI gpt-4o-mini-tts", baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini-tts" },
+  { label: "OpenAI tts-1", baseUrl: "https://api.openai.com/v1", model: "tts-1" },
+];
+
+/** "ElevenLabs Turbo v2.5 · about $1.08/h" */
+function modelLabel(m: OpenRouterModel): string {
+  return m.perHour === null ? `${m.name} · price per second, see OpenRouter` : `${m.name} · about $${m.perHour.toFixed(2)}/h`;
+}
+
+function OpenRouterVoices({ reader }: { reader: ReturnType<typeof useReadAloud> }) {
+  const { state: s } = reader;
+  const info = s.speech!;
+  const models = s.orModels;
+  const { loadModels } = reader;
+  useEffect(() => { if (models === null) void loadModels(); }, [models, loadModels]);
+  const chosen = info.prefs.orModel;
+  return (
+    <div className="lw-reader__box">
+      <p className="lw-reader__muted">Speech models from many services (ElevenLabs, Google, Microsoft, xAI and more), paid from your
+        OpenRouter credit with the key you use for AI. Text is sent only when you press Play or Hear.</p>
+      <label className="lw-reader__field">Model
+        {models === null ? <span>Loading OpenRouter's voices…</span> : (
+          <select className="lw-reader__wide" value={chosen} aria-label="OpenRouter speech model" onChange={(e) => void reader.setOpenRouterModel(e.target.value)}>
+            {!models.some((m) => m.id === chosen) && <option value={chosen}>{chosen} (not listed now)</option>}
+            {models.map((m) => <option key={m.id} value={m.id}>{modelLabel(m)}</option>)}
+          </select>
+        )}
+      </label>
+      {models !== null && <div className="lw-reader__actions"><button className="lw-btn" onClick={() => void loadModels(true)}>Refresh the list</button></div>}
+      <p className="lw-reader__cost">{costLine(info.openrouter, s.spent)} Some voices ignore the reading speed.</p>
+    </div>
+  );
+}
 
 /** Who reads aloud: the system's voices, the natural voices (downloaded once from Hugging Face) or a speech
  * server the author names. Every network use here is a button the author presses. Rendered with a key of the
@@ -77,6 +114,10 @@ export function SpeechSettings({ reader }: { reader: ReturnType<typeof useReadAl
           <div className="lw-reader__actions">
             <button className="lw-btn" disabled={baseUrl === info.prefs.baseUrl && model === info.prefs.model}
               onClick={() => void reader.setServer(baseUrl, model)}>Use this server</button>
+            {PRESETS.map((p) => (
+              <button key={p.label} className="lw-btn" title={`${p.baseUrl}, model ${p.model}`}
+                onClick={() => { setBaseUrl(p.baseUrl); setModel(p.model); void reader.setServer(p.baseUrl, p.model); }}>{p.label}</button>
+            ))}
           </div>
           <label className="lw-reader__field">Key
             <input type="password" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off"
@@ -89,6 +130,8 @@ export function SpeechSettings({ reader }: { reader: ReturnType<typeof useReadAl
           <p className="lw-reader__cost">{costLine(info.endpoint, s.spent)}</p>
         </div>
       )}
+
+      {s.engine === "openrouter" && <OpenRouterVoices reader={reader} />}
     </div>
   );
 }

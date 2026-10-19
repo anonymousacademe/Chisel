@@ -104,10 +104,14 @@ def _error(exc: Exception, base: str) -> RuntimeError:
                 else str(body.get("detail") or body.get("error") or "")
         except Exception:
             pass
+        who = "OpenRouter" if base == "OpenRouter" else "The speech server"
         if exc.code in (401, 403):
-            return RuntimeError(f"The speech server refused the key ({exc.code}). {detail}".strip())
-        return RuntimeError(f"The speech server answered {exc.code}. {detail}".strip())
-    return RuntimeError(f"Could not reach the speech server at {base}: {exc}")
+            return RuntimeError(f"{who} refused the key ({exc.code}). {detail}".strip())
+        if exc.code == 402:
+            return RuntimeError(f"{who} says the account is out of credit (402). {detail}".strip())
+        return RuntimeError(f"{who} answered {exc.code}. {detail}".strip())
+    return RuntimeError(f"Could not reach {base}: {exc}" if base == "OpenRouter"
+                        else f"Could not reach the speech server at {base}: {exc}")
 
 
 def render(base: str, model: str, voice: str, text: str, speed: float = 1.0, key: str | None = None,

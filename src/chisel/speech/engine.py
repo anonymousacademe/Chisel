@@ -1,8 +1,9 @@
 """Which engine reads aloud, and one door to render a clip with it.
 
 Engines: ``browser`` (the system voices; the editor speaks itself, nothing here), ``kokoro`` (natural voices
-downloaded from Hugging Face, run on this computer) and ``endpoint`` (an OpenAI-compatible speech server, local
-or cloud). The choice and the server's address and model are a user setting (``speech``); the key is in the
+downloaded from Hugging Face, run on this computer), ``endpoint`` (an OpenAI-compatible speech server, local
+or cloud) and ``openrouter`` (speech models through OpenRouter, with the AI features' key). The choice, the
+server's address and model and the OpenRouter model are a user setting (``speech``); the server's key is in the
 keyring (endpoint.py)."""
 
 from __future__ import annotations
@@ -11,11 +12,12 @@ import atexit
 
 from ..ai import usage
 from ..core import settings as user_settings
-from . import cache, endpoint, kokoro, pacing
+from . import cache, endpoint, kokoro, openrouter, pacing
 
-ENGINES = ("browser", "kokoro", "endpoint")
+ENGINES = ("browser", "kokoro", "endpoint", "openrouter")
 SETTING = "speech"
-DEFAULTS = {"engine": "browser", "baseUrl": "http://127.0.0.1:8880/v1", "model": "kokoro"}
+DEFAULTS = {"engine": "browser", "baseUrl": "http://127.0.0.1:8880/v1", "model": "kokoro",
+            "orModel": openrouter.DEFAULT_MODEL}
 
 _kokoro = kokoro.KokoroEngine()
 atexit.register(_kokoro.stop)
@@ -49,8 +51,8 @@ def set_prefs(changes: dict) -> dict:
 
 
 def describe(prefs: dict | None = None) -> dict:
-    """The endpoint's cost facts for the reader: local or cloud, price per million characters (None: unknown)
-    and the estimate for an hour of listening."""
+    """The speech server's cost facts for the reader: local or cloud, price per million characters (None:
+    unknown) and the estimate for an hour of listening."""
     prefs = prefs or get_prefs()
     try:
         base = endpoint.normalize_base(prefs["baseUrl"])
@@ -61,8 +63,16 @@ def describe(prefs: dict | None = None) -> dict:
             "perHour": None if price is None else round(price * endpoint.CHARS_PER_HOUR / 1_000_000, 2)}
 
 
+def describe_openrouter(prefs: dict | None = None) -> dict:
+    """The chosen OpenRouter model's cost facts, from the catalogue if it was fetched (never fetches)."""
+    prefs = prefs or get_prefs()
+    row = openrouter.known(prefs["orModel"])
+    return {"local": False, "pricePerMillion": row["pricePerMillion"] if row else None,
+            "perHour": row["perHour"] if row else None}
+
+
 def render(text: str, voice: str, speed: float = 1.0, engine: str | None = None) -> dict:
-    """{wav: bytes, cached, chars, cost} for *text* in *voice* with the chosen engine (or *engine*).
+    """{wav: bytes (WAV or MP3), cached, chars, cost} for *text* in *voice* with the chosen engine (or *engine*).
     A clip already rendered with the same engine, model, voice and speed comes from the cache (no cost)."""
     prefs = get_prefs()
     engine = engine or prefs["engine"]
@@ -76,22 +86,29 @@ def render(text: str, voice: str, speed: float = 1.0, engine: str | None = None)
         model = "kokoro-82m|p1"
     elif engine == "endpoint":
         model = f"{endpoint.normalize_base(prefs['baseUrl'])}|{prefs['model']}|p1"
+    elif engine == "openrouter":
+        model = f"openrouter|{prefs['orModel']}"
     else:
         raise ValueError("the system voices are played by the window, not rendered")
     clip_key = cache.key(engine, model, voice, speed, text)
     found = cache.get(clip_key)
     if found is not None:
         return {"wav": found, "cached": True, "chars": len(text), "cost": 0.0}
+    spent: float | None
     if engine == "kokoro":
         wav = _kokoro.render(text, voice, speed)
-        spent: float | None = 0.0
+        spent = 0.0
+    elif engine == "openrouter":
+        wav = openrouter.render(prefs["orModel"], voice, text, speed)
+        spent = openrouter.cost(len(text), prefs["orModel"])
+        usage.LEDGER.record(prefs["orModel"], "read aloud", spent)
     else:
         base = endpoint.normalize_base(prefs["baseUrl"])
         wav = endpoint.render(base, prefs["model"], voice, text, speed, endpoint.get_key())
         spent = endpoint.cost(len(text), base, prefs["model"])
         if not endpoint.is_local(base):          # an estimate, in the session's spend beside the AI calls
             usage.LEDGER.record(prefs["model"], "read aloud", spent)
-    wav = pacing.trim(wav)
+    wav = pacing.trim(wav)                       # WAV only; an MP3 comes back unchanged
     cache.put(clip_key, wav)
     return {"wav": wav, "cached": False, "chars": len(text), "cost": spent}
 

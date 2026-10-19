@@ -76,7 +76,8 @@ src/chisel/
     relationships.py    # relationship suggestions: plan_suggestions (budget) / suggest_relationships (network) / apply_suggestions (set_section + save_entity; no snapshot, like the canon apply)
   speech/               # read-aloud voices (desktop): engine.py (setting, render door, cache), kokoro.py + kokoro_worker.py
                         #   (local voices, separate process), models.py (Hugging Face download), endpoint.py (OpenAI-compatible
-                        #   speech server, key, prices), cache.py (state dir clips), catalogue.py (voices, suggestions)
+                        #   speech server, key, prices), openrouter.py (OpenRouter speech: catalogue, MP3 clips, AI key),
+                        #   pacing.py (WAV silence trim), cache.py (state dir clips), catalogue.py (voices, suggestions)
   gui/                  # desktop GUI backend (pywebview); no Textual
     api.py              # Api(mixins...): bridge core (project, documents, settings, AI calls; every method -> {ok,...}); facade() = js_api.
                         #   Names tests monkeypatch (ask_writer, generate_images, ...) are looked up here, so the AI methods stay in this file
@@ -423,7 +424,9 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   lines, replies matched by id so library chatter on stdout is skipped). The model is downloaded only from a click,
   pinned to a revision and checksummed, into the DATA dir (`CHISEL_DATA_DIR`); clips are cached in the STATE dir. Text
   reaches a speech server only on Play/Hear with that engine chosen; cloud cost goes into `usage.LEDGER`. Every
-  render goes through `engine.render` (the cache key includes engine, model, voice, speed). Tests use fake openers, a
+  render goes through `engine.render` (the cache key includes engine, model, voice, speed). Network helpers take
+  `opener=None` and look up `urllib.request.urlopen` per call (a default argument would capture the real one and
+  let a test reach the network). Tests use fake openers, a
   fake worker script and a fake `kokoro_onnx` module, never the network or the real keyring.
 - **Story time is optional** (`core/timeline.py`; SPEC "Story time"). `when:` (scene frontmatter) and `born:`
   (entity frontmatter) are a year, optional month and day, as `StoryTime(year, month|None, day|None)`: never a

@@ -10,7 +10,8 @@ import itertools
 import logging
 import threading
 
-from ..speech import cache, endpoint, engine, models
+from ..ai import client as ai_client
+from ..speech import cache, endpoint, engine, models, openrouter
 from ._bridge import bridge
 
 log = logging.getLogger("chisel")
@@ -70,13 +71,20 @@ class SpeechMixin:
         """The chosen engine and server, whether a key is stored, what the local voices are, and the cost facts."""
         prefs = engine.get_prefs()
         return {"prefs": prefs, "hasKey": bool(endpoint.get_key()), "kokoro": models.status(),
-                "endpoint": engine.describe(prefs)}
+                "endpoint": engine.describe(prefs), "openrouter": engine.describe_openrouter(prefs),
+                "hasOpenRouterKey": bool(ai_client.get_api_key())}
 
     @bridge
     def speech_set(self, prefs: dict) -> dict:
-        """Change the engine, the speech server's address or its model."""
+        """Change the engine, the speech server's address or model, or the OpenRouter model."""
         saved = engine.set_prefs(prefs if isinstance(prefs, dict) else {})
-        return {"prefs": saved, "endpoint": engine.describe(saved)}
+        return {"prefs": saved, "endpoint": engine.describe(saved), "openrouter": engine.describe_openrouter(saved)}
+
+    @bridge
+    def speech_models(self, refresh: bool = False) -> dict:
+        """OpenRouter's speech models with their voices and prices (one public request, then kept)."""
+        return {"models": openrouter.catalogue(refresh=bool(refresh)),
+                "openrouter": engine.describe_openrouter()}
 
     @bridge
     def speech_set_key(self, key: str = "") -> dict:
@@ -94,6 +102,11 @@ class SpeechMixin:
         which = engine_id or prefs["engine"]
         if which == "kokoro":
             return {"voices": models.status()["voices"]}
+        if which == "openrouter":
+            row = next((m for m in openrouter.catalogue() if m["id"] == prefs["orModel"]), None)
+            if row is None:
+                raise LookupError(f"OpenRouter does not list {prefs['orModel']} as a speech model now; choose another")
+            return {"voices": [{"id": v, "name": v, "label": v, "lang": "", "rank": i} for i, v in enumerate(row["voices"])]}
         if which == "endpoint":
             names = endpoint.list_voices(prefs["baseUrl"], endpoint.get_key())
             return {"voices": [{"id": n, "name": n, "label": n, "lang": "", "rank": i} for i, n in enumerate(names)]}
@@ -103,7 +116,8 @@ class SpeechMixin:
     def speech_clip(self, text: str, voice: str, rate: float = 1.0, engine_id: str = "") -> dict:
         """One clip as a WAV data URL, with whether it came from the cache and what it cost (an estimate)."""
         out = engine.render(text, voice, float(rate or 1.0), engine_id or None)
-        return {"dataUrl": "data:audio/wav;base64," + base64.b64encode(out["wav"]).decode("ascii"),
+        mime = "audio/wav" if out["wav"][:4] == b"RIFF" else "audio/mpeg"
+        return {"dataUrl": f"data:{mime};base64," + base64.b64encode(out["wav"]).decode("ascii"),
                 "cached": out["cached"], "chars": out["chars"], "cost": out["cost"]}
 
     @bridge

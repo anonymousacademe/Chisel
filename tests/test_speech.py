@@ -194,7 +194,8 @@ def test_endpoint_voices_from_the_server_or_the_openai_names():
 def test_prefs_default_validate_and_save():
     assert engine.get_prefs()["engine"] == "browser"
     saved = engine.set_prefs({"engine": "endpoint", "baseUrl": "http://localhost:8880/v1/", "model": "kokoro"})
-    assert saved == {"engine": "endpoint", "baseUrl": "http://localhost:8880/v1", "model": "kokoro"}
+    assert saved == {"engine": "endpoint", "baseUrl": "http://localhost:8880/v1", "model": "kokoro",
+                     "orModel": "elevenlabs/eleven-turbo-v2.5"}
     assert engine.get_prefs() == saved
     with pytest.raises(ValueError):
         engine.set_prefs({"engine": "telepathy"})
@@ -379,3 +380,93 @@ def test_pacing_trims_every_clip_to_the_same_lead_and_tail():
     assert len(b) == 100 + 220                           # no lead to keep; the tail is padded up
     assert pacing.trim(_wav([0] * 50)) == _wav([0] * 50)          # all silence: unchanged
     assert pacing.trim(WAV) == WAV                                 # not a readable WAV: unchanged
+
+
+# -- OpenRouter -----------------------------------------------------------------
+
+MP3 = b"ID3\x04" + b"\0" * 60
+CATALOGUE = {"data": [
+    {"id": "elevenlabs/eleven-turbo-v2.5", "name": "ElevenLabs: Turbo v2.5", "supported_voices": ["george", "sarah"],
+     "pricing": {"prompt": "0.00002", "completion": "0"}},
+    {"id": "google/gemini-tts", "name": "Gemini TTS", "supported_voices": ["Kore"],
+     "pricing": {"prompt": "0.0000005", "completion": "0.000009"}},
+    {"id": "fish-audio/s1", "name": "No voice list", "supported_voices": [], "pricing": {"prompt": "0.000015"}},
+    {"id": "hexgrad/kokoro-82m", "name": "Kokoro", "supported_voices": ["af_heart"],
+     "pricing": {"prompt": "0.00000062", "completion": "0"}},
+]}
+
+
+@pytest.fixture
+def openrouter_hub(monkeypatch):
+    from chisel.ai import client
+    from chisel.speech import openrouter
+
+    sent = []
+
+    def opener(req, timeout=None):
+        sent.append(req)
+        if req.full_url.endswith("/models?output_modalities=speech"):
+            return Resp(json.dumps(CATALOGUE).encode())
+        if req.full_url.endswith("/audio/speech"):
+            return Resp(MP3)
+        raise urllib.error.URLError(req.full_url)
+
+    monkeypatch.setattr(openrouter, "_catalogue", None)
+    monkeypatch.setattr(openrouter.urllib.request, "urlopen", opener)
+    monkeypatch.setattr(client, "get_api_key", lambda: "or-key")
+    return sent
+
+
+def test_openrouter_catalogue_keeps_castable_models_with_prices(openrouter_hub):
+    from chisel.speech import openrouter
+
+    rows = openrouter.catalogue(opener=openrouter.urllib.request.urlopen)
+    assert [r["id"] for r in rows] == ["hexgrad/kokoro-82m", "elevenlabs/eleven-turbo-v2.5", "google/gemini-tts"]
+    eleven = openrouter.known("elevenlabs/eleven-turbo-v2.5")
+    assert eleven["pricePerMillion"] == 20.0 and eleven["perHour"] == 1.08
+    assert openrouter.known("google/gemini-tts")["pricePerMillion"] is None      # priced per audio token: unknown
+    openrouter.catalogue(opener=openrouter.urllib.request.urlopen)
+    assert len(openrouter_hub) == 1                                              # fetched once a session
+
+
+def test_openrouter_render_sends_mp3_request_with_the_ai_key(openrouter_hub):
+    from chisel.speech import openrouter
+
+    out = openrouter.render("elevenlabs/eleven-turbo-v2.5", "george", "Hello.", 1.0,
+                            opener=openrouter.urllib.request.urlopen)
+    req = openrouter_hub[-1]
+    assert out == MP3 and req.get_header("Authorization") == "Bearer or-key"
+    assert json.loads(req.data) == {"model": "elevenlabs/eleven-turbo-v2.5", "input": "Hello.", "voice": "george",
+                                    "response_format": "mp3"}                 # no speed at the default
+    openrouter.render("m", "v", "Hi", 1.25, opener=openrouter.urllib.request.urlopen)
+    assert json.loads(openrouter_hub[-1].data)["speed"] == 1.25
+    with pytest.raises(RuntimeError, match="OpenRouter key"):
+        openrouter.render("m", "v", "Hi", key="")
+    with pytest.raises(RuntimeError, match="did not send audio"):
+        openrouter.render("m", "v", "Hi", key="k", opener=lambda req, timeout=None: Resp(b'{"error": 1}'))
+
+    def broke(req, timeout=None):
+        raise urllib.error.HTTPError(req.full_url, 402, "x", {}, io.BytesIO(b'{"error": {"message": "add credits"}}'))
+    with pytest.raises(RuntimeError, match="out of credit.*add credits"):
+        openrouter.render("m", "v", "Hi", key="k", opener=broke)
+
+
+def test_bridge_openrouter_models_voices_and_an_mp3_clip(openrouter_hub):
+    from chisel.ai import usage
+
+    api = Api()
+    info = api.speech_info()
+    assert info["hasOpenRouterKey"] and info["prefs"]["orModel"] == "elevenlabs/eleven-turbo-v2.5"
+    assert len(openrouter_hub) == 0                                    # opening the reader fetches nothing
+    models_ = api.speech_models()
+    assert models_["ok"] and models_["openrouter"]["perHour"] == 1.08
+    assert api.speech_set({"engine": "openrouter"})["ok"]
+    assert [v["id"] for v in api.speech_voices("openrouter")["voices"]] == ["george", "sarah"]
+    before = usage.LEDGER.count()
+    clip = api.speech_clip("Hello there.", "george", 1.0)
+    assert clip["ok"] and clip["dataUrl"].startswith("data:audio/mpeg;base64,") and not clip["cached"]
+    assert clip["cost"] == pytest.approx(12 * 20 / 1_000_000) and usage.LEDGER.count() == before + 1
+    again = api.speech_clip("Hello there.", "george", 1.0)
+    assert again["cached"] and again["dataUrl"] == clip["dataUrl"]
+    api.speech_set({"orModel": "gone/model"})
+    assert "does not list" in api.speech_voices("openrouter")["error"]

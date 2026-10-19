@@ -8,7 +8,8 @@ import type { AtmosphereInfo, KeyClass, PackRow, Prefs, Station } from "../data/
 import type { ExportInfo, ExportOptions, ExportStatus, ExportSummary } from "../data/export";
 import type { FountainImport } from "../data/script";
 import type {
-  DownloadStatus, EndpointCost, EngineId, KokoroStatus, ReadOptions, ReadPlan, SpeechInfo, SpeechPrefs, VoiceInfo,
+  DownloadStatus, EndpointCost, EngineId, KokoroStatus, OpenRouterModel, ReadOptions, ReadPlan, SpeechInfo, SpeechPrefs,
+  VoiceInfo,
 } from "../reader/types";
 import { call } from "./transport";
 
@@ -91,7 +92,8 @@ export const api = {
   readPlan: (docId: string, text: string, options: ReadOptions) => call<ReadPlan>("read_plan", docId, text, options),
   /** Read aloud voices (python: chisel/speech/, gui/speech_api.py). Network only on these clicks. */
   speechInfo: () => call<SpeechInfo>("speech_info"),
-  speechSet: (prefs: Partial<SpeechPrefs>) => call<{ prefs: SpeechPrefs; endpoint: EndpointCost }>("speech_set", prefs),
+  speechSet: (prefs: Partial<SpeechPrefs>) => call<{ prefs: SpeechPrefs; endpoint: EndpointCost; openrouter: EndpointCost }>("speech_set", prefs),
+  speechModels: (refresh = false) => call<{ models: OpenRouterModel[]; openrouter: EndpointCost }>("speech_models", refresh),
   speechSetKey: (key: string) => call<{ hasKey: boolean }>("speech_set_key", key),
   speechVoices: (engine: EngineId) => call<{ voices: VoiceInfo[] }>("speech_voices", engine),
   speechClip: (text: string, voice: string, rate: number, engine: EngineId) =>

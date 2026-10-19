@@ -32,9 +32,14 @@ export const DEFAULT_READ_OPTIONS: ReadOptions = { titles: true, headings: true,
 export interface VoiceInfo { id: string; name: string; lang: string; local: boolean; rank?: number; label?: string }
 
 /** Who speaks: the system's voices (played by the window) or clips rendered by Python (chisel/speech/). */
-export type EngineId = "browser" | "kokoro" | "endpoint";
+export type EngineId = "browser" | "kokoro" | "endpoint" | "openrouter";
 
-export interface SpeechPrefs { engine: EngineId; baseUrl: string; model: string }
+/** *orModel*: the OpenRouter speech model (openrouter engine). */
+export interface SpeechPrefs { engine: EngineId; baseUrl: string; model: string; orModel: string }
+
+/** An OpenRouter speech model (python: speech/openrouter.py); prices are null when OpenRouter does not price it
+ * per character. */
+export interface OpenRouterModel { id: string; name: string; voices: string[]; pricePerMillion: number | null; perHour: number | null }
 
 export interface KokoroStatus {
   installed: boolean; variant: string; bytes: number; voices: VoiceInfo[]; licence: string; source: string;
@@ -47,7 +52,10 @@ export interface KokoroStatus {
 /** Cost facts for the speech server: local (free), else the published price when known. */
 export interface EndpointCost { local: boolean; pricePerMillion: number | null; perHour: number | null }
 
-export interface SpeechInfo { prefs: SpeechPrefs; hasKey: boolean; kokoro: KokoroStatus; endpoint: EndpointCost }
+export interface SpeechInfo {
+  prefs: SpeechPrefs; hasKey: boolean; kokoro: KokoroStatus; endpoint: EndpointCost;
+  openrouter: EndpointCost; hasOpenRouterKey: boolean;
+}
 
 export interface DownloadStatus {
   state: "running" | "done" | "error" | "cancelled"; stage: string; fraction: number; error?: string; kokoro?: KokoroStatus;

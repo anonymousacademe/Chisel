@@ -7,7 +7,7 @@ import { clipEngine } from "../reader/clips";
 import { browserEngine, type SpeechEngine } from "../reader/engine";
 import { ReadSession, utteranceIndexAt, type SessionStatus } from "../reader/session";
 import {
-  DEFAULT_READ_OPTIONS, type DownloadStatus, type EngineId, type ReadOptions, type ReadPlan, type SpeechInfo,
+  DEFAULT_READ_OPTIONS, type DownloadStatus, type EngineId, type OpenRouterModel, type ReadOptions, type ReadPlan, type SpeechInfo,
   type SpeechPrefs, type VoiceInfo,
 } from "../reader/types";
 
@@ -25,12 +25,13 @@ export interface ReaderState {
   engine: EngineId;
   speech: SpeechInfo | null;          // engines, the local voices, the speech server (python: chisel/speech/)
   download: DownloadStatus | null;    // the natural voices download, while it runs or after it failed
-  spent: number;                      // estimated cost of the speech server's clips this session (USD)
+  spent: number;                      // estimated cost of cloud clips this session (USD)
+  orModels: OpenRouterModel[] | null; // OpenRouter's speech models, once fetched
 }
 
 const CLOSED: ReaderState = {
   open: false, busy: false, plan: null, status: "idle", index: 0, voices: [], cast: {}, rate: 1,
-  options: DEFAULT_READ_OPTIONS, message: "", engine: "browser", speech: null, download: null, spent: 0,
+  options: DEFAULT_READ_OPTIONS, message: "", engine: "browser", speech: null, download: null, spent: 0, orModels: null,
 };
 
 /** Documents the reader can read (a scene, a character / place note, a notebook note). */
@@ -40,6 +41,7 @@ export const READABLE: readonly string[] = ["scene", "entity", "research"];
 function engineMessage(engine: EngineId, info: SpeechInfo | null, voices: VoiceInfo[]): string {
   if (engine === "kokoro" && info && !info.kokoro.engine) return info.kokoro.hint;
   if (engine === "kokoro" && info && !info.kokoro.installed) return "Download the natural voices first (Voices and options), or choose another engine.";
+  if (engine === "openrouter" && info && !info.hasOpenRouterKey) return "OpenRouter voices use your OpenRouter key: add it in Settings > AI first.";
   if (!voices.length) {
     return engine === "browser" ? "This window offers no speech voices. Install one in your system's speech settings."
       : "No voices are available from this engine.";
@@ -72,11 +74,12 @@ export function useReadAloud(d: {
   useEffect(() => { stateRef.current = state; });
 
   const engines = useMemo<Record<EngineId, SpeechEngine>>(() => {
-    const clips = (id: "kokoro" | "endpoint") => clipEngine({
+    const clips = (id: "kokoro" | "endpoint" | "openrouter") => clipEngine({
       voices: async () => {
         if (id === "kokoro") return (infoRef.current?.kokoro.installed ? infoRef.current.kokoro.voices : []).map((v) => ({ ...v, local: true }));
         const r = await api.speechVoices(id);
-        return r.ok ? r.voices.map((v) => ({ ...v, local: false })) : [];
+        if (!r.ok) throw new Error(r.error);
+        return r.voices.map((v) => ({ ...v, local: false }));
       },
       clip: async (text, voice, rate) => {
         const r = await api.speechClip(text, voice, rate, id);
@@ -85,7 +88,7 @@ export function useReadAloud(d: {
         return r.dataUrl;
       },
     });
-    return { browser: browserEngine(), kokoro: clips("kokoro"), endpoint: clips("endpoint") };
+    return { browser: browserEngine(), kokoro: clips("kokoro"), endpoint: clips("endpoint"), openrouter: clips("openrouter") };
   }, []);
   const engine = () => engines[engineId.current];
 
@@ -124,7 +127,8 @@ export function useReadAloud(d: {
     }
     const id = engineId.current;
     if (id === "kokoro" && info?.kokoro.installed) void api.speechWarm();     // load the model while the author looks
-    const voices = await engine().voices();
+    let voices: VoiceInfo[] = [], voiceError = "";
+    try { voices = await engine().voices(); } catch (e) { voiceError = e instanceof Error ? e.message : String(e); }
     const roles = r.voices.map((v) => v.voice);
     castRef.current = resolveCast(prefs.current.casts[castKey(d.projectKey, id)], roles, voices);
     planRef.current = r;
@@ -137,7 +141,7 @@ export function useReadAloud(d: {
       },
       onError: (message) => { setState((s) => ({ ...s, message })); d.notify(message, "error"); },
     });
-    const problem = engineMessage(id, info, voices);
+    const problem = engineMessage(id, info, voices) || voiceError;
     setState((s) => ({
       ...s, open: true, busy: false, plan: r, status: "idle", index: 0, voices, cast: castRef.current, engine: id,
       message: problem || (r.utterances.length ? "" : "There is nothing to read in this text."),
@@ -146,7 +150,8 @@ export function useReadAloud(d: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engines, d.projectKey]);
 
-  const open = useCallback(async () => { if (!stateRef.current.open) await load(); }, [load]);
+  // opening asks Python again: a key added in Settings since the last time counts
+  const open = useCallback(async () => { if (!stateRef.current.open) { infoRef.current = null; await load(); } }, [load]);
 
   const close = useCallback(() => {
     session.current?.stop();
@@ -155,7 +160,7 @@ export function useReadAloud(d: {
     session.current = null;
     planRef.current = null;
     stale.current = true;
-    setState((s) => ({ ...CLOSED, rate: s.rate, options: s.options, engine: s.engine, speech: s.speech, download: s.download, spent: s.spent }));
+    setState((s) => ({ ...CLOSED, rate: s.rate, options: s.options, engine: s.engine, speech: s.speech, download: s.download, spent: s.spent, orModels: s.orModels }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engines]);
 
@@ -216,7 +221,7 @@ export function useReadAloud(d: {
     engine().cancel();
     const r = await api.speechSet(change);
     if (!r.ok) { d.notify(r.error, "error"); return; }
-    const info = infoRef.current ? { ...infoRef.current, prefs: r.prefs, endpoint: r.endpoint } : null;
+    const info = infoRef.current ? { ...infoRef.current, prefs: r.prefs, endpoint: r.endpoint, openrouter: r.openrouter } : null;
     infoRef.current = info;
     engineId.current = r.prefs.engine;
     setState((s) => ({ ...s, speech: info, engine: r.prefs.engine }));
@@ -226,6 +231,15 @@ export function useReadAloud(d: {
 
   const setEngine = useCallback((id: EngineId) => changeSpeech({ engine: id }), [changeSpeech]);
   const setServer = useCallback((baseUrl: string, model: string) => changeSpeech({ baseUrl, model }), [changeSpeech]);
+  const setOpenRouterModel = useCallback((orModel: string) => changeSpeech({ orModel }), [changeSpeech]);
+
+  /** OpenRouter's speech models (one request, when the author chooses that engine). */
+  const loadModels = useCallback(async (refresh = false) => {
+    const r = await api.speechModels(refresh);
+    if (!r.ok) { setState((s) => ({ ...s, orModels: [], message: r.error })); return; }
+    if (infoRef.current) infoRef.current = { ...infoRef.current, openrouter: r.openrouter };
+    setState((s) => ({ ...s, orModels: r.models, speech: infoRef.current }));
+  }, []);
 
   const setKey = useCallback(async (key: string) => {
     const r = await api.speechSetKey(key);
@@ -302,7 +316,7 @@ export function useReadAloud(d: {
 
   return {
     state, open, close, play, toggle, setRate, setOption, setVoice, hear, noteEdited,
-    setEngine, setServer, setKey, download, cancelDownload, removeVoices,
+    setEngine, setServer, setOpenRouterModel, loadModels, setKey, download, cancelDownload, removeVoices,
     pause: () => session.current?.pause(), resume: () => session.current?.resume(),
     stop: () => session.current?.stop(), next: () => session.current?.next(), prev: () => session.current?.prev(),
     fromStart: () => void play("start"),

@@ -36,3 +36,4 @@
 .lw-reader__muted { color: var(--lw-text-muted); }
 .lw-reader__cost { color: var(--lw-text-muted); }
 .lw-reader__box a { color: var(--lw-accent-text); text-decoration: none; cursor: pointer; }
+.lw-reader select.lw-reader__wide { max-width: 480px; flex: 1; }
