@@ -84,7 +84,10 @@ def _escape(text: str) -> str:
 def _line_start_escape(line: str) -> str:
     s = line.lstrip(" ")
     pad = line[: len(line) - len(s)]
-    if re.match(r"(#{1,6}\s|[-+]\s|\d+[.)]\s|={3,}|-{3,})", s):
+    m = re.match(r"(\d+)([.)])\s", s)
+    if m:   # an ordered-list marker: the backslash goes before the delimiter ("1\. step"); before a digit it would print
+        s = m.group(1) + "\\" + s[len(m.group(1)):]
+    elif re.match(r"(#{1,6}\s|[-+]\s|={3,}|-{3,})", s):
         s = "\\" + s
     return pad + s
 

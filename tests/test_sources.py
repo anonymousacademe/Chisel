@@ -107,7 +107,7 @@ def test_rename_refused_for_sources(tmp_path):
     ("Use the <b> tag to bold text. More here.", r"Use the \<b\> tag to bold text. More here."),
     ("if a<b and c>d holds, done.", r"if a\<b and c\>d holds, done."),
     ("- item", r"\- item"),
-    ("1. step", r"\1. step"),
+    ("1. step", r"1\. step"),
 ])
 def test_plain_abstract_keeps_every_character(text, expected):
     assert sources._abstract_markdown(text) == expected

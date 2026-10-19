@@ -48,7 +48,7 @@ def test_ordered_list_and_blockquote_and_headings():
 
 def test_line_start_markdown_is_escaped():
     md = html_to_markdown("<p># not a heading</p><p>1. not a list</p>")
-    assert md.startswith("\\# ") and "\n\n\\1. " in md
+    assert md.startswith("\\# ") and "\n\n1\\. " in md
 
 
 def test_pre_and_unclosed_and_empty():
