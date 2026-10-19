@@ -85,7 +85,8 @@ describe("citation display", () => {
 
   it("eq is true for the same display, false when display, status or title change", () => {
     const a = new CiteWidget("(Wang et al., 2026)", "resolved", "T", "k");
-    expect(a.eq(new CiteWidget("(Wang et al., 2026)", "resolved", "T", "other"))).toBe(true);
+    expect(a.eq(new CiteWidget("(Wang et al., 2026)", "resolved", "T", "k"))).toBe(true);
+    expect(a.eq(new CiteWidget("(Wang et al., 2026)", "resolved", "T", "other"))).toBe(false);   // keys decide what data-keys says
     expect(a.eq(new CiteWidget("(Wang et al., 2026a)", "resolved", "T", "k"))).toBe(false);
     expect(a.eq(new CiteWidget("(Wang et al., 2026)", "unresolved", "T", "k"))).toBe(false);
     expect(a.eq(new CiteWidget("(Wang et al., 2026)", "resolved", "U", "k"))).toBe(false);
