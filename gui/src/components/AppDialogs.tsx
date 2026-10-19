@@ -73,6 +73,7 @@ export interface AppDialogsProps {
   // trash, history, drafts, git
   setInspRev: Dispatch<SetStateAction<number>>;
   restoreSnapshot: (snapshotId: string) => Promise<boolean>;
+  flushSave: () => Promise<boolean>;
   setSnapshotAt: Dispatch<SetStateAction<string | null>>;
   startNewDraft: () => Promise<void>;
   syncCommit: (message: string) => Promise<void>;
@@ -117,7 +118,7 @@ export function AppDialogs(p: AppDialogsProps) {
     ws, doc, unit, dialog, setDialog, notify, refresh, openDoc, liveText, noteType, setNoteType, createNote, runGenerate,
     applyAliases, applyRelationships, applyCanon, saveStyle, settingsSaved, renamePreview, renameApply, renameUndo, createScene, renameScene, deleteScene,
     createPart, renamePart, deletePart, placeScene, performMove, saveDetails, sprintFocus, startSprint, endSprint, setInspRev,
-    restoreSnapshot, setSnapshotAt, startNewDraft, syncCommit, syncPush, syncInit, addComment, commentPop, setCommentPop, popComment,
+    restoreSnapshot, flushSave, setSnapshotAt, startNewDraft, syncCommit, syncPush, syncInit, addComment, commentPop, setCommentPop, popComment,
     commentCall, chatList, chatId, chatIdRef, setPersist, attachments, setAttachments, loadChat, newChat, renameChat, deleteChat,
     createResearch, researchFromUrl, deleteResearch, researchMode, setAssistantOpen, onQuick, insertCitation,
     createCollection, recolorCollection, renameCollection, deleteCollection,
@@ -203,7 +204,7 @@ export function AppDialogs(p: AppDialogsProps) {
           onConfirm={() => { setDialog(null); void endSprint(true); }} onClose={() => setDialog(null)} />
       )}
       {dialog?.kind === "trash" && (
-        <TrashDialog parked={ws.project.labels.parked} onClose={() => setDialog(null)} notify={notify}
+        <TrashDialog parked={ws.project.labels.parked} onClose={() => setDialog(null)} notify={notify} beforeRestore={flushSave}
           onChanged={() => { void refresh(); setInspRev((n) => n + 1); }}
           onRestored={(id) => { setDialog(null); void openDoc(id); }} />
       )}

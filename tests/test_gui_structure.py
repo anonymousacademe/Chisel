@@ -135,7 +135,7 @@ def test_delete_goes_to_trash_and_trash_roundtrip(tmp_path):
     assert len(items) == 1 and items[0]["title"] == "Rain"
     assert items[0]["original"] == "01-the-recall/01-rain.md"
     back = api.restore_trash(items[0]["name"])
-    assert back["ok"] and back["id"] == "manuscript/01-the-recall/03-rain.md"
+    assert back["ok"] and back["id"] == "manuscript/01-the-recall/01-rain.md"
     assert (back["where"], back["part"], back["unplaced"]) == ("part", "The Recall", False)
     assert drafts.load_originals(root, root / back["id"]) == {"aaaaaa": "orig"}
     assert api.list_trash()["items"] == []

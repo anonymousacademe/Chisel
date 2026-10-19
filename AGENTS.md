@@ -210,8 +210,11 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   - Deleting a scene is `Project.delete_scene` = **move to `.trash/`** (restore with
     `restore_scene`); there is no permanent delete except `delete_forever` / `empty_trash`,
     which UIs must confirm. Keep detaching `current_path` before opening the next scene.
-  - `place_scene(path, part, index)` renumbers only the destination; ids of other scenes in it
-    change, so the GUI's `place_scene` / `move_scene` / `move_part` return a `remap`
+  - `place_scene(path, part, index)` renumbers only the destination (the folder it left keeps a gap); deleting a
+    scene or a part and restoring from the Trash renumber the folder contiguously (`renumber_folder` / `renumber_parts`,
+    through `_apply_renames`; Parked scenes and front matter are left alone, and `restore_scene` puts a scene back at its
+    old number); ids of other scenes in it
+    change, so the GUI's `place_scene` / `move_scene` / `move_part` / `delete_scene` / `delete_part` / `restore_trash` return a `remap`
     ({old id: new id}) and the client reopens the open document through it.
 - **Snapshots are author data** (`.snapshots/<sidecar key>/<stamp>[--label].md` + optional
   `.json` of draft originals; `core/snapshots.py`). Everything that moves or trashes a scene must

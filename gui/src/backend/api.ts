@@ -57,11 +57,11 @@ export const api = {
   placeScene: (id: string, partId: string | null, index: number | null = null, unplaced = false) =>
     call<{ id: string; remap: Remap }>("place_scene", id, partId, index, unplaced),
   /** Moves the scene to the Trash. */
-  deleteScene: (id: string) => call("delete_scene", id),
+  deleteScene: (id: string) => call<{ remap: Remap }>("delete_scene", id),
   newPart: (title: string) => call<{ id: string }>("new_part", title),
   renamePart: (id: string, title: string) => call<{ id: string }>("rename_part", id, title),
   movePart: (id: string, delta: number) => call<{ id: string; remap: Remap }>("move_part", id, delta),
-  deletePart: (id: string) => call("delete_part", id),
+  deletePart: (id: string) => call<{ remap: Remap; warning?: string }>("delete_part", id),
   listTrash: () => call<{ items: TrashItem[] }>("list_trash"),
   restoreTrash: (name: string) => call<RestoreResult>("restore_trash", name),
   deleteForever: (name: string) => call("delete_forever", name),

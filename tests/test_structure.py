@@ -275,7 +275,7 @@ def test_delete_moves_to_trash_with_sidecar_and_restores_to_the_part(book: Proje
     assert len(items) == 1 and items[0].original == "manuscript/01-the-recall/01-a.md"
     assert items[0].title == "A"
     restored = book.restore_scene(items[0].name)
-    assert restored == one / "03-a.md"                # end of its part
+    assert restored == one / "01-a.md"                # its old position
     assert drafts.load_originals(book.root, restored) == {"aaaaaa": "orig"}
     assert book.list_trash() == [] and not (book.root / ".trash").exists()
 
@@ -313,8 +313,8 @@ def test_trash_names_never_collide_and_list_newest_first(book: Project):
 def test_delete_forever_and_empty_trash(book: Project):
     one = book.list_parts()[1]
     book.delete_scene(one / "01-a.md")
-    drafts.add_original(book.root, one / "02-b.md", "bbbbbb", "x")
-    book.delete_scene(one / "02-b.md")
+    drafts.add_original(book.root, one / "01-b.md", "bbbbbb", "x")
+    book.delete_scene(one / "01-b.md")
     first, second = book.list_trash()
     book.delete_forever(first.name)
     assert [i.name for i in book.list_trash()] == [second.name]

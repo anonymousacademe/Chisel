@@ -40,9 +40,10 @@ export function PartPickerDialog({ title, message, parts, allowTop, onPick, onCl
  * note at its original path (notebook/ if its folder is gone); nothing is removed
  * for good without the confirmation shown here.
  */
-export function TrashDialog({ onClose, onRestored, onChanged, notify, parked }: {
+export function TrashDialog({ onClose, onRestored, onChanged, notify, parked, beforeRestore }: {
   parked: string;
   onClose: () => void; onRestored: (id: string) => void; onChanged: () => void;
+  beforeRestore?: () => Promise<boolean>;   // flush the open buffer: a restore renumbers its neighbours
   notify: (text: string, tone?: "info" | "error") => void;
 }) {
   const unit = useUnit();
@@ -60,6 +61,7 @@ export function TrashDialog({ onClose, onRestored, onChanged, notify, parked }: 
   }, [rev, notify]);
 
   const restore = async (it: TrashItem) => {
+    if (beforeRestore && !(await beforeRestore())) return notify("Could not save the current document first.", "error");
     const r = await api.restoreTrash(it.name);
     if (!r.ok) return notify(r.error, "error");
     notify(restoredText(it.title, r, parked));
