@@ -18,3 +18,4 @@ platformdirs>=3.6
 pywebview>=6
 reportlab>=4
 pyphen>=0.14
+pypdf>=4

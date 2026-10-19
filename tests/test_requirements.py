@@ -19,6 +19,7 @@ PROVIDES = {
     "pywebview": {"webview", "System"},
     "reportlab": {"reportlab", "PIL"},
     "pyphen": {"pyphen"},
+    "pypdf": {"pypdf"},
 }
 
 # Optional extras left out of requirements.txt on purpose (the natural read-aloud voices: espeak-ng is GPL and

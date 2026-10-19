@@ -49,6 +49,10 @@ export = [
     "reportlab>=4",
     "pyphen>=0.14",
 ]
+# Reading PDF guideline documents in research mode (without it a PDF can be added and its text pasted).
+research = [
+    "pypdf>=4",
+]
 # Natural voices for read aloud, run on this computer (Kokoro, downloaded on request). The Kokoro package uses
 # espeak-ng (GPL) for phonemes, so Chisel runs it in a separate process and never imports it.
 speech-local = [
@@ -59,6 +63,7 @@ all = [
     "pywebview>=6",
     "reportlab>=4",
     "pyphen>=0.14",
+    "pypdf>=4",
 ]
 
 [project.urls]
