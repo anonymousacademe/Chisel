@@ -22,7 +22,7 @@ class SnapshotsMixin:
         """Scene · Snapshot scene: a verbatim copy you can compare and restore."""
         path = self._current_scene_path()
         if path is None:
-            self.notify("Open a scene first", severity="warning")
+            self.notify(f"Open a {self._unit_word} first", severity="warning")
             return
 
         def _take(label: str | None) -> None:
@@ -33,7 +33,7 @@ class SnapshotsMixin:
             self.update_status()
             self.notify("Snapshot taken" + (f": {label}" if label else ""), timeout=2)
 
-        self.push_screen(LabelPrompt("Snapshot this scene (the text as it is now)"), _take)
+        self.push_screen(LabelPrompt(f"Snapshot this {self._unit_word} (the text as it is now)"), _take)
 
     def snapshot_all_prompt(self) -> None:
         """Action · Snapshot all scenes: one label for every scene."""
@@ -47,15 +47,15 @@ class SnapshotsMixin:
             n = snapshots.snapshot_all(self.project, label)
             self._refresh_snapshot_time()
             self.update_status()
-            self.notify(f"Snapshot taken of {n} scene(s)", timeout=2)
+            self.notify(f"Snapshot taken of {n} {self._unit_word}(s)", timeout=2)
 
-        self.push_screen(LabelPrompt("Snapshot every scene in the project"), _take)
+        self.push_screen(LabelPrompt(f"Snapshot every {self._unit_word} in the project"), _take)
 
     def open_snapshots(self) -> None:
         """Scene · Snapshots: list, compare, restore, delete."""
         path = self._current_scene_path()
         if path is None:
-            self.notify("Open a scene first", severity="warning")
+            self.notify(f"Open a {self._unit_word} first", severity="warning")
             return
         self.save_current()
         text = self.editor.text
@@ -123,7 +123,7 @@ class SnapshotsMixin:
                         "'before a restore'", timeout=4)
 
         self.push_screen(ConfirmScreen(
-            "Replace this scene with the snapshot?\n"
+            f"Replace this {self._unit_word} with the snapshot?\n"
             "The text as it is now is snapshotted first, so you can come back to it.",
             confirm_label="Restore"), _go)
 

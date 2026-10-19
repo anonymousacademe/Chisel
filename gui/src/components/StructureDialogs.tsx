@@ -40,7 +40,8 @@ export function PartPickerDialog({ title, message, parts, allowTop, onPick, onCl
  * note at its original path (notebook/ if its folder is gone); nothing is removed
  * for good without the confirmation shown here.
  */
-export function TrashDialog({ onClose, onRestored, onChanged, notify }: {
+export function TrashDialog({ onClose, onRestored, onChanged, notify, parked }: {
+  parked: string;
   onClose: () => void; onRestored: (id: string) => void; onChanged: () => void;
   notify: (text: string, tone?: "info" | "error") => void;
 }) {
@@ -61,7 +62,7 @@ export function TrashDialog({ onClose, onRestored, onChanged, notify }: {
   const restore = async (it: TrashItem) => {
     const r = await api.restoreTrash(it.name);
     if (!r.ok) return notify(r.error, "error");
-    notify(restoredText(it.title, r, `Parked ${unitWords(unit).many}`));
+    notify(restoredText(it.title, r, parked));
     onChanged();
     if (r.kind !== "inspiration") onRestored(r.id);   // a picture is not a document to open
     reload();

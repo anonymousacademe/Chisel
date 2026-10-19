@@ -96,7 +96,7 @@ class CollectionsScreen(ModalScreen["tuple[str, str] | None"]):
         if i is None:
             return
         if what == "toggle" and self._members is None:
-            self.notify("Open a scene to tick its collections", severity="warning")
+            self.notify(f"Open a {self._unit} to tick its collections", severity="warning")
             return
         self.dismiss((what, self._collections[i].name))
 

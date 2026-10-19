@@ -794,7 +794,7 @@ export default function App() {
             onNew={() => setDialog(rail === "library" ? { kind: "new-note", name: "", openAfter: true } : { kind: "new-scene" })} onMenu={openSceneMenu} />
         )}
         <Editor story={ws.project.mode !== "research"} script={ws.project.mode === "script"} research={ws.project.mode === "research"} names={{ characters: ws.entities.filter((e) => e.type === "character").map((e) => e.name), places: ws.entities.filter((e) => e.type === "place").map((e) => e.name) }} doc={doc} scenes={ws.scenes} filter={boardFilter}
-          onEditCollections={() => setDialog({ kind: "scene-collections" })} parts={ws.parts} unit={unit} words={words} mentions={mentions} reflow={reflow}
+          onEditCollections={() => setDialog({ kind: "scene-collections" })} parts={ws.parts} unit={unit} parked={ws.project.labels.parked} words={words} mentions={mentions} reflow={reflow}
           sessionWords={ws.status.sessionWords} sessionMinutes={ws.status.sessionMinutes}
           onEditDetails={() => setDialog({ kind: "details" })} onMoveRequest={(plan) => setDialog({ kind: "move", plan })}
           mode={mode} onMode={setMode} focus={focus} onFocus={() => setFocus((f) => !f)} onOpen={(id) => void openDoc(id)}

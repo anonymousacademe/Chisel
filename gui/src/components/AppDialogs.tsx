@@ -203,7 +203,7 @@ export function AppDialogs(p: AppDialogsProps) {
           onConfirm={() => { setDialog(null); void endSprint(true); }} onClose={() => setDialog(null)} />
       )}
       {dialog?.kind === "trash" && (
-        <TrashDialog onClose={() => setDialog(null)} notify={notify}
+        <TrashDialog parked={ws.project.labels.parked} onClose={() => setDialog(null)} notify={notify}
           onChanged={() => { void refresh(); setInspRev((n) => n + 1); }}
           onRestored={(id) => { setDialog(null); void openDoc(id); }} />
       )}

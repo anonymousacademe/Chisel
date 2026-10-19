@@ -41,7 +41,7 @@ class CommentsCollectionsMixin:
         """Scene · Add comment on selection."""
         path = self._current_scene_path()
         if path is None:
-            self.notify("Open a scene first", severity="warning")
+            self.notify(f"Open a {self._unit_word} first", severity="warning")
             return
         if not self.editor.selected_text.strip():
             self.notify("Select the passage to comment on first", severity="warning")
@@ -60,7 +60,7 @@ class CommentsCollectionsMixin:
                 self.notify(str(exc), severity="warning")
                 return
             self.refresh_comments(reload=True)
-            self.notify("Comment added (it is kept beside the scene, not in the text)", timeout=3)
+            self.notify(f"Comment added (it is kept beside the {self._unit_word}, not in the text)", timeout=3)
 
         self.push_screen(NamePrompt("Comment:"), _add)
 
@@ -68,7 +68,7 @@ class CommentsCollectionsMixin:
         """Scene · Comments: list, jump, resolve, edit, delete."""
         path = self._current_scene_path()
         if path is None:
-            self.notify("Open a scene first", severity="warning")
+            self.notify(f"Open a {self._unit_word} first", severity="warning")
             return
         self.save_current()
         text = self.editor.text
@@ -190,10 +190,10 @@ class CommentsCollectionsMixin:
 
                 self.push_screen(ConfirmScreen(
                     f"Delete the collection '{name}'?\nIt is taken off its {count} "
-                    f"scene{'' if count == 1 else 's'}; no scene is deleted.",
+                    f"{self._unit_word}{'' if count == 1 else 's'}; no {self._unit_word} is deleted.",
                     confirm_label="Delete collection"), _gone)
 
-        self.push_screen(CollectionsScreen(items, members, title, index, self.project.unit),
+        self.push_screen(CollectionsScreen(items, members, title, index, self._unit_word),
                          _act)
 
     def _collection_op(self, run) -> None:

@@ -68,7 +68,7 @@ class InspirationMixin:
             context = image_ai.scene_context(
                 self.editor.text, self._cursor_offset(), list(self.entities), self._canon_map(),
                 self._originals(self.editor.text))
-            self.notify("Describing the scene…", timeout=3)
+            self.notify(f"Describing the {self._unit_word}…", timeout=3)
             self._inspiration_describe_worker(context, self._ai_model("fast"), text)
         else:
             self.notify("Making the picture (about $0.03)…", timeout=5)
@@ -78,13 +78,13 @@ class InspirationMixin:
     async def _inspiration_describe_worker(self, context: str, model: str, keep: str) -> None:
         calls = LEDGER.count()
         try:
-            text = await self._ai_call("describing the scene", _app_fn("suggest_image_prompt"),
+            text = await self._ai_call(f"describing the {self._unit_word}", _app_fn("suggest_image_prompt"),
                                        context, model)
         except Cancelled:
             self.inspiration_prompt(keep)       # nothing is lost: the box comes back as it was
             return
         except Exception as exc:
-            self.notify(f"Could not describe the scene: {exc}", severity="error", timeout=6)
+            self.notify(f"Could not describe the {self._unit_word}: {exc}", severity="error", timeout=6)
             self.inspiration_prompt(keep)
             return
         self._cost_note(calls)
@@ -147,10 +147,10 @@ class InspirationMixin:
         elif what == "pin":
             on = not (img.pinned and img.scene == scene)
             if on and not scene:
-                self.notify("Open a scene to pin a picture to it", severity="warning")
+                self.notify(f"Open a {self._unit_word} to pin a picture to it", severity="warning")
             else:
                 store.update(self.project, image_id, pinned=on, **({"scene": scene} if on else {}))
-                self.notify("Pinned to this scene" if on else "Unpinned", timeout=2)
+                self.notify(f"Pinned to this {self._unit_word}" if on else "Unpinned", timeout=2)
         elif what == "trash":
             from .app import ConfirmScreen
 

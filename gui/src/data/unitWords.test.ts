@@ -28,10 +28,12 @@ describe("unitWords", () => {
 
 describe("research wording in helpers", () => {
   it("parked group, restore text, noun and scope follow the unit", () => {
-    expect(sceneGroups([], [], { unplaced: true, unit: "section" })).toEqual([{ key: "top", partId: null, unplaced: false, title: "", frontMatter: false, scenes: [] }]);
+    expect(sceneGroups([], [], { unplaced: true, parked: "Parked sections" })).toEqual([{ key: "top", partId: null, unplaced: false, title: "", frontMatter: false, scenes: [] }]);
     const un = [{ id: "a", part: null, unplaced: true }] as never;
-    expect(sceneGroups(un, [], { unplaced: true, unit: "section" }).find((g) => g.unplaced)?.title).toBe("Parked sections");
+    expect(sceneGroups(un, [], { unplaced: true, parked: "Parked sections" }).find((g) => g.unplaced)?.title).toBe("Parked sections");
     expect(sceneGroups(un, [], { unplaced: true }).find((g) => g.unplaced)?.title).toBe("Parked scenes");
+    // a story project set to chapters keeps the binder's label: one source (labels.parked)
+    expect(sceneGroups(un, [], { unplaced: true, parked: "Parked scenes" }).find((g) => g.unplaced)?.title).toBe("Parked scenes");
     const r = { id: "x", kind: "scene", unplaced: true, where: "unplaced" } as const;
     expect(restoredText("T", r)).toBe("Restored “T” to Parked scenes.");
     expect(restoredText("T", r, "Parked sections")).toBe("Restored “T” to Parked sections.");

@@ -93,7 +93,7 @@ class SpellMixin:
     def action_spell_next(self) -> None:
         """f6: jump to the next misspelling after the cursor and fix it."""
         if not self._spell_active():
-            self.notify("Spell check applies to scenes", timeout=2)
+            self.notify(f"Spell check applies to {self._unit_word}s", timeout=2)
             return
         text = self.editor.text
         found = spelling.check(self._spell_text(text), self._accepted())

@@ -33,7 +33,7 @@ export function Editor(props: {
   research?: boolean;
   /** Script mode: names offered by the completion list (characters after a blank line, places after INT.). */
   names?: ScriptNames;
-  doc: DocumentPayload | null; scenes: SceneSummary[]; parts: PartSummary[]; unit: Unit; words: number; mentions: SceneMention[]; reflow: boolean;
+  doc: DocumentPayload | null; scenes: SceneSummary[]; parts: PartSummary[]; unit: Unit; parked: string; words: number; mentions: SceneMention[]; reflow: boolean;
   sessionWords: number; sessionMinutes: number;
   mode: ViewMode; onMode: (m: ViewMode) => void;
   /** Open the scene details dialog (status, POV, place, purpose, target). */
@@ -65,7 +65,7 @@ export function Editor(props: {
   const { doc, editorRef } = props;
   const isScene = doc?.kind === "scene";
   const d = doc?.details;
-  const groups = sceneGroups(props.scenes, props.parts, { unplaced: true, unit: props.unit });
+  const groups = sceneGroups(props.scenes, props.parts, { unplaced: true, parked: props.parked });
   const sentence = (s: string) => s[0] + s.slice(1).toLowerCase();
   const names = props.mentions.map((m) => m.name);
   const meta = names.length > 4 ? `${names.slice(0, 4).join(" · ")} · +${names.length - 4}` : names.join(" · ");
