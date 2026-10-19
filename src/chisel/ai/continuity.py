@@ -22,7 +22,7 @@ from ..core.continuity import (
 from ..core.jev_interface import pre_screen
 from ..core.entities import Entity
 from . import relevance
-from .budget import Budget, Item, Section, SentReport, fit, preflight, render, trim
+from .budget import Budget, Item, Section, SentReport, fit, preflight, render, trim_tail
 from .client import utility_extra_body
 from .usage import record_response
 
@@ -70,6 +70,9 @@ CONTRADICTION_SCHEMA = {
     "additionalProperties": False,
 }
 
+CANON_KINDS = ("age", "appearance", "number", "duration", "possession", "place", "relationship", "occupation",
+               "habit", "other")
+
 ACCUMULATION_SCHEMA = {
     "type": "object",
     "properties": {
@@ -79,10 +82,21 @@ ACCUMULATION_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "entity": {"type": "string"},
-                    "new_facts": {"type": "array", "items": {"type": "string"}},
-                    "evidence": {"type": "string"},
+                    "facts": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "fact": {"type": "string"},
+                                "quote": {"type": "string"},
+                                "kind": {"type": "string", "enum": list(CANON_KINDS)},
+                            },
+                            "required": ["fact", "quote", "kind"],
+                            "additionalProperties": False,
+                        },
+                    },
                 },
-                "required": ["entity", "new_facts", "evidence"],
+                "required": ["entity", "facts"],
                 "additionalProperties": False,
             },
         }
@@ -115,21 +129,28 @@ unreliable narrator effects as contradictions.
 ACCUMULATION_SYSTEM_PROMPT = """\
 You propose ADDITIONS to entity notes based on a new scene.
 
-You are given each entity's existing canon and the scene text. List only NEW
-facts the scene establishes about an entity that are not already in its
-existing canon. Rules:
-- One short, self-contained fact per item in new_facts.
-- Only facts directly stated or strongly implied by the scene text.
-- Never restate, reword, merge or "correct" existing canon; you cannot remove
-  or change it, only add.
-- No speculation, inference beyond strong implication, or headcanon.
-- evidence: a brief quote or paraphrase from the scene supporting the facts.
+You are given each entity's existing canon and the scene text. List only facts the scene establishes about an
+entity that its existing canon does not already hold.
+
+Look for stable details first: ages; appearance (eyes, hair, build, usual clothing); numbers and amounts;
+durations and dates; possessions, with colour or material; places (where someone lives, which floor);
+relationships and occupations; habits. Record an event only when it changes or reveals a stable detail.
+
+Rules:
+- facts: one item per fact, about ONE entity, one detail each. "fact" states the value itself, in the present
+  tense ("is forty-five", "has black eyes", "wears a copper cross").
+- "quote": ONE unbroken passage copied exactly as written from the scene: same punctuation, no ellipsis, no
+  joining of passages, no pronoun in place of a name. Short, but long enough to contain the value. A fact you
+  cannot quote is left out.
+- "kind": age, appearance, number, duration, possession, place, relationship, occupation, habit or other.
+- Never restate, reword, merge or "correct" existing canon; you cannot remove or change it, only add.
+- Only what the scene states or strongly implies. No speculation or headcanon.
 - If the scene establishes nothing new about an entity, omit that entity.
 """
 
 # Added to the continuity check's instructions ONLY when stored summaries reach the request (a project without any sends
-# exactly the instructions it always did). It makes the earlier-scene sections count as canon. The canon-proposal prompt is
-# left alone: it only adds facts, and its existing-canon rule already keeps it from restating them.
+# exactly the instructions it always did). It makes the earlier-scene sections count as canon. The canon-proposal prompt does
+# not get it: that prompt only adds facts, and its existing-canon rule already keeps it from restating them.
 HISTORY_ADDENDUM = """
 The request may also hold STORY SO FAR, EARLIER SCENES INVOLVING ... and ESTABLISHED FACTS ABOUT ... sections. They are
 the record of earlier scenes and count as established canon too. Flag a statement in the current scene that conflicts
@@ -151,6 +172,63 @@ class CanonUpdate:
     new_facts: tuple[str, ...]
     evidence: str = ""
     existing_canon: str = ""  # for display only; filled app-side
+    quotes: tuple[str, ...] = ()   # one per fact, parallel to new_facts (empty for a reply in the old shape)
+    kinds: tuple[str, ...] = ()    # one per fact (CANON_KINDS); evidence is the quotes joined with " / "
+
+    def select(self, keep: list[int]) -> "CanonUpdate":
+        """The update with only the facts at the indexes *keep* (their quotes and kinds follow)."""
+        quotes = tuple(self.quotes[i] for i in keep) if self.quotes else ()
+        return replace(self, new_facts=tuple(self.new_facts[i] for i in keep), quotes=quotes,
+                       kinds=tuple(self.kinds[i] for i in keep) if self.kinds else (),
+                       evidence=_join_quotes(quotes) if quotes else self.evidence)
+
+
+def _join_quotes(quotes) -> str:
+    return " / ".join(q for q in quotes if q)
+
+
+@dataclass(frozen=True)
+class CanonDropped:
+    """A proposed fact the verification left out, for the report (the reason in plain words)."""
+
+    entity: str
+    fact: str
+    reason: str
+
+
+@dataclass(frozen=True)
+class CanonProposal:
+    """A canon proposal after verification: the updates that stay, the facts left out (named, with the rule
+    that failed) and how many kept facts passed only the looser quote rule."""
+
+    updates: list[CanonUpdate]
+    dropped: tuple[CanonDropped, ...] = ()
+    tolerant: int = 0
+
+    @property
+    def left_out(self) -> str:
+        return left_out_sentence(self.dropped)
+
+
+NO_QUOTE = "it has no quote"
+_REASON_PHRASES = {
+    summary_store.NOT_IN_SCENE: "the passage it quoted is not in the scene",
+    NO_QUOTE: "it came without a quote",
+}
+
+
+def left_out_sentence(dropped) -> str:
+    """One plain sentence about the dropped facts ("" for none): how many, and the most common reason."""
+    if not dropped:
+        return ""
+    reasons: dict[str, int] = {}
+    for d in dropped:
+        reasons[d.reason] = reasons.get(d.reason, 0) + 1
+    top = max(reasons, key=lambda r: reasons[r])
+    n = len(dropped)
+    text = (f"{n} proposed {'fact was' if n == 1 else 'facts were'} left out because "
+            f"{_REASON_PHRASES.get(top, 'its quote did not check out against the scene')}")
+    return text + ("; the others for other reasons." if len(reasons) > 1 else ".")
 
 
 def _details_block(scene_text: str) -> str:
@@ -473,37 +551,38 @@ def clean_fact(fact: str) -> str:
     return " ".join(str(fact).split()).lstrip("-*• ").strip()
 
 
-def parse_canon_updates(
-    raw: str, entities: list[Entity] | None = None
-) -> list[CanonUpdate]:
-    """Parse and validate the model's JSON. Tolerant: skips malformed items.
-
-    With *entities*: unknown entities are dropped, names are canonicalized,
-    and facts already present in an entity's canon (case-insensitive) or
-    repeated within the reply are dropped. Empty facts are always dropped.
-    """
+def _parse_canon(raw: str, entities: list[Entity] | None, scene_text: str | None
+                 ) -> tuple[list[CanonUpdate], list[CanonDropped], int]:
+    """The work of ``parse_canon_updates``: (updates, dropped, tolerant count). With *scene_text* every fact's quote
+    is checked against the scene's prose (``core.summaries.quote_check``); a fact without a quote, or whose quote is
+    not found, is dropped and listed. Without it nothing is verified (the old behaviour)."""
     try:
         data = json.loads(raw)
     except (json.JSONDecodeError, TypeError):
-        return []
+        return [], [], 0
     items = data.get("updates") if isinstance(data, dict) else None
     if not isinstance(items, list):
-        return []
+        return [], [], 0
     by_name = {}
     for e in entities or []:
         for n in e.names:
             by_name.setdefault(n.casefold(), e)
+    prose = summary_store.prose_of(scene_text) if scene_text is not None else None
     results: list[CanonUpdate] = []
+    dropped: list[CanonDropped] = []
+    tolerant = 0
     seen: dict[str, set[str]] = {}
     for item in items:
         if not isinstance(item, dict):
             continue
         try:
             name = str(item["entity"])
-            facts = item["new_facts"]
         except (KeyError, TypeError):
             continue
-        if not name or not isinstance(facts, list):
+        # rows: (fact, quote, kind); the old shape (new_facts + one evidence) has no quote per fact
+        legacy = "facts" not in item
+        raw_facts = item.get("new_facts") if legacy else item.get("facts")
+        if not name or not isinstance(raw_facts, list):
             continue
         existing = ""
         if entities is not None:
@@ -514,19 +593,57 @@ def parse_canon_updates(
             existing = get_canon(entity.body)
         known = seen.setdefault(
             name, {_fact_key(ln) for ln in existing.splitlines() if ln.strip()})
-        kept: list[str] = []
-        for fact in facts:
+        facts: list[str] = []
+        quotes: list[str] = []
+        kinds: list[str] = []
+        for entry in raw_facts:
+            quote, kind = "", ""
+            if isinstance(entry, dict):
+                fact, quote, kind = entry.get("fact"), entry.get("quote"), entry.get("kind")
+            else:
+                fact = entry
             fact = clean_fact(fact) if isinstance(fact, str) else ""
+            quote = " ".join(quote.split()) if isinstance(quote, str) else ""
             key = _fact_key(fact)
             if not key or key in known:
                 continue
+            if prose is not None:
+                how, why = summary_store.quote_check(prose, quote) if quote else ("", NO_QUOTE)
+                if not how:
+                    dropped.append(CanonDropped(name, fact, why))
+                    continue
+                tolerant += how == "tolerant"
             known.add(key)
-            kept.append(fact)
-        if kept:
-            results.append(CanonUpdate(name, tuple(kept),
-                                       str(item.get("evidence") or ""),
-                                       existing))
-    return results
+            facts.append(fact)
+            quotes.append(quote)
+            kinds.append(kind if kind in CANON_KINDS else "other")
+        if facts:
+            if legacy:
+                results.append(CanonUpdate(name, tuple(facts), str(item.get("evidence") or ""), existing))
+            else:
+                results.append(CanonUpdate(name, tuple(facts), _join_quotes(quotes), existing,
+                                           tuple(quotes), tuple(kinds)))
+    return results, dropped, tolerant
+
+
+def parse_canon_updates(
+    raw: str, entities: list[Entity] | None = None, scene_text: str | None = None
+) -> list[CanonUpdate]:
+    """Parse and validate the model's JSON. Tolerant: skips malformed items.
+
+    With *entities*: unknown entities are dropped, names are canonicalized,
+    and facts already present in an entity's canon (case-insensitive) or
+    repeated within the reply are dropped. Empty facts are always dropped.
+    With *scene_text* each fact's quote must be in the scene (``parse_canon`` also
+    returns what was left out); without it nothing is verified.
+    """
+    return _parse_canon(raw, entities, scene_text)[0]
+
+
+def parse_canon(raw: str, entities: list[Entity] | None, scene_text: str) -> CanonProposal:
+    """``parse_canon_updates`` with verification, keeping what was left out and the tolerant count."""
+    updates, dropped, tolerant = _parse_canon(raw, entities, scene_text)
+    return CanonProposal(updates, tuple(dropped), tolerant)
 
 
 def _canon_section(ranked: list[relevance.Ranked], max_priority: int | None = None) -> Section:
@@ -538,7 +655,7 @@ def _canon_section(ranked: list[relevance.Ranked], max_priority: int | None = No
         if e.aliases:
             line += f" — aliases: {', '.join(e.aliases)}"
         items.append(Item(e.name, get_canon(e.body), line, r.priority, CANON_CAP,
-                          lead="  existing canon:\n", empty="  existing canon: (none)"))
+                          lead="  existing canon:\n", empty="  existing canon: (none)", keep="end"))
     return Section("Entity notes", priority=0, droppable=True, items=tuple(items), head="ENTITIES:\n",
                    sep="\n", max_priority=max_priority)
 
@@ -574,24 +691,25 @@ def plan_canon_history(scene_text: str, entities: list[Entity], budget: Budget,
     for item in next(s for s in fitted if s.name == "Entity notes").items:
         e = by_name[item.name]
         full = get_canon(e.body)
-        usual = trim(full, CANON_CAP) if len(full) > CANON_CAP else full
+        usual = trim_tail(full, CANON_CAP) if len(full) > CANON_CAP else full
         out.append(e if item.body == usual else replace(e, body=set_canon("", item.body)))
     return out, report, _history_text(fitted, history)
 
 
-def propose_canon_updates(
+def propose_canon(
     scene_text: str,
     entities: list[Entity],
     model: str,
     client=None,
     history: str = "",
-) -> list[CanonUpdate]:
-    """Network call: ask what NEW canon the scene establishes per entity. *history* is the summaries
-    text ``plan_canon_history`` kept ("" = none).
+) -> CanonProposal:
+    """Network call: ask what NEW canon the scene establishes per entity, each fact with a quote. *history* is the
+    summaries text ``plan_canon_history`` kept ("" = none).
 
-    Additions only: each entity's existing canon is sent so the model can skip
-    known facts, and the reply is validated app-side against it. Every entity given is
-    sent (canon capped at ``CANON_CAP``): choose and fit them with ``plan_canon`` first.
+    Additions only: each entity's existing canon is sent (capped at ``CANON_CAP``, keeping its newest lines) so the
+    model can skip known facts, and the reply is validated app-side against the full canon. Every fact is checked
+    against the scene's prose: one without a quote, or whose quote is not in the scene, is left out and listed in
+    the result. Every entity given is sent: choose and fit them with ``plan_canon`` first.
     Synchronous — run in a worker thread from the TUI.
     """
     roster = render(fit([_canon_section([relevance.Ranked(e, 0, i) for i, e in enumerate(entities)])],
@@ -622,4 +740,15 @@ def propose_canon_updates(
     )
     record_response(response, model, "canon")
     raw = response.choices[0].message.content or ""
-    return parse_canon_updates(raw, entities)
+    return parse_canon(raw, entities, scene_text)
+
+
+def propose_canon_updates(
+    scene_text: str,
+    entities: list[Entity],
+    model: str,
+    client=None,
+    history: str = "",
+) -> list[CanonUpdate]:
+    """``propose_canon(...).updates``: the verified updates without the report of what was left out."""
+    return propose_canon(scene_text, entities, model, client, history).updates

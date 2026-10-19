@@ -34,7 +34,8 @@ from ..ai.budget import (
     SETTING as SETTING_WINDOW, Budget, Section, merge_attached, validate_window,
 )
 from ..ai.continuity import (
-    check_scene, history_for, plan_canon_history, plan_check_history, propose_canon_updates,
+    CanonProposal, check_scene, history_for, plan_canon_history, plan_check_history, propose_canon,
+    propose_canon_updates,
 )
 from ..ai import client as ai_client
 from ..ai import images as image_ai
@@ -1003,12 +1004,15 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
         history = history_for(inp["project"], inp["rel"], scene_text, inp["entities"])
         entities, sent, story = plan_canon_history(scene_text, inp["entities"], Budget.for_model(model), history)
         calls = LEDGER.count()
-        updates = propose_canon_updates(scene_text, entities, model,
-                                        **({"history": story} if story else {})) if entities else []
+        proposal = propose_canon(scene_text, entities, model,
+                                 **({"history": story} if story else {})) if entities else CanonProposal([])
         return {"updates": [{
             "entity": u.entity, "facts": list(u.new_facts), "evidence": u.evidence,
-            "existing": u.existing_canon,
-        } for u in updates], "cost": self._spent(calls), "sent": sent.to_dict()}
+            "existing": u.existing_canon, "quotes": list(u.quotes), "kinds": list(u.kinds),
+        } for u in proposal.updates],
+            "dropped": [{"entity": d.entity, "fact": d.fact, "reason": d.reason} for d in proposal.dropped],
+            "tolerant": proposal.tolerant, "left_out": proposal.left_out,
+            "cost": self._spent(calls), "sent": sent.to_dict()}
 
     @bridge
     def apply_canon(self, updates: list) -> dict:

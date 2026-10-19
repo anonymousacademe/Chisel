@@ -174,32 +174,38 @@ def test_check_scene_with_fake_client(monkeypatch):
 
 def test_propose_canon_updates_with_fake_client():
     raw = json.dumps({"updates": [
-        {"entity": "Elara Vance", "new_facts": ["Has brown eyes"],
-         "evidence": "scene says brown"},
+        {"entity": "Elara Vance", "facts": [
+            {"fact": "has brown eyes", "quote": "Her eyes were brown.", "kind": "appearance"}]},
     ]})
     client = _make_fake_client(raw)
     result = propose_canon_updates(SCENE, ENTITIES, model="test-model", client=client)
-    assert [u.new_facts for u in result] == [("Has brown eyes",)]
+    assert [u.new_facts for u in result] == [("has brown eyes",)]
     client.chat.completions.create.assert_called_once()
 
 
-def test_propose_sends_existing_canon_capped_and_asks_for_additions():
+def test_propose_canon_updates_old_shape_has_no_quote_so_nothing_is_trusted():
+    raw = json.dumps({"updates": [
+        {"entity": "Elara Vance", "new_facts": ["Has brown eyes"], "evidence": "scene says brown"}]})
+    client = _make_fake_client(raw)
+    assert propose_canon_updates(SCENE, ENTITIES, model="test-model", client=client) == []
+
+
+def test_propose_sends_existing_canon_capped_newest_lines_and_asks_for_additions():
     from chisel.ai.continuity import CANON_CAP
 
-    long_canon = "- " + "x" * 3000
-    elara = ent.Entity(name="Elara Vance", body=f"## Canon (auto)\n\n{long_canon}\n")
+    lines = [f"- fact number {i:03d} " + "x" * 30 for i in range(100)]
+    elara = ent.Entity(name="Elara Vance", body="## Canon (auto)\n\n" + "\n".join(lines) + "\n")
     other = ent.Entity(name="Borin", body="## Canon (auto)\n\n- Has one arm\n")
     client = _make_fake_client('{"updates": []}')
     propose_canon_updates(SCENE, [elara, other], model="m", client=client)
     kwargs = client.chat.completions.create.call_args.kwargs
     user = kwargs["messages"][1]["content"]
     assert "- Has one arm" in user
-    assert "- " + "x" * (CANON_CAP - 2) in user
-    assert "x" * (CANON_CAP - 1) not in user
+    assert "fact number 099" in user and "fact number 000" not in user      # the newest lines survive
+    sent = user.split("existing canon:\n")[1].split("\n- Borin")[0]
+    assert len(sent) <= CANON_CAP
     assert "ADDITIONS" in kwargs["messages"][0]["content"]
     assert "FULL replacement" not in kwargs["messages"][0]["content"]
-    props = kwargs["response_format"]["json_schema"]["schema"]["properties"]["updates"]
-    assert "new_facts" in props["items"]["properties"]
 
 
 # -- jev gate -------------------------------------------------------------------

@@ -95,7 +95,7 @@ def test_mock_ai_matches_the_real_call_signatures(tmp_path, monkeypatch):
 
     import inspect
 
-    names = ("suggest_links", "suggest_relationships", "check_scene", "voice_check", "propose_canon_updates",
+    names = ("suggest_links", "suggest_relationships", "check_scene", "voice_check", "propose_canon", "propose_canon_updates",
              "learn_style", "generate_text", "ask_writer", "research_writer", "brainstorm_writer",
              "generate_images", "suggest_image_prompt", "summarize_scene", "summarize_part")
     real = {n: getattr(api_module, n) for n in names}
@@ -124,7 +124,7 @@ def test_mock_research_answers_from_notes(tmp_path, monkeypatch):
     from chisel.gui import mockai
     from tests.test_gui_api import open_api
 
-    for name in ("suggest_links", "check_scene", "propose_canon_updates", "learn_style", "generate_text",
+    for name in ("suggest_links", "check_scene", "propose_canon", "propose_canon_updates", "learn_style", "generate_text",
                  "ask_writer", "research_writer", "brainstorm_writer", "generate_images",
                  "suggest_image_prompt", "summarize_scene", "summarize_part", "get_api_key", "_set_api_key",
                  "_clear_api_key", "_list_models"):

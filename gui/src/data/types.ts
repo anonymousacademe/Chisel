@@ -235,7 +235,8 @@ export interface VoiceCheckInfo {
 
 export interface AliasSuggestion { entity: string; surface: string; alias: string; before: string; after: string }
 
-export interface CanonProposal { entity: string; facts: string[]; evidence: string; existing: string }
+/** quotes and kinds run parallel to facts (absent for a proposal without them). */
+export interface CanonProposal { entity: string; facts: string[]; evidence: string; existing: string; quotes?: string[]; kinds?: string[] }
 
 /** One relationship of a note, as get_entity reports it (python: the relationships bridge). */
 export interface RelRow {

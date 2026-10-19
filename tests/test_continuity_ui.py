@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import chisel.ai.continuity as ai_cont
+from tests.canonfake import proposal_of
 from chisel.core.continuity import Contradiction, get_canon, load_waivers
 from chisel.core.project import Project
 from chisel.tui.app import ChiselApp
@@ -102,8 +103,8 @@ def _update(*facts, entity="Elara Vance", existing=""):
 
 async def test_update_bible_flow(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(
-        ai_cont, "propose_canon_updates",
-        lambda text, entities, model, client=None: [_update("Green eyes")],
+        ai_cont, "propose_canon",
+        proposal_of(lambda text, entities, model, client=None: [_update("Green eyes")]),
     )
     proj = _project(tmp_path)
     app = ChiselApp(proj)
@@ -122,8 +123,8 @@ async def test_update_bible_flow(tmp_path: Path, monkeypatch):
 async def test_second_bible_update_keeps_first_facts(tmp_path: Path, monkeypatch):
     replies = [[_update("Green eyes")], [_update("Left-handed", "Owns a boat")]]
     monkeypatch.setattr(
-        ai_cont, "propose_canon_updates",
-        lambda text, entities, model, client=None: replies.pop(0),
+        ai_cont, "propose_canon",
+        proposal_of(lambda text, entities, model, client=None: replies.pop(0)),
     )
     proj = _project(tmp_path)
     app = ChiselApp(proj)
@@ -144,9 +145,9 @@ async def test_bible_review_shows_long_facts_untruncated_and_toggles(
         tmp_path: Path, monkeypatch):
     long_fact = "Was born in the salt marshes of the far north, " * 6 + "END-MARK"
     monkeypatch.setattr(
-        ai_cont, "propose_canon_updates",
-        lambda text, entities, model, client=None: [
-            _update(long_fact, "Short fact", existing="- Old fact one")],
+        ai_cont, "propose_canon",
+        proposal_of(lambda text, entities, model, client=None: [
+            _update(long_fact, "Short fact", existing="- Old fact one")]),
     )
     proj = _project(tmp_path)
     app = ChiselApp(proj)
@@ -177,8 +178,8 @@ async def test_bible_review_shows_long_facts_untruncated_and_toggles(
 
 async def test_bible_review_cancel_writes_nothing(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(
-        ai_cont, "propose_canon_updates",
-        lambda text, entities, model, client=None: [_update("Green eyes")],
+        ai_cont, "propose_canon",
+        proposal_of(lambda text, entities, model, client=None: [_update("Green eyes")]),
     )
     proj = _project(tmp_path)
     note_path = proj.entities_dir / "characters" / "elara-vance.md"
@@ -203,7 +204,7 @@ async def test_update_bible_strips_pending_drafts(tmp_path: Path, monkeypatch):
         seen["text"] = text
         return []
 
-    monkeypatch.setattr(ai_cont, "propose_canon_updates", fake)
+    monkeypatch.setattr(ai_cont, "propose_canon", proposal_of(fake))
     proj = _project(tmp_path)
     scene = proj.manuscript_dir / "02-tavern.md"
     scene.write_text("# T\n\nElara sat. " + drafts.wrap("GHOST FACT") + "\n")
@@ -295,8 +296,8 @@ async def test_tui_continuity_and_canon_get_the_story_so_far_only_when_summaries
     seen = {}
     monkeypatch.setattr(ai_cont, "check_scene",
                         lambda text, entities, canon, model, client=None, **kw: seen.__setitem__("check", kw) or [])
-    monkeypatch.setattr(ai_cont, "propose_canon_updates",
-                        lambda text, entities, model, client=None, **kw: seen.__setitem__("canon", kw) or [])
+    monkeypatch.setattr(ai_cont, "propose_canon",
+                        proposal_of(lambda text, entities, model, client=None, **kw: seen.__setitem__("canon", kw) or []))
     proj = _project(tmp_path)
     first = proj.manuscript_dir / "01-before.md"
     first.write_text("# Before\n\nElara arrived at dusk.\n")

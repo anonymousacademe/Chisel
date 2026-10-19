@@ -1583,7 +1583,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
 
     @work(exclusive=True)
     async def _update_bible_worker(self) -> None:
-        from ..ai.continuity import history_for, plan_canon_history, propose_canon_updates
+        from ..ai.continuity import CanonProposal, history_for, plan_canon_history, propose_canon
         from .noteupdates import NoteUpdateScreen
 
         scene_text = drafts.strip_pending(  # AI text isn't canon
@@ -1596,9 +1596,9 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
                                               list(self.entities))
             entities, sent, story = plan_canon_history(
                 scene_text, list(self.entities), Budget.for_model(model), history)
-            updates = await self._ai_call(
-                "reading the scene for canon", propose_canon_updates, scene_text, entities,
-                model, **({"history": story} if story else {})) if entities else []
+            proposal = await self._ai_call(
+                "reading the scene for canon", propose_canon, scene_text, entities,
+                model, **({"history": story} if story else {})) if entities else CanonProposal([])
         except Cancelled:
             return
         except Exception as exc:
@@ -1607,11 +1607,13 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
                         timeout=6)
             return
         cost = self._cost_note(calls, sent)
+        updates, left = proposal.updates, proposal.left_out
         if not updates:
-            self.notify("No new canon found in this scene" + cost, timeout=2)
+            self.notify("No new canon found in this scene" + (f"; {left}" if left else "") + cost,
+                        timeout=4 if left else 2)
             return
-        if cost:
-            self.notify(f"Canon proposals ready{cost}", timeout=3)
+        if cost or left:
+            self.notify(f"Canon proposals ready{cost}" + (f" - {left}" if left else ""), timeout=4)
         self.push_screen(NoteUpdateScreen(updates), self._apply_canon_updates)
 
     def _apply_canon_updates(self, accepted) -> None:

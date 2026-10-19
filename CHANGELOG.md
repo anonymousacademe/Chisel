@@ -6,6 +6,8 @@ All notable changes to Chisel are listed here, newest first. The format follows
 ## Unreleased
 
 ### Added
+- Proposed notes now come with a quote for each fact, checked against the scene, and focus on stable details (ages, looks, numbers, possessions, places). A fact whose quote
+  is not in your scene is left out and listed in plain words; when a note's canon is long, the proposer sees its newest lines (and the report says so).
 - **Scene summaries for long books (groundwork).** Chisel can now keep a short summary of each scene in a
   `.summaries/` folder, check every fact in it against your text, and give continuity checks and canon
   proposals the story so far; a project without summaries sends exactly what it did before. It also works

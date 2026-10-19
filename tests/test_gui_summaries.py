@@ -7,6 +7,7 @@ import time
 
 import pytest
 
+from tests.canonfake import proposal_of
 from chisel.ai import client as ai_client
 from chisel.ai.stream import Cancelled
 from chisel.ai.summaries import Proposal
@@ -426,7 +427,7 @@ def test_the_mock_ai_proposal_passes_the_real_verification(tmp_path, monkeypatch
     from chisel.gui import mockai
 
     for name in ("summarize_scene", "summarize_part", "get_api_key", "_set_api_key", "_clear_api_key",
-                 "_list_models", "_list_local_models", "suggest_links", "check_scene", "propose_canon_updates",
+                 "_list_models", "_list_local_models", "suggest_links", "check_scene", "propose_canon", "propose_canon_updates",
                  "learn_style", "generate_text", "ask_writer", "research_writer", "brainstorm_writer",
                  "generate_images", "suggest_image_prompt", "voice_check", "suggest_relationships",
                  "suggest_latex", "suggest_plot_code"):
@@ -546,7 +547,7 @@ def seen_checker(monkeypatch):
         return []
 
     monkeypatch.setattr(api_module, "check_scene", check)
-    monkeypatch.setattr(api_module, "propose_canon_updates", canon_fn)
+    monkeypatch.setattr(api_module, "propose_canon", proposal_of(canon_fn))
     return got
 
 

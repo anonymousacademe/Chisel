@@ -1,3 +1,4 @@
+import type { CanonLeftOut } from "./canon";
 import type { AliasSuggestion, AttachItem, CanonProposal, RelationshipSuggestion, SentReport as SentInfo, SettingsInfo, SyncInfo } from "./types";
 import type { MovePlan } from "./reorder";
 
@@ -39,7 +40,7 @@ export type Dialog =
   | { kind: "relationships"; name: string; items: RelationshipSuggestion[]; sent?: SentInfo }
   | { kind: "sent"; report: SentInfo }
   | { kind: "rename-note"; name: string; aliases: string[] }
-  | { kind: "canon"; items: CanonProposal[]; sent?: SentInfo }
+  | { kind: "canon"; items: CanonProposal[]; sent?: SentInfo; dropped?: CanonLeftOut[]; tolerant?: number }
   | { kind: "style"; markdown: string; replacing: boolean }
   | { kind: "settings"; info: SettingsInfo }
   | { kind: "zotero-settings" }

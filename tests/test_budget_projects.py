@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from tests.canonfake import proposal_of
 from chisel.ai import writing
 from chisel.ai.budget import Budget, BudgetError, estimate_tokens, fit
 from chisel.ai.continuity import (
@@ -121,8 +122,8 @@ def test_continuity_includes_the_scenes_pov_and_place_from_its_details(big, monk
 def test_canon_proposals_send_only_the_scenes_entities(big, monkeypatch):
     api, root = big
     seen = {}
-    monkeypatch.setattr(api_module, "propose_canon_updates",
-                        lambda t, e, m: seen.update(names=[x.name for x in e]) or [])
+    monkeypatch.setattr(api_module, "propose_canon",
+                        proposal_of(lambda t, e, m: seen.update(names=[x.name for x in e]) or []))
     r = api.propose_canon(SCENE)
     assert r["ok"] and set(seen["names"]) == NAMES
     notes = section(r["sent"], "Entity notes")
@@ -248,7 +249,7 @@ def test_a_window_too_small_for_the_request_is_refused_before_the_ai_is_called(b
             return []
         return fake
 
-    for name in ("suggest_links", "check_scene", "propose_canon_updates", "generate_text", "ask_writer",
+    for name in ("suggest_links", "check_scene", "propose_canon", "generate_text", "ask_writer",
                  "brainstorm_writer", "research_writer"):
         monkeypatch.setattr(api_module, name, spy(name))
     nb = api.new_research_note("Tides")["id"]
@@ -502,7 +503,7 @@ def test_small_project_bridge_returns_the_report_beside_the_existing_fields(smal
     rel = "manuscript/01-rain-on-the-spur.md"
     seen = {}
     monkeypatch.setattr(api_module, "check_scene", lambda t, e, c, m: seen.update(n=len(e), canon=c) or [])
-    monkeypatch.setattr(api_module, "propose_canon_updates", lambda t, e, m: seen.update(canon_n=len(e)) or [])
+    monkeypatch.setattr(api_module, "propose_canon", proposal_of(lambda t, e, m: seen.update(canon_n=len(e)) or []))
     monkeypatch.setattr(api_module, "suggest_links", lambda t, e, m: seen.update(alias_n=len(e)) or [])
     monkeypatch.setattr(api_module, "generate_text", lambda mode, i, c, m, selection=None, **k: "Text.")
     monkeypatch.setattr(api_module, "ask_writer", lambda p, c, m, history=None: "ok")

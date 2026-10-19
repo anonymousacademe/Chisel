@@ -143,7 +143,7 @@ def test_checkpoint_outside_a_job_is_a_no_op():
     aijobs.checkpoint()
 
 
-MOCKED = ("suggest_links", "suggest_relationships", "check_scene", "propose_canon_updates", "learn_style",
+MOCKED = ("suggest_links", "suggest_relationships", "check_scene", "propose_canon", "propose_canon_updates", "learn_style",
           "generate_text",
           "ask_writer", "research_writer", "brainstorm_writer", "generate_images",
           "suggest_image_prompt", "summarize_scene", "summarize_part", "get_api_key", "_set_api_key",

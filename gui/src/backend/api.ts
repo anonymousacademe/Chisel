@@ -1,3 +1,4 @@
+import type { CanonLeftOut } from "../data/canon";
 import type { RestoreResult } from "../data/restoreText";
 import type { Misspelling, Span } from "../editor/spans";
 import type {
@@ -161,7 +162,7 @@ export const api = {
   checkContinuity: (id: string, text: string) => call<{ issues: Issue[]; waived: number; cost: number | null; sent: SentReport }>("check_continuity", id, text),
   waive: (key: string, id: string) => call("waive", key, id),
   restoreWaivers: (id: string) => call<{ restored: number }>("restore_waivers", id),
-  proposeCanon: (id: string, text: string) => call<{ updates: CanonProposal[]; cost: number | null; sent: SentReport }>("propose_canon", id, text),
+  proposeCanon: (id: string, text: string) => call<{ updates: CanonProposal[]; dropped: CanonLeftOut[]; tolerant: number; left_out: string; cost: number | null; sent: SentReport }>("propose_canon", id, text),
   applyCanon: (updates: { entity: string; facts: string[] }[]) => call<{ applied: number }>("apply_canon", updates),
   learnStyle: () => call<{ markdown: string; replacing: boolean; samples: number; cost: number | null }>("learn_style"),
   ensureStyle: () => call<{ id: string }>("ensure_style"),

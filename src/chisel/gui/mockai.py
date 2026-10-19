@@ -15,7 +15,7 @@ import zlib
 from types import SimpleNamespace
 
 from ..ai.client import ModelInfo
-from ..ai.continuity import CanonUpdate
+from ..ai.continuity import CanonProposal
 from ..ai.links import Suggestion
 from ..ai.relationships import Suggestion as RelSuggestion
 from ..ai.stream import Cancelled
@@ -186,14 +186,25 @@ def install(api_module) -> None:
             "Keep it short and plain: " + " ".join(line.split()[:4]).rstrip(".,!?") + ".", scene_rel, None,
             f"{name} speaks more formally here than in the other scenes.")]
 
-    def propose_canon_updates(scene_text, entities, model, client=None, history=""):
+    def propose_canon(scene_text, entities, model, client=None, history=""):
+        """Canned: one fact quoted from the scene's first sentence, run through the real parse and verification."""
+        import json
+        from ..ai.continuity import parse_canon
+        from ..core import summaries as store
         _pause(1.5)
         _spend("canon")
         if not entities:
-            return []
+            return CanonProposal([])
+        prose = store.prose_of(scene_text)
+        body = " ".join(line for line in prose.splitlines() if line.strip() and not line.startswith("#"))
+        quote = next((s.strip() for s in re.split(r"(?<=[.!?])\s+", body) if s.strip()), "")
         e = entities[0]
-        return [CanonUpdate(e.name, ("Appears in the opening scene of the manuscript",),
-                            "from the first paragraphs", "")]
+        raw = json.dumps({"updates": [{"entity": e.name, "facts": [
+            {"fact": "appears in the opening scene of the manuscript", "quote": quote, "kind": "other"}]}]})
+        return parse_canon(raw, entities, scene_text)
+
+    def propose_canon_updates(scene_text, entities, model, client=None, history=""):
+        return propose_canon(scene_text, entities, model, client, history).updates
 
     def summarize_scene(scene_text, entities, model, client=None, on_delta=None, cancel=None, originals=None):
         """Canned: the first two sentences as the summary, the entities it names as characters, and a fact quoted
@@ -327,6 +338,7 @@ def install(api_module) -> None:
     api_module.suggest_relationships = suggest_relationships
     api_module.check_scene = check_scene
     api_module.voice_check = voice_check
+    api_module.propose_canon = propose_canon
     api_module.propose_canon_updates = propose_canon_updates
     api_module.learn_style = learn_style
     api_module.summarize_scene = summarize_scene

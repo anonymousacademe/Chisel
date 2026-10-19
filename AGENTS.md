@@ -66,7 +66,7 @@ src/chisel/
   ai/
     client.py           # OpenRouter via openai SDK; keyring/env key resolution
     links.py            # alias finder (ctrl+l): prompt, schema, validate (never edits text)
-    continuity.py       # continuity check + canon (story-bible) proposals: plan_check / plan_canon
+    continuity.py       # continuity check + canon (story-bible) proposals: plan_check / plan_canon; propose_canon (CanonProposal: verified updates + dropped + tolerant) / propose_canon_updates (its .updates)
     stream.py           # streaming text calls, CancelToken, Cancelled
     usage.py            # AI spend ledger (usage.cost) -> status bar
     style.py            # learn a style guide from sampled prose
@@ -263,6 +263,14 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   BEFORE taking the lock: it reads every scene header). `describe_scene` adds it capped (`DESCRIBE_STORY_CHARS`) and then
   returns `sent`. Never compute these inside `get_workspace` or under the lock. The terminal chat and the GUI / TUI screens
   are still to come.
+- **Canon proposals** (`ai/continuity.py`; SPEC "Note accumulation"). Each fact is `{fact, quote, kind}` (`ACCUMULATION_SCHEMA`, `CANON_KINDS`); the prompt asks for stable details first and ONE unbroken
+  quote per fact. `parse_canon_updates(raw, entities, scene_text=None)` verifies only with `scene_text` (`summaries.quote_check` on `prose_of`: a missing or unfound quote is DROPPED and listed as a `CanonDropped`,
+  a tolerant pass is counted); without it, and for the old shape (`new_facts` + `evidence`), it only parses. `propose_canon` is the network call and returns a `CanonProposal`; `propose_canon_updates` keeps its
+  signature and returns `.updates`. The front ends (`gui/api.py propose_canon`, `tui/app.py`) call `propose_canon`, so a test fake of the canon call patches `propose_canon` (`tests/canonfake.proposal_of` wraps an
+  old list-returning fake) and `gui/mockai.py` must keep its output passing the real verification. `CanonUpdate.quotes` / `kinds` run parallel to `new_facts`: anything that keeps a subset of the facts uses
+  `CanonUpdate.select` (the TUI review screen does), never `replace(new_facts=...)`; `evidence` is the quotes joined with " / ". The proposer's view of existing canon is capped at `CANON_CAP` keeping the NEWEST
+  lines (`Item.keep="end"`, `budget.trim_tail`), reported as a trimmed item; dedupe still uses the full text. Never add a silent drop: the reasons are listed (`left_out_sentence`, bridge `dropped` / `tolerant` /
+  `left_out`, React `data/canon.ts`).
 - **Collections** (`core/collections.py`). Membership is scene frontmatter, so a rename or delete
   rewrites many files: the GUI flushes the open scene first and reopens it when its id is in the
   bridge's `changed`; the TUI re-reads its buffer (`_collection_op`; never `open_file`, which

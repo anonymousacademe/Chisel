@@ -152,6 +152,25 @@ def trim(text: str, limit: int) -> str:
     return text[:cut].rstrip() + "…"
 
 
+def trim_tail(text: str, limit: int) -> str:
+    """*text* cut to at most *limit* characters keeping the END: whole lines from the last one backwards, marked
+    with an ellipsis line first (for text that grows by appending, where the newest lines matter most). One very
+    long last line is cut hard."""
+    if limit <= 0:
+        return ""
+    if len(text) <= limit:
+        return text
+    room = limit - 2                        # "…" and a line break
+    if room <= 0:
+        return text[-limit:]
+    tail = text[-room:]
+    if text[-room - 1] != "\n":             # the window starts inside a line: drop that piece
+        cut = tail.find("\n")
+        if cut >= 0:
+            tail = tail[cut + 1:]
+    return "…\n" + tail if tail.strip() else text[-limit:]
+
+
 # -- sections -----------------------------------------------------------------------
 
 
@@ -167,6 +186,7 @@ class Item:
     cap: int | None = None
     lead: str = ""      # printed before a non-empty body
     empty: str = ""     # printed after the head when there is no body
+    keep: str = "start"  # which end survives a cap or a budget trim: "start", or "end" (the newest lines)
 
     def render(self, body: str | None = None) -> str:
         body = self.body if body is None else body
@@ -363,7 +383,7 @@ class _Slot:
                 continue
             body = it.body
             if it.cap is not None and len(body) > it.cap:
-                body = trim(body, it.cap)
+                body = (trim_tail if it.keep == "end" else trim)(body, it.cap)
                 self.truncated.add(i)
             self.bodies[i] = body
         if sec.group_cap is not None:
@@ -423,7 +443,7 @@ class _Slot:
         space = left - (len(item.render("x")) - 1)
         if not body or space < MIN_ITEM_CHARS:
             return False
-        cut = trim(body, space)
+        cut = (trim_tail if item.keep == "end" else trim)(body, space)
         if cut == body:
             return False
         self.bodies[i] = cut

@@ -21,7 +21,7 @@
    ],
    "messages": [
     {
-     "content": "You propose ADDITIONS to entity notes based on a new scene.\n\nYou are given each entity's existing canon and the scene text. List only NEW\nfacts the scene establishes about an entity that are not already in its\nexisting canon. Rules:\n- One short, self-contained fact per item in new_facts.\n- Only facts directly stated or strongly implied by the scene text.\n- Never restate, reword, merge or \"correct\" existing canon; you cannot remove\n  or change it, only add.\n- No speculation, inference beyond strong implication, or headcanon.\n- evidence: a brief quote or paraphrase from the scene supporting the facts.\n- If the scene establishes nothing new about an entity, omit that entity.\n",
+     "content": "You propose ADDITIONS to entity notes based on a new scene.\n\nYou are given each entity's existing canon and the scene text. List only facts the scene establishes about an\nentity that its existing canon does not already hold.\n\nLook for stable details first: ages; appearance (eyes, hair, build, usual clothing); numbers and amounts;\ndurations and dates; possessions, with colour or material; places (where someone lives, which floor);\nrelationships and occupations; habits. Record an event only when it changes or reveals a stable detail.\n\nRules:\n- facts: one item per fact, about ONE entity, one detail each. \"fact\" states the value itself, in the present\n  tense (\"is forty-five\", \"has black eyes\", \"wears a copper cross\").\n- \"quote\": ONE unbroken passage copied exactly as written from the scene: same punctuation, no ellipsis, no\n  joining of passages, no pronoun in place of a name. Short, but long enough to contain the value. A fact you\n  cannot quote is left out.\n- \"kind\": age, appearance, number, duration, possession, place, relationship, occupation, habit or other.\n- Never restate, reword, merge or \"correct\" existing canon; you cannot remove or change it, only add.\n- Only what the scene states or strongly implies. No speculation or headcanon.\n- If the scene establishes nothing new about an entity, omit that entity.\n",
      "role": "system"
     },
     {
@@ -31,14 +31,14 @@
    ],
    "report": {
     "attached": [],
-    "estTokens": 602,
+    "estTokens": 825,
     "feature": "canon",
     "overBudget": false,
     "reserve": 4000,
     "sections": [
      {
-      "chars": 1049,
-      "estTokens": 263,
+      "chars": 1943,
+      "estTokens": 486,
       "itemsDropped": [],
       "itemsSent": 1,
       "itemsTotal": 1,
@@ -273,7 +273,7 @@
    ],
    "messages": [
     {
-     "content": "You propose ADDITIONS to entity notes based on a new scene.\n\nYou are given each entity's existing canon and the scene text. List only NEW\nfacts the scene establishes about an entity that are not already in its\nexisting canon. Rules:\n- One short, self-contained fact per item in new_facts.\n- Only facts directly stated or strongly implied by the scene text.\n- Never restate, reword, merge or \"correct\" existing canon; you cannot remove\n  or change it, only add.\n- No speculation, inference beyond strong implication, or headcanon.\n- evidence: a brief quote or paraphrase from the scene supporting the facts.\n- If the scene establishes nothing new about an entity, omit that entity.\n",
+     "content": "You propose ADDITIONS to entity notes based on a new scene.\n\nYou are given each entity's existing canon and the scene text. List only facts the scene establishes about an\nentity that its existing canon does not already hold.\n\nLook for stable details first: ages; appearance (eyes, hair, build, usual clothing); numbers and amounts;\ndurations and dates; possessions, with colour or material; places (where someone lives, which floor);\nrelationships and occupations; habits. Record an event only when it changes or reveals a stable detail.\n\nRules:\n- facts: one item per fact, about ONE entity, one detail each. \"fact\" states the value itself, in the present\n  tense (\"is forty-five\", \"has black eyes\", \"wears a copper cross\").\n- \"quote\": ONE unbroken passage copied exactly as written from the scene: same punctuation, no ellipsis, no\n  joining of passages, no pronoun in place of a name. Short, but long enough to contain the value. A fact you\n  cannot quote is left out.\n- \"kind\": age, appearance, number, duration, possession, place, relationship, occupation, habit or other.\n- Never restate, reword, merge or \"correct\" existing canon; you cannot remove or change it, only add.\n- Only what the scene states or strongly implies. No speculation or headcanon.\n- If the scene establishes nothing new about an entity, omit that entity.\n",
      "role": "system"
     },
     {
@@ -283,14 +283,14 @@
    ],
    "report": {
     "attached": [],
-    "estTokens": 602,
+    "estTokens": 825,
     "feature": "canon",
     "overBudget": false,
     "reserve": 4000,
     "sections": [
      {
-      "chars": 1049,
-      "estTokens": 263,
+      "chars": 1943,
+      "estTokens": 486,
       "itemsDropped": [],
       "itemsSent": 1,
       "itemsTotal": 1,
@@ -418,32 +418,20 @@
     ],
     [
      "Elias Vale",
-     "## Canon (auto)\n\n- Elias Vale fact one.\n- Elias Vale fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n"
+     "## Canon (auto)\n\n…\nrd word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n"
     ],
     [
      "Lower Meridian",
      "## Canon (auto)\n\n- Lower Meridian fact one.\n- Lower Meridian fact two. word word word word word\n"
-    ],
-    [
-     "Dr. Okafor",
-     "## Canon (auto)\n\n- Dr. Okafor fact one.\n- Dr. Okafor fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n"
-    ],
-    [
-     "Extra 4",
-     "## Canon (auto)\n\n- Extra 4 fact one.\n- Extra 4 fact two. word word word word word\n"
-    ],
-    [
-     "Extra 5",
-     "## Canon (auto)\n\n- Extra 5 fact one.\n- Extra 5 fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word…\n"
     ]
    ],
    "messages": [
     {
-     "content": "You propose ADDITIONS to entity notes based on a new scene.\n\nYou are given each entity's existing canon and the scene text. List only NEW\nfacts the scene establishes about an entity that are not already in its\nexisting canon. Rules:\n- One short, self-contained fact per item in new_facts.\n- Only facts directly stated or strongly implied by the scene text.\n- Never restate, reword, merge or \"correct\" existing canon; you cannot remove\n  or change it, only add.\n- No speculation, inference beyond strong implication, or headcanon.\n- evidence: a brief quote or paraphrase from the scene supporting the facts.\n- If the scene establishes nothing new about an entity, omit that entity.\n",
+     "content": "You propose ADDITIONS to entity notes based on a new scene.\n\nYou are given each entity's existing canon and the scene text. List only facts the scene establishes about an\nentity that its existing canon does not already hold.\n\nLook for stable details first: ages; appearance (eyes, hair, build, usual clothing); numbers and amounts;\ndurations and dates; possessions, with colour or material; places (where someone lives, which floor);\nrelationships and occupations; habits. Record an event only when it changes or reveals a stable detail.\n\nRules:\n- facts: one item per fact, about ONE entity, one detail each. \"fact\" states the value itself, in the present\n  tense (\"is forty-five\", \"has black eyes\", \"wears a copper cross\").\n- \"quote\": ONE unbroken passage copied exactly as written from the scene: same punctuation, no ellipsis, no\n  joining of passages, no pronoun in place of a name. Short, but long enough to contain the value. A fact you\n  cannot quote is left out.\n- \"kind\": age, appearance, number, duration, possession, place, relationship, occupation, habit or other.\n- Never restate, reword, merge or \"correct\" existing canon; you cannot remove or change it, only add.\n- Only what the scene states or strongly implies. No speculation or headcanon.\n- If the scene establishes nothing new about an entity, omit that entity.\n",
      "role": "system"
     },
     {
-     "content": "ENTITIES:\n- Mara Vale (character) — aliases: Mara\n  existing canon:\n- Mara Vale fact one.\n- Mara Vale fact two. word word word word word\n- Elias Vale (character) — aliases: Elias\n  existing canon:\n- Elias Vale fact one.\n- Elias Vale fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n- Lower Meridian (place)\n  existing canon:\n- Lower Meridian fact one.\n- Lower Meridian fact two. word word word word word\n- Dr. Okafor (character)\n  existing canon:\n- Dr. Okafor fact one.\n- Dr. Okafor fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n- Extra 4 (character)\n  existing canon:\n- Extra 4 fact one.\n- Extra 4 fact two. word word word word word\n- Extra 5 (character)\n  existing canon:\n- Extra 5 fact one.\n- Extra 5 fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word…\n\nSCENE DETAILS (the author's plan for this scene - not prose; e.g. the POV character can only know what they could have learned):\n- POV: Mara Vale\n- Place: Lower Meridian\n\nSCENE:\n# Arrival\n\nMara stepped off the tram into Lower Meridian. Elias was waiting under the clock, and Dr. Okafor had not come.\n",
+     "content": "ENTITIES:\n- Mara Vale (character) — aliases: Mara\n  existing canon:\n- Mara Vale fact one.\n- Mara Vale fact two. word word word word word\n- Elias Vale (character) — aliases: Elias\n  existing canon:\n…\nrd word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n- Lower Meridian (place)\n  existing canon:\n- Lower Meridian fact one.\n- Lower Meridian fact two. word word word word word\n\nSCENE DETAILS (the author's plan for this scene - not prose; e.g. the POV character can only know what they could have learned):\n- POV: Mara Vale\n- Place: Lower Meridian\n\nSCENE:\n# Arrival\n\nMara stepped off the tram into Lower Meridian. Elias was waiting under the clock, and Dr. Okafor had not come.\n",
      "role": "user"
     }
    ],
@@ -455,8 +443,8 @@
     "reserve": 4000,
     "sections": [
      {
-      "chars": 1049,
-      "estTokens": 263,
+      "chars": 1943,
+      "estTokens": 486,
       "itemsDropped": [],
       "itemsSent": 1,
       "itemsTotal": 1,
@@ -465,9 +453,12 @@
       "truncated": []
      },
      {
-      "chars": 1444,
-      "estTokens": 361,
+      "chars": 553,
+      "estTokens": 139,
       "itemsDropped": [
+       "Dr. Okafor",
+       "Extra 4",
+       "Extra 5",
        "Extra 6",
        "Extra 7",
        "Extra 8",
@@ -475,12 +466,12 @@
        "Extra 10",
        "Extra 11"
       ],
-      "itemsSent": 6,
+      "itemsSent": 3,
       "itemsTotal": 12,
       "name": "Entity notes",
       "omitted": false,
       "truncated": [
-       "Extra 5"
+       "Elias Vale"
       ]
      },
      {
