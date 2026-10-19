@@ -101,3 +101,8 @@
 .lw-cm .lw-sc--lyrics { font-style: italic; padding-left: 4ch; }
 .lw-cm .lw-sc--synopsis, .lw-cm .lw-sc--note, .lw-cm .lw-sc--boneyard { color: var(--lw-text-faint); font-style: italic; }
 .lw-cm .lw-sc--page_break { border-bottom: 1px dashed var(--lw-text-faint); color: var(--lw-text-faint); }
+
+/* citations: [[@key]] in a research project; resolved reads like a link but dotted, unresolved like a missing link */
+.lw-cm .lw-cite { cursor: pointer; border-bottom: 1px dotted currentColor; }
+.lw-cm .lw-cite--resolved { color: var(--lw-accent-text); }
+.lw-cm .lw-cite--unresolved { color: var(--lw-warning); }

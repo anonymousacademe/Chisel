@@ -20,7 +20,8 @@ _OFFSET_KEYS = ("start", "end", "innerStart", "innerEnd", "bodyStart", "bodyEnd"
 
 
 def compute_spans(text: str, entities: list[ent.Entity], *,
-                  mentions: bool = True, script: bool = False) -> list[dict]:
+                  mentions: bool = True, script: bool = False,
+                  citations: bool = False) -> list[dict]:
     """Spans in document order. *mentions*: also report plain-text mentions of
     entity names/aliases (scenes do; entity notes and the style guide only
     show explicit links). Links and mentions inside pending AI drafts are
@@ -56,12 +57,45 @@ def compute_spans(text: str, entities: list[ent.Entity], *,
     for marker in drafts.find_expand_markers(drafts.blank_pending(text)):
         spans.append({"kind": "expand", "start": marker.start,
                       "end": marker.end, "instruction": marker.instruction})
+    if citations:
+        spans += _citation_spans(scan, entities)
     if script:
         from . import fountain
         spans += _cue_mentions(text, entities, spans, pending) if mentions else []
         spans += fountain.spans(text)
     spans.sort(key=lambda s: (s["start"], s["end"]))
     return spans
+
+
+def _citation_spans(scan: str, entities: list[ent.Entity]) -> list[dict]:
+    """One ``citation`` span per ``[[@key]]`` group (research projects): resolved when every key names a
+    source note; ``label`` is the author-year display (several joined with "; "), ``title`` the paper title."""
+    from .links import find_citations
+    out = []
+    for cite in find_citations(scan):
+        keys, labels, titles, ok = [], [], [], True
+        for ref in cite.refs:
+            keys.append(ref.key)
+            source = ent.resolve_key(ref.key, entities)
+            if source is None:
+                ok = False
+                labels.append(ref.key)
+                continue
+            labels.append(source.aliases[0] if source.aliases else ref.key)
+            titles.append(source_title(source))
+        out.append({"kind": "citation", "start": cite.start, "end": cite.end,
+                    "status": "resolved" if ok else "unresolved", "keys": keys,
+                    "label": "; ".join(labels),
+                    "title": "; ".join(t for t in titles if t) if ok else ""})
+    return out
+
+
+def source_title(source: ent.Entity) -> str:
+    """The paper title of a source note (frontmatter ``title``, else the CSL title, else "")."""
+    title = source.extra.get("title")
+    if not title and isinstance(source.extra.get("csl"), dict):
+        title = source.extra["csl"].get("title")
+    return str(title or "")
 
 
 def _cue_mentions(text: str, entities: list[ent.Entity], spans: list[dict], pending) -> list[dict]:

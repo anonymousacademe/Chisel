@@ -28,3 +28,71 @@ export interface ResearchFlag {
   message: string;
   blocking: boolean;
 }
+
+// -- Zotero (settings, sync review, Sources list) ----------------------------------------------------------
+
+/** One Zotero collection by its full path ("AI and Computing / WRRI"); items is null when Zotero did not say. */
+export interface ZoteroCollection { key: string; path: string; items: number | null }
+
+/** The Zotero settings. The web API key never comes back over the bridge: only whether one is saved. */
+export interface ZoteroSettings { userId: string; webBase: string; local: boolean; localBase: string; file: string; keySet: boolean }
+
+export interface ZoteroBackendStatus { backend: string; ok: boolean; message: string }
+export interface ZoteroStatus { backends: ZoteroBackendStatus[]; keySet: boolean }
+
+export type SyncAction = "new" | "changed" | "missing" | "key-mismatch";
+export interface SyncRow { id: string; key: string; action: SyncAction; summary: string; blocked: string | boolean }
+export interface SyncPlan { rows: SyncRow[]; report: string[]; backend: string }
+export interface SyncScope { collection?: string; tag?: string }
+export interface SyncApplied { changed: string[]; skipped: { id: string; reason: string }[]; recorded: boolean }
+
+export interface SourceRow { id: string; name: string; title: string; key: string; status: string }
+
+export const SYNC_ACTION_LABEL: Record<SyncAction, string> = {
+  new: "New", changed: "Changed", missing: "Missing in Zotero", "key-mismatch": "Key mismatch",
+};
+/** blocked is the reason (a non-empty string) or a bare true; "" / false mean not blocked. */
+export const blockedReason = (r: SyncRow): string => (r.blocked === true ? "Cannot be applied" : r.blocked || "");
+/** Case-insensitive substring filter over collection paths. */
+export const filterCollections = (all: ZoteroCollection[], q: string) => {
+  const s = q.trim().toLowerCase();
+  return s ? all.filter((c) => c.path.toLowerCase().includes(s)) : all;
+};
+
+// -- Citing sources (Cite dialog, [[@ completion, the source card, citation hover) --------------------------
+
+/** One search result of search_sources. */
+export interface SourceHit { key: string; display: string; title: string; authors: string; year: string | number; venue: string }
+
+/** source_card: what the Notes panel shows for an open source note. */
+export interface SourceCardInfo {
+  key: string; citeAs: string; display: string; title: string; authors: string; year: string | number; venue: string;
+  doi: string; url: string; zoteroKey: string; noteCount: number; highlightCount: number;
+}
+
+/** The text a citation is inserted as: [[@key]] or [[@key, p. 12]]. A bare number is a page; "ch. 3" or "pp. 4-5" is kept. */
+export function citeText(key: string, locator = ""): string {
+  const loc = locator.trim();
+  if (!loc) return `[[@${key}]]`;
+  return `[[@${key}, ${/^\d/.test(loc) ? "p. " : ""}${loc}]]`;
+}
+
+/** What to type for a chosen completion: the key, the closing brackets unless they are already there, and the cursor offset. */
+export function citeCompletion(after: string, key: string): { insert: string; cursor: number } {
+  const insert = after.startsWith("]]") ? key : `${key}]]`;
+  return { insert, cursor: key.length + 2 };
+}
+
+/** The hover card for a citation span (Python decided resolved / unresolved and the label). */
+export function citationCard(span: { status?: string; keys?: string[]; label?: string; title?: string }) {
+  if (span.status === "resolved") {
+    return { title: span.label || (span.keys ?? []).join("; "), kind: "source", body: span.title || "This source has no title." };
+  }
+  return {
+    title: (span.keys ?? []).join("; "), kind: "no source", missing: true,
+    body: "No source with this key. Sync from Zotero, or check the key.",
+  };
+}
+
+/** Plain-words fallback when the paper's Zotero collections cannot be read. */
+export const COLLECTIONS_FALLBACK = "Zotero's collections could not be read. Is Zotero running?";

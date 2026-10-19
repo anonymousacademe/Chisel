@@ -13,12 +13,15 @@ export interface ContextTarget {
   word?: string;
   /** The selected text, when the pointer is inside the selection. */
   selection?: string;
+  /** A research project: the menu offers Cite... */
+  research?: boolean;
 }
 
 export type MenuAction =
   | { id: "open-note"; label: string; entityId: string }
   | { id: "create-note"; label: string; name: string }
   | { id: "brainstorm-selection"; label: string }
+  | { id: "cite"; label: string }
   | { id: "selection-to-notebook"; label: string }
   | { id: "selection-to-dictionary"; label: string }
   | { id: "cut" | "copy" | "paste" | "select-all"; label: string; disabled?: boolean }
@@ -32,7 +35,9 @@ export function contextActions(target: ContextTarget, entities: MenuEntity[]): M
   const notes: MenuAction[] = [];
   const { span, word, selection } = target;
   const has = !!selection && selection.length > 0;
-  if (span?.entity) {
+  if (span?.kind === "citation") {
+    // a citation is not a note name: no "create note" for its key
+  } else if (span?.entity) {
     const e = entities.find((x) => x.name === span.entity);
     if (e) notes.push({ id: "open-note", label: `Go to note: ${short(e.name)} (${e.type})`, entityId: e.id });
   } else if (span?.target) {
@@ -42,6 +47,7 @@ export function contextActions(target: ContextTarget, entities: MenuEntity[]): M
   } else if (!has && word && word.length >= 2 && /\p{L}/u.test(word)) {
     notes.push({ id: "create-note", label: `Create note from “${short(word)}”…`, name: word });
   }
+  if (target.research) notes.push({ id: "cite", label: "Cite…" });
   const selected: MenuAction[] = has
     ? [...(/\p{L}/u.test(selection!) ? [{ id: "brainstorm-selection" as const, label: "Brainstorm about this…" }] : []),
        { id: "selection-to-notebook", label: "Send selection to notebook" },

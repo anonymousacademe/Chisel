@@ -366,7 +366,8 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
         with self._lock:
             _, kind = self.resolve_document(doc_id)
             spans = compute_spans(text, self.entities, mentions=kind == "scene",
-                                  script=kind == "scene" and self._require().mode == "script")
+                                  script=kind == "scene" and self._require().mode == "script",
+                                  citations=self._require().mode == "research")
             return {"spans": to_utf16(text, spans)}
 
     @bridge

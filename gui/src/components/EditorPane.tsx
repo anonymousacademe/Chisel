@@ -54,6 +54,8 @@ interface Props {
   reflow: boolean;
   /** A scene of a script project: Fountain lines are drawn as screenplay elements. */
   script?: boolean;
+  /** Research projects: [[@ completion from the synced sources. */
+  research?: boolean;
   /** Script scenes: character and place names for the completion list (read when the list opens). */
   names?: ScriptNames;
   /** Bump to refetch spans (entity notes or aliases changed). */
@@ -259,6 +261,9 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
           onResolveDraft: (i, a) => hooks.current.onResolveDraft(i, a),
           onCycleElement: (line, element, reverse) => api.scriptCycle(line, element, reverse).then((r) => (r.ok ? r.line : null)),
           getNames: () => hooks.current.names ?? { characters: [], places: [] },
+          searchSources: hooks.current.research
+            ? (q) => api.searchSources(q, 12).then((r) => (r.ok ? r.sources : []))
+            : undefined,
           // keys are fixed at mount; their handlers always come from the latest render
           extraKeys: hooks.current.extraKeys?.map((k) => ({
             key: k.key, run: () => hooks.current.extraKeys?.find((x) => x.key === k.key)?.run() ?? false,

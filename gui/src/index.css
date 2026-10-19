@@ -715,3 +715,11 @@ button.lw-picklist__row:hover { border-color: var(--lw-accent); background: var(
 .lw-sent__name { color: var(--lw-text); }
 .lw-sent__note { margin: 0; overflow-wrap: anywhere; }
 .lw-sent__total { margin: 4px 0 0; }
+
+.lw-cite__list { max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; }
+.lw-cite__hint { font-size: 11px; }
+.lw-source-card { padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--lw-border); }
+.lw-source-card__title { font-size: 12px; line-height: 1.45; color: var(--lw-text); user-select: text; }
+.lw-source-card__meta { font-size: 11px; user-select: text; }
+.lw-source-card__cite { user-select: text; }
+.lw-source-card__cols { margin: 0; padding-left: 16px; font-size: 12px; user-select: text; }

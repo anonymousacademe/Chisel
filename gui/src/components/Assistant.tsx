@@ -77,6 +77,8 @@ export function Assistant(props: {
   canInsert: boolean;
   /** Shown under the note in the Notes tab (the scene's comments). */
   notesExtra?: React.ReactNode;
+  /** Shown above the note in the Notes tab (the source card of an open source note). */
+  notesTop?: React.ReactNode;
   /** The Inspiration tab. Kept mounted (hidden) so a half-written description survives a tab switch. */
   inspiration?: React.ReactNode;
   style: StyleStatus | null; onLearnStyle: () => void; onOpenStyle: () => void;
@@ -249,6 +251,7 @@ export function Assistant(props: {
           </>
         )}
         {tab === "context" && <Sources mentions={props.mentions} onPick={props.onPickEntity} />}
+        {tab === "notes" && props.notesTop}
         {tab === "notes" && (
           <NotesPanel story={props.story} note={props.note} missingTarget={props.missingTarget} onOpenNote={props.onOpenNote}
             onAddAlias={props.onAddAlias} onSetBorn={props.onSetBorn} onSuggestRelationships={props.onSuggestRelationships}

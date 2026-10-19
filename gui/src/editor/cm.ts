@@ -10,6 +10,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { autocompletion, type CompletionContext, type CompletionResult } from "@codemirror/autocomplete";
 import { completionSpot, elementOfLine, upperNames, type ScriptNames } from "./script";
 import { formatSpecs } from "./format";
+import { citeCompletion } from "../data/research";
 import { frontmatterRange, misspellingAt, sceneFrontmatter, misspellSpecs, scriptLineSpecs, softBreaks, specsFor, titleLine, type Misspelling, type Span } from "./spans";
 
 export const setSpans = StateEffect.define<Span[]>();
@@ -291,7 +292,7 @@ export interface CursorInfo {
 /** A hover card for a mention or link: what the host knows about the target. */
 export interface Card { title: string; kind: string; body: string; missing?: boolean }
 
-const isTarget = (s: Span) => s.kind === "mention" || s.kind === "link" || s.kind === "unresolved";
+const isTarget = (s: Span) => s.kind === "mention" || s.kind === "link" || s.kind === "unresolved" || s.kind === "citation";
 const spanAt = (state: EditorState, pos: number) => state.field(spansField).find((s) => isTarget(s) && pos >= s.start && pos <= s.end);
 
 /** What the spelling popover is about: a misspelled word, or a selected phrase. x/y = viewport point below it. */
@@ -343,6 +344,8 @@ export interface Hooks {
   onCycleElement?(line: string, element: string, reverse: boolean): Promise<string | null>;
   /** Script scenes: the project's character and place names, for the completion list. */
   getNames?(): ScriptNames;
+  /** Research projects: sources for the [[@ completion list (absent = not a research project). */
+  searchSources?(query: string): Promise<{ key: string; display: string; title: string }[]>;
 }
 
 /** Tab / Shift-Tab in a script scene: the current line becomes the next (previous) element. */
@@ -378,6 +381,27 @@ function scriptCompletions(hooks: Hooks) {
   };
 }
 
+/** Completion after "[[@" or "[[+@": sources from Zotero (search_sources). Inserts the key and the closing brackets; never on its own. */
+function citeCompletions(hooks: Hooks) {
+  return async (ctx: CompletionContext): Promise<CompletionResult | null> => {
+    const m = ctx.matchBefore(/\[\[\+?@[^\][;,\s]*/);
+    if (!m || !hooks.searchSources) return null;
+    const from = m.from + m.text.indexOf("@") + 1;
+    const found = await hooks.searchSources(ctx.state.sliceDoc(from, ctx.pos));
+    if (ctx.aborted || !found.length) return null;
+    return {
+      from, filter: false,
+      options: found.map((s) => ({
+        label: s.key, detail: s.display, info: s.title || undefined, type: "text",
+        apply: (view: EditorView, _c: unknown, a: number, b: number) => {
+          const { insert, cursor } = citeCompletion(view.state.sliceDoc(b, b + 2), s.key);
+          view.dispatch({ changes: { from: a, to: b, insert }, selection: { anchor: a + cursor }, userEvent: "input.complete" });
+        },
+      })),
+    };
+  };
+}
+
 export function editorExtensions(kind: string, meta: string, reflow: boolean, hooks: Hooks, undoDepth: (s: EditorState) => number, redoDepth: (s: EditorState) => number, script = false): Extension[] {
   const screenplay = script && kind === "scene";
   return [
@@ -391,6 +415,7 @@ export function editorExtensions(kind: string, meta: string, reflow: boolean, ho
     drawSelection(),
     ...(kind === "dictionary" ? [] : [markdown()]),
     ...(screenplay ? [autocompletion({ override: [scriptCompletions(hooks)], icons: false })] : []),
+    ...(!screenplay && hooks.searchSources && kind !== "dictionary" ? [autocompletion({ override: [citeCompletions(hooks)], icons: false })] : []),
     EditorView.lineWrapping,
     spansField,
     spellingField,

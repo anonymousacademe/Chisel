@@ -22,6 +22,7 @@ from ..core.style import style_path
 STYLE_ID = "style.md"
 DICTIONARY_ID = "dictionary.txt"
 WORLD_TYPES = ("place", "object", "faction")
+RESEARCH_WORLD_TYPES = ("concept", "method", "dataset")
 
 
 def fmt_words(n: int) -> str:
@@ -246,11 +247,38 @@ def book_words(scenes: list[dict]) -> int:
     return sum(s["words"] for s in scenes if not s["frontMatter"] and not s["unplaced"])
 
 
+def _source_year(e: ent.Entity) -> str | None:
+    year = e.extra.get("year")
+    if year in (None, ""):
+        csl = e.extra.get("csl")
+        parts = ((csl.get("issued") or {}).get("date-parts") if isinstance(csl, dict)
+                 and isinstance(csl.get("issued"), dict) else None)
+        try:
+            year = parts[0][0]
+        except (TypeError, IndexError, KeyError):
+            year = None
+    return str(year) if year not in (None, "") else None
+
+
+def _paper_title(e: ent.Entity) -> str:
+    from ..core.spans import source_title
+    return source_title(e)
+
+
 def entity_summaries(project: Project, entities: list[ent.Entity]) -> list[dict]:
-    return [{
-        "id": rel_id(project, e.path), "name": e.name, "type": e.type,
-        "aliases": list(e.aliases), "words": len(e.body.split()),
-    } for e in entities if e.path is not None]
+    out = []
+    for e in entities:
+        if e.path is None:
+            continue
+        row = {"id": rel_id(project, e.path), "name": e.name, "type": e.type,
+               "aliases": list(e.aliases), "words": len(e.body.split())}
+        if e.type == "source" and _source_year(e):
+            row["year"] = _source_year(e)
+        if e.is_source:
+            row["display"] = e.aliases[0] if e.aliases else ent.source_key(e)
+            row["description"] = f"{ent.source_key(e)} - {_paper_title(e)}".rstrip(" -")
+        out.append(row)
+    return out
 
 
 def part_summaries(project: Project, scenes: list[dict]) -> list[dict]:
@@ -367,14 +395,17 @@ def build_binder(project: Project, scenes: list[dict], entities: list[dict],
                 "meta": fmt_words(p["words"]), "expanded": True,
                 "children": [_scene_node(by_id[i], project) for i in p["sceneIds"]],
             })
-    characters = [e for e in entities if e["type"] == "character"]
-    world = [e for e in entities if e["type"] in WORLD_TYPES]
+    is_research = project.mode == "research"
+    characters = [e for e in entities if e["type"] == ("source" if is_research else "character")]
+    world = [e for e in entities if e["type"] in (RESEARCH_WORLD_TYPES if is_research else WORLD_TYPES)]
     binder = [{
         "id": "project", "title": project.title, "kind": "project",
         "meta": fmt_words(total), "expanded": True, "children": children,
     }, {
         "id": "group:characters", "title": labels["characters"], "kind": "characters",
-        "children": [{"id": e["id"], "title": e["name"], "kind": "entity"}
+        "children": [{"id": e["id"], "title": e.get("display") or e["name"], "kind": "entity",
+                      **({"description": e["description"]} if is_research and e.get("description") else {}),
+                      **({"meta": e["year"]} if is_research and e.get("year") else {})}
                      for e in characters],
     }, {
         "id": "group:world", "title": labels["world"], "kind": "world",
