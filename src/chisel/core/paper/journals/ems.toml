@@ -1,0 +1,305 @@
+# Journal profile: Environmental Modelling & Software (Elsevier).
+# Requirements are restated in our own words from the journal's Guide for Authors; the guide itself is the
+# journal's text and is not part of this project. Read 2026-10-19; the author should check the live guide
+# before submitting, because journals change their rules.
+
+id = "ems"
+name = "Environmental Modelling & Software"
+publisher = "Elsevier"
+kind = "manuscript"
+source = "https://www.sciencedirect.com/journal/environmental-modelling-and-software/publish/guide-for-authors"
+read_on = "2026-10-19"
+citation_style = "harvard"        # in text: Smith, Smith and Jones, Smith et al.; "and" (not "&") before the last author
+article_type = "research article" # other types (review, position paper, commentary, book review) need the editor first
+
+# ---- Starter outline -------------------------------------------------------------------------------------
+# Created as editable sections when a project starts from this profile. "part" groups them; front matter parts are
+# not counted in the book's words. "purpose" is a one-line reminder shown in the section's details.
+[[outline]]
+part = "Front matter"
+front_matter = true
+sections = [
+  { title = "Title page", purpose = "Title (concise, no avoidable abbreviations), authors, affiliations with full postal address and country, corresponding author email." },
+  { title = "Highlights", purpose = "3 to 5 bullet points, each at most 85 characters including spaces: the novel results and methods." },
+  { title = "Abstract", purpose = "At most 150 words; stands alone: purpose, procedures, main findings, conclusions. No citations." },
+  { title = "Keywords", purpose = "1 to 7 keywords, in English, avoiding multi-word keywords with 'and' or 'of'." },
+]
+
+[[outline]]
+part = "Article"
+sections = [
+  { title = "Introduction", purpose = "The problem, a brief review of what has been done and what this work adds, and the objectives of the model or software." },
+  { title = "Methods", purpose = "Rationale for the approach, the model or software and its mathematical or algorithmic foundations, data, and how it was tested and evaluated, with comparisons to alternatives where useful." },
+  { title = "Results", purpose = "Performance against data and against other approaches; quantitative verification and validation; figures and tables each cited in the text." },
+  { title = "Discussion", purpose = "Insights, generality and limitations of the model, method or application; relevance to users and to other systems." },
+  { title = "Conclusions", purpose = "Main conclusions and what follows from them." },
+]
+
+[[outline]]
+part = "Declarations and availability"
+sections = [
+  { title = "Software and data availability", purpose = "Name, developer and contact, year first available, hardware and software required, availability and cost; program language and size; for data: form, archive size, access. A public repository link, not 'contact the author'." },
+  { title = "CRediT authorship contribution statement", purpose = "Each author's contribution using the CRediT roles." },
+  { title = "Declaration of competing interest", purpose = "Financial or personal relationships that could bias the work, or that there are none." },
+  { title = "Funding", purpose = "Funding sources and sponsors' role in the work, or the standard statement that there was no specific grant." },
+  { title = "Declaration of generative AI use", purpose = "Required if AI tools were used in preparing the manuscript: which tool, why, and that the authors reviewed and take responsibility." },
+  { title = "Acknowledgements", purpose = "People who helped (language, writing, proofreading). Directly before the references." },
+]
+
+# ---- Requirements -----------------------------------------------------------------------------------------
+# kind "check": evaluated by Chisel from the project (status ok / warn / na). kind "advice": a reminder shown in
+# the list, never evaluated. group is the heading in the Requirements panel. severity: warn or info.
+# Section titles are matched case-insensitively against the titles of the manuscript's sections.
+
+[[requirement]]
+id = "abstract-words"
+group = "Front matter"
+title = "Abstract is at most 150 words"
+kind = "check"
+check = "section-words-max"
+section = ["abstract"]
+max = 150
+severity = "warn"
+
+[[requirement]]
+id = "abstract-no-citations"
+group = "Front matter"
+title = "Abstract avoids citations"
+kind = "check"
+check = "section-no-citations"
+section = ["abstract"]
+severity = "info"
+
+[[requirement]]
+id = "keywords-count"
+group = "Front matter"
+title = "1 to 7 keywords"
+kind = "check"
+check = "list-count"
+section = ["keywords"]
+min = 1
+max = 7
+severity = "warn"
+
+[[requirement]]
+id = "highlights"
+group = "Front matter"
+title = "3 to 5 highlights, each at most 85 characters"
+kind = "check"
+check = "list-count"
+section = ["highlights"]
+min = 3
+max = 5
+item_chars_max = 85
+severity = "warn"
+
+[[requirement]]
+id = "title-page"
+group = "Front matter"
+title = "Title page has the title, authors, affiliations with postal address, and the corresponding author's email"
+kind = "check"
+check = "section-present"
+section = ["title page"]
+severity = "info"
+
+[[requirement]]
+id = "graphical-abstract"
+group = "Front matter"
+title = "A graphical abstract is required: a separate file at least 1328 pixels wide, longest side horizontal, readable at 13 cm"
+kind = "advice"
+
+[[requirement]]
+id = "software-data"
+group = "Structure"
+title = "A software and/or data availability section is present"
+kind = "check"
+check = "section-present"
+section = ["software and data availability", "software and/or data availability", "software availability", "data availability"]
+severity = "warn"
+
+[[requirement]]
+id = "credit"
+group = "Structure"
+title = "A CRediT author contribution statement is present"
+kind = "check"
+check = "section-present"
+section = ["credit", "author contribution"]
+severity = "warn"
+
+[[requirement]]
+id = "competing-interests"
+group = "Structure"
+title = "A declaration of competing interests is present"
+kind = "check"
+check = "section-present"
+section = ["competing interest"]
+severity = "warn"
+
+[[requirement]]
+id = "funding"
+group = "Structure"
+title = "A funding statement is present"
+kind = "check"
+check = "section-present"
+section = ["funding"]
+severity = "warn"
+
+[[requirement]]
+id = "genai-declaration"
+group = "Structure"
+title = "Generative AI use is declared (required when AI tools were used in preparing the manuscript)"
+kind = "check"
+check = "ai-declaration"
+section = ["generative ai", "ai-assisted", "use of ai"]
+severity = "warn"
+
+[[requirement]]
+id = "acknowledgements-before-references"
+group = "Structure"
+title = "Acknowledgements form their own section directly before the references"
+kind = "check"
+check = "last-section"
+section = ["acknowledg"]
+severity = "info"
+
+[[requirement]]
+id = "numbered-sections"
+group = "Structure"
+title = "Sections are numbered 1, 1.1, 1.1.1 and cross-referenced by number; the abstract is not numbered"
+kind = "advice"
+
+[[requirement]]
+id = "appendices"
+group = "Structure"
+title = "Appendices are lettered A, B; equations Eq. (A.1), tables Table A.1, figures Fig. A.1"
+kind = "advice"
+
+[[requirement]]
+id = "figures-captioned"
+group = "Figures, tables and equations"
+title = "Every figure has a caption (a brief title and a description)"
+kind = "check"
+check = "objects-captioned"
+object = "fig"
+severity = "warn"
+
+[[requirement]]
+id = "tables-captioned"
+group = "Figures, tables and equations"
+title = "Every table has a caption"
+kind = "check"
+check = "objects-captioned"
+object = "tbl"
+severity = "warn"
+
+[[requirement]]
+id = "figures-cited"
+group = "Figures, tables and equations"
+title = "Every figure is cited in the text"
+kind = "check"
+check = "objects-referenced"
+object = "fig"
+severity = "warn"
+
+[[requirement]]
+id = "tables-cited"
+group = "Figures, tables and equations"
+title = "Every table is cited in the text"
+kind = "check"
+check = "objects-referenced"
+object = "tbl"
+severity = "warn"
+
+[[requirement]]
+id = "tables-style"
+group = "Figures, tables and equations"
+title = "Tables are editable text with notes below, no vertical rules or shading, and do not repeat results given elsewhere"
+kind = "advice"
+
+[[requirement]]
+id = "figures-files"
+group = "Figures, tables and equations"
+title = "Figures are separate files named Figure_1, Figure_2; photographs at least 300 dpi, line drawings at least 1000 dpi; no several images combined in one file; colours readable for colour-blind readers"
+kind = "advice"
+
+[[requirement]]
+id = "equations"
+group = "Figures, tables and equations"
+title = "Equations are editable text, displayed equations are numbered in the order they are referred to, variables in italics"
+kind = "advice"
+
+[[requirement]]
+id = "maps"
+group = "Figures, tables and equations"
+title = "Maps show only the study area and carry the note that map lines delineate study areas and do not necessarily depict accepted national boundaries"
+kind = "advice"
+
+[[requirement]]
+id = "genai-figures"
+group = "Figures, tables and equations"
+title = "Plots made by AI tools must come from your data by a reproducible method; any AI-generated image is disclosed in its caption"
+kind = "advice"
+
+[[requirement]]
+id = "citations-resolve"
+group = "References"
+title = "Every citation matches a source in the project"
+kind = "check"
+check = "citations-resolved"
+severity = "warn"
+
+[[requirement]]
+id = "sources-doi"
+group = "References"
+title = "Cited sources have a DOI where one exists"
+kind = "check"
+check = "sources-doi"
+severity = "info"
+
+[[requirement]]
+id = "reference-style"
+group = "References"
+title = "Any consistent reference style is accepted at submission; in text: Smith, Smith and Jones, Smith et al., with a/b/c for the same author and year. The journal applies its own style after acceptance"
+kind = "advice"
+
+[[requirement]]
+id = "data-references"
+group = "References"
+title = "Datasets and software you use are cited as references (a [dataset] or [software] tag before the entry); data are deposited in a repository and linked, or the reason they cannot be shared is stated"
+kind = "advice"
+
+[[requirement]]
+id = "content-aims"
+group = "What the journal looks for"
+title = "The objectives of the model or software are stated clearly, with the rationale for the approach and substantial testing and evaluation (comparisons with alternatives are encouraged)"
+kind = "advice"
+
+[[requirement]]
+id = "content-literature"
+group = "What the journal looks for"
+title = "A brief review of the historical progress on the problem, and a clear statement of how the work adds value"
+kind = "advice"
+
+[[requirement]]
+id = "content-software"
+group = "What the journal looks for"
+title = "For software: usability, reliability, verification and validation backed by quantitative results; development and maintenance costs and adoption; licensing and open-source access stated clearly"
+kind = "advice"
+
+[[requirement]]
+id = "content-insight"
+group = "What the journal looks for"
+title = "Insights are generalisable: about the modelling, method, application or the systems modelled, and of interest to people studying other systems"
+kind = "advice"
+
+[[requirement]]
+id = "files"
+group = "Submission"
+title = "Submit editable files: .docx or .tex (a PDF is not accepted); Word files in one column; no strikethrough or underline unless scientifically relevant; highlights as a separate file with 'highlights' in its name"
+kind = "advice"
+
+[[requirement]]
+id = "reviewer-software"
+group = "Submission"
+title = "If software is essential to the paper, be ready to give reviewers a download (password-protected if needed) that keeps their identity hidden"
+kind = "advice"

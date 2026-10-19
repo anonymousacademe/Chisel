@@ -1,0 +1,54 @@
+# Generic research proposal (no specific funder): a standard structure. Add the funder's call as a guideline document.
+
+id = "proposal"
+name = "Research proposal (no specific funder)"
+publisher = ""
+kind = "proposal"
+source = ""
+read_on = ""
+citation_style = "apa"
+
+[[outline]]
+part = "Front matter"
+front_matter = true
+sections = [
+  { title = "Project summary", purpose = "A stand-alone summary: the problem, the approach, the expected outcomes and who benefits." },
+]
+
+[[outline]]
+part = "Proposal"
+sections = [
+  { title = "Background and significance", purpose = "The problem, what is known, the gap, and why it matters." },
+  { title = "Objectives", purpose = "Specific, measurable objectives or research questions." },
+  { title = "Approach and methods", purpose = "How each objective will be met: data, methods, analysis, risks and how they are handled." },
+  { title = "Timeline and deliverables", purpose = "Tasks, milestones and deliverables over time." },
+  { title = "Team and resources", purpose = "Who does what, and the facilities and prior work that make it feasible." },
+  { title = "Broader impacts", purpose = "Who benefits beyond the research itself: users, training, outreach, policy." },
+  { title = "Budget justification", purpose = "What each cost is for, tied to the tasks." },
+]
+
+[[requirement]]
+id = "summary-present"
+group = "Structure"
+title = "A project summary is present"
+kind = "check"
+check = "section-present"
+section = ["summary"]
+severity = "info"
+
+[[requirement]]
+id = "objectives-present"
+group = "Structure"
+title = "The objectives are stated"
+kind = "check"
+check = "section-present"
+section = ["objectives"]
+severity = "info"
+
+[[requirement]]
+id = "citations-resolve"
+group = "References"
+title = "Every citation matches a source in the project"
+kind = "check"
+check = "citations-resolved"
+severity = "warn"

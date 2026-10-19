@@ -1,0 +1,97 @@
+# Generic research manuscript (no target journal): a standard structure and a small set of universal checks.
+
+id = "manuscript"
+name = "Research manuscript (no target journal)"
+publisher = ""
+kind = "manuscript"
+source = ""
+read_on = ""
+citation_style = "apa"
+
+[[outline]]
+part = "Front matter"
+front_matter = true
+sections = [
+  { title = "Title page", purpose = "Title, authors, affiliations, corresponding author." },
+  { title = "Abstract", purpose = "Purpose, methods, main findings and conclusions in one stand-alone paragraph." },
+  { title = "Keywords", purpose = "A handful of indexing keywords." },
+]
+
+[[outline]]
+part = "Article"
+sections = [
+  { title = "Introduction", purpose = "The problem, what is known, the gap, and the objectives." },
+  { title = "Methods", purpose = "What was done, in enough detail to repeat it: data, model or procedure, analysis." },
+  { title = "Results", purpose = "What was found, with each figure and table cited in the text." },
+  { title = "Discussion", purpose = "What the results mean, how they compare with earlier work, limitations." },
+  { title = "Conclusions", purpose = "The main conclusions and what follows from them." },
+]
+
+[[outline]]
+part = "Back matter"
+sections = [
+  { title = "Data availability", purpose = "Where the data and code can be obtained, or why they cannot be shared." },
+  { title = "Funding", purpose = "Funding sources, or that there was none." },
+  { title = "Acknowledgements", purpose = "People who helped." },
+]
+
+[[requirement]]
+id = "abstract-present"
+group = "Structure"
+title = "An abstract is present"
+kind = "check"
+check = "section-present"
+section = ["abstract"]
+severity = "info"
+
+[[requirement]]
+id = "figures-captioned"
+group = "Figures, tables and equations"
+title = "Every figure has a caption"
+kind = "check"
+check = "objects-captioned"
+object = "fig"
+severity = "warn"
+
+[[requirement]]
+id = "tables-captioned"
+group = "Figures, tables and equations"
+title = "Every table has a caption"
+kind = "check"
+check = "objects-captioned"
+object = "tbl"
+severity = "warn"
+
+[[requirement]]
+id = "figures-cited"
+group = "Figures, tables and equations"
+title = "Every figure is cited in the text"
+kind = "check"
+check = "objects-referenced"
+object = "fig"
+severity = "warn"
+
+[[requirement]]
+id = "tables-cited"
+group = "Figures, tables and equations"
+title = "Every table is cited in the text"
+kind = "check"
+check = "objects-referenced"
+object = "tbl"
+severity = "warn"
+
+[[requirement]]
+id = "citations-resolve"
+group = "References"
+title = "Every citation matches a source in the project"
+kind = "check"
+check = "citations-resolved"
+severity = "warn"
+
+[[requirement]]
+id = "sources-doi"
+group = "References"
+title = "Cited sources have a DOI where one exists"
+kind = "check"
+check = "sources-doi"
+severity = "info"
