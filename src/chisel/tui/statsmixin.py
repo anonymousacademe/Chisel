@@ -149,7 +149,7 @@ class StatsMixin:
             opts = replace(opts, format=next((f["key"] for f in info["formats"] if f["available"]), "md"))
         summary = exporting.summarize(project, opts)
         if not summary["scenes"]:
-            self.notify("There is nothing to export yet: the book has no scenes", severity="warning")
+            self.notify(f"There is nothing to export yet: the book has no {project.unit}s", severity="warning")
             return
         notes = [m for m in summary["messages"] if "unaccepted AI drafts" not in m]
         if summary["draft_scenes"]:

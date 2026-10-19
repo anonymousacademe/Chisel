@@ -11,7 +11,7 @@ from pathlib import Path
 from . import drafts, migrate, research
 from . import entities as ent
 from . import scenemeta, snapshots
-from .structure import Structure, recover_staged
+from .structure import Structure, recover_staged, unit_choices
 from . import fsutil
 
 MANUSCRIPT_DIR = "manuscript"
@@ -172,8 +172,10 @@ class Project(Structure):
         for kind, sub in TYPE_SUBDIRS.items():
             if kind in FICTION_KINDS or mode == "research":
                 (root / ENTITIES_DIR / sub).mkdir(parents=True, exist_ok=True)
-        (root / PROJECT_FILE).write_text(PROJECT_TEMPLATE.format(title=toml_string(title), mode=toml_string(mode)),
-                                         encoding="utf-8", newline="\n")
+        template = PROJECT_TEMPLATE.format(title=toml_string(title), mode=toml_string(mode))
+        if mode == "research":
+            template += '\n[manuscript]\nunit = "section"\n'
+        (root / PROJECT_FILE).write_text(template, encoding="utf-8", newline="\n")
         sample = root / MANUSCRIPT_DIR / "01-opening.md"
         if not sample.exists():
             sample.write_text(sample_scene(mode), encoding="utf-8", newline="\n")
@@ -315,10 +317,11 @@ class Project(Structure):
 
     def update_manuscript_settings(self, unit: str | None = None,
                                    draft: int | None = None) -> None:
-        """Write [manuscript] prefs (unit = "scene" | "chapter", draft = N)
+        """Write [manuscript] prefs (unit = the mode's word or "chapter", draft = N)
         into project.toml."""
-        if unit is not None and unit not in ("scene", "chapter"):
-            raise ValueError("unit must be 'scene' or 'chapter'")
+        choices = unit_choices(self.mode)
+        if unit is not None and unit not in choices:
+            raise ValueError(f"unit must be '{choices[0]}' or '{choices[1]}'")
         raw = dict(self.meta.get("manuscript") or {})
         raw["unit"] = unit or self.unit
         if draft is not None:

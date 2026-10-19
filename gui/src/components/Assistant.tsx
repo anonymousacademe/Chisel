@@ -10,6 +10,7 @@ import { NotesPanel } from "./NotesPanel";
 import { attachKey, type Attachment } from "../data/chat";
 import type { Subject } from "../data/subject";
 import { focusExcerpt } from "../data/brainstorm";
+import { unitWords } from "../data/unitWords";
 import { Icon, IconButton, SectionLabel, Tag } from "./primitives";
 import { placeholderProps } from "./placeholder";
 import { Markdown } from "./Markdown";
@@ -55,7 +56,7 @@ export function Assistant(props: {
   run: AiRunView | null; onStop: () => void;
   scope: "scene" | "project"; onScope: () => void;
   /** What the assistant reads now (the scope control's label). */
-  scopeText: string;
+  scopeText: string; unit?: string;
   /** The open item the questions are about ("About: Mara (character)"); null = none is sent. The author can remove it for this chat. */
   subject: Subject | null; onRemoveSubject: () => void;
   /** Set when the author removed the chip and an item that could be the subject is open. */
@@ -84,6 +85,7 @@ export function Assistant(props: {
   style: StyleStatus | null; onLearnStyle: () => void; onOpenStyle: () => void;
 }) {
   const { tab, onTab: setTab } = props;
+  const unit = props.unit ?? "scene";
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
@@ -169,11 +171,11 @@ export function Assistant(props: {
               </div>
               {!props.aiReady && <p className="lw-empty">AI features are off until an OpenRouter API key is set (Settings).</p>}
             </section>
-            {props.style && <StyleCard style={props.style} busy={busy} aiReady={props.aiReady}
+            {props.style && <StyleCard unit={unit} style={props.style} busy={busy} aiReady={props.aiReady}
               onLearn={props.onLearnStyle} onOpen={props.onOpenStyle} />}
             <div className="lw-divider" />
 
-            {props.issues.length > 1 && <SectionLabel>{props.issues.length} issues in this scene</SectionLabel>}
+            {props.issues.length > 1 && <SectionLabel>{props.issues.length} issues in this {unit}</SectionLabel>}
             {props.issues.map((it) => (
               <section key={it.key} className="lw-insight">
                 <div className="lw-insight__heading">
@@ -247,10 +249,10 @@ export function Assistant(props: {
             ))}
             {props.run?.mode === "chat" && <LiveReply run={props.run} onStop={props.onStop} />}
 
-            <Sources mentions={props.mentions} onPick={props.onPickEntity} />
+            <Sources mentions={props.mentions} onPick={props.onPickEntity} unit={unit} />
           </>
         )}
-        {tab === "context" && <Sources mentions={props.mentions} onPick={props.onPickEntity} />}
+        {tab === "context" && <Sources mentions={props.mentions} onPick={props.onPickEntity} unit={unit} />}
         {tab === "notes" && props.notesTop}
         {tab === "notes" && (
           <NotesPanel story={props.story} note={props.note} missingTarget={props.missingTarget} onOpenNote={props.onOpenNote}
@@ -281,14 +283,14 @@ export function Assistant(props: {
           </div>
         )}
         <div className="lw-composer">
-          <textarea ref={inputRef} rows={1} value={draft} disabled={!props.aiReady} placeholder={focusing ? "A direction (optional), then Enter…" : props.researchMode ? "Ask a question your notebook can answer…" : "Ask about this scene or your project…"}
+          <textarea ref={inputRef} rows={1} value={draft} disabled={!props.aiReady} placeholder={focusing ? "A direction (optional), then Enter…" : props.researchMode ? "Ask a question your notebook can answer…" : `Ask about this ${unit} or your project…`}
             onChange={(e) => { setDraft(e.target.value); const t = e.currentTarget; t.style.height = "15px"; t.style.height = `${t.scrollHeight}px`; }}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
           <div className="lw-composer__controls">
             <div className="lw-row lw-gap-4">
-              <IconButton icon={Paperclip} label="Attach scenes, notes, notebook notes or comments" small onClick={props.onAttach} />
+              <IconButton icon={Paperclip} label={`Attach ${unitWords(unit).many}, notes, notebook notes or comments`} small onClick={props.onAttach} />
               <button className="lw-tag lw-tag--accent lw-tag--button" onClick={props.onScope}
-                title="What the assistant reads: the open scene (or scene titles and notes for the whole project) plus the open note, when it is shown above">
+                title={`What the assistant reads: the open ${unit} (or ${unit} titles and notes for the whole project) plus the open note, when it is shown above`}>
                 {props.scopeText}
               </button>
               {props.researchMode && <span className="lw-tag lw-tag--success">Notebook</span>}
@@ -318,17 +320,17 @@ function LiveReply({ run, onStop }: { run: AiRunView; onStop: () => void }) {
   );
 }
 
-function Sources({ mentions, onPick }: { mentions: SceneMention[]; onPick: (name: string) => void }) {
+function Sources({ mentions, onPick, unit }: { mentions: SceneMention[]; onPick: (name: string) => void; unit: string }) {
   return (
     <section className="lw-sources">
       <SectionLabel>Retrieved context</SectionLabel>
-      {mentions.length === 0 && <p className="lw-empty">No notes are mentioned in this scene yet.</p>}
+      {mentions.length === 0 && <p className="lw-empty">No notes are mentioned in this {unit} yet.</p>}
       {mentions.map((m) => (
         <button key={m.name} className="lw-source" onClick={() => onPick(m.name)}>
           <span className="lw-source__icon"><Icon icon={m.type === "character" ? UserRound : FileText} size={14} stroke={1.5} /></span>
           <span className="lw-source__details">
             <span className="lw-source__title">{m.name} — {m.type}</span>
-            <span className="lw-source__meta">{m.count}× in this scene · {m.backlinks} line{m.backlinks === 1 ? "" : "s"} in the project</span>
+            <span className="lw-source__meta">{m.count}× in this {unit} · {m.backlinks} line{m.backlinks === 1 ? "" : "s"} in the project</span>
           </span>
           <Icon icon={ArrowUpRight} size={13} stroke={1.5} color="var(--lw-text-faint)" />
         </button>
@@ -341,7 +343,7 @@ const fmtDate = (iso: string) =>
   new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 
 /** "Your style": learn the author's voice from their own scenes, in one click. */
-function StyleCard(props: { style: StyleStatus; busy: boolean; aiReady: boolean; onLearn: () => void; onOpen: () => void }) {
+function StyleCard(props: { unit: string; style: StyleStatus; busy: boolean; aiReady: boolean; onLearn: () => void; onOpen: () => void }) {
   const { style } = props;
   const enough = style.manuscriptWords >= 300;
   let line: string;
@@ -349,10 +351,10 @@ function StyleCard(props: { style: StyleStatus; busy: boolean; aiReady: boolean;
     line = `Learned ${fmtDate(style.learned)} from ${style.sampledWords.toLocaleString()} words of your prose.`;
     if (style.stale) line += ` Your manuscript has grown to ${style.manuscriptWords.toLocaleString()} words since; relearn to keep up.`;
   } else if (style.exists) {
-    line = "You have a style guide. Relearn it from your scenes, or edit it by hand.";
+    line = `You have a style guide. Relearn it from your ${unitWords(props.unit).many}, or edit it by hand.`;
   } else {
     line = enough
-      ? "Chisel writes in a generic voice until it learns yours from your scenes."
+      ? `Chisel writes in a generic voice until it learns yours from your ${unitWords(props.unit).many}.`
       : "Write a few hundred words first; then Chisel can learn your voice from them.";
   }
   return (
@@ -367,7 +369,7 @@ function StyleCard(props: { style: StyleStatus; busy: boolean; aiReady: boolean;
       <p>{line}</p>
       <div className="lw-row lw-gap-8">
         <button className="lw-btn lw-btn--grow" disabled={props.busy || !props.aiReady || !enough} onClick={props.onLearn}
-          title="Read your scenes and propose a style guide; nothing is saved until you review it">
+          title={`Read your ${unitWords(props.unit).many} and propose a style guide; nothing is saved until you review it`}>
           <Icon icon={Feather} size={14} stroke={1.8} /> {style.learned || style.exists ? "Relearn my style" : "Learn my style"}
         </button>
         {style.exists && <button className="lw-btn" onClick={props.onOpen}>Open guide</button>}

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { GripVertical } from "lucide-react";
 import type { SceneSummary } from "../data/types";
 import { kickerOf, wordsLabel } from "../data/sceneFacts";
+import { unitWords } from "../data/unitWords";
 import { planMove, type Drop, type Group, type MovePlan } from "../data/reorder";
 import { Icon } from "./primitives";
 
@@ -71,7 +72,7 @@ export function Corkboard({ groups, filter, activeId, unit, onOpen, onMove }: {
       {filter && <FilterBar filter={filter} />}
       <p className="lw-cork__hint">Drag a card to reorder it, or onto another part. You will be asked to confirm.</p>
       {groups.filter((g) => !visible || shown(g).length > 0).map((g) => (
-        <section key={g.key} className={`lw-cork-group${g.frontMatter ? " is-muted" : ""}`} aria-label={g.title || "Scenes"}>
+        <section key={g.key} className={`lw-cork-group${g.frontMatter ? " is-muted" : ""}`} aria-label={g.title || unitWords(unit).Many}>
           {g.title && <h3 className="lw-cork-group__title">{g.title}<span className="lw-mono lw-faint">{shown(g).length}</span></h3>}
           <div className="lw-cork">
             {shown(g).map((s) => (
@@ -110,7 +111,7 @@ export function Outline({ groups, filter, activeId, unit, onOpen, onMove }: {
     <div className="lw-outline-wrap">
       {filter && <FilterBar filter={filter} />}
       {groups.filter((g) => !visible || shown(g).length > 0).map((g) => (
-        <section key={g.key} className={`lw-outline-group${g.frontMatter ? " is-muted" : ""}`} aria-label={g.title || "Scenes"}>
+        <section key={g.key} className={`lw-outline-group${g.frontMatter ? " is-muted" : ""}`} aria-label={g.title || unitWords(unit).Many}>
           {g.title && <h3 className="lw-cork-group__title">{g.title}<span className="lw-mono lw-faint">{shown(g).length}</span></h3>}
           <ol className="lw-outline">
             {shown(g).map((s) => (

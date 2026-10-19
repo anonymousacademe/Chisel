@@ -68,7 +68,7 @@ export function useSceneOps(d: Deps) {
   /** The confirmed drag-and-drop: move, then offer to move it back. */
   const performMove = async (plan: MovePlan) => {
     setDialog(null);
-    const title = ws?.scenes.find((s) => s.id === plan.sceneId)?.title ?? "scene";
+    const title = ws?.scenes.find((s) => s.id === plan.sceneId)?.title ?? (ws?.project.unit ?? "scene");
     const r = await placeScene(plan.sceneId, plan.partId, plan.index, plan.unplaced);
     if (!r) return;
     notify(`Moved “${title}”.`, "info", {

@@ -6,6 +6,8 @@ import { IMAGE_COST_NOTE } from "../data/inspiration";
 import { Modal } from "./Dialogs";
 import { Icon } from "./primitives";
 import { TypingControls } from "./AtmospherePanel";
+import { useUnit } from "../data/unitContext";
+import { unitWords } from "../data/unitWords";
 
 const KINDS: { kind: ModelKind; label: string; hint: string; structured: boolean; modality?: "image" }[] = [
   { kind: "fast", label: "Fast model", hint: "Alias finder. Needs structured outputs.", structured: true },
@@ -26,6 +28,7 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
   initial: SettingsInfo; onClose: () => void;
   onSaved: (editor: EditorPrefs, spellcheck: boolean) => void; notify: (text: string, tone?: "info" | "error") => void;
 }) {
+  const unit = useUnit();
   const [info, setInfo] = useState(initial);
   const [key, setKey] = useState("");
   const [models, setModels] = useState<Record<ModelKind, string>>({
@@ -171,7 +174,7 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
           </label>
           <label className="lw-check">
             <input type="checkbox" checked={spellcheck} onChange={(e) => setSpellcheck(e.target.checked)} />
-            Underline misspellings <span className="lw-faint">(scenes only; names in your notes and your dictionaries are never flagged)</span>
+            Underline misspellings <span className="lw-faint">({unitWords(unit).many} only; names in your notes and your dictionaries are never flagged)</span>
           </label>
         </section>
         <section className="lw-settings__section">
@@ -192,7 +195,7 @@ export function SettingsDialog({ initial, onClose, onSaved, notify }: {
           <h3>History</h3>
           <label className="lw-check">
             <input type="checkbox" checked={autoSnapshot} onChange={(e) => setAutoSnapshot(e.target.checked)} />
-            Snapshot a scene the first time it is edited each day <span className="lw-faint">(a safety net; you can always take your own from the History button)</span>
+            Snapshot a {unit} the first time it is edited each day <span className="lw-faint">(a safety net; you can always take your own from the History button)</span>
           </label>
         </section>
       </div>

@@ -3,6 +3,7 @@ import { FilePenLine, Pencil, Plus, User, Users } from "lucide-react";
 import type { EntityInfo, RelRow } from "../data/types";
 import { Icon, SectionLabel, Tag } from "./primitives";
 import { noteBlocks } from "../data/noteBlocks";
+import { useUnit } from "../data/unitContext";
 
 /** The Notes tab: the note under the cursor / picked in the binder, with aliases and backlinks. */
 export function NotesPanel(props: {
@@ -128,6 +129,7 @@ function Relationships({ note, onSuggest }: { note: EntityInfo & { found: true }
 function BornField({ name, saved, invalid, ageNow, onSave }: {
   name: string; saved: string; invalid: boolean; ageNow: string; onSave: (name: string, born: string) => void;
 }) {
+  const unit = useUnit();
   const [born, setBorn] = useState(saved);   // remounted (key) when the note or its saved value changes
   const unchanged = born.trim() === saved.trim();
   const save = () => { if (!unchanged) onSave(name, born.trim()); };
@@ -138,7 +140,7 @@ function BornField({ name, saved, invalid, ageNow, onSave }: {
         aria-invalid={invalid && unchanged} onChange={(e) => setBorn(e.target.value)} onBlur={save}
         onKeyDown={(e) => { if (e.key === "Enter") save(); }} />
       {invalid && unchanged && <span className="lw-details__error">Not a story time. Kept as text.</span>}
-      {ageNow && <span className="lw-faint lw-note__age">{ageNow} (this scene)</span>}
+      {ageNow && <span className="lw-faint lw-note__age">{ageNow} (this {unit})</span>}
     </label>
   );
 }

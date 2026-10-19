@@ -301,6 +301,6 @@ def test_research_project_binder_uses_research_wording(tmp_path):
 
     assert api.new_project("Paper", str(tmp_path / "paper"), "research")["ok"] is True
     paper = api.get_workspace()["workspace"]
-    assert paper["project"]["labels"]["parked"] == "Parked paragraphs"
+    assert paper["project"]["labels"]["parked"] == "Parked sections"
     titles = {n["title"] for n in paper["binder"]}
     assert {"Sources", "Concepts and methods"} <= titles and "Characters" not in titles

@@ -71,7 +71,7 @@ export interface PartSummary {
   sceneIds: string[];
 }
 
-export type Unit = "scene" | "chapter";
+export type Unit = "scene" | "chapter" | "section";
 
 /** A note in the project's notebook/ folder (`folder` = its subfolder, "" at the top). */
 export interface ResearchSummary { id: string; title: string; words: number; folder: string }

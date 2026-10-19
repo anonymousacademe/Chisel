@@ -6,6 +6,7 @@ import type { InspirationImage } from "../data/types";
 import { ConfirmDialog, Menu, Modal, type MenuItem } from "./Dialogs";
 import { Icon, IconButton, SectionLabel } from "./primitives";
 import "../styles/inspiration.css";
+import { useUnit } from "../data/unitContext";
 
 /** Data URLs by image id for the session (a picture never changes under its id). */
 const urls = new Map<string, string>();
@@ -61,8 +62,9 @@ export function InspirationPanel(props: {
   /** Refresh the status bar's AI spend. */
   onSpent: () => void;
 }) {
+  const unit = useUnit();
   const { itemId, notify } = props;
-  const noun = itemNoun(props.itemKind);
+  const noun = itemNoun(props.itemKind, unit);
   const isScene = props.itemKind === "scene";
   const [images, setImages] = useState<InspirationImage[] | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -97,11 +99,11 @@ export function InspirationPanel(props: {
   };
 
   const describe = async () => {
-    if (!itemId) return notify("Open a scene or a note to describe it.");
+    if (!itemId) return notify(`Open a ${unit} or a note to describe it.`);
     const ed = isScene ? props.getEditor() : null;
-    if (isScene && !ed) return notify("Open a scene to describe it.");
+    if (isScene && !ed) return notify(`Open a ${unit} to describe it.`);
     if (!props.requireAi()) return;
-    const label = isScene ? "the scene" : "the note";
+    const label = isScene ? `the ${unit}` : "the note";
     const r = await run("describe", () => props.job<{ prompt: string; model: string; cost: number | null }>(
       `Describing ${label}…`, `describing ${label}`, "describe_scene", { doc_id: itemId, text: ed?.text ?? null, cursor: ed?.cursor ?? 0 }));
     if (r) { setPrompt(r.prompt); notify("Edit the description if you like, then press Generate."); }
@@ -223,8 +225,8 @@ export function InspirationPanel(props: {
           onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void generate(); } }} />
         <div className="lw-insp__actions">
           <button className="lw-btn" disabled={!itemId || busy !== null} onClick={() => void describe()}
-            title={itemId ? (isScene ? "Write the description from the passage around your cursor" : "Write the description from this note's text") : "Open a scene or a note first"}>
-            <Icon icon={Sparkles} size={14} stroke={1.8} /> {busy === "describe" ? "Describing…" : isScene ? "Describe this scene" : "Describe this note"}
+            title={itemId ? (isScene ? "Write the description from the passage around your cursor" : "Write the description from this note's text") : `Open a ${unit} or a note first`}>
+            <Icon icon={Sparkles} size={14} stroke={1.8} /> {busy === "describe" ? "Describing…" : isScene ? `Describe this ${unit}` : "Describe this note"}
           </button>
           <button className="lw-btn lw-btn--primary" disabled={!prompt.trim() || busy !== null} onClick={() => void generate()}>
             <Icon icon={ImagePlus} size={14} stroke={1.8} /> {busy === "generate" ? "Generating…" : "Generate"}

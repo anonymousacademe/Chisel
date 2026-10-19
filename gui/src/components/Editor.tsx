@@ -14,6 +14,7 @@ import { titleLine } from "../editor/spans";
 import type { SaveState } from "../editor/saveController";
 import { sceneGroups, type MovePlan } from "../data/reorder";
 import { Corkboard, Outline, type BoardFilter } from "./Board";
+import { useUnit } from "../data/unitContext";
 
 export type ViewMode = "manuscript" | "corkboard" | "outline";
 
@@ -60,10 +61,11 @@ export function Editor(props: {
   onComments: (rows: CommentRow[] | null) => void; onComment: (id: string, x: number, y: number) => void;
   extraKeys?: { key: string; run: () => boolean }[];
 }) {
+  const unit = useUnit();
   const { doc, editorRef } = props;
   const isScene = doc?.kind === "scene";
   const d = doc?.details;
-  const groups = sceneGroups(props.scenes, props.parts, { unplaced: true });
+  const groups = sceneGroups(props.scenes, props.parts, { unplaced: true, unit: props.unit });
   const sentence = (s: string) => s[0] + s.slice(1).toLowerCase();
   const names = props.mentions.map((m) => m.name);
   const meta = names.length > 4 ? `${names.slice(0, 4).join(" · ")} · +${names.length - 4}` : names.join(" · ");
@@ -159,7 +161,7 @@ export function Editor(props: {
                   onChange={props.onChange} onCursor={props.onCursor} onBlur={props.onBlur} onSaveNow={props.onSaveNow}
                   getCard={props.getCard} onOpenEntity={props.onOpenEntity} onResolveDraft={props.onResolveDraft} extraKeys={props.extraKeys} />
               </article>
-            ) : <p className="lw-empty lw-empty--page">Open a scene from the binder to start writing.</p>}
+            ) : <p className="lw-empty lw-empty--page">Open a {unit} from the binder to start writing.</p>}
           </div>
         )}
 
@@ -184,7 +186,7 @@ export function Editor(props: {
           <Fragment key={m.label}>
             {i > 0 && <span className="lw-inspector__divider" />}
             {m.edit && isScene ? (
-              <button className="lw-metric lw-metric--button" onClick={m.edit} title={m.label === "Collections" ? "Choose this scene's collections" : "Edit scene details"}>
+              <button className="lw-metric lw-metric--button" onClick={m.edit} title={m.label === "Collections" ? `Choose this ${unit}'s collections` : `Edit ${unit} details`}>
                 <SectionLabel>{m.label}</SectionLabel>
                 <span className="lw-metric__value">{m.value}</span>
               </button>

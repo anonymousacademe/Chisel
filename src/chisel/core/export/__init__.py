@@ -19,6 +19,7 @@ from .. import entities as ent
 from . import layouts, markdown, pandoc, script
 from .manuscript import Book, ExportOptions, assemble
 from .. import fsutil
+from ..structure import unit_words
 
 EXPORTS_DIR = "exports"
 FORMATS = {  # key -> (label, extension)
@@ -173,10 +174,10 @@ def run_export(project, options: ExportOptions, progress: Progress | None = None
     elif opts.format in ("docx", "epub", "tex") and pandoc.find() is None:
         raise RuntimeError("pandoc is not installed; install it to export DOCX, EPUB or LaTeX")
 
-    note("Reading scenes", 0.1)
+    note(f"Reading {unit_words(project.unit)[1]}", 0.1)
     book = assemble(project, opts)
     if book.scenes == 0:
-        raise ValueError("There is nothing to export yet: the book has no scenes.")
+        raise ValueError(f"There is nothing to export yet: the book has no {unit_words(project.unit)[1]}.")
 
     stamp = (now or datetime.now()).strftime("%Y%m%d-%H%M")
     ext = FORMATS[opts.format][1]

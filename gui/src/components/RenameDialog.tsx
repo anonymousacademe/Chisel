@@ -2,6 +2,8 @@ import { useState } from "react";
 import type { RenameDone, RenamePreview, RenameScope, RenameUndone } from "../data/types";
 import { aliasRenames, countTicked, defaultTicks, KIND_LABEL } from "../data/rename";
 import { Modal } from "./Dialogs";
+import { useUnit } from "../data/unitContext";
+import { unitText, unitWords } from "../data/unitWords";
 
 const SCOPES: { id: RenameScope; label: string; on: boolean }[] = [
   { id: "scenes", label: "Scenes (text, [[links]], POV and place)", on: true },
@@ -22,6 +24,7 @@ export function RenameDialog({ name, aliases, onPreview, onApply, onUndo, onClos
   onUndo: (undoId: string) => Promise<RenameUndone | null>;
   onClose: () => void;
 }) {
+  const unit = useUnit();
   const [newName, setNewName] = useState(name);
   const [keepOld, setKeepOld] = useState(true);
   const [aliasEdit, setAliasEdit] = useState<Record<string, string>>(() => Object.fromEntries(aliases.map((a) => [a, a])));
@@ -68,7 +71,7 @@ export function RenameDialog({ name, aliases, onPreview, onApply, onUndo, onClos
           </p>
         ) : (
           <p className="lw-dialog__message">
-            Renamed to “{done.name}”: {done.replacements} change{done.replacements === 1 ? "" : "s"}, {done.scenes} scene{done.scenes === 1 ? "" : "s"} rewritten.
+            Renamed to “{done.name}”: {done.replacements} change{done.replacements === 1 ? "" : "s"}, {done.scenes} {done.scenes === 1 ? unitWords(unit).one : unitWords(unit).many} rewritten.
             Each scene was snapshotted first (“before-rename”), so Undo puts everything back.
           </p>
         )}
@@ -99,7 +102,7 @@ export function RenameDialog({ name, aliases, onPreview, onApply, onUndo, onClos
                   <input type="checkbox" checked={n === ids.length} ref={(el) => { if (el) el.indeterminate = n > 0 && n < ids.length; }}
                     onChange={(e) => toggleFile(ids, e.target.checked)} />
                   <span className="lw-rename__title">{f.title}</span>
-                  <span className="lw-faint">{KIND_LABEL[f.kind] ?? f.kind} · {n}/{ids.length}</span>
+                  <span className="lw-faint">{f.kind === "scene" ? unitWords(unit).One : KIND_LABEL[f.kind] ?? f.kind} · {n}/{ids.length}</span>
                 </label>
                 {f.occurrences.map((o) => (
                   <label key={o.id} className="lw-check lw-rename__row">
@@ -147,7 +150,7 @@ export function RenameDialog({ name, aliases, onPreview, onApply, onUndo, onClos
         <label key={s.id} className="lw-check">
           <input type="checkbox" checked={scope.has(s.id)}
             onChange={(e) => setScope((cur) => { const n = new Set(cur); if (e.target.checked) n.add(s.id); else n.delete(s.id); return n; })} />
-          {s.label}
+          {unitText(s.label, unit)}
         </label>
       ))}
       <div className="lw-dialog__buttons">

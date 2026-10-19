@@ -42,6 +42,7 @@ from ..ai.writing import (
     research_answer,
     research_sections,
 )
+from ..core.structure import unit_choices
 from ..core import chats, fsutil, inspiration, migrate
 from ..core import collections as coll
 from ..core import research as research_notes
@@ -620,7 +621,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
                      for p in project.part_scenes(part)]
         unplaced = project.list_unplaced()
         if unplaced:
-            rows.append(("header", "Unplaced scenes", None))
+            rows.append(("header", f"Unplaced {project.unit}s", None))
             rows += [("scene", project.scene_title(p), p) for p in unplaced]
         return rows
 
@@ -869,7 +870,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
             return
         scenes = self.project.list_scenes()
         if not scenes:
-            self.notify("No scenes yet — ctrl+n to create one", severity="warning")
+            self.notify(f"No {self.project.unit}s yet — ctrl+n to create one", severity="warning")
             return
         path = self._current_scene_path()
         if path is None:
@@ -883,7 +884,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
             i = 0
         j = i + delta
         if not (0 <= j < len(scenes)):
-            self.notify("No more scenes this way", severity="warning")
+            self.notify(f"No more {self.project.unit}s this way", severity="warning")
             return
         self.open_file(scenes[j])
         self.notify(self.project.scene_title(scenes[j]), timeout=1)
@@ -954,7 +955,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
     def action_find_aliases(self) -> None:
         """AI: find descriptive references to known entities; offer as aliases."""
         if self.project is None or self.current_path is None:
-            self.notify("Open a scene first", severity="warning")
+            self.notify(f"Open a {self.project.unit} first", severity="warning")
             return
         if not self.entities:
             self.notify("No entities yet — create some notes first",
@@ -1169,7 +1170,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
     def _resolve_all_drafts(self, accept: bool) -> None:
         found = drafts.find_pending(self.editor.text)
         if not found:
-            self.notify("No AI drafts in this scene", timeout=2)
+            self.notify(f"No AI drafts in this {self.project.unit}", timeout=2)
             return
         skipped = 0
         if self._is_scene(self.current_path):  # whole-scene operation: keep a way back
@@ -1206,7 +1207,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
         """ctrl+g: rewrite the selection, expand the {{expand:}} marker under
         the cursor, or draft new prose at the cursor (prompt window)."""
         if self.project is None or not self._is_scene(self.current_path):
-            self.notify("Open a scene first", severity="warning")
+            self.notify(f"Open a {self.project.unit} first", severity="warning")
             return
         text = self.editor.text
         selected = self.editor.selected_text
@@ -1340,7 +1341,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
         self.save_current()
         samples = sample_manuscript(self.project)
         if not samples:
-            self.notify("Nothing to learn from yet — write some scenes first",
+            self.notify(f"Nothing to learn from yet — write some {self.project.unit}s first",
                         severity="warning")
             return
         self.notify(f"Learning your style from {len(samples)} paragraphs…",
@@ -1415,7 +1416,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
     def action_check_continuity(self) -> None:
         """AI: check the current scene against the story bible."""
         if self.project is None or self.current_path is None:
-            self.notify("Open a scene first", severity="warning")
+            self.notify(f"Open a {self.project.unit} first", severity="warning")
             return
         if not self.entities:
             self.notify("No entities yet — nothing to check against",
@@ -1464,7 +1465,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
     def action_check_voice(self) -> None:
         """AI (script projects): does each character sound like themselves in the open scene?"""
         if self.project is None or not self._is_scene(self.current_path):
-            self.notify("Open a scene first", severity="warning")
+            self.notify(f"Open a {self.project.unit} first", severity="warning")
             return
         if self.project.mode != "script":
             self.notify("Voice checks are for script projects: a script marks who speaks every line",
@@ -1539,7 +1540,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
     def restore_waived(self) -> None:
         """Palette: un-waive this scene's continuity issues."""
         if self.project is None or not self._is_scene(self.current_path):
-            self.notify("Open a scene first", severity="warning")
+            self.notify(f"Open a {self.project.unit} first", severity="warning")
             return
         rel = self.current_path.relative_to(self.project.root).as_posix()
         n = clear_scene_waivers(self.project.root, rel)
@@ -1547,7 +1548,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
             self.notify(f"Restored {n} waived continuity issue(s) — they will"
                         " be reported again by the next check", timeout=4)
         else:
-            self.notify("No waived continuity issues recorded for this scene",
+            self.notify(f"No waived continuity issues recorded for this {self.project.unit}",
                         timeout=3)
 
     restore_waived_issues = restore_waived
@@ -1565,7 +1566,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
     def action_update_bible(self) -> None:
         """AI: propose canon updates to entity notes from this scene."""
         if self.project is None or self.current_path is None:
-            self.notify("Open a scene first", severity="warning")
+            self.notify(f"Open a {self.project.unit} first", severity="warning")
             return
         if not self.entities:
             self.notify("No entities yet — create some notes first",
@@ -1599,7 +1600,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
             return
         cost = self._cost_note(calls, sent)
         if not updates:
-            self.notify("No new canon found in this scene" + cost, timeout=2)
+            self.notify(f"No new canon found in this {self.project.unit}" + cost, timeout=2)
             return
         if cost:
             self.notify(f"Canon proposals ready{cost}", timeout=3)
@@ -1687,7 +1688,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
         """Scene · Edit details: POV, place, purpose, status, target."""
         path = self._current_scene_path()
         if path is None:
-            self.notify("Open a scene first", severity="warning")
+            self.notify(f"Open a {self.project.unit} first", severity="warning")
             return
         characters = [e.name for e in self.entities if e.type == "character"]
         places = [e.name for e in self.entities if e.type == "place"]
@@ -1919,7 +1920,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
                 self._show_ideas(ideas, scene, offset)
             elif what == "draft":
                 if scene is None or self.current_path != scene:
-                    self.notify("Open the scene you want to draft into first", severity="warning")
+                    self.notify(f"Open the {self.project.unit} you want to draft into first", severity="warning")
                     return
                 pos = min(offset, len(self.editor.text))
                 self.push_screen(
@@ -1931,7 +1932,8 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
     # -- comments (Wave 3.2): author notes in .comments/, never in the prose ----------
 
     def toggle_unit(self) -> None:
-        unit = "chapter" if self.project.unit == "scene" else "scene"
+        default, other = unit_choices(self.project.mode)
+        unit = other if self.project.unit == default else default
         self.project.update_manuscript_settings(unit=unit)
         self.refresh_sidebar()
         self.notify(f"Labels now say '{unit}'", timeout=2)

@@ -54,7 +54,7 @@ def resolve(project, kind: str, ident: str) -> tuple[str, str]:
     raw = path.read_text(encoding="utf-8")
     if kind in ("scene", "comments"):
         if not project.is_scene_path(path):
-            raise ValueError("not a scene")
+            raise ValueError(f"not a {project.unit}")
         title = project.scene_title(path)
         if kind == "comments":
             open_ = [c for c in comments.load(project.root, path) if not c.resolved]

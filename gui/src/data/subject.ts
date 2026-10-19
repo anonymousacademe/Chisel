@@ -19,11 +19,11 @@ const NOUN: Record<string, string> = { scene: "scene", research: "notebook note"
  * (style guide, dictionary), the chip removed, Ask-my-notebook mode (it answers from the notes), or a scene
  * while the whole project is asked about (no scene text goes then).
  */
-export function subjectOf(doc: OpenItem | null | undefined, opts: { scope: "scene" | "project"; removed: boolean; researchMode: boolean }): Subject | null {
+export function subjectOf(doc: OpenItem | null | undefined, opts: { scope: "scene" | "project"; removed: boolean; researchMode: boolean; unit?: string }): Subject | null {
   if (!doc || opts.removed || opts.researchMode) return null;
   if (doc.kind !== "scene" && doc.kind !== "entity" && doc.kind !== "research") return null;
   if (doc.kind === "scene" && opts.scope === "project") return null;
-  const noun = doc.kind === "entity" ? (doc.kicker ?? "note").toLowerCase() : NOUN[doc.kind];
+  const noun = doc.kind === "entity" ? (doc.kicker ?? "note").toLowerCase() : doc.kind === "scene" ? (opts.unit ?? "scene") : NOUN[doc.kind];
   return { id: doc.id, kind: doc.kind, label: `About: ${doc.title} (${noun})` };
 }
 
@@ -37,8 +37,8 @@ export function subjectArgs(doc: OpenItem | null | undefined, subject: Subject |
 }
 
 /** The scope control's label: what the assistant reads right now. */
-export function scopeLabel(scope: "scene" | "project", subject: Subject | null): string {
+export function scopeLabel(scope: "scene" | "project", subject: Subject | null, unit = "scene"): string {
   if (!subject) return "Project";
   if (subject.kind !== "scene") return "Project + this note";   // a note joins the project context in either scope
-  return scope === "scene" ? "Current scene" : "Project";
+  return scope === "scene" ? `Current ${unit}` : "Project";
 }

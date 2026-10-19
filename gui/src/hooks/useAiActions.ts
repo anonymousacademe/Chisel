@@ -10,6 +10,7 @@ import { isTrimmed, sentSummary } from "../data/sent";
 import type { SaveController } from "../editor/saveController";
 import type { EditorHandle } from "../components/EditorPane";
 import type { AssistantTab } from "../components/Assistant";
+import { unitText } from "../data/unitWords";
 import type { Notice } from "../components/Toast";
 
 interface Deps {
@@ -40,10 +41,11 @@ interface Deps {
 export function useAiActions(d: Deps) {
   const { saver, ws, docRef, editorRef, notify, refresh, openDoc, aiCall, requireAi, setDialog, setIssues, setIssuesSent, setTab, setAssistantOpen,
     setSpansVersion, setNoteVersion, setMentions } = d;
+  const unit = ws?.project.unit ?? "scene";
   const liveText = () => editorRef.current?.getText() ?? "";
   const quickContinuity = async () => {
     const d = docRef.current;
-    if (!d || d.kind !== "scene") return notify("Open a scene first.");
+    if (!d || d.kind !== "scene") return notify(unitText("Open a scene first.", unit));
     const r = await aiCall<{ issues: Issue[]; waived: number; cost: number | null; sent: SentInfo }>("Checking continuity…", "checking continuity", "continuity", { doc_id: d.id, text: liveText() });
     if (!r || docRef.current?.id !== d.id) return;
     setIssues(r.issues); setIssuesSent(r.sent); setTab("assistant"); setAssistantOpen(true);
@@ -53,7 +55,7 @@ export function useAiActions(d: Deps) {
   };
   const quickVoice = async () => {
     const d = docRef.current;
-    if (!d || d.kind !== "scene") return notify("Open a scene first.");
+    if (!d || d.kind !== "scene") return notify(unitText("Open a scene first.", unit));
     const r = await aiCall<VoiceCheckInfo & { issues: Issue[]; waived: number; cost: number | null; sent: SentInfo }>(
       "Checking voices…", "checking voices", "voice", { doc_id: d.id, text: liveText() });
     if (!r || docRef.current?.id !== d.id) return;
@@ -75,15 +77,15 @@ export function useAiActions(d: Deps) {
   };
   const restoreWaived = async () => {
     const d = docRef.current;
-    if (!d || d.kind !== "scene") return notify("Open a scene first.");
+    if (!d || d.kind !== "scene") return notify(unitText("Open a scene first.", unit));
     const r = await api.restoreWaivers(d.id);
     if (!r.ok) return notify(r.error, "error");
-    notify(r.restored ? `Restored ${r.restored} waived issue${r.restored === 1 ? "" : "s"}; the next check reports them again.` : "No waived issues are recorded for this scene.");
+    notify(r.restored ? `Restored ${r.restored} waived issue${r.restored === 1 ? "" : "s"}; the next check reports them again.` : unitText("No waived issues are recorded for this scene.", unit));
   };
 
   const findAliases = async () => {
     const d = docRef.current;
-    if (!d || d.kind !== "scene") return notify("Open a scene first.");
+    if (!d || d.kind !== "scene") return notify(unitText("Open a scene first.", unit));
     const r = await aiCall<{ suggestions: AliasSuggestion[]; cost: number | null; sent: SentInfo }>("Looking for aliases…", "looking for aliases", "aliases", { doc_id: d.id, text: liveText() });
     if (!r) return;
     if (!r.suggestions.length) return notify("No new aliases found" + cost(r.cost) + (isTrimmed(r.sent) ? `; ${sentSummary(r.sent)}` : ""), "info", { label: "What was sent", run: () => setDialog({ kind: "sent", report: r.sent }) });
@@ -119,10 +121,10 @@ export function useAiActions(d: Deps) {
 
   const updateBible = async () => {
     const d = docRef.current;
-    if (!d || d.kind !== "scene") return notify("Open a scene first.");
-    const r = await aiCall<{ updates: CanonProposal[]; cost: number | null; sent: SentInfo }>("Reading the scene for new canon…", "reading for canon", "canon", { doc_id: d.id, text: liveText() });
+    if (!d || d.kind !== "scene") return notify(unitText("Open a scene first.", unit));
+    const r = await aiCall<{ updates: CanonProposal[]; cost: number | null; sent: SentInfo }>(unitText("Reading the scene for new canon…", unit), "reading for canon", "canon", { doc_id: d.id, text: liveText() });
     if (!r) return;
-    if (!r.updates.length) return notify("No new canon found in this scene" + cost(r.cost) + (isTrimmed(r.sent) ? `; ${sentSummary(r.sent)}` : ""), "info", { label: "What was sent", run: () => setDialog({ kind: "sent", report: r.sent }) });
+    if (!r.updates.length) return notify(unitText("No new canon found in this scene", unit) + cost(r.cost) + (isTrimmed(r.sent) ? `; ${sentSummary(r.sent)}` : ""), "info", { label: "What was sent", run: () => setDialog({ kind: "sent", report: r.sent }) });
     setDialog({ kind: "canon", items: r.updates, sent: r.sent });
   };
   const applyCanon = async (picked: { entity: string; facts: string[] }[]) => {
@@ -162,7 +164,7 @@ export function useAiActions(d: Deps) {
     const snapshot = ed.getText();
     const r = await aiCall<GenerateResult & { cost: number | null; noStyle?: boolean }>("Drafting…", "drafting", "generate", { mode, instruction, doc_id: d.id, text: snapshot, start: from, end: to });
     if (!r) return;
-    if (docRef.current?.id !== d.id || !editorRef.current) return notify("Scene changed while drafting; draft discarded.", "error");
+    if (docRef.current?.id !== d.id || !editorRef.current) return notify(unitText("Scene changed while drafting; draft discarded.", unit), "error");
     const at = anchorDraft(editorRef.current.getText(), snapshot, r, editorRef.current.head());
     if (!at) return notify("The text changed while drafting; draft discarded.", "error");
     if (r.draftId && r.original !== null) { // the marker must never exist without its original
@@ -176,7 +178,7 @@ export function useAiActions(d: Deps) {
   };
   const startGenerate = (): boolean => {
     const ed = editorRef.current;
-    if (!ed || docRef.current?.kind !== "scene") { notify("Open a scene first."); return true; }
+    if (!ed || docRef.current?.kind !== "scene") { notify(unitText("Open a scene first.", unit)); return true; }
     if (!requireAi()) return true;
     const sel = ed.selection();
     if (sel.text.trim()) {
@@ -207,7 +209,7 @@ export function useAiActions(d: Deps) {
     const text = ed.getText();
     const r = await api.resolveDrafts(d.id, text, accept, index);
     if (!r.ok) return notify(r.error, "error");
-    if (r.found === 0) return notify("No AI drafts in this scene.");
+    if (r.found === 0) return notify(unitText("No AI drafts in this scene.", unit));
     if (ed.getText() !== text) return notify("The text changed; try again.", "error");
     ed.applyEdits(r.edits);
     if (r.skipped) notify(`${r.skipped} draft${r.skipped === 1 ? "" : "s"} left: the original text is missing. Accept ${r.skipped === 1 ? "it" : "them"} or edit by hand.`, "error");

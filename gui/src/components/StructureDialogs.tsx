@@ -5,6 +5,8 @@ import { inheritedHint, whenHelp } from "../data/storyTime";
 import { SUGGESTED_STATUS } from "../data/sceneFacts";
 import { restoredText } from "../data/restoreText";
 import { Modal } from "./Dialogs";
+import { useUnit } from "../data/unitContext";
+import { unitWords } from "../data/unitWords";
 
 /** Pick a part (or the top level) for a scene to move into. */
 export function PartPickerDialog({ title, message, parts, allowTop, onPick, onClose }: {
@@ -42,6 +44,7 @@ export function TrashDialog({ onClose, onRestored, onChanged, notify }: {
   onClose: () => void; onRestored: (id: string) => void; onChanged: () => void;
   notify: (text: string, tone?: "info" | "error") => void;
 }) {
+  const unit = useUnit();
   const [items, setItems] = useState<TrashItem[] | null>(null);
   const [ask, setAsk] = useState<{ kind: "one"; item: TrashItem } | { kind: "all" } | null>(null);
   const [rev, setRev] = useState(0);
@@ -58,7 +61,7 @@ export function TrashDialog({ onClose, onRestored, onChanged, notify }: {
   const restore = async (it: TrashItem) => {
     const r = await api.restoreTrash(it.name);
     if (!r.ok) return notify(r.error, "error");
-    notify(restoredText(it.title, r));
+    notify(restoredText(it.title, r, `Parked ${unitWords(unit).many}`));
     onChanged();
     if (r.kind !== "inspiration") onRestored(r.id);   // a picture is not a document to open
     reload();
@@ -98,7 +101,7 @@ export function TrashDialog({ onClose, onRestored, onChanged, notify }: {
   }
   return (
     <Modal title="Trash" wide onClose={onClose}>
-      <p className="lw-dialog__message">Deleted scenes, notebook notes and inspiration pictures are kept here until you delete them forever.</p>
+      <p className="lw-dialog__message">Deleted {unitWords(unit).many}, notebook notes and inspiration pictures are kept here until you delete them forever.</p>
       <div className="lw-picklist lw-picklist--tall">
         {items === null && <p className="lw-empty">Loading…</p>}
         {items?.length === 0 && <p className="lw-empty">The Trash is empty.</p>}
