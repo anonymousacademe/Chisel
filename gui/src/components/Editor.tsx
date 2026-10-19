@@ -154,7 +154,7 @@ export function Editor(props: {
                     </>
                   )}
                 </header>
-                <EditorPane key={`${doc.id}:${props.docRev}`} ref={editorRef} docId={doc.id} kind={doc.kind}
+                <EditorPane key={`${doc.id}:${props.docRev}`} ref={editorRef} docId={doc.id} kind={doc.kind} entityType={doc.entityType}
                   initialText={doc.text} meta={meta} reflow={props.reflow && !props.script} script={props.script} research={props.research} names={props.names} spansVersion={props.spansVersion}
                   spellVersion={props.spellVersion} onSpellCount={props.onSpellCount} onSpell={props.onSpell} onContextMenu={props.onContextMenu}
                   onComments={props.onComments}

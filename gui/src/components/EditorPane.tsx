@@ -49,6 +49,8 @@ export interface EditorHandle {
 interface Props {
   docId: string;
   kind: string;
+  /** Entity notes: the type ("source" hides the frontmatter and the sync markers). */
+  entityType?: string;
   initialText: string;
   meta: string;
   reflow: boolean;
@@ -268,7 +270,7 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
           extraKeys: hooks.current.extraKeys?.map((k) => ({
             key: k.key, run: () => hooks.current.extraKeys?.find((x) => x.key === k.key)?.run() ?? false,
           })),
-        }, undoDepth, redoDepth, hooks.current.script),
+        }, undoDepth, redoDepth, hooks.current.script, hooks.current.entityType),
       }),
     });
     view.current = v;

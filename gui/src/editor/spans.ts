@@ -167,6 +167,36 @@ export function sceneFrontmatter(text: string): { from: number; to: number } | n
   return yamlish && lines.some((l) => /^[A-Za-z_][\w-]*\s*:/.test(l)) ? { from: 0, to: m[0].length } : null;
 }
 
+/**
+ * Sync markers of a source note (core.sources): the block's begin / end comment lines and the per-highlight
+ * `<!--zotero-ann:ID-->` lines. Each range covers the whole marker line plus its newline, so hiding it leaves no
+ * empty row. `begin` is the end of the first begin marker line (the banner goes right there), `title` the line
+ * start of the paper's title (first non-blank line after "## From Zotero"), if any. Offsets are UTF-16.
+ */
+export function sourceMarkers(text: string, from = 0): { hide: { from: number; to: number }[]; begin: number | null; title: number | null } {
+  const hide: { from: number; to: number }[] = [];
+  let begin: number | null = null;
+  let title: number | null = null;
+  let afterHeading = false;
+  let pos = from;
+  while (pos <= text.length) {
+    const nl = text.indexOf("\n", pos);
+    const end = nl < 0 ? text.length : nl;
+    const line = text.slice(pos, end);
+    const isBegin = /^<!-- zotero:begin -->[ \t]*$/.test(line);
+    if (isBegin || /^<!-- zotero:end -->[ \t]*$/.test(line) || /^[ \t]*<!--zotero-ann:[^>\n]*-->[ \t]*$/.test(line)) {
+      hide.push({ from: pos, to: nl < 0 ? end : end + 1 });
+      if (isBegin && begin === null) begin = nl < 0 ? end : end + 1;
+    } else if (title === null) {
+      if (/^## From Zotero[ \t]*$/.test(line)) afterHeading = true;
+      else if (afterHeading && line.trim()) title = pos;
+    }
+    if (nl < 0) break;
+    pos = nl + 1;
+  }
+  return { hide, begin, title };
+}
+
 const BLOCK_START = /^(#{1,6}\s|>|[-*+]\s|\d+[.)]\s|```|~~~|---|\|)/;
 
 /**

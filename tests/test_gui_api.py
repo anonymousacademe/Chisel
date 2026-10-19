@@ -54,6 +54,7 @@ def test_read_document(tmp_path):
     note = api.read_document("entities/characters/mara-vale.md")
     assert note["kind"] == "entity" and note["title"] == "Mara Vale"
     assert note["kicker"] == "CHARACTER"
+    assert note["entityType"] == "character" and "entityType" not in scene
 
 
 def test_document_ids_cannot_escape(tmp_path):

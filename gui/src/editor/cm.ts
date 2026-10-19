@@ -11,7 +11,7 @@ import { autocompletion, type CompletionContext, type CompletionResult } from "@
 import { completionSpot, elementOfLine, upperNames, type ScriptNames } from "./script";
 import { formatSpecs } from "./format";
 import { citeCompletion } from "../data/research";
-import { frontmatterRange, misspellingAt, sceneFrontmatter, misspellSpecs, scriptLineSpecs, softBreaks, specsFor, titleLine, type Misspelling, type Span } from "./spans";
+import { frontmatterRange, sourceMarkers, misspellingAt, sceneFrontmatter, misspellSpecs, scriptLineSpecs, softBreaks, specsFor, titleLine, type Misspelling, type Span } from "./spans";
 
 export const setSpans = StateEffect.define<Span[]>();
 export const setSpelling = StateEffect.define<Misspelling[]>();
@@ -30,6 +30,8 @@ export const reflowCompartment = new Compartment();
 export const metaFacet = Facet.define<string, string>({ combine: (v) => v[v.length - 1] ?? "" });
 /** "scene" | "entity" | "style": entity notes show their frontmatter as a mono block. */
 export const kindFacet = Facet.define<string, string>({ combine: (v) => v[v.length - 1] ?? "scene" });
+/** The entity's type ("character", "source", ...) for kind "entity": source notes hide their frontmatter. */
+export const entityTypeFacet = Facet.define<string, string>({ combine: (v) => v[v.length - 1] ?? "" });
 /** A scene of a script project: its lines are drawn as screenplay elements (Python classifies them). */
 export const scriptFacet = Facet.define<boolean, boolean>({ combine: (v) => (v.length ? v[v.length - 1] : false) });
 
@@ -41,6 +43,19 @@ class MetaWidget extends WidgetType {
     const el = document.createElement("div");
     el.className = "lw-page__meta";
     el.textContent = this.text;
+    return el;
+  }
+  ignoreEvent() { return true; }
+}
+
+/** The one-line note above the Zotero part of a source note (display only, not in the file). */
+export const SOURCE_BANNER = "From Zotero. This part is replaced when you sync. Write your own notes under My notes.";
+class SourceBanner extends WidgetType {
+  eq() { return true; }
+  toDOM() {
+    const el = document.createElement("div");
+    el.className = "lw-source-banner";
+    el.textContent = SOURCE_BANNER;
     return el;
   }
   ignoreEvent() { return true; }
@@ -130,11 +145,11 @@ const commentsField = StateField.define<CommentMark[]>({
   },
 });
 
-interface Built { all: DecorationSet; atomic: DecorationSet }
+export interface Built { all: DecorationSet; atomic: DecorationSet }
 
 const HEADING = /^ATXHeading(\d)$/;
 
-function build(state: EditorState): Built {
+export function build(state: EditorState): Built {
   const doc = state.doc;
   const text = doc.toString();
   const kind = state.facet(kindFacet);
@@ -197,13 +212,31 @@ function build(state: EditorState): Built {
 
   // YAML frontmatter of entity notes: a muted mono block
   const fm = kind === "entity" ? frontmatterRange(text) : details;
-  if (fm && kind === "entity") {
+  // a source note: the CSL dump is data for the export, not for reading: hide it like a scene's details, and
+  // quiet the sync markers; the file is untouched (every range here is display only)
+  const source = kind === "entity" && state.facet(entityTypeFacet) === "source";
+  const markerHides: { from: number; to: number }[] = [];
+  if (source) {
+    if (fm) {
+      ranges.push(hide.range(fm.from, fm.to));
+      atomic.push(hide.range(fm.from, fm.to));
+    }
+    const mk = sourceMarkers(text, fm?.to ?? 0);
+    for (const h of mk.hide) {
+      ranges.push(hide.range(h.from, h.to));
+      atomic.push(hide.range(h.from, h.to));
+      markerHides.push(h);
+    }
+    if (mk.begin !== null) ranges.push(Decoration.widget({ widget: new SourceBanner(), block: true, side: -1 }).range(mk.begin));
+    if (mk.title !== null) ranges.push(Decoration.line({ class: "lw-h lw-h3" }).range(mk.title));
+  } else if (fm && kind === "entity") {
     const last = doc.lineAt(Math.max(fm.to - 1, 0)).number;
     for (let n = 1; n <= last; n++) ranges.push(Decoration.line({ class: "lw-frontmatter" }).range(doc.line(n).from));
   }
 
   // hard-wrapped source lines flow as one paragraph (display only)
-  const softBreakSet = new Set<number>(state.facet(reflowFacet) && !plain ? softBreaks(text, fm) : []);
+  const softBreakSet = new Set<number>((state.facet(reflowFacet) && !plain ? softBreaks(text, fm) : [])
+    .filter((p) => !markerHides.some((h) => p >= h.from && p < h.to)));
   for (const pos of softBreakSet) {
     ranges.push(SPACE.range(pos, pos + 1));
     atomic.push(SPACE.range(pos, pos + 1));
@@ -270,7 +303,7 @@ function build(state: EditorState): Built {
   return { all: Decoration.set(ranges, true), atomic: Decoration.set(atomic, true) };
 }
 
-const decoField = StateField.define<Built>({
+export const decoField = StateField.define<Built>({
   create: (state) => build(state),
   update(value, tr) {
     const facetChanged = tr.startState.facet(metaFacet) !== tr.state.facet(metaFacet)
@@ -283,6 +316,9 @@ const decoField = StateField.define<Built>({
     EditorView.atomicRanges.of((view) => view.state.field(f).atomic),
   ],
 });
+
+/** The fields the decorations read, without the DOM-bound parts of editorExtensions (for tests). */
+export const decorationCore: Extension[] = [spansField, spellingField, commentsField, readingField, decoField];
 
 export interface CursorInfo {
   line: number; col: number; head: number; from: number; to: number;
@@ -402,10 +438,11 @@ function citeCompletions(hooks: Hooks) {
   };
 }
 
-export function editorExtensions(kind: string, meta: string, reflow: boolean, hooks: Hooks, undoDepth: (s: EditorState) => number, redoDepth: (s: EditorState) => number, script = false): Extension[] {
+export function editorExtensions(kind: string, meta: string, reflow: boolean, hooks: Hooks, undoDepth: (s: EditorState) => number, redoDepth: (s: EditorState) => number, script = false, entityType = ""): Extension[] {
   const screenplay = script && kind === "scene";
   return [
     kindFacet.of(kind),
+    entityTypeFacet.of(entityType),
     scriptFacet.of(screenplay),
     ...(screenplay ? [EditorView.editorAttributes.of({ class: "lw-script" })] : []),
     draftFacet.of((i, a) => hooks.onResolveDraft(i, a)),
