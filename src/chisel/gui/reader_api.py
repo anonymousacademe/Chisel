@@ -31,6 +31,6 @@ class ReaderMixin:
         found = reader.plan(text, mode, entities, opts)            # outside the lock: it parses the whole text
         rows = to_utf16(text, [{
             "kind": u.kind, "voice": u.voice, "text": u.text, "say": u.say, "start": u.start, "end": u.end,
-            "row": u.row, "seconds": u.seconds} for u in found.utterances])
+            "row": u.row, "seconds": u.seconds, "joins": u.joins} for u in found.utterances])
         return {"mode": mode, "utterances": rows, "words": found.words, "seconds": round(found.seconds(), 1),
                 "voices": [{"voice": v, "count": n} for v, n in found.voices().items()]}

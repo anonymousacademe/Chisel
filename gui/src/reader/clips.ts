@@ -19,6 +19,9 @@ export interface ClipPlayer {
 }
 
 const KEEP = 12;     // clips held in memory (Python keeps a disk cache too)
+// Longer than the window's speech allows: a whole paragraph is usually one clip, so its phrasing is the
+// engine's own. Not much longer: the first clip is rendered before anything is heard.
+const CHUNK = 400;
 
 const audioPlayer = (url: string): ClipPlayer => {
   const a = new Audio(url);
@@ -48,6 +51,7 @@ export function clipEngine(source: ClipSource, makePlayer: (url: string) => Clip
   };
 
   return {
+    maxChunk: CHUNK,
     voices: () => source.voices(),
     speak(text, opts, h: SpeakHandlers) {
       const mine = ++gen;

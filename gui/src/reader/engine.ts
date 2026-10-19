@@ -14,6 +14,9 @@ export interface SpeechEngine {
   voices(): Promise<VoiceInfo[]>;
   /** Speak one chunk (short enough for the engine); exactly one of the handlers is called. */
   speak(text: string, opts: { voice?: string; rate: number }, handlers: SpeakHandlers): void;
+  /** Longest piece of text to speak at once (default 200: the window's speech stalls on long ones). Longer
+   * pieces mean fewer breaks in the flow. */
+  maxChunk?: number;
   /** Get a chunk ready that will probably be spoken next (clip engines render it ahead). */
   prefetch?(text: string, opts: { voice?: string; rate: number }): void;
   pause(): void;

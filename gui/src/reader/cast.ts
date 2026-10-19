@@ -56,13 +56,15 @@ export function castKey(project: string, engine: string): string {
 }
 
 /** A voice for every role: the narrator the first candidate, the other roles the following ones in turn, so
- * the voices differ for as long as the system has enough of them. */
+ * the voices differ for as long as the system has enough of them. Quoted speech in prose starts in the
+ * narrator's voice (as an audiobook reader does): a quote may be a phrase inside a sentence, and a voice change
+ * there breaks the sentence. A script's characters each get their own. */
 export function defaultCast(roles: string[], voices: VoiceInfo[], lang?: string): Record<string, string> {
   const pool = candidateVoices(voices, lang);
   if (!pool.length) return {};
   const cast: Record<string, string> = {};
   let n = 1;
-  for (const role of roles) cast[role] = role === "narrator" ? pool[0].id : pool[(n++) % pool.length].id;
+  for (const role of roles) cast[role] = role === "narrator" || role === "quote" ? pool[0].id : pool[(n++) % pool.length].id;
   return cast;
 }
 

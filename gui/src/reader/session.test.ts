@@ -179,3 +179,45 @@ describe("ReadSession with a clip engine", () => {
     expect(errors).toEqual(["The local voice engine stopped unexpectedly"]);
   });
 });
+
+describe("ReadSession joins a paragraph's pieces", () => {
+  const para = [
+    utt("narrator", "Omar liked Derek's classics:", 0, 30),
+    { ...utt("quote", "That's a dangerous thing.", 32, 57), kind: "quote", joins: true },
+    { ...utt("narrator", "to the most benign.", 59, 78), joins: true },
+    utt("narrator", "Classic Derek.", 80, 94),
+  ];
+
+  it("speaks pieces in the same voice as one, and moves on after the group", () => {
+    const f = fakeEngine();
+    const changes: [SessionStatus, number, number][] = [];
+    const s = new ReadSession({ utterances: para, engine: f.engine, rate: () => 1, voiceFor: () => "v",
+      onChange: (st, i, last) => changes.push([st, i, last]) });
+    s.play(0);
+    expect(f.spoken.map((x) => x.text)).toEqual(["Omar liked Derek's classics: “That's a dangerous thing.” to the most benign."]);
+    expect(changes.at(-1)).toEqual(["playing", 0, 2]);
+    f.end();
+    expect(f.spoken.at(-1)!.text).toBe("Classic Derek.");
+    expect(s.index).toBe(3);
+  });
+
+  it("still splits where the voice changes", () => {
+    const f = fakeEngine();
+    const s = new ReadSession({ utterances: para, engine: f.engine, rate: () => 1,
+      voiceFor: (r) => (r === "quote" ? "q" : "n"), onChange: () => {} });
+    s.play(0);
+    expect(f.spoken.map((x) => x.text)).toEqual(["Omar liked Derek's classics:"]);
+    f.end();
+    expect(f.spoken.at(-1)!.text).toBe("That's a dangerous thing.");
+  });
+
+  it("uses the engine's longer pieces", () => {
+    const f = fakeEngine();
+    f.engine.maxChunk = 400;
+    const long = "A fairly long sentence goes here to fill space. ".repeat(6).trim();
+    const s = new ReadSession({ utterances: [utt("narrator", long, 0, long.length)], engine: f.engine, rate: () => 1,
+      voiceFor: () => "v", onChange: () => {} });
+    s.play(0);
+    expect(f.spoken[0].text).toBe(long);
+  });
+});

@@ -11,7 +11,7 @@ import atexit
 
 from ..ai import usage
 from ..core import settings as user_settings
-from . import cache, endpoint, kokoro
+from . import cache, endpoint, kokoro, pacing
 
 ENGINES = ("browser", "kokoro", "endpoint")
 SETTING = "speech"
@@ -71,10 +71,11 @@ def render(text: str, voice: str, speed: float = 1.0, engine: str | None = None)
         raise ValueError("nothing to read")
     if not voice:
         raise ValueError("choose a voice")
+    # "|p1": clips are trimmed to even pacing (pacing.py); older untrimmed clips are not reused
     if engine == "kokoro":
-        model = "kokoro-82m"
+        model = "kokoro-82m|p1"
     elif engine == "endpoint":
-        model = f"{endpoint.normalize_base(prefs['baseUrl'])}|{prefs['model']}"
+        model = f"{endpoint.normalize_base(prefs['baseUrl'])}|{prefs['model']}|p1"
     else:
         raise ValueError("the system voices are played by the window, not rendered")
     clip_key = cache.key(engine, model, voice, speed, text)
@@ -90,6 +91,7 @@ def render(text: str, voice: str, speed: float = 1.0, engine: str | None = None)
         spent = endpoint.cost(len(text), base, prefs["model"])
         if not endpoint.is_local(base):          # an estimate, in the session's spend beside the AI calls
             usage.LEDGER.record(prefs["model"], "read aloud", spent)
+    wav = pacing.trim(wav)
     cache.put(clip_key, wav)
     return {"wav": wav, "cached": False, "chars": len(text), "cost": spent}
 

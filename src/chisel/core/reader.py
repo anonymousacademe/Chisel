@@ -57,6 +57,7 @@ class Utterance:
     end: int
     row: int                         # 0-based row of the start
     seconds: float                   # estimated at rate 1.0
+    joins: bool = False              # continues the previous utterance's paragraph (spoken as one when the voice is the same)
 
 
 @dataclass
@@ -184,13 +185,22 @@ def _row_of(text: str, offset: int) -> int:
     return text.count("\n", 0, offset)
 
 
+# An all-capitals word with no vowel (SSDD, TV, HQ) cannot be said as a word: spell it out. Words with a vowel
+# (NASA, MILO) are left to the speech engine.
+_LETTERS_RE = re.compile(r"(?<![\w'])[B-DF-HJ-NP-TV-Z]{2,6}(?![\w'])")
+
+
+def _spell_out(say: str) -> str:
+    return _LETTERS_RE.sub(lambda m: " ".join(m.group(0)), say)
+
+
 def _make(text: str, kind: str, voice: str, shown: str, say: str, start: int, end: int,
-          pron: dict[str, str]) -> Utterance | None:
-    say = _respell(" ".join(say.split()), pron)
+          pron: dict[str, str], joins: bool = False) -> Utterance | None:
+    say = _spell_out(_respell(" ".join(say.split()), pron))
     if not say or not any(c.isalnum() for c in say):
         return None
     return Utterance(kind, voice, " ".join(shown.split()), say, start, end, _row_of(text, start),
-                     estimate_seconds(kind, say))
+                     estimate_seconds(kind, say), joins)
 
 
 _SCENE_PREFIXES = ((re.compile(r"^(INT\./EXT|INT/EXT|I/E)\.?\s+", re.I), "Interior and exterior, "),
@@ -330,14 +340,16 @@ def _markdown(text: str, mode: str, opts: ReadOptions, pron: dict[str, str]) -> 
             segments = [(False, 0, len(raw))]
         else:
             segments = _quote_segments(raw)
+        first = True
         for is_quote, s, e in segments:
             chunk = raw[s:e]
             seg_start = a + max(s, lead)                                  # not the paragraph's indent
             seg_end = a + (len(raw.rstrip()) if e == len(raw) else e)     # nor its trailing space
             u = _make(text, QUOTE if is_quote else "narration", QUOTE if is_quote else NARRATOR,
-                      chunk, _speakable(chunk, mode, opts), seg_start, seg_end, pron)
+                      chunk, _speakable(chunk, mode, opts), seg_start, seg_end, pron, joins=not first)
             if u is not None:
                 out.append(u)
+                first = False
         para.clear()
 
     for line in lines:

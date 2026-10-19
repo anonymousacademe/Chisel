@@ -90,9 +90,9 @@ export function useReadAloud(d: {
   const engine = () => engines[engineId.current];
 
   const clearHighlight = () => d.editorRef.current?.clearReading();
-  const highlight = (index: number) => {
-    const u = planRef.current?.utterances[index];
-    if (u) d.editorRef.current?.showReading(u.start, u.end);
+  const highlight = (index: number, last = index) => {
+    const list = planRef.current?.utterances, u = list?.[index], v = list?.[last] ?? u;
+    if (u && v) d.editorRef.current?.showReading(u.start, Math.max(u.end, v.end));
   };
 
   /** The engine settings from Python (no network); kept for the session. */
@@ -131,9 +131,9 @@ export function useReadAloud(d: {
     stale.current = false;
     session.current = new ReadSession({
       utterances: r.utterances, engine: engines[id], rate: () => rateRef.current, voiceFor: (role) => castRef.current[role],
-      onChange: (status, index) => {
+      onChange: (status, index, last) => {
         setState((s) => ({ ...s, status, index }));
-        if (status === "playing" || status === "paused") highlight(index); else clearHighlight();
+        if (status === "playing" || status === "paused") highlight(index, last); else clearHighlight();
       },
       onError: (message) => { setState((s) => ({ ...s, message })); d.notify(message, "error"); },
     });

@@ -14,7 +14,7 @@ export interface SessionDeps {
   voiceFor: (voice: string) => string | undefined;
   rate: () => number;
   /** Called when the status or the current utterance changes. */
-  onChange: (status: SessionStatus, index: number) => void;
+  onChange: (status: SessionStatus, index: number, last: number) => void;
   onError?: (message: string) => void;
 }
 
@@ -27,6 +27,8 @@ export function utteranceIndexAt(utterances: ReadUtterance[], pos: number): numb
 export class ReadSession {
   status: SessionStatus = "idle";
   index = 0;
+  /** The last utterance spoken with *index*: pieces of one paragraph in the same voice are spoken as one. */
+  last = 0;
   private token = 0;
   private queue: string[] = [];
 
@@ -65,7 +67,7 @@ export class ReadSession {
     this.notify();
   }
 
-  next(): void { this.jump(this.index + 1); }
+  next(): void { this.jump(this.last + 1); }
   prev(): void { this.jump(this.index - 1); }
 
   private jump(to: number): void {
@@ -75,12 +77,28 @@ export class ReadSession {
     else { this.index = to; this.notify(); }
   }
 
-  private notify(): void { this.d.onChange(this.status, this.index); }
+  private notify(): void { this.d.onChange(this.status, this.index, Math.max(this.last, this.index)); }
+
+  private get maxChunk(): number { return this.d.engine.maxChunk ?? 200; }
+
+  /** Utterance *i* and the ones after it that continue its paragraph in the same voice: one piece of speech, so
+   * a quoted phrase inside a sentence does not break the sentence's flow. */
+  private group(i: number): { last: number; say: string; role: string } | null {
+    const u = this.d.utterances[i];
+    if (!u) return null;
+    const voice = this.d.voiceFor(u.voice);
+    let j = i;
+    while (this.d.utterances[j + 1]?.joins && this.d.voiceFor(this.d.utterances[j + 1].voice) === voice) j++;
+    // a quote spoken inside its sentence keeps its quotation marks: a cue for the engine's intonation
+    const said = (x: ReadUtterance) => (j > i && x.kind === "quote" ? `“${x.say}”` : x.say);
+    return { last: j, say: this.d.utterances.slice(i, j + 1).map(said).join(" "), role: u.voice };
+  }
 
   private begin(token: number): void {
-    const u = this.d.utterances[this.index];
-    if (!u) return this.finish();
-    this.queue = chunkSpeech(u.say);
+    const g = this.group(this.index);
+    if (!g) return this.finish();
+    this.last = g.last;
+    this.queue = chunkSpeech(g.say, this.maxChunk);
     this.notify();
     this.speakNext(token);
   }
@@ -89,8 +107,8 @@ export class ReadSession {
     if (token !== this.token) return;
     const chunk = this.queue.shift();
     if (chunk === undefined) {                       // the utterance is finished: the next one
-      if (this.index + 1 >= this.d.utterances.length) return this.finish();
-      this.index += 1;
+      if (this.last + 1 >= this.d.utterances.length) return this.finish();
+      this.index = this.last + 1;
       return this.begin(token);
     }
     const u = this.d.utterances[this.index];
@@ -116,9 +134,9 @@ export class ReadSession {
   private ahead(): { text: string; role: string } | null {
     if (!this.d.engine.prefetch) return null;
     if (this.queue.length) return { text: this.queue[0], role: this.d.utterances[this.index].voice };
-    const after = this.d.utterances[this.index + 1];
-    const first = after ? chunkSpeech(after.say)[0] : undefined;
-    return after && first ? { text: first, role: after.voice } : null;
+    const after = this.group(this.last + 1);
+    const first = after ? chunkSpeech(after.say, this.maxChunk)[0] : undefined;
+    return after && first ? { text: first, role: after.role } : null;
   }
 
   private finish(): void {

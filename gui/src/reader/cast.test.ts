@@ -14,7 +14,7 @@ describe("voices and the cast", () => {
 
   it("gives the narrator the first voice and the other roles the following ones, so they differ", () => {
     expect(defaultCast(["narrator", "quote", "Keith", "Mara"], voices, "en-US")).toEqual(
-      { narrator: "david", quote: "hazel", Keith: "zira", Mara: "cloud" });
+      { narrator: "david", quote: "david", Keith: "hazel", Mara: "zira" });
     expect(defaultCast(["Keith", "narrator"], voices, "en-US")).toEqual({ Keith: "hazel", narrator: "david" });
     const many = defaultCast(["narrator", "a", "b", "c", "d"], voices.slice(0, 2), "en-US");
     expect(Object.values(many)).toHaveLength(5);                                        // wraps round with few voices

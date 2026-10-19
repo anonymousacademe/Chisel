@@ -347,3 +347,35 @@ def test_a_frozen_app_says_the_local_engine_is_not_in_the_installer(monkeypatch)
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     st = models.status()
     assert not st["engine"] and "installer" in st["hint"]
+
+
+def _wav(samples, rate=1000):
+    import array
+    import wave as wavemod
+    out = io.BytesIO()
+    with wavemod.open(out, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(array.array("h", samples).tobytes())
+    return out.getvalue()
+
+
+def test_pacing_trims_every_clip_to_the_same_lead_and_tail():
+    import array
+    import wave as wavemod
+    from chisel.speech import pacing
+
+    def frames(data):
+        with wavemod.open(io.BytesIO(data), "rb") as w:
+            a = array.array("h")
+            a.frombytes(w.readframes(w.getnframes()))
+            return a
+
+    long_silence = _wav([0] * 900 + [5000] * 100 + [0] * 900)
+    short_silence = _wav([5000] * 100 + [0] * 10)
+    a, b = frames(pacing.trim(long_silence)), frames(pacing.trim(short_silence))
+    assert len(a) == 30 + 100 + 220                      # 30 ms lead, the sound, 220 ms tail at 1 kHz
+    assert len(b) == 100 + 220                           # no lead to keep; the tail is padded up
+    assert pacing.trim(_wav([0] * 50)) == _wav([0] * 50)          # all silence: unchanged
+    assert pacing.trim(WAV) == WAV                                 # not a readable WAV: unchanged

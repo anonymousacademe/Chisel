@@ -10,6 +10,8 @@ export interface ReadUtterance {
   end: number;
   row: number;
   seconds: number;     // estimated at rate 1
+  /** continues the previous utterance's paragraph: spoken together with it when the voice is the same */
+  joins?: boolean;
 }
 
 export interface ReadPlan {

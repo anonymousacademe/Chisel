@@ -230,3 +230,13 @@ def test_big_documents_are_read_in_good_time():
     t = time.perf_counter()
     p = plan(text, "story")
     assert len(p.utterances) > 10000 and time.perf_counter() - t < 8
+
+
+def test_pieces_of_one_paragraph_are_marked_as_joining():
+    text = ('"That\'s a dangerous thing." Derek said. Omar liked Derek\'s classics: "That\'s a dangerous thing." '
+            'to the most benign.\n\n"SSDD" Same shit, different day.\n')
+    us = reader.plan(text, "story").utterances
+    assert [u.joins for u in us] == [False, True, True, True, False, True]
+    assert us[4].say == "S S D D"                       # no vowel: spelled out
+    assert reader.plan("NASA and the TV.", "story").utterances[0].say == "NASA and the T V."
+    assert all(not u.joins for u in reader.plan("INT. WARD - NIGHT\n\nDana waits.\n", "script").utterances)
