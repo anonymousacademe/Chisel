@@ -18,10 +18,21 @@ class Scope:
 
     collection: str | None = None
     tag: str | None = None
+    collections: tuple[str, ...] = ()
+    include_subcollections: bool = True
+
+    @property
+    def collection_keys(self) -> tuple[str, ...]:
+        """The single ``collection`` and every one of ``collections``, in order, without repeats."""
+        out: list[str] = []
+        for k in ((self.collection,) if self.collection else ()) + tuple(self.collections or ()):
+            if k and k not in out:
+                out.append(k)
+        return tuple(out)
 
     @property
     def limited(self) -> bool:
-        return bool(self.collection or self.tag)
+        return bool(self.collection_keys or self.tag)
 
 
 @dataclass(frozen=True)

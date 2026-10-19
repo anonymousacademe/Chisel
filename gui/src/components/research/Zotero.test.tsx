@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../../backend/api", () => ({
   api: {
     zoteroGetSettings: vi.fn(), zoteroSetSettings: vi.fn(), zoteroSetKey: vi.fn(), zoteroClearKey: vi.fn(), zoteroStatus: vi.fn(),
-    zoteroCollections: vi.fn(), zoteroSyncPlan: vi.fn(), zoteroSyncApply: vi.fn(),
+    zoteroCollections: vi.fn(), zoteroSavedCollections: vi.fn(), zoteroSyncPlan: vi.fn(), zoteroSyncApply: vi.fn(),
   },
 }));
 import { api } from "../../backend/api";
@@ -23,7 +23,7 @@ async function mount(el: React.ReactElement) {
   await act(async () => { root.render(el); });
   return { host, root };
 }
-const button = (host: HTMLElement, label: string) => [...host.querySelectorAll("button")].find((b) => b.textContent?.includes(label)) as HTMLButtonElement;
+const button = (host: HTMLElement, label: string) => { const all = [...host.querySelectorAll("button")]; return (all.find((b) => b.textContent === label) ?? all.find((b) => b.textContent?.includes(label))) as HTMLButtonElement; };
 function type(input: HTMLInputElement, value: string) {
   const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
   set.call(input, value);
@@ -57,6 +57,7 @@ const rows = [
 
 describe("SyncReviewDialog", () => {
   beforeEach(() => {
+    m.zoteroSavedCollections.mockResolvedValue({ ok: true, keys: [] });
     m.zoteroCollections.mockResolvedValue({ ok: true, collections: [
       { key: "C1", path: "AI and Computing / WRRI", items: 4 }, { key: "C2", path: "Hydrology / Runoff", items: null },
     ] });
@@ -72,7 +73,7 @@ describe("SyncReviewDialog", () => {
     expect(m.zoteroSyncApply).not.toHaveBeenCalled();
     expect(host.textContent).toContain("Read 3 items.");
     expect(host.textContent).toContain("Fix the key first");
-    const boxes = host.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+    const boxes = host.querySelectorAll<HTMLInputElement>(".lw-review:not([aria-label=\"Collections\"]) input[type=\"checkbox\"]");
     expect([...boxes].map((b) => b.checked)).toEqual([true, true, false]);
     expect(boxes[2].disabled).toBe(true);
     await act(async () => { boxes[1].click(); });
@@ -82,14 +83,68 @@ describe("SyncReviewDialog", () => {
     expect(host.textContent).toContain("b: edited");
   });
 
-  it("filters the collection list and scopes the preview to the chosen one", async () => {
+  const collBoxes = (host: HTMLElement) => [...host.querySelectorAll<HTMLInputElement>('[aria-label="Collections"] input[type="checkbox"]')];
+
+  it("filters the collection list and scopes the preview to the ticked collections", async () => {
     const { host } = await mount(<SyncReviewDialog notify={() => {}} onApplied={() => {}} onClose={() => {}} />);
     expect(host.textContent).toContain("Whole library");
-    expect(host.textContent).toContain("Hydrology / Runoff");
+    expect(host.textContent).toContain("Runoff");
     await act(async () => { type(host.querySelector<HTMLInputElement>('input[aria-label="Filter collections"]')!, "wrri"); });
-    expect(host.textContent).not.toContain("Hydrology / Runoff");
-    await act(async () => { host.querySelectorAll<HTMLInputElement>('input[type="radio"]')[1].click(); });
+    expect(host.textContent).not.toContain("Runoff");
+    await act(async () => { collBoxes(host)[0].click(); });
+    expect(host.textContent).toContain("1 collection selected");
     await act(async () => { button(host, "Preview changes").click(); });
-    expect(m.zoteroSyncPlan).toHaveBeenCalledWith({ collection: "C1" });
+    expect(m.zoteroSyncPlan).toHaveBeenCalledWith({ collections: ["C1"], includeSubcollections: true });
+  });
+
+  it("multi-select sends every ticked collection and the subcollection choice", async () => {
+    const { host } = await mount(<SyncReviewDialog notify={() => {}} onApplied={() => {}} onClose={() => {}} />);
+    await act(async () => { collBoxes(host).forEach((b) => b.click()); });
+    expect(host.textContent).toContain("2 collections selected");
+    await act(async () => { [...host.querySelectorAll<HTMLInputElement>("input")].find((i) => i.parentElement?.textContent?.includes("Include subcollections"))!.click(); });
+    await act(async () => { button(host, "Preview changes").click(); });
+    expect(m.zoteroSyncPlan).toHaveBeenCalledWith({ collections: ["C1", "C2"], includeSubcollections: false });
+  });
+
+  it("preselects the saved collections and offers Sync again", async () => {
+    m.zoteroSavedCollections.mockResolvedValue({ ok: true, keys: ["C2"] });
+    const { host } = await mount(<SyncReviewDialog notify={() => {}} onApplied={() => {}} onClose={() => {}} />);
+    expect(collBoxes(host).map((b) => b.checked)).toEqual([false, true]);
+    expect(button(host, "Sync again")).toBeTruthy();
+    await act(async () => { collBoxes(host)[0].click(); });
+    expect(button(host, "Preview changes")).toBeTruthy();
+  });
+
+  it("shows a spinner while the plan is pending, and Cancel discards a late result", async () => {
+    let finish: (v: unknown) => void = () => {};
+    m.zoteroSyncPlan.mockReturnValue(new Promise((res) => { finish = res; }));
+    const { host } = await mount(<SyncReviewDialog notify={() => {}} onApplied={() => {}} onClose={() => {}} />);
+    await act(async () => { button(host, "Preview changes").click(); });
+    expect(host.querySelector(".lw-spinner")).toBeTruthy();
+    expect(host.textContent).toContain("Reading Zotero");
+    expect(button(host, "Preview changes").disabled).toBe(true);
+    await act(async () => { button(host, "Cancel preview").click(); });
+    expect(host.querySelector(".lw-spinner")).toBeNull();
+    expect(host.textContent).toContain("Nothing was written");
+    await act(async () => { finish({ ok: true, rows, report: ["Late."], backend: "local" }); });
+    expect(host.textContent).not.toContain("Late.");
+    expect(host.textContent).not.toContain("Add A");
+  });
+
+  it("select all / none, search and the selected count", async () => {
+    const { host } = await mount(<SyncReviewDialog notify={() => {}} onApplied={() => {}} onClose={() => {}} />);
+    await act(async () => { button(host, "Preview changes").click(); });
+    expect(host.textContent).toContain("2 of 3 selected");
+    await act(async () => { button(host, "Select none").click(); });
+    expect(host.textContent).toContain("0 of 3 selected");
+    await act(async () => { button(host, "Select all").click(); });
+    expect(host.textContent).toContain("2 of 3 selected");     // the blocked row stays unticked
+    await act(async () => { button(host, "Select none").click(); });
+    await act(async () => { type(host.querySelector<HTMLInputElement>('input[aria-label="Search papers"]')!, "change b"); });
+    expect(host.textContent).not.toContain("Add A");
+    await act(async () => { button(host, "Select all").click(); });
+    expect(host.textContent).toContain("1 of 3 selected");
+    await act(async () => { button(host, "Apply 1 change").click(); });
+    expect(m.zoteroSyncApply).toHaveBeenCalledWith(["b"]);
   });
 });

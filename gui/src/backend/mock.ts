@@ -199,9 +199,10 @@ export function mockCall(method: string, args: unknown[]): object {
   switch (method) {
     case "ping": return { ok: true };
     case "zotero_collections": return { ok: true, collections: [
-      { key: "AB12CD34", path: "AI and Computing / WRRI - AI and Process Modeling", items: 42 },
-      { key: "EF56GH78", path: "Hydrology / Rainfall-runoff", items: null },
+      { key: "AB12CD34", path: "AI and Computing / WRRI - AI and Process Modeling", items: 42, parent: null },
+      { key: "EF56GH78", path: "Hydrology / Rainfall-runoff", items: null, parent: null },
     ] };
+    case "zotero_saved_collections": return { ok: true, keys: [] };
     case "zotero_get_settings": case "zotero_set_settings": return { ok: true, userId: "", webBase: "https://api.zotero.org", local: true, localBase: "http://127.0.0.1:23119", file: "", keySet: false };
     case "zotero_set_key": return { ok: true, keySet: true };
     case "zotero_clear_key": return { ok: true, keySet: false };

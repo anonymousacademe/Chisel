@@ -54,6 +54,24 @@ def normalize_mode(value: object) -> str:
     return value if isinstance(value, str) and value in MODES else DEFAULT_MODE
 
 
+def _toml_key(key: str) -> str:
+    return key if re.fullmatch(r"[A-Za-z0-9_-]+", key) else json.dumps(key)
+
+
+def _toml_value(value):
+    """A TOML literal for a str / int / float / bool / list of those (strings via json.dumps), else None."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return repr(value)
+    if isinstance(value, str):
+        return json.dumps(value)
+    if isinstance(value, (list, tuple)):
+        parts = [_toml_value(v) for v in value]
+        return None if any(p is None for p in parts) else "[" + ", ".join(parts) + "]"
+    return None
+
+
 def toml_string(value: str) -> str:
     """*value* as a TOML basic string (quotes, backslashes, newlines escaped)."""
     return json.dumps(value, ensure_ascii=False).replace("\x7f", "\\u007f")
@@ -358,6 +376,21 @@ class Project(Structure):
         era_line = f"era = {toml_string(current['era'])}\n"
         unit_line = f"unit = {toml_string(current['unit'])}\n"
         self._write_section("timeline", era_line + unit_line)
+
+    def research_settings(self) -> dict:
+        """The [research] table of project.toml as a plain dict (empty when absent)."""
+        raw = self.meta.get("research")
+        return dict(raw) if isinstance(raw, dict) else {}
+
+    def update_research_settings(self, zotero_collections: list[str] | tuple[str, ...] | None = None) -> None:
+        """Write [research] into project.toml, MERGING with every key already in the table (other waves
+        keep their own keys there). ``zotero_collections`` is the saved Zotero collection selection."""
+        raw = self.research_settings()
+        if zotero_collections is not None:
+            raw["zotero_collections"] = [str(k) for k in zotero_collections if str(k)]
+        body = "".join(f"{_toml_key(k)} = {_toml_value(v)}\n" for k, v in raw.items()
+                       if _toml_value(v) is not None)
+        self._write_section("research", body)
 
     def _write_section(self, name: str, body: str) -> None:
         """Replace (or append) the [name] table of project.toml, preserving

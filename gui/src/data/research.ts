@@ -32,7 +32,7 @@ export interface ResearchFlag {
 // -- Zotero (settings, sync review, Sources list) ----------------------------------------------------------
 
 /** One Zotero collection by its full path ("AI and Computing / WRRI"); items is null when Zotero did not say. */
-export interface ZoteroCollection { key: string; path: string; items: number | null }
+export interface ZoteroCollection { key: string; path: string; items: number | null; parent?: string | null }
 
 /** The Zotero settings. The web API key never comes back over the bridge: only whether one is saved. */
 export interface ZoteroSettings { userId: string; webBase: string; local: boolean; localBase: string; file: string; keySet: boolean }
@@ -43,7 +43,7 @@ export interface ZoteroStatus { backends: ZoteroBackendStatus[]; keySet: boolean
 export type SyncAction = "new" | "changed" | "missing" | "key-mismatch";
 export interface SyncRow { id: string; key: string; action: SyncAction; summary: string; blocked: string | boolean }
 export interface SyncPlan { rows: SyncRow[]; report: string[]; backend: string }
-export interface SyncScope { collection?: string; tag?: string }
+export interface SyncScope { collection?: string; collections?: string[]; includeSubcollections?: boolean; tag?: string }
 export interface SyncApplied { changed: string[]; skipped: { id: string; reason: string }[]; recorded: boolean }
 
 export interface SourceRow { id: string; name: string; title: string; key: string; status: string }
@@ -57,6 +57,21 @@ export const blockedReason = (r: SyncRow): string => (r.blocked === true ? "Cann
 export const filterCollections = (all: ZoteroCollection[], q: string) => {
   const s = q.trim().toLowerCase();
   return s ? all.filter((c) => c.path.toLowerCase().includes(s)) : all;
+};
+
+/** Nesting depth of a collection (0 = top level), from the parent keys Python sends. */
+export const collectionDepth = (c: ZoteroCollection, all: ZoteroCollection[]): number => {
+  const by = new Map(all.map((x) => [x.key, x]));
+  let d = 0; let cur = c.parent ?? null;
+  while (cur && by.has(cur) && d < 20) { d++; cur = by.get(cur)!.parent ?? null; }
+  return d;
+};
+/** The last part of a collection path ("A / B" -> "B"). */
+export const collectionName = (c: ZoteroCollection): string => c.path.split(" / ").pop() || c.path;
+/** Case-insensitive search over the rows of a sync preview (summary, key, action). */
+export const filterSyncRows = (rows: SyncRow[], q: string): SyncRow[] => {
+  const s = q.trim().toLowerCase();
+  return s ? rows.filter((r) => `${r.summary} ${r.key} ${r.action}`.toLowerCase().includes(s)) : rows;
 };
 
 // -- Citing sources (Cite dialog, [[@ completion, the source card, citation hover) --------------------------

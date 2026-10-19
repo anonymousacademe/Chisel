@@ -5,7 +5,7 @@ import pytest
 from tests.test_gui_api import open_api
 
 RESEARCH_METHODS = [
-    "zotero_status", "zotero_sync_plan", "zotero_sync_apply", "zotero_get_settings", "zotero_set_settings",
+    "zotero_status", "zotero_saved_collections", "zotero_sync_plan", "zotero_sync_apply", "zotero_get_settings", "zotero_set_settings",
     "zotero_set_key", "zotero_clear_key", "list_sources", "research_checks", "export_research_start",
     "export_research_status", "export_research_open", "list_objects", "object_numbers", "object_render",
     "object_image", "read_table", "save_table", "build_table", "apply_table", "insert_figure",

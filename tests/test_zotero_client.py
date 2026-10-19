@@ -353,3 +353,33 @@ def test_chain_cache_last_resort():
 def test_open_sources_defaults():
     assert [s.name for s in open_sources({})] == ["local"]
     assert open_sources({"zotero_local": False}) == []
+
+
+def _col(key, name, parent=False):
+    return {"key": key, "data": {"key": key, "name": name, "parentCollection": parent}, "meta": {"numItems": 1}}
+
+
+def test_two_collections_merge_by_item_key(fake):
+    fake.routes["/users/42/collections/C1/items"] = lambda q, h, n: fake.ok([item("A"), item("SHARED")])
+    fake.routes["/users/42/collections/C2/items"] = lambda q, h, n: fake.ok([item("SHARED"), item("B")])
+    src, _ = web(fake)
+    got = src.fetch(Scope(collections=("C1", "C2"), include_subcollections=False), None)
+    assert sorted(i.key for i in got.items) == ["A", "B", "SHARED"]
+    assert got.deleted_keys == []
+
+
+def test_subcollections_are_expanded(fake):
+    fake.routes["/users/42/collections"] = lambda q, h, n: fake.ok(
+        [_col("C1", "Top"), _col("C1a", "Sub", "C1"), _col("C1b", "Deep", "C1a"), _col("Z", "Other")])
+    for key, it in (("C1", "A"), ("C1a", "B"), ("C1b", "C"), ("Z", "NOPE")):
+        fake.routes[f"/users/42/collections/{key}/items"] = (lambda i: lambda q, h, n: fake.ok([item(i)]))(it)
+    src, _ = web(fake)
+    assert sorted(i.key for i in src.fetch(Scope(collections=("C1",)), None).items) == ["A", "B", "C"]
+    only = src.fetch(Scope(collections=("C1",), include_subcollections=False), None)
+    assert [i.key for i in only.items] == ["A"]
+
+
+def test_scope_limited_and_legacy_collection():
+    assert Scope(collections=("X",)).limited and Scope(collection="X").limited and Scope(tag="t").limited
+    assert not Scope().limited
+    assert Scope(collection="X", collections=("X", "Y")).collection_keys == ("X", "Y")

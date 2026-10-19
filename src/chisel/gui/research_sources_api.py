@@ -206,10 +206,22 @@ class ResearchSourcesMixin:
         raise RuntimeError(problems[0] if problems else "No Zotero source that lists collections is set up.")
 
     @bridge
+    def zotero_saved_collections(self) -> dict:
+        with self._lock:
+            project = self._research_project()
+            raw = project.research_settings().get("zotero_collections")
+        keys = [str(k) for k in raw if str(k)] if isinstance(raw, list) else []
+        return {"keys": keys}
+
+    @bridge
     def zotero_sync_plan(self, scope: dict | None = None) -> dict:
         scope = scope or {}
+        raw_keys = scope.get("collections")
+        keys = tuple(str(k) for k in raw_keys if str(k)) if isinstance(raw_keys, (list, tuple)) else ()
         sc = zotero.Scope(collection=str(scope.get("collection") or "") or None,
-                          tag=str(scope.get("tag") or "") or None)
+                          tag=str(scope.get("tag") or "") or None,
+                          collections=keys,
+                          include_subcollections=bool(scope.get("includeSubcollections", True)))
         with self._lock:
             project = self._research_project()
             state = src_notes.load_sync_state(project)
@@ -228,6 +240,7 @@ class ResearchSourcesMixin:
             project = self._research_project()
             plan = src_notes.plan_sync(project, result, scope=sc, state_key=state_key)
             self._zotero_plan = (project.root, plan)
+            self._zotero_picked = list(sc.collection_keys)
             rows = [{"id": r.id, "key": r.key, "action": r.action, "summary": r.summary,
                      "blocked": r.blocked} for r in plan.rows]
         return {"rows": rows, "report": list(report) + [str(w) for w in plan.warnings],
@@ -243,6 +256,9 @@ class ResearchSourcesMixin:
             ids = [str(i) for i in (ticked or [])]
             outcome = src_notes.apply_sync(project, held[1], ids)
             self._zotero_plan = None
+            picked = getattr(self, "_zotero_picked", None)
+            if picked is not None:
+                project.update_research_settings(zotero_collections=picked)   # remembered for "Sync again"
             if outcome["changed"]:
                 self._entities_changed()    # reload entities and rebuild the index
         return {"changed": outcome["changed"], "skipped": outcome["skipped"],

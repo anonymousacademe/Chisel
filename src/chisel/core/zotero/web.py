@@ -16,6 +16,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from dataclasses import replace
 from typing import Callable
 
 from ..paper.types import Annotation, ZItem
@@ -163,7 +164,8 @@ def collection_paths(rows: list[dict]) -> list[dict]:
             key = parent
         return " / ".join(reversed(parts))
 
-    out = [{"key": k, "path": path(k), "items": v[2]} for k, v in data.items()]
+    out = [{"key": k, "path": path(k), "items": v[2],
+            "parent": v[1] if v[1] and v[1] in data else None} for k, v in data.items()]
     out.sort(key=lambda c: (c["path"].casefold(), c["key"]))
     return out
 
@@ -175,6 +177,7 @@ class ZoteroLibrary:
         self.http = http
         self.user_path = user_path           # "/users/42" or "/users/0"
         self.warnings: list[str] = []
+        self._expand_failed = False
         # Zotero 10.0.6's local API returns no annotations from /items/<pdf>/children (they exist: the library-wide
         # listing has them, each naming its PDF as parentItem), so the local backend reads them from the listing.
         self.annotations_by_listing = False
@@ -235,8 +238,58 @@ class ZoteroLibrary:
         raise ZoteroError("The Zotero library kept changing while it was read; try again.")
 
     # -- fetch ---------------------------------------------------------------------------------------
+    def _expand_collections(self, keys: tuple[str, ...]) -> list[str]:
+        """*keys* plus every subcollection of each (parents first, no repeats)."""
+        try:
+            rows = self.collections()
+        except ZoteroError:
+            self._expand_failed = True      # fetch() turns this into a warning; the ticked ones are still read
+            return list(keys)
+        children: dict[str, list[str]] = {}
+        for r in rows:
+            if r.get("parent"):
+                children.setdefault(r["parent"], []).append(r["key"])
+        out: list[str] = []
+
+        def add(k: str) -> None:
+            if k in out:
+                return
+            out.append(k)
+            for c in children.get(k, []):
+                add(c)
+
+        for k in keys:
+            add(k)
+        return out
+
     def fetch(self, scope: Scope, since: int | None, backend: str,
               server_id: str | None = None) -> FetchResult:
+        """One read of the library, or of each ticked collection (and its subcollections) merged by item key."""
+        keys = scope.collection_keys
+        if not keys:
+            return self._fetch_one(scope, since, backend, server_id)
+        if scope.include_subcollections:
+            self._expand_failed = False
+            keys = tuple(self._expand_collections(keys))
+        merged: dict[str, ZItem] = {}
+        deleted: list[str] = []
+        version = None
+        warnings = ["Zotero did not list the subcollections; only the ticked collections were read."] \
+            if scope.include_subcollections and self._expand_failed else []
+        for k in keys:
+            part = self._fetch_one(replace(scope, collection=k, collections=()), since, backend, server_id)
+            warnings.extend(w for w in self.warnings if w not in warnings)
+            for it in part.items:
+                merged.setdefault(it.key, it)
+            deleted.extend(d for d in part.deleted_keys if d not in deleted)
+            if version is None:
+                version = part.library_version
+        self.warnings = warnings
+        # An item that left a ticked collection is simply absent: only deleted keys ever become "missing".
+        return FetchResult(backend, list(merged.values()), deleted, version, server_id)
+
+    def _fetch_one(self, scope: Scope, since: int | None, backend: str,
+                   server_id: str | None = None) -> FetchResult:
         self.warnings = []
         self._annotation_rows_cache = None
         base = "/items"

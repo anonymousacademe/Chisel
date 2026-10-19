@@ -454,6 +454,9 @@ button.lw-status__item:hover { color: var(--lw-text); }
 .lw-dialog__buttons--split { justify-content: space-between; align-items: center; }
 .lw-review { overflow-y: auto; display: flex; flex-direction: column; gap: 8px; min-height: 0; max-height: 46vh; }
 .lw-review__row { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: var(--lw-radius-sm); background: var(--lw-bg-raised); border: 1px solid var(--lw-border); cursor: pointer; }
+.lw-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--lw-border); border-top-color: var(--lw-accent); border-radius: 50%; animation: lw-spin 0.8s linear infinite; vertical-align: -2px; margin-right: 6px; }
+@keyframes lw-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .lw-spinner { animation-duration: 3s; } }
 .lw-review__row input { margin-top: 2px; accent-color: var(--lw-accent); }
 .lw-review__text { display: flex; flex-direction: column; gap: 4px; font-size: 12px; line-height: 1.45; color: var(--lw-text); user-select: text; }
 .lw-review__context { font-size: 11px; line-height: 1.45; color: var(--lw-text-muted); user-select: text; }

@@ -118,6 +118,7 @@ export const api = {
   zoteroSetKey: (key: string) => call<{ keySet: boolean }>("zotero_set_key", key),
   zoteroClearKey: () => call<{ keySet: boolean }>("zotero_clear_key"),
   zoteroStatus: () => call<ZoteroStatus>("zotero_status"),
+  zoteroSavedCollections: () => call<{ keys: string[] }>("zotero_saved_collections"),
   zoteroSyncPlan: (scope: SyncScope = {}) => call<SyncPlan>("zotero_sync_plan", scope),
   zoteroSyncApply: (ticked: string[]) => call<SyncApplied>("zotero_sync_apply", ticked),
   listSources: () => call<{ sources: SourceRow[] }>("list_sources"),

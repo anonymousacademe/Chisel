@@ -248,3 +248,44 @@ def test_export_clean_paper_no_override_and_tex_install_explicit(tmp_path, monke
     assert [c["allow_tex_install"] for c in calls] == [False, False, True]
     assert all(c["allow_unresolved"] is False for c in calls)
     assert api.export_research_status("nope")["ok"] is False
+
+
+def test_plan_scope_multi_and_legacy(tmp_path, monkeypatch):
+    api, _ = research_api(tmp_path)
+    seen = []
+    patch_fetch(monkeypatch, [zitem()])
+    real = mod.zotero.chain_fetch
+    monkeypatch.setattr(mod.zotero, "chain_fetch",
+                        lambda sources, scope, state: seen.append(scope) or real(sources, scope, state))
+    assert api.zotero_sync_plan({"collections": ["C1", "C2"], "includeSubcollections": False})["ok"]
+    assert seen[-1].collection_keys == ("C1", "C2") and seen[-1].include_subcollections is False
+    assert api.zotero_sync_plan({"collection": "OLD"})["ok"]
+    assert seen[-1].collection_keys == ("OLD",) and seen[-1].include_subcollections is True
+
+
+def test_saved_collections_round_trip_keeps_other_research_keys(tmp_path, monkeypatch):
+    import tomllib
+    api, project = research_api(tmp_path)
+    assert api.zotero_saved_collections() == {"ok": True, "keys": []}
+    path = project.root / "project.toml"
+    text = path.read_text(encoding="utf-8").rstrip("\n")
+    path.write_text(text + '\n\n[research]\nfigure_width = 5.5\nnumbering = "by-section"\n'
+                    'flag = true\n', encoding="utf-8", newline="\n")
+    project.meta = tomllib.loads(path.read_text(encoding="utf-8"))
+    patch_fetch(monkeypatch, [zitem()])
+    plan = api.zotero_sync_plan({"collections": ["C1", 'we"ird']})
+    assert api.zotero_sync_apply([plan["rows"][0]["id"]])["ok"]
+    assert api.zotero_saved_collections()["keys"] == ["C1", 'we"ird']
+    r = Project.open(project.root).research_settings()
+    assert r["figure_width"] == 5.5 and r["numbering"] == "by-section" and r["flag"] is True
+    assert r["zotero_collections"] == ["C1", 'we"ird']
+
+
+def test_departed_paper_is_never_marked_missing(tmp_path, monkeypatch):
+    api, project = research_api(tmp_path)
+    patch_fetch(monkeypatch, [zitem("A1", "smith2024"), zitem("B2", "jones2023")])
+    plan = api.zotero_sync_plan({})
+    assert api.zotero_sync_apply([r["id"] for r in plan["rows"]])["ok"]
+    patch_fetch(monkeypatch, [zitem("A1", "smith2024")])      # B2 left the ticked collection
+    plan = api.zotero_sync_plan({"collections": ["C1"]})
+    assert not [r for r in plan["rows"] if r["action"] == "missing"]
