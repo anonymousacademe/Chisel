@@ -3,7 +3,7 @@ import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { redo, redoDepth, selectAll, undo, undoDepth } from "@codemirror/commands";
 import { api } from "../backend/api";
-import { setComments, setReading, metaCompartment, metaFacet, reflowCompartment, reflowFacet, setSpans, setSpelling, spansField, spellingField, editorExtensions, type Card, type ContextInfo, type CursorInfo, type SpellTarget } from "../editor/cm";
+import { setComments, setReading, metaCompartment, metaFacet, reflowCompartment, reflowFacet, setSpans, setSpelling, spansField, spellingField, editorExtensions, sourceStart, type Card, type ContextInfo, type CursorInfo, type SpellTarget } from "../editor/cm";
 import { replaceRange, toggleWrap } from "../editor/commands";
 import { nextMisspelling, type Span } from "../editor/spans";
 import type { ScriptNames } from "../editor/script";
@@ -49,6 +49,8 @@ export interface EditorHandle {
 interface Props {
   docId: string;
   kind: string;
+  /** Entity notes: the type ("source" hides the frontmatter and the sync markers). */
+  entityType?: string;
   initialText: string;
   meta: string;
   reflow: boolean;
@@ -249,6 +251,7 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
       parent: host.current!,
       state: EditorState.create({
         doc: hooks.current.initialText,
+        selection: { anchor: sourceStart(hooks.current.initialText, hooks.current.entityType ?? "") },
         extensions: editorExtensions(hooks.current.kind, hooks.current.meta, hooks.current.reflow, {
           onChange: (t) => { hooks.current.onChange(t); schedule(); scheduleSpelling(); scheduleComments(); },
           onSpell: (t) => hooks.current.onSpell(t),
@@ -268,7 +271,7 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
           extraKeys: hooks.current.extraKeys?.map((k) => ({
             key: k.key, run: () => hooks.current.extraKeys?.find((x) => x.key === k.key)?.run() ?? false,
           })),
-        }, undoDepth, redoDepth, hooks.current.script),
+        }, undoDepth, redoDepth, hooks.current.script, hooks.current.entityType),
       }),
     });
     view.current = v;

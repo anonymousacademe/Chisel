@@ -103,6 +103,8 @@ export interface DocumentPayload {
   kind: DocKind;
   title: string;
   kicker: string;        // "SCENE 02", "CHARACTER", "STYLE GUIDE"
+  /** Entity notes only: the entity type ("character", "source", ...). */
+  entityType?: string;
   parent: string;        // breadcrumb parent: "Manuscript"
   text: string;
   mtime: string;         // ns since epoch, as a string (exceeds 2^53)

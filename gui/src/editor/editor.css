@@ -36,6 +36,12 @@
 .lw-cm .lw-syn, .lw-cm .lw-bracket { color: var(--lw-text-faint); }
 .lw-cm .lw-frontmatter { font-family: var(--lw-font-mono); font-size: 12px; line-height: 1.7; color: var(--lw-text-muted); }
 
+/* source notes: the quiet line above the Zotero part (a widget; padding, never margin) */
+.lw-cm .lw-source-banner { font-family: var(--lw-font-ui); font-size: 11px; line-height: 14px; color: var(--lw-text-faint); padding-top: 4px; padding-bottom: 6px; }
+
+.lw-cm .lw-source-marker { font-family: var(--lw-font-mono, monospace); font-size: 10px; color: var(--lw-text-faint); opacity: 0.7; }
+.lw-cm .lw-source-head { height: 0; line-height: 0; padding: 0; overflow: hidden; }
+
 /* mentions and links */
 .lw-cm .lw-mention, .lw-cm .lw-link-span { color: var(--lw-accent-text); cursor: pointer; }
 .lw-cm .lw-link-span--unresolved { color: var(--lw-warning); }

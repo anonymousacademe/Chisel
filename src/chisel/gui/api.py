@@ -305,6 +305,7 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
                 "mtime": str(path.stat().st_mtime_ns),
                 "words": project.count_words(text, originals),
                 "mentions": mentions,
+                **({"entityType": entity.type} if entity is not None else {}),
                 **extra,
             }
 
