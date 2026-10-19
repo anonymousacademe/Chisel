@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
 import re
 import zipfile
 from pathlib import Path
@@ -26,6 +27,7 @@ MAX_ZIP_ENTRIES = 2000
 MAX_UNCOMPRESSED = 50 * 1024 * 1024
 MAX_XML_BYTES = 40 * 1024 * 1024
 MAX_DEPTH = 8
+EXTRACTOR_VERSION = 2       # part of the cache key: raise it when the extractors or their caps change
 NOTE_MARK = "<!-- pasted -->"
 EXTENSIONS = ("pdf", "docx", "md", "txt")
 
@@ -167,9 +169,20 @@ def _docx_text(data: bytes) -> str:
             xml = fh.read(MAX_XML_BYTES + 1)
     if len(xml) > MAX_XML_BYTES:
         raise GuidelineError("This Word document is too large to read safely.")
-    head = xml.lower()
-    if b"<!doctype" in head or b"<!entity" in head:
+    if (xml[:2] in (b"\xff\xfe", b"\xfe\xff") or xml[:4] in (b"\xff\xfe\x00\x00", b"\x00\x00\xfe\xff")
+            or b"\x00" in xml):
+        raise GuidelineError("This Word document has an unusual encoding and was not read.")
+    try:
+        decoded = xml.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise GuidelineError("This Word document has an unusual encoding and was not read.") from None
+    decl = re.match(r"\s*<\?xml[^>]*?encoding\s*=\s*[\"']([^\"']+)[\"']", decoded, re.I)
+    if decl and decl.group(1).strip().lower().replace("_", "-") not in ("utf-8", "utf8"):
+        raise GuidelineError("This Word document has an unusual encoding and was not read.")
+    low = decoded.lower()
+    if "<!doctype" in low or "<!entity" in low:
         raise GuidelineError("This Word document has an unsafe structure and was not read.")
+    xml = decoded.encode("utf-8")
     try:
         root = ElementTree.fromstring(xml)
     except ElementTree.ParseError:
@@ -215,24 +228,38 @@ def _docx_text(data: bytes) -> str:
     return "\n".join(lines)
 
 
-def _pdf_text(data: bytes) -> str:
+def _pdf_text(data: bytes) -> tuple[str, str]:
+    """(text, note): the note says when a cap cut the reading (empty otherwise)."""
     try:
         import pypdf
     except ImportError:
         raise GuidelineError("Reading PDFs needs the optional pypdf package. Paste the text instead, "
                              "or install it (pip install pypdf).") from None
+    note = ""
     try:
         reader = pypdf.PdfReader(io.BytesIO(data))
         if reader.is_encrypted and not reader.decrypt(""):
             raise GuidelineError("This PDF is password protected. Paste its text instead.")
         parts: list[str] = []
         total = 0
-        for page in reader.pages[:MAX_PDF_PAGES]:
-            text = (page.extract_text() or "")[:MAX_PAGE_CHARS]
+        pages = reader.pages
+        count = len(pages)
+        limit = min(count, MAX_PDF_PAGES)
+        cut_page = False
+        for i in range(limit):
+            raw = pages[i].extract_text() or ""
+            if len(raw) > MAX_PAGE_CHARS:
+                cut_page = True
+            text = raw[:MAX_PAGE_CHARS]
             parts.append(text)
             total += len(text)
-            if total > MAX_TOTAL_CHARS:
+            if total > MAX_TOTAL_CHARS and i + 1 < count:
+                note = f"Only the first {i + 1} pages were read."
                 break
+        if not note and count > MAX_PDF_PAGES:
+            note = f"Only the first {MAX_PDF_PAGES} pages were read."
+        if cut_page:
+            note = (note + " " if note else "") + f"Pages longer than {MAX_PAGE_CHARS:,} characters were cut."
     except GuidelineError:
         raise
     except Exception:
@@ -240,7 +267,7 @@ def _pdf_text(data: bytes) -> str:
     text = "\n\n".join(parts)
     if not text.strip():
         raise GuidelineError("This looks like a scanned document; paste its text instead.")
-    return text
+    return text, note
 
 
 def _clean(text: str) -> str:
@@ -252,43 +279,86 @@ def _kind_of(path: Path) -> str:
     return path.suffix.lower().lstrip(".")
 
 
-def _text_of(project, path: Path) -> tuple[str, bool]:
-    """(text, truncated) of a guideline file, through the cache. Raises GuidelineError for a file that
-    cannot be read (scanned PDF, no pypdf, hostile Word file)."""
-    data = path.read_bytes()
-    kind = _kind_of(path)
+class Source:
+    """The bytes of one guideline file, read once (under the caller's lock); extraction needs no lock."""
+
+    def __init__(self, path: Path, data: bytes | None, error: str = ""):
+        self.path, self.data, self.error = path, data, error
+
+
+def _read_source(path: Path) -> Source:
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return Source(path, None, "This file could not be read.")
+    if size > MAX_BYTES:
+        return Source(path, None, f"{path.name} is too large to read (over 25 MB).")
+    try:
+        return Source(path, path.read_bytes())
+    except OSError:
+        return Source(path, None, "This file could not be read.")
+
+
+def _cache_key(data: bytes) -> str:
+    return f"{hashlib.sha256(data).hexdigest()}-v{EXTRACTOR_VERSION}"
+
+
+def extract(project, src: Source) -> tuple[str, bool, str]:
+    """(text, truncated, note) of a guideline file, through the cache (failures are cached too, as a
+    small entry with the plain reason). Raises GuidelineError for a file that cannot be read. Takes no
+    project lock: call it outside one."""
+    if src.data is None:
+        raise GuidelineError(src.error)
+    data, kind = src.data, _kind_of(src.path)
     if kind in ("md", "txt"):
         text = _clean(data.decode("utf-8", errors="replace"))
         if text.startswith(NOTE_MARK):
             text = text[len(NOTE_MARK):].lstrip("\n")
+        note = ""
     else:
-        digest = hashlib.sha256(data).hexdigest()
-        cached = _cache_dir(project) / f"{digest}.txt"
-        text = None
+        cached = _cache_dir(project) / f"{_cache_key(data)}.json"
+        entry = None
         if cached.is_file():
             try:
-                text = cached.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
-                text = None
-        if text is None:
-            text = _clean(_docx_text(data) if kind == "docx" else _pdf_text(data))[:MAX_TOTAL_CHARS]
+                entry = json.loads(cached.read_text(encoding="utf-8"))
+                if not isinstance(entry, dict):
+                    entry = None
+            except (OSError, ValueError):
+                entry = None
+        if entry is None:
+            try:
+                if kind == "docx":
+                    raw, note = _docx_text(data), ""
+                else:
+                    raw, note = _pdf_text(data)
+                text = _clean(raw)
+                if len(text) > MAX_TOTAL_CHARS:
+                    text = text[:MAX_TOTAL_CHARS]
+                    note = (note + " " if note else "") + "Only the first part of the text was kept."
+                entry = {"text": text, "note": note}
+            except GuidelineError as exc:
+                entry = {"error": str(exc)}
             try:
                 cached.parent.mkdir(parents=True, exist_ok=True)
-                cached.write_text(text, encoding="utf-8", newline="\n")
+                cached.write_text(json.dumps(entry), encoding="utf-8", newline="\n")
             except OSError:
                 pass                        # a cache that cannot be written is only slower
+        if entry.get("error"):
+            raise GuidelineError(str(entry["error"]))
+        text, note = str(entry.get("text", "")), str(entry.get("note", ""))
     if len(text) > MAX_TOTAL_CHARS:
-        return text[:MAX_TOTAL_CHARS], True
-    return text, len(text) >= MAX_TOTAL_CHARS
+        return text[:MAX_TOTAL_CHARS], True, note
+    return text, bool(note) or len(text) >= MAX_TOTAL_CHARS, note
 
 
 # -- the listing and the doors ---------------------------------------------------------------------------
 
-def list_files(project) -> list[dict]:
+def collect(project) -> list[Source]:
+    """Read the bytes of every guideline file (quick; run under the project lock)."""
     folder = guidelines_dir(project)
     if not folder.is_dir():
         return []
-    rows = []
+    out = []
     for path in sorted(folder.iterdir(), key=lambda p: p.name.lower()):
         try:
             _check_name(path.name)
@@ -296,39 +366,61 @@ def list_files(project) -> list[dict]:
             continue
         if path.is_symlink() or not path.is_file():
             continue
+        out.append(_read_source(path))
+    return out
+
+
+def describe(project, sources: list[Source]) -> list[dict]:
+    """The listing rows for *sources* (extraction happens here: call it outside the lock)."""
+    rows = []
+    for src in sources:
+        path = src.path
         kind = _kind_of(path)
-        row = {"name": path.name, "type": kind, "size": path.stat().st_size, "chars": 0,
-               "extracted": False, "message": ""}
         try:
-            text, _ = _text_of(project, path)
+            size = path.stat().st_size
+        except OSError:
+            size = 0
+        row = {"name": path.name, "type": kind, "size": size, "chars": 0, "extracted": False, "message": ""}
+        try:
+            text, _, note = extract(project, src)
             row["chars"] = len(text)
             row["extracted"] = True
-            if kind == "md" and path.read_bytes().startswith(NOTE_MARK.encode()):
+            row["message"] = note
+            if kind == "md" and (src.data or b"").startswith(NOTE_MARK.encode()):
                 row["type"] = "note"
         except GuidelineError as exc:
             row["message"] = str(exc)
-        except OSError:
-            row["message"] = "This file could not be read."
         rows.append(row)
     return rows
 
 
-def read_text(project, name: str, limit: int = 20000) -> dict:
-    path = _path(project, name)
-    text, truncated = _text_of(project, path)
+def list_files(project) -> list[dict]:
+    return describe(project, collect(project))
+
+
+def open_source(project, name: str) -> Source:
+    return _read_source(_path(project, name))
+
+
+def finish_read(project, src: Source, limit: int = 20000) -> dict:
+    text, truncated, note = extract(project, src)
     chars = len(text)
     limit = max(1, min(int(limit or 20000), MAX_TOTAL_CHARS))
     if chars > limit:
         text, truncated = text[:limit], True
-    return {"name": path.name, "text": text, "truncated": truncated, "chars": chars}
+    return {"name": src.path.name, "text": text, "truncated": truncated, "chars": chars, "message": note}
+
+
+def read_text(project, name: str, limit: int = 20000) -> dict:
+    return finish_read(project, open_source(project, name), limit)
 
 
 def remove(project, name: str) -> None:
     path = _path(project, name)
-    digest = hashlib.sha256(path.read_bytes()).hexdigest() if _kind_of(path) in ("pdf", "docx") else ""
+    src = _read_source(path) if _kind_of(path) in ("pdf", "docx") else None
     path.unlink()
-    if digest:
+    if src is not None and src.data is not None:
         try:
-            (_cache_dir(project) / f"{digest}.txt").unlink(missing_ok=True)
+            (_cache_dir(project) / f"{_cache_key(src.data)}.json").unlink(missing_ok=True)
         except OSError:
             pass

@@ -38,7 +38,8 @@ class ResearchGuidelinesMixin:
     def guidelines_list(self) -> dict:
         with self._lock:
             project = self._guidelines_project()
-            return {"files": guidelines.list_files(project)}
+            sources = guidelines.collect(project)           # bytes only under the lock
+        return {"files": guidelines.describe(project, sources)}      # extraction outside it
 
     @bridge
     def guidelines_add(self, paths: list | None = None) -> dict:
@@ -69,7 +70,8 @@ class ResearchGuidelinesMixin:
     def guidelines_read(self, name: str, limit: int = 20000) -> dict:
         with self._lock:
             project = self._guidelines_project()
-            return guidelines.read_text(project, name, limit)
+            src = guidelines.open_source(project, name)
+        return guidelines.finish_read(project, src, limit)
 
     @bridge
     def guidelines_remove(self, name: str) -> dict:

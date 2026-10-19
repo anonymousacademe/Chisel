@@ -193,14 +193,14 @@ def test_total_cap_flag(project, monkeypatch):
 def test_remove_and_cache_rebuild(project):
     name = gl.add_bytes(project, "g.docx", make_docx(para("cached words")))
     gl.read_text(project, name)
-    cache = list((project.root / ".chisel" / "guidelines").glob("*.txt"))
+    cache = list((project.root / ".chisel" / "guidelines").glob("*.json"))
     assert len(cache) == 1
     cache[0].unlink()                                   # a cache is rebuildable
     assert "cached words" in gl.read_text(project, name)["text"]
-    assert len(list((project.root / ".chisel" / "guidelines").glob("*.txt"))) == 1
+    assert len(list((project.root / ".chisel" / "guidelines").glob("*.json"))) == 1
     gl.remove(project, name)
     assert not (project.root / "guidelines" / name).exists()
-    assert not list((project.root / ".chisel" / "guidelines").glob("*.txt"))
+    assert not list((project.root / ".chisel" / "guidelines").glob("*.json"))
     with pytest.raises(FileNotFoundError):
         gl.remove(project, name)
 
@@ -254,7 +254,8 @@ def test_bridge_roundtrip(tmp_path):
     assert all(s["reason"] for s in res["skipped"])
     assert api.guidelines_add_text("Notes", "text here") == {"ok": True, "name": "notes.md"}
     read = api.guidelines_read("rules.txt")
-    assert read == {"ok": True, "name": "rules.txt", "text": "be brief", "truncated": False, "chars": 8}
+    assert read == {"ok": True, "name": "rules.txt", "text": "be brief", "truncated": False, "chars": 8,
+                    "message": ""}
     assert api.guidelines_read("../project.toml")["ok"] is False
     assert api.guidelines_remove("rules.txt") == {"ok": True}
     assert [f["name"] for f in api.guidelines_list()["files"]] == ["notes.md"]
@@ -275,8 +276,8 @@ SECRET = "ZZ-GUIDELINE-SENTINEL-4471"
 
 def test_guideline_text_never_in_ai_context(tmp_path):
     project = Project.create(tmp_path / "paper", "Paper", "research")
-    gl.add_text(project, "Journal rules", f"{SECRET} keep it under ten pages")
-    gl.add_bytes(project, "more.txt", f"{SECRET} more".encode())
+    gl.add_text(project, "Journal rules", f"{SECRET} keep it under ten pages; samples filtered")
+    gl.add_bytes(project, "more.txt", f"{SECRET} samples filtered more".encode())
     research_notes.new_note(project, "Method note", "Samples were filtered.")
     mara, _ = project.create_entity("Mara Vale", "character")
     ent.add_alias(mara, "Mara")
@@ -296,3 +297,121 @@ def test_guideline_text_never_in_ai_context(tmp_path):
     _ents, planned_canon, report = continuity.plan_check(scene, entities, canon, Budget.unbounded())
     texts.append(repr(planned_canon) + repr(report.to_dict()))
     assert all(texts) and not any(SECRET in t for t in texts)
+
+
+# -- review findings (C2) ----------------------------------------------------------------------------------
+
+def test_bridge_refusals_have_no_class_prefix(tmp_path):
+    from chisel.core.zotero.base import ZoteroError
+    from chisel.gui._bridge import bridge
+
+    api = research_api(tmp_path)
+    for res in (api.guidelines_add_text("t", "   "), api.guidelines_read("nothing.pdf"),
+                api.guidelines_read("../x.md")):
+        assert res["ok"] is False and "Error:" not in res["error"], res
+
+    class Fake:
+        @bridge
+        def zot(self):
+            raise ZoteroError("Zotero is not running.")
+
+    assert Fake().zot() == {"ok": False, "error": "Zotero is not running."}
+
+
+def test_utf16_docx_with_entity_refused(project):
+    xml = ('<?xml version="1.0" encoding="UTF-16"?><!DOCTYPE d [<!ENTITY x "boom">]>'
+           f'<w:document xmlns:w="{W}"><w:body><w:p><w:r><w:t>&x;</w:t></w:r></w:p></w:body></w:document>')
+    for raw in (xml.encode("utf-16"), xml.encode("utf-16-le")):
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("word/document.xml", raw)
+        with pytest.raises(gl.GuidelineError):
+            gl._docx_text(buf.getvalue())
+    mixed = make_docx(para("x"), doctype="<!DocType d [<!EnTiTy x 'boom'>]>")
+    with pytest.raises(gl.GuidelineError):
+        gl._docx_text(mixed)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("word/document.xml", f'<?xml version="1.0" encoding="ISO-8859-1"?><w:document xmlns:w="{W}"/>')
+    with pytest.raises(gl.GuidelineError):
+        gl._docx_text(buf.getvalue())
+
+
+def test_extraction_outside_lock_and_failure_cached(tmp_path, monkeypatch):
+    import threading
+
+    api = research_api(tmp_path)
+    api.guidelines_add_text("keep", "x")
+    folder = api.project.root / "guidelines"
+    (folder / "scan.pdf").write_bytes(make_pdf("Hello"))
+    calls = []
+    free = []
+
+    def fake_pdf(data):
+        calls.append(1)
+        got = []
+
+        def probe():
+            got.append(api._lock.acquire(timeout=2))
+            if got[0]:
+                api._lock.release()
+
+        t = threading.Thread(target=probe)
+        t.start()
+        t.join()
+        free.append(bool(got and got[0]))
+        raise gl.GuidelineError("This looks like a scanned document; paste its text instead.")
+
+    monkeypatch.setattr(gl, "_pdf_text", fake_pdf)
+    for _ in range(3):
+        res = api.guidelines_list()
+        assert res["ok"], res
+        rows = {r["name"]: r for r in res["files"]}
+        assert "scanned" in rows["scan.pdf"]["message"]
+    assert api.guidelines_read("scan.pdf")["error"].startswith("This looks like a scanned")
+    assert len(calls) == 1 and free == [True]
+
+
+def test_pdf_page_cap_is_reported(project, monkeypatch):
+    import pypdf
+
+    class Page:
+        def extract_text(self):
+            return "word " * 5
+
+    class Reader:
+        is_encrypted = False
+        pages = [Page() for _ in range(5)]
+
+        def __init__(self, *a, **k):
+            pass
+
+    monkeypatch.setattr(pypdf, "PdfReader", Reader)
+    monkeypatch.setattr(gl, "MAX_PDF_PAGES", 3)
+    text, note = gl._pdf_text(b"%PDF-")
+    assert note == "Only the first 3 pages were read." and text.count("word") == 15
+    name = gl.add_bytes(project, "q.pdf", make_pdf("Hello"))
+    row = [r for r in gl.list_files(project) if r["name"] == name][0]
+    assert "first 3 pages" in row["message"]
+    assert gl.read_text(project, name)["truncated"] is True
+    monkeypatch.setattr(gl, "MAX_PAGE_CHARS", 4)
+    assert "cut" in gl._pdf_text(b"%PDF-")[1]
+
+
+def test_oversize_hand_placed_file_not_read(project, monkeypatch):
+    monkeypatch.setattr(gl, "MAX_BYTES", 10)
+    folder = project.root / "guidelines"
+    folder.mkdir(exist_ok=True)
+    (folder / "huge.txt").write_text("a" * 50, encoding="utf-8")
+    row = gl.list_files(project)[0]
+    assert row["extracted"] is False and "too large to read" in row["message"]
+    with pytest.raises(gl.GuidelineError, match="too large to read"):
+        gl.read_text(project, "huge.txt")
+
+
+def test_cache_key_includes_extractor_version(project, monkeypatch):
+    name = gl.add_bytes(project, "g.docx", make_docx(para("v words")))
+    gl.read_text(project, name)
+    monkeypatch.setattr(gl, "EXTRACTOR_VERSION", gl.EXTRACTOR_VERSION + 1)
+    gl.read_text(project, name)
+    assert len(list((project.root / ".chisel" / "guidelines").glob("*.json"))) == 2
