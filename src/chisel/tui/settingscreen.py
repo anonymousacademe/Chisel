@@ -15,6 +15,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Checkbox, Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
+from .dialogs import unit_word
 from ..ai.client import (
     DEFAULT_FAST_MODEL,
     DEFAULT_STRONG_MODEL,
@@ -97,7 +98,7 @@ class SettingsScreen(ModalScreen[None]):
                 yield Label("Daily word target (0 = off):")
                 yield Input(id="daily-target")
                 yield Label("History", classes="settings-heading")
-                yield Checkbox("Snapshot a scene the first time it is edited each day",
+                yield Checkbox(f"Snapshot a {unit_word(self)} the first time it is edited each day",
                                id="auto-snapshot")
             yield Button("Save", id="save", variant="primary")
             yield Label("enter a field, then Save · esc closes without saving",

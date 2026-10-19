@@ -162,50 +162,104 @@ def test_tui_unit_word_property(tmp_path):
     assert _app_for(tmp_path, "research")._unit_word == "section"
 
 
-def test_tui_notice_text_story_and_script_pinned(tmp_path):
-    """Table: the exact story / script strings (byte for byte) next to the research ones."""
-    import inspect
-    from chisel.tui import structuremixin, snapshotsmixin, commentsmixin, spellmixin, inspirationmixin, app as appmod
-    srcs = {m.__name__.rsplit('.', 1)[-1]: inspect.getsource(m) for m in (structuremixin, snapshotsmixin, commentsmixin,
-                                                       spellmixin, inspirationmixin, appmod)}
-    table = [   # (module, rendered text for a story/script project)
-        ("structuremixin", 'f"Open a {self._unit_word} first"', "Open a scene first", "Open a section first"),
-        ("structuremixin", "f\"'{title}' still has {self._unit_word}s - move them out first\"",
-         "'X' still has scenes - move them out first", "'X' still has sections - move them out first"),
-        ("structuremixin", 'f"Moved to Unplaced {self._unit_word}s (not counted in the book)"',
-         "Moved to Unplaced scenes (not counted in the book)", "Moved to Unplaced sections (not counted in the book)"),
-        ("spellmixin", 'f"Spell check applies to {self._unit_word}s"', "Spell check applies to scenes",
-         "Spell check applies to sections"),
-        ("snapshotsmixin", 'f"Snapshot taken of {n} {self._unit_word}(s)"', "Snapshot taken of 2 scene(s)",
-         "Snapshot taken of 2 section(s)"),
-        ("commentsmixin", 'f"Comment added (it is kept beside the {self._unit_word}, not in the text)"',
-         "Comment added (it is kept beside the scene, not in the text)",
-         "Comment added (it is kept beside the section, not in the text)"),
-    ]
-    for kind in ("story", "script", "research"):
-        u = _app_for(tmp_path, kind)._unit_word
-        for mod, template, story_text, research_text in table:
-            assert template in srcs[mod]
-            title, n = "X", 2
-            got = eval(template, {"self": type("S", (), {"_unit_word": u})(), "title": title, "n": n})
-            assert got == (research_text if kind == "research" else story_text)
+EXPECT = {  # unit word -> exact text; story and script are the pre-change strings
+    "scene": {
+        "open_first": "Open a scene first",
+        "status": "no file open — ctrl+p to open a scene",
+        "comments_empty": "No comments on this scene. Select text and use 'Add comment on selection'.",
+        "snap_empty": "No snapshots of this scene yet.",
+        "snap_hint": "enter/c compare · r restore · d delete · n new snapshot · a snapshot all scenes · esc close",
+        "details_header": "Scene details",
+        "unit": "scene",
+    },
+    "section": {
+        "open_first": "Open a section first",
+        "status": "no file open — ctrl+p to open a section",
+        "comments_empty": "No comments on this section. Select text and use 'Add comment on selection'.",
+        "snap_empty": "No snapshots of this section yet.",
+        "snap_hint": "enter/c compare · r restore · d delete · n new snapshot · a snapshot all sections · esc close",
+        "details_header": "Section details",
+        "unit": "section",
+    },
+}
+
+
+def _label_text(screen, selector):
+    from textual.widgets import Label
+    return str(screen.query_one(selector, Label).render())
+
+
+@pytest.mark.parametrize("kind", ["story", "script", "research"])
+async def test_tui_notices_run_the_real_code(tmp_path, kind):
+    """Drive the real notify / status / screen code; story and script text is exact, research says section."""
+    from chisel.tui.app import ChiselApp
+    from chisel.tui.commentscreens import CommentsScreen
+    from chisel.tui.snapshotscreens import SnapshotsScreen
+    from chisel.tui.structurescreens import DetailsScreen
+    project = Project.create(tmp_path / kind, "T", kind)
+    want = EXPECT["section" if kind == "research" else "scene"]
+    app = ChiselApp(project)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        seen: list[str] = []
+        app.notify = lambda msg, **kw: seen.append(msg)   # type: ignore[method-assign]
+        app.current_path = None
+        app.update_status()
+        assert app._status_text == want["status"]
+        for name in ("delete_scene_confirm", "snapshot_scene_prompt", "add_comment_prompt", "open_comments",
+                     "open_snapshots", "edit_details", "restore_waived", "action_update_bible"):
+            seen.clear()
+            getattr(app, name)()
+            assert seen == [want["open_first"]], (name, seen)
+        app.push_screen(CommentsScreen([], {}, "T", None))
+        await pilot.pause()
+        assert _label_text(app.screen, "#cm-empty") == want["comments_empty"]
+        app.pop_screen()
+        app.push_screen(SnapshotsScreen("T", [], 0))
+        await pilot.pause()
+        assert _label_text(app.screen, "#snap-empty") == want["snap_empty"]
+        assert _label_text(app.screen, "#snap-hint") == want["snap_hint"]
+        descs = {b.action: b.description for items in app.screen._bindings.key_to_bindings.values() for b in items}
+        assert descs["plain('all')"] == ("All sections" if kind == "research" else "All scenes")
+        app.pop_screen()
+        app.push_screen(DetailsScreen("", [], []))
+        await pilot.pause()
+        assert _label_text(app.screen, "#details-header") == want["details_header"]
+        app.pop_screen()
+        # the export notice for an empty book
+        for f in list(project.list_scenes()):
+            f.unlink()
+        seen.clear()
+        app.export_manuscript()
+        assert seen == [f"There is nothing to export yet: the book has no {want['unit']}s"]
 
 
 def test_tui_palette_titles_story_script_pinned(tmp_path):
-    """Story and script palettes show the ACTIONS table verbatim (no unit rewriting)."""
+    """Story and script palettes show every ACTIONS row verbatim (a missing row fails); research says section."""
     from chisel.tui.commands import ActionProvider
+    raw = {m: (t, h) for t, m, h in ActionProvider.ACTIONS}
+    gated = {"import_fountain_prompt", "check_voice"}   # script-only rows
     for kind in ("story", "script"):
         app = _app_for(tmp_path, kind)
-        rows = list(ActionProvider._entries(_Stub(app)))
-        raw = {m: (t, h) for t, m, h in ActionProvider.ACTIONS}
-        by_title = {title: (display, help_text) for display, title, _f, help_text in rows}
+        rows = {title: (cat_display, help_text) for cat_display, title, _f, help_text
+                in ActionProvider._entries(_Stub(app))}
         for method, (title, help_text) in raw.items():
-            if method == "toggle_unit" or title not in by_title:
-                continue   # toggle names its switch; some rows are mode-gated
-            assert by_title[title][1] == help_text
+            if method == "toggle_unit" or method.startswith("sync_"):
+                continue   # the toggle names its switch; sync rows depend on git state
+            if method in gated and kind != "script":
+                assert title not in rows
+                continue
+            assert title in rows, f"{kind}: palette lost {title!r}"
+            assert rows[title][1] == help_text, (kind, title)
+            cat = ActionProvider.CATEGORY.get(method, "Action")
+            assert rows[title][0] == f"{cat} · {title}"
     paper = _app_for(tmp_path, "research")
-    shown = {t for _d, t, _f, _h in ActionProvider._entries(_Stub(paper))}
-    assert "Snapshot section" in shown or any("section" in t for t in shown)
+    shown = {t: h for _d, t, _f, h in ActionProvider._entries(_Stub(paper))}
+    assert "Snapshot section" in shown and "Rename current section" in shown
+    assert "Next section" in shown and "New section" in shown
+    assert shown["Rename current section"] == "Rename the section open in the editor"
+    assert not [t for t in shown if "scene" in t.lower()], [t for t in shown if "scene" in t.lower()]
+    assert not [t for t, h in shown.items() if "scene" in h.lower() and "chapters" not in h.lower()]
 
 
 class _Stub:
@@ -216,8 +270,11 @@ class _Stub:
         self.CATEGORY = ActionProvider.CATEGORY
 
 
-def test_export_summary_text_story_script_pinned(tmp_path):
+def test_export_summary_text_pinned(tmp_path):
+    from chisel.core.project import Project as P
     story = make_project(tmp_path / "st")
-    line = summary_line(summarize(story, ExportOptions()), story.unit)
-    assert line == summary_line(summarize(story, ExportOptions()), "scene")
-    assert "section" not in line
+    assert summary_line(summarize(story, ExportOptions()), story.unit) == "2 scenes, 36 words; 1 scene has unaccepted AI drafts"
+    script = P.create(tmp_path / "sc", "S", "script")
+    assert summary_line(summarize(script, ExportOptions()), script.unit) == "1 scene, 50 words"
+    paper = P.create(tmp_path / "paper", "P", "research")
+    assert summary_line(summarize(paper, ExportOptions()), paper.unit) == "1 section, 167 words"

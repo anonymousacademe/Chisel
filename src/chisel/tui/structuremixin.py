@@ -52,7 +52,7 @@ class StructureMixin:
             self.refresh_sidebar()
             self.update_status()
             s, p = result["scenes"], result["parts"]
-            line = f"Imported {s} scene" + ("" if s == 1 else "s")
+            line = f"Imported {s} {self._unit_word}" + ("" if s == 1 else "s")
             if p:
                 line += f" in {p} part" + ("" if p == 1 else "s")
             self.notify(f"{line} from {result['name']}", timeout=8)

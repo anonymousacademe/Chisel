@@ -740,7 +740,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
             return
         working = self._ai_status_text()
         if self.current_path is None:
-            self._status_text = "no file open — ctrl+p to open a scene"
+            self._status_text = f"no file open — ctrl+p to open a {self._unit_word}"
             if working:
                 self._status_text = f"{working}  |  {self._status_text}"
             self._status.update(self._status_text)
@@ -1289,7 +1289,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
             return
         cost = self._cost_note(calls, sent)
         if self.current_path != path:
-            self.notify("Scene changed while drafting — draft discarded" + cost,
+            self.notify(f"{self._unit_word.capitalize()} changed while drafting — draft discarded" + cost,
                         severity="warning", timeout=5)
             return
         self._insert_draft(mode, body, start, end, selection, snapshot)
@@ -1572,7 +1572,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
             self.notify("No entities yet — create some notes first",
                         severity="warning")
             return
-        self.notify("Reading the scene for new canon…", timeout=2)
+        self.notify(f"Reading the {self._unit_word} for new canon…", timeout=2)
         self._update_bible_worker()
 
     update_bible = action_update_bible
@@ -1681,7 +1681,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
 
         self.push_screen(ConfirmScreen(
             f"Start draft {n + 1}?\n"
-            f"Every scene is snapshotted now as 'end of draft {n}'; your text is not changed.",
+            f"Every {self._unit_word} is snapshotted now as 'end of draft {n}'; your text is not changed.",
             confirm_label="Start new draft"), _go)
 
     def edit_details(self) -> None:

@@ -13,6 +13,7 @@ from textual.containers import Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Checkbox, Label, ListItem, ListView, TextArea
 
+from .dialogs import relabel_bindings, unit_word
 from ..core.inspiration import Image
 
 
@@ -60,6 +61,7 @@ class InspirationPromptScreen(ModalScreen["tuple[str, str, bool] | None"]):
             yield Label(hint + " · esc cancel", id="insp-hint")
 
     def on_mount(self) -> None:
+        relabel_bindings(self, {"submit('describe')": f"Describe this {self._u()}"})
         area = self.query_one("#insp-input", TextArea)
         area.focus()
         area.move_cursor(area.document.end)
@@ -120,10 +122,11 @@ class InspirationListScreen(ModalScreen["tuple[str, str] | None"]):
         with Vertical(id="insp-list-box"):
             yield Label("", id="insp-list-header")
             yield ListView(id="insp-list")
-            yield Label("enter / o open · p pin or unpin · t move to Trash · a all or this scene · esc close",
+            yield Label(f"enter / o open · p pin or unpin · t move to Trash · a all or this {unit_word(self)} · esc close",
                         id="insp-list-hint")
 
     def on_mount(self) -> None:
+        relabel_bindings(self, {"toggle_all": f"All / this {unit_word(self)}"})
         self._fill()
         self.query_one("#insp-list", ListView).focus()
 

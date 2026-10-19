@@ -9,6 +9,7 @@ from textual.containers import Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Input, Label, ListItem, ListView, Static
 
+from .dialogs import relabel_bindings, unit_word
 from ..core.snapshots import Segment, Snapshot, ago, diff_stats
 from ..core.stats import signed
 
@@ -97,9 +98,9 @@ class SnapshotsScreen(ModalScreen["tuple[str, str] | None"]):
                 yield ListView(*[ListItem(Label(Text(self._row(s)))) for s in self._items],
                                id="snap-list")
             else:
-                yield Label("No snapshots of this scene yet.", id="snap-empty")
+                yield Label(f"No snapshots of this {unit_word(self)} yet.", id="snap-empty")
             yield Label("enter/c compare · r restore · d delete · n new snapshot · "
-                        "a snapshot all scenes · esc close", id="snap-hint")
+                        f"a snapshot all {unit_word(self)}s · esc close", id="snap-hint")
 
     def _row(self, s: Snapshot) -> str:
         when = s.when.strftime("%Y-%m-%d %H:%M")
@@ -107,6 +108,7 @@ class SnapshotsScreen(ModalScreen["tuple[str, str] | None"]):
                 f"{s.words} words ({delta_text(self._now - s.words)} now)")
 
     def on_mount(self) -> None:
+        relabel_bindings(self, {"plain('all')": f"All {unit_word(self)}s"})
         if self._items:
             self.query_one("#snap-list", ListView).focus()
 

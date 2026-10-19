@@ -84,7 +84,7 @@ class RenameMixin:
         self._rename_refresh(result.changed, result.remap)
         self.notify(
             f"Renamed to '{plan.new_name}': {result.replacements} change"
-            f"{'' if result.replacements == 1 else 's'}, {result.scenes} scene"
+            f"{'' if result.replacements == 1 else 's'}, {result.scenes} {self._unit_word}"
             f"{'' if result.scenes == 1 else 's'} (snapshots 'before-rename'). "
             "Palette: Entity · Undo last rename.", timeout=8)
 
