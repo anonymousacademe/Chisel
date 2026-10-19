@@ -123,6 +123,9 @@ def _parse(profile_id: str, data: dict) -> Profile:
                    _text(data, "source"), _text(data, "read_on"), style, tuple(parts), tuple(reqs))
 
 
+_PROFILE_CACHE: dict[tuple[str, str, int, int], Profile] = {}
+
+
 def load_profile(profile_id: str) -> Profile:
     """The profile called *profile_id*. ``ValueError`` (plain words) when the id is not a plain name, the file
     is missing, or it does not parse."""
@@ -130,13 +133,25 @@ def load_profile(profile_id: str) -> Profile:
         raise ValueError("That is not a journal profile name.")
     path = journals_dir() / f"{profile_id}.toml"
     try:
+        st = path.stat()
+        key = (profile_id, str(path), st.st_mtime_ns, st.st_size)
+    except OSError:
+        key = None
+    if key is not None and key in _PROFILE_CACHE:
+        return _PROFILE_CACHE[key]
+    try:
         with path.open("rb") as f:
             data = tomllib.load(f)
     except FileNotFoundError:
         raise ValueError(f"There is no journal profile called {profile_id}.") from None
     except (OSError, tomllib.TOMLDecodeError, UnicodeDecodeError) as exc:
         raise ValueError(f"The journal profile {profile_id} could not be read.") from exc
-    return _parse(profile_id, data)
+    profile = _parse(profile_id, data)
+    if key is not None:
+        for old in [k for k in _PROFILE_CACHE if k[:2] == key[:2]]:
+            del _PROFILE_CACHE[old]
+        _PROFILE_CACHE[key] = profile
+    return profile
 
 
 def list_profiles() -> list[Profile]:

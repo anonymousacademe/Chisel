@@ -31,8 +31,8 @@ class _Section:
     words: int
 
 
-def _heading_and_body(text: str, path: Path) -> tuple[str, str]:
-    body = scenemeta.strip(drafts.strip_pending(text))
+def _heading_and_body(text: str, path: Path, originals: dict[str, str] | None = None) -> tuple[str, str]:
+    body = scenemeta.strip(drafts.strip_pending(text, originals))
     lines = body.splitlines()
     for i, line in enumerate(lines):
         if line.startswith("# ") and line[2:].strip():
@@ -50,13 +50,17 @@ def _sections(project) -> list[_Section]:
             raw = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        title, body = _heading_and_body(raw, path)
+        originals = drafts.load_originals(project.root, path)
+        title, body = _heading_and_body(raw, path, originals)
         body = _COMMENT_RE.sub("", body)
-        out.append(_Section(title, body.strip(), drafts.count_words(body)))
+        out.append(_Section(title, body.strip(), project.count_words(body)))
     return out
 
 
 def _find(sections: list[_Section], patterns: tuple[str, ...]) -> list[_Section]:
+    exact = [s for s in sections if s.title.strip().casefold() in patterns]
+    if exact:
+        return exact
     return [s for s in sections if any(p in s.title.casefold() for p in patterns)]
 
 
@@ -72,7 +76,8 @@ def _book_prose(project) -> list[str]:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        out.append(objects.strip_math(scenemeta.blank(drafts.blank_pending(text)), mode="research"))
+        text = drafts.reject_all(text, drafts.load_originals(project.root, path))
+        out.append(objects.strip_math(scenemeta.blank(text), mode="research"))
     return out
 
 
@@ -83,12 +88,18 @@ def _count(n: int, noun: str) -> str:
 def _list_items(section: _Section, lines_only: bool) -> list[str]:
     text = section.text
     if lines_only or any(_BULLET_RE.match(line) for line in text.splitlines()):
-        items = []
+        items: list[str] = []
         for line in text.splitlines():
             if not line.strip():
                 continue
             m = _BULLET_RE.match(line)
-            items.append((m.group(1) if m else line).strip())
+            if m:
+                items.append(m.group(1).strip())
+            elif lines_only and not any(_BULLET_RE.match(x) for x in text.splitlines()):
+                items.append(line.strip())
+            elif items:         # lazy continuation of the previous bullet
+                items[-1] += " " + line.strip()
+            # else: an intro line before the first bullet
         return items
     return [p.strip() for p in re.split(r"[,;\n]", text) if p.strip()]
 
@@ -136,13 +147,18 @@ def _check(req: journals.Requirement, ctx: _Context) -> tuple[str, str]:
     if kind == "section-present":
         hit = _find(ctx.sections, pats)
         if hit:
-            return "ok", f'Found "{hit[0].title}".'
+            full = [s for s in hit if s.text]
+            if full:
+                return "ok", f'Found "{full[0].title}".'
+            return _fail(req), f"{hit[0].title} is there but empty."
         return _fail(req), f"No section has {_pattern_text(pats)} in its title."
     if kind in ("section-words-max", "section-no-citations", "list-count"):
         hit = _find(ctx.sections, pats)
         if not hit:
             return "na", f"There is no section with {_pattern_text(pats)} in its title yet."
-        sec = hit[0]
+        sec = next((s for s in hit if s.text), hit[0])
+        if not sec.text and kind != "section-no-citations":
+            return _fail(req), f"{sec.title} is empty."
         if kind == "section-words-max":
             limit = int(req.params.get("max", 0))
             if sec.words > limit:

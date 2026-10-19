@@ -30,8 +30,6 @@ class ResearchProjectMixin:
 
     @bridge
     def research_profiles(self) -> dict:
-        with self._lock:
-            require_research(self._require())
         return {"profiles": [_profile_row(p) for p in journals.list_profiles()]}
 
     @bridge

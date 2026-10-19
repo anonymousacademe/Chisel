@@ -59,6 +59,25 @@ def _toml_key(key: str) -> str:
     return key if re.fullmatch(r"[A-Za-z0-9_-]+", key) else json.dumps(key)
 
 
+def _toml_trailing_comment(value: str) -> str:
+    """The whitespace + ``# comment`` that follows a TOML value on its line ("" when there is none)."""
+    quote = ""
+    i = 0
+    while i < len(value):
+        c = value[i]
+        if quote:
+            if c == "\\" and quote == '"':
+                i += 1
+            elif c == quote:
+                quote = ""
+        elif c in "\"'":
+            quote = c
+        elif c == "#":
+            return value[len(value[:i].rstrip()):]
+        i += 1
+    return ""
+
+
 def _toml_value(value):
     """A TOML literal for a str / int / float / bool / list of those (strings via json.dumps), else None."""
     if isinstance(value, bool):
@@ -485,12 +504,13 @@ class Project(Structure):
             block = text[head.end():end]
             for key, value in lines.items():
                 new_line = f"{key} = {value}"
-                line = re.search(rf'(?m)^[ \t]*(?:{re.escape(key)}|"{re.escape(key)}")[ \t]*=.*$', block)
+                line = re.search(rf'(?m)^([ \t]*(?:{re.escape(key)}|"{re.escape(key)}")[ \t]*=[ \t]*)(.*)$', block)
                 if line:
                     old = line.group(0)
                     if old.count("[") != old.count("]") or old.rstrip().endswith(("[", ",")):
                         raise ValueError(f"{key} spans several lines in project.toml; edit it there.")
-                    block = block[:line.start()] + new_line + block[line.end():]
+                    block = (block[:line.start()] + line.group(1) + value
+                             + _toml_trailing_comment(line.group(2)) + block[line.end():])
                 else:
                     stripped = block.rstrip("\n")
                     tail = block[len(stripped):]

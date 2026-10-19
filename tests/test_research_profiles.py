@@ -159,14 +159,36 @@ def test_generic_and_proposal_outlines_and_mismatch(tmp_path):
         Project.create(tmp_path / "bad2", "Bad", "research", "manuscript", "nope")
 
 
+STORY_OPENING = (
+    "# Opening\n\nWelcome to chisel. Wrap a character or place in double brackets \u2014\n"
+    "like [[New Character]] \u2014 and it lights up: cyan if it has a note,\n"
+    "orange if it doesn't. Put the cursor on a link and press ctrl+j to\n"
+    "open its note (creating it first if needed).\n\n"
+    "- ctrl+n   new scene\n- ctrl+j   jump to the link under the cursor\n"
+    "- ctrl+p   command palette: open scenes, insert links, organize scenes\n"
+    "- alt+left / alt+right   previous / next scene\n"
+    "- f11      writer mode (hide everything but the editor)\n"
+    "- ctrl+s   save now (your work also autosaves)\n- ctrl+b   hide/show the sidebar\n"
+    "- ?        all keybindings\n\n"
+    "Everything is plain Markdown on disk \u2014 your project folder *is* the novel.\n")
+SCRIPT_OPENING = (
+    "# Opening\n\nINT. KITCHEN - DAY\n\n"
+    "Morning light. [[New Character]] stands at the counter, staring at a slice of toast.\n\n"
+    "NEW CHARACTER\n(to the toast)\nYou and me, then.\n\n"
+    "<!-- Notes to yourself go in comments like this. They never print. -->\n\n"
+    "CUT TO:\n\nEXT. GARDEN - CONTINUOUS\n\nA blackbird watches through the window.\n")
+
+
 def test_story_and_script_creation_unchanged(tmp_path):
     s = Project.create(tmp_path / "s", "S", "story", "proposal", "ems")     # kind and journal ignored
     files = sorted(p.relative_to(s.root).as_posix() for p in s.root.rglob("*") if p.is_file())
     assert files == [".gitignore", "manuscript/01-opening.md", "project.toml"]
-    assert "[research]" not in (s.root / "project.toml").read_text(encoding="utf-8")
+    assert (s.root / "project.toml").read_bytes() == b'title = "S"\nauthor = ""\n\n[project]\nmode = "story"\n'
+    assert (s.root / "manuscript/01-opening.md").read_bytes() == STORY_OPENING.encode("utf-8")
     sc = Project.create(tmp_path / "sc", "Sc", "script", "proposal", "ems")
     assert "[research]" not in (sc.root / "project.toml").read_text(encoding="utf-8")
-    assert (sc.root / "manuscript" / "01-opening.md").is_file()
+    assert (sc.root / "project.toml").read_bytes() == b'title = "Sc"\nauthor = ""\n\n[project]\nmode = "script"\n'
+    assert (sc.root / "manuscript/01-opening.md").read_bytes() == SCRIPT_OPENING.encode("utf-8")
 
 
 # -- requirements -----------------------------------------------------------------------------------
@@ -179,15 +201,88 @@ def test_requirements_empty_without_profile(tmp_path):
 
 def test_ems_checks_on_a_fresh_project(tmp_path):
     rows = by_id(requirements.evaluate(make(tmp_path)))
-    assert rows["abstract-words"]["status"] == "ok"
+    assert rows["abstract-words"]["status"] in ("warn", "info")
+    assert rows["abstract-words"]["message"] == "Abstract is empty."
     assert rows["keywords-count"]["status"] == "warn"
-    assert rows["title-page"]["status"] == "ok"
+    for rid in ("title-page", "software-data", "credit", "competing-interests", "funding"):
+        assert rows[rid]["status"] in ("warn", "info"), rid
+    assert rows["funding"]["message"] == "Funding is there but empty."
     assert rows["graphical-abstract"]["status"] == "advice"
     assert rows["figures-captioned"]["status"] == "na"
     assert rows["citations-resolve"]["status"] == "na"
     assert rows["genai-declaration"]["status"] == "na"
     assert rows["acknowledgements-before-references"]["status"] == "ok"      # Acknowledgements is last
     assert set(r["status"] for r in rows.values()) <= {"ok", "warn", "info", "na", "advice"}
+
+
+def test_filled_sections_are_present(tmp_path):
+    p = make(tmp_path)
+    for t in ("Title page", "Software and data availability", "CRediT authorship contribution statement",
+              "Declaration of competing interest", "Funding", "Abstract"):
+        try:
+            put(p, t, "Some real text here.")
+        except AssertionError:
+            pass
+    rows = by_id(requirements.evaluate(p))
+    assert rows["funding"]["status"] == "ok"
+    assert rows["abstract-words"]["status"] == "ok"
+
+
+def test_pending_rewrite_original_counts_in_words(tmp_path):
+    from chisel.core import drafts
+    p = make(tmp_path)
+    scene = scene_for(p, "Abstract")
+    keep = " ".join(["a"] * 100)
+    orig = " ".join(["b"] * 100)
+    text = scene.read_text(encoding="utf-8").rstrip("\n") + f"\n\n{keep} " + drafts.wrap("new words", "abc123") + "\n"
+    scene.write_text(text, encoding="utf-8", newline="\n")
+    drafts.add_original(p.root, scene, "abc123", orig)
+    rows = by_id(requirements.evaluate(p))
+    assert rows["abstract-words"]["message"] == "Abstract is 200 words; the limit is 150."
+
+
+def test_hard_wrapped_bullets_join(tmp_path):
+    p = make(tmp_path)
+    put(p, "Highlights", "Highlights:\n- " + "x" * 50 + "\n  " + "y" * 50 + "\n- b\n- c")
+    rows = by_id(requirements.evaluate(p))
+    assert rows["highlights"]["status"] == "warn"
+    assert rows["highlights"]["message"].startswith("1 of the 3 highlights are longer than 85 characters:")
+
+
+def test_exact_title_beats_substring(tmp_path):
+    p = make(tmp_path)
+    p.next_scene_path("Graphical abstract", p.list_parts()[0]).write_text(
+        "# Graphical abstract\n\n" + " ".join(["w"] * 400) + "\n", encoding="utf-8")
+    secs = requirements._sections(p)
+    hit = requirements._find(secs, ("abstract",))
+    assert [s.title for s in hit] == ["Abstract"]
+
+
+def test_profile_is_parsed_once(tmp_path, monkeypatch):
+    p = make(tmp_path)
+    journals._PROFILE_CACHE.clear()
+    calls = []
+    real = journals._parse
+    monkeypatch.setattr(journals, "_parse", lambda *a, **k: calls.append(1) or real(*a, **k))
+    p.research_profile()
+    p.research_profile()
+    p.citation_style
+    assert len(calls) == 1
+
+
+def test_update_keeps_indent_and_trailing_comment(tmp_path):
+    p = make(tmp_path, "")
+    path = p.root / "project.toml"
+    text = path.read_text(encoding="utf-8").replace('journal = ""', '  journal = "ems"  # chosen for revision')
+    path.write_text(text, encoding="utf-8", newline="\n")
+    p = Project.open(p.root)
+    p.update_research_settings(journal="manuscript")
+    assert '  journal = "manuscript"  # chosen for revision\n' in path.read_text(encoding="utf-8")
+
+
+def test_profiles_catalogue_needs_no_project():
+    r = RApi().research_profiles()
+    assert r["ok"] and r["profiles"]
 
 
 def test_abstract_words_highlights_and_keywords(tmp_path):
@@ -342,7 +437,7 @@ def test_bridge_profiles_settings_requirements(tmp_path):
 def test_bridge_refuses_story_projects_and_bad_new_project(tmp_path):
     api = RApi()
     assert api.new_project("Tale", str(tmp_path / "tale"))["ok"] is True
-    for call in (api.research_profiles, api.research_get_settings, api.research_requirements,
+    for call in (api.research_get_settings, api.research_requirements,
                  lambda: api.research_set_settings("manuscript", "")):
         r = call()
         assert r["ok"] is False and "not a research project" in r["error"]
