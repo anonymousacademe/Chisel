@@ -343,3 +343,26 @@ def test_old_format_note_is_reformatted_once(project):
     text = path.read_text(encoding="utf-8")
     assert out["changed"] and "**T**" in text and text.endswith("## My notes\nmine\n")
     assert plan_sync(project, result([it])).rows == []
+
+
+def test_plain_text_abstract_is_not_eaten_as_html():
+    def md(abstract):
+        return sources.block_markdown(ZItem(key="A", version=1, csl=dict(CSL, abstract=abstract),
+                                            citation_key="k"))
+    assert r"x\<y and y\>z. Done." in md("Results: x<y and y>z. Done.")
+    assert "Line one.\n\nSecond" in md("Line one.\n\nSecond")
+    assert r"the \<b flag stays, x\<y" in md("the <b flag stays, x<y")
+    assert "First para.\n\nSecond" in md("<p>First para.</p><p>Second</p>")
+    assert "**bold**" in md("<p>a <b>bold</b></p>")
+
+
+def test_combined_summary_reads_as_sentence(project):
+    it = item(notes=["<p>keep</p>"])
+    old = sources.item_to_note(it, None)
+    old.body = sources.replace_block("", sources.legacy_block_markdown(it))
+    old.name = "Old name"
+    path = project.root / "entities" / "sources" / "smith2024.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(old.to_markdown(), encoding="utf-8", newline="\n")
+    s = plan_sync(project, result([it])).rows[0].summary
+    assert "updated" not in s and "reformatted to the readable layout" in s

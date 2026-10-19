@@ -6,6 +6,7 @@ Pure: it takes the parsed ``Citation`` and a ``{key: CiteSource}`` map built fro
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from .types import Citation, CiteRef
@@ -29,14 +30,23 @@ def _names(csl: dict) -> list[str]:
     return out
 
 
-def _year(csl: dict) -> str:
-    issued = csl.get("issued")
+def csl_year(csl: dict) -> int | None:
+    """The issued year of a CSL dict: date-parts first, then a four-digit year in raw / literal."""
+    issued = csl.get("issued") if isinstance(csl, dict) else None
     if isinstance(issued, dict):
         try:
-            return str(int(issued["date-parts"][0][0]))
+            return int(issued["date-parts"][0][0])
         except (TypeError, ValueError, IndexError, KeyError):
             pass
-    return ""
+        m = re.search(r"\b(\d{4})\b", str(issued.get("raw") or issued.get("literal") or ""))
+        if m:
+            return int(m.group(1))
+    return None
+
+
+def _year(csl: dict) -> str:
+    y = csl_year(csl)
+    return "" if y is None else str(y)
 
 
 def source_record(csl: dict | None, title: str = "") -> CiteSource:
@@ -45,20 +55,36 @@ def source_record(csl: dict | None, title: str = "") -> CiteSource:
     return CiteSource(_names(csl), _year(csl), str(title or csl.get("title") or ""))
 
 
+def _letter(i: int) -> str:
+    """0 -> a ... 25 -> z, 26 -> aa, 27 -> ab ..."""
+    return chr(ord("a") + i) if i < 26 else _letter(i // 26 - 1) + chr(ord("a") + i % 26)
+
+
+def _short_title(title: str) -> str:
+    words = title.split()[:3]
+    return '"' + " ".join(words) + '"' if words else ""
+
+
+def _who(s: CiteSource, narrative: bool) -> str:
+    """The author part as displayed: the names, or a short quoted title when the source has no authors."""
+    return _authors(s, narrative) or _short_title(s.title)
+
+
 def suffixes(sources: dict[str, CiteSource]) -> dict[str, str]:
-    """``{key: "a"|"b"|...}`` for sources that share first-author family name and year with another one.
+    """``{key: "a"|"b"|...}`` for sources whose displayed author text and year are the same as another's.
     Sharers are ordered by title then key, so adding an unrelated source never changes a letter."""
     groups: dict[tuple[str, str], list[str]] = {}
     for key, s in sources.items():
-        if s.names and s.year:
-            groups.setdefault((s.names[0].casefold(), s.year), []).append(key)
+        who = _who(s, False)
+        if who and s.year:
+            groups.setdefault((who.casefold(), s.year), []).append(key)
     out: dict[str, str] = {}
     for keys in groups.values():
         if len(keys) < 2:
             continue
         keys.sort(key=lambda k: (sources[k].title.casefold(), k))
         for i, k in enumerate(keys):
-            out[k] = chr(ord("a") + i) if i < 26 else str(i + 1)
+            out[k] = _letter(i)
     return out
 
 
@@ -87,7 +113,7 @@ def _one(ref: CiteRef, s: CiteSource | None, letter: str, narrative: bool) -> st
         return ref.key
     year = (s.year + letter) if s.year else "n.d."
     tail = year + (f", {ref.locator.strip()}" if ref.locator.strip() else "")
-    who = _authors(s, narrative)
+    who = _who(s, narrative)
     if narrative:
         return f"{who} ({tail})" if who and not ref.suppress_author else f"({tail})"
     prefix = (ref.prefix.strip() + " ") if ref.prefix.strip() else ""

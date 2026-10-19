@@ -37,6 +37,7 @@ from pathlib import Path
 
 from . import entities as ent
 from . import fsutil, recents
+from .paper.citefmt import csl_year
 from .paper.types import ZItem
 from .zotero.base import FetchResult, Scope
 from .zotero.html2md import _escape as _escape_md
@@ -129,6 +130,18 @@ def _csl_header(csl: dict) -> list[str]:
     return out
 
 
+_HTML_TAGS = re.compile(r"</?(?:p|br|b|i|em|strong|sup|sub|a|ul|ol|li)\b[^<>]*>", re.IGNORECASE)
+
+
+def _abstract_markdown(text: str) -> str:
+    """A CSL abstract is usually plain text; only text with real HTML tags goes through the converter.
+    Plain text keeps its paragraph breaks and is escaped, never stripped."""
+    if _HTML_TAGS.search(text):
+        return html_to_markdown(text).strip()
+    paras = [" ".join(p.split()) for p in re.split(r"\n\s*\n", text.replace("\r\n", "\n"))]
+    return "\n\n".join(_escape_md(p) for p in paras if p).strip()
+
+
 def block_markdown(item: ZItem) -> str:
     """The text of the zotero block for *item*, as readable Markdown: a title line, an authors line, a
     venue/year/DOI/URL line, "### Abstract", "### Notes" and "### Highlights" (each only when present).
@@ -138,7 +151,7 @@ def block_markdown(item: ZItem) -> str:
     header = _csl_header(csl)
     if header:
         out.append("\n\n".join(header))
-    abstract = html_to_markdown(str(csl.get("abstract") or "")).strip()
+    abstract = _abstract_markdown(str(csl.get("abstract") or ""))
     if abstract:
         out += ["### Abstract", abstract]
     out += _notes_and_highlights(item)
@@ -183,17 +196,7 @@ def _authors(csl: dict) -> list[str]:
 
 
 def _year(csl: dict) -> int | None:
-    issued = csl.get("issued")
-    if isinstance(issued, dict):
-        parts = issued.get("date-parts")
-        try:
-            return int(parts[0][0])
-        except (TypeError, ValueError, IndexError, KeyError):
-            pass
-        m = re.search(r"\b(\d{4})\b", str(issued.get("raw") or issued.get("literal") or ""))
-        if m:
-            return int(m.group(1))
-    return None
+    return csl_year(csl)
 
 
 def _family(author: str) -> str:
@@ -459,8 +462,10 @@ def plan_sync(project, result: FetchResult, *, scope: Scope | None = None, state
             continue
         if e.extra.get("zotero_status") == "missing":
             what.insert(0, "back in Zotero")
-        tail = " (readable layout)" if what == ["reformatted"] else " updated"
-        add(SyncRow(rid, stored, "changed", f"{_title(note, item) or stored}: " + ", ".join(what) + tail),
+        said = {"details": "details changed", "notes and highlights": "notes and highlights changed",
+                "version": "version changed", "reformatted": "reformatted to the readable layout"}
+        text = "; ".join(said.get(w, w) for w in what)
+        add(SyncRow(rid, stored, "changed", f"{_title(note, item) or stored}: {text}"),
             _digest_bytes(e.path), item)
 
     for zkey in result.deleted_keys:

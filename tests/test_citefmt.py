@@ -43,10 +43,10 @@ def test_locator_suppress_and_several():
 
 
 def test_disambiguation_letters_are_stable():
-    src = {"b": CiteSource(["Zhang", "Valeo"], "2026", "Beta"), "a": CiteSource(["Zhang", "Lee"], "2026", "Alpha"),
+    src = {"b": CiteSource(["Zhang", "Lee"], "2026", "Beta"), "a": CiteSource(["Zhang", "Lee"], "2026", "Alpha"),
            "w": CiteSource(["Wang", "X", "Y"], "2026", "W"), "z": CiteSource(["Zhang"], "2025", "Z")}
     assert suffixes(src) == {"a": "a", "b": "b"}
-    assert fmt("[[@w; @b]]", src) == "(Wang et al., 2026; Zhang & Valeo, 2026b)"
+    assert fmt("[[@w; @b]]", src) == "(Wang et al., 2026; Zhang & Lee, 2026b)"
     src["other"] = CiteSource(["Quux"], "2026", "AAA")   # an unrelated source never moves a letter
     assert suffixes(src) == {"a": "a", "b": "b"}
     assert fmt("[[+@a]]", src) == "Zhang and Lee (2026a)"
@@ -68,3 +68,31 @@ def test_span_display_field():
     spans = [s for s in compute_spans(text, [e], citations=True) if s["kind"] == "citation"]
     assert [s["display"] for s in spans] == ["(Daneshgar et al., 2024, p. 3)", "Daneshgar et al. (2024)", "(gone)"]
     assert spans[0]["label"] == "Daneshgar et al. 2024" and spans[2]["status"] == "unresolved"
+
+
+def test_year_falls_back_to_raw_and_literal():
+    assert source_record({"issued": {"raw": "March 2021"}}).year == "2021"
+    assert source_record({"issued": {"literal": "2019-05"}}).year == "2019"
+    assert source_record({"issued": {"raw": "soon"}}).year == ""
+    s = {"a": source_record({"author": [{"family": "A"}], "issued": {"raw": "2021"}}, "T")}
+    assert fmt("[[@a]]", s) == "(A, 2021)"
+
+
+def test_letters_group_by_displayed_authors():
+    src = {"l": CiteSource(["Zhang", "Lee"], "2026", "T1"), "v": CiteSource(["Zhang", "Valeo"], "2026", "T2"),
+           "e1": CiteSource(["Zhang", "A", "B"], "2026", "T3"), "e2": CiteSource(["Zhang", "C", "D"], "2026", "T4")}
+    assert suffixes(src) == {"e1": "a", "e2": "b"}   # both display as Zhang et al.; Lee / Valeo differ
+    assert fmt("[[@l]]", src) == "(Zhang & Lee, 2026)"
+
+
+def test_letters_continue_past_z():
+    src = {f"k{i:02d}": CiteSource(["X"], "2020", f"T{i:02d}") for i in range(28)}
+    out = suffixes(src)
+    assert out["k25"] == "z" and out["k26"] == "aa" and out["k27"] == "ab"
+
+
+def test_no_authors_uses_short_title():
+    src = {"t": CiteSource([], "2020", "A very long title indeed")}
+    assert fmt("[[@t]]", src) == '("A very long, 2020)'.replace('"A very long', '"A very long"')
+    assert fmt("[[+@t]]", src) == '"A very long" (2020)'
+    assert fmt("[[-@t]]", src) == "(2020)"
