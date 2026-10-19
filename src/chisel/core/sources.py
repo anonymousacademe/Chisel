@@ -41,6 +41,7 @@ from .paper.citefmt import csl_year
 from .paper.types import ZItem
 from .zotero.base import FetchResult, Scope
 from .zotero.html2md import _escape as _escape_md
+from .zotero.html2md import _line_start_escape
 from .zotero.html2md import annotation_to_markdown, html_to_markdown
 
 BEGIN = "<!-- zotero:begin -->"
@@ -130,16 +131,17 @@ def _csl_header(csl: dict) -> list[str]:
     return out
 
 
-_HTML_TAGS = re.compile(r"</?(?:p|br|b|i|em|strong|sup|sub|a|ul|ol|li)\b[^<>]*>", re.IGNORECASE)
+_HTML_TAGS = re.compile(
+    r"<(p|b|i|em|strong|sup|sub|a|ul|ol|li)\b[^<>]*>.*?</\1\s*>|<br\s*/?>", re.IGNORECASE | re.DOTALL)
 
 
 def _abstract_markdown(text: str) -> str:
-    """A CSL abstract is usually plain text; only text with real HTML tags goes through the converter.
-    Plain text keeps its paragraph breaks and is escaped, never stripped."""
+    """A CSL abstract is usually plain text; only text with a complete HTML element (an open and a close tag,
+    or a <br>) goes through the converter. Plain text keeps its paragraph breaks and is escaped, never stripped."""
     if _HTML_TAGS.search(text):
         return html_to_markdown(text).strip()
     paras = [" ".join(p.split()) for p in re.split(r"\n\s*\n", text.replace("\r\n", "\n"))]
-    return "\n\n".join(_escape_md(p) for p in paras if p).strip()
+    return "\n\n".join(_line_start_escape(_escape_md(p)) for p in paras if p).strip()
 
 
 def block_markdown(item: ZItem) -> str:

@@ -101,3 +101,24 @@ def test_rename_refused_for_sources(tmp_path):
     e, _ = project.create_entity("smith2024", "source")
     with pytest.raises(ValueError, match="source"):
         rename.plan_rename(project, e, "smith2025")
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("Use the <b> tag to bold text. More here.", r"Use the \<b\> tag to bold text. More here."),
+    ("if a<b and c>d holds, done.", r"if a\<b and c\>d holds, done."),
+    ("- item", r"\- item"),
+    ("1. step", r"\1. step"),
+])
+def test_plain_abstract_keeps_every_character(text, expected):
+    assert sources._abstract_markdown(text) == expected
+
+
+def test_html_abstract_still_converted():
+    assert sources._abstract_markdown("<p>One</p><p>Two</p>") == "One\n\nTwo"
+    assert sources._abstract_markdown("<b>bold</b> text") == "**bold** text"
+
+
+def test_source_year_reads_raw_issued():
+    from chisel.gui.workspace import _source_year
+    e = ent.Entity(name="k", type="source", extra={"csl": {"issued": {"raw": "2021"}}})
+    assert _source_year(e) == "2021"
