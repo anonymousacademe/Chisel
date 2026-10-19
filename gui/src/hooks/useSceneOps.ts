@@ -114,10 +114,12 @@ export function useSceneOps(d: Deps) {
   };
   const deletePart = async (id: string) => {
     setDialog(null);
+    if (!(await saver.flush())) return notify("Could not save the current document first.", "error");
     const r = await api.deletePart(id);
     if (!r.ok) return notify(r.error, "error");
     setPartFocus(null);
     await refresh();
+    if (docRef.current) await reopen(docRef.current.id, r.remap);   // later parts were renumbered
   };
   const saveDetails = async (patch: DetailsPatch) => {
     setDialog(null);

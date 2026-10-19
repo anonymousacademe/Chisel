@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from . import comments, drafts
+from . import applog, comments, drafts
 from . import inspiration
 from . import entities as ent
 from . import research as research_notes
@@ -324,6 +324,54 @@ class Structure:
             raise
         inspiration.remap_paths(self, self.last_renames)
 
+    # -- closing gaps (after a delete or a restore) -----------------------------
+
+    def renumber_folder(self, folder: Path) -> dict[Path, Path]:
+        """Renumber the numbered scenes of *folder* contiguously (01, 02, ...),
+        keeping each slug and the order. Files without a numeric prefix, the
+        Unplaced folder and a front-matter part are left alone, and a folder
+        that is already contiguous renames nothing. Goes through
+        ``_apply_renames`` (sidecars, comments and snapshots follow); sets
+        ``last_renames`` and returns it."""
+        if folder == self.unplaced_dir or (
+                folder != self.manuscript_dir and self.part_is_front_matter(folder)):
+            self.last_renames = {}
+            return {}
+        files = [p for p in self._scene_files(folder) if _prefix(p.name) is not None]
+        width = max([2, len(str(len(files)))]
+                    + [len(re.match(r"\d+", p.name).group()) for p in files])
+        pairs = [(p, folder / f"{_num(n + 1, width)}-{_slug_of(p.name)}.md")
+                 for n, p in enumerate(files)]
+        self._apply_renames(pairs)
+        return dict(self.last_renames)
+
+    def renumber_parts(self) -> dict[Path, Path]:
+        """Renumber the part folders (front matter excluded) 01, 02, ... in
+        order. Every scene inside moves through ``_apply_renames`` first, then
+        the folder's other files (``_part.md``) follow and the empty folder
+        goes. A target that exists and is not empty is skipped, never
+        overwritten. ``last_renames`` holds scenes and folders."""
+        parts = [p for p in self.list_parts()
+                 if not self.part_is_front_matter(p) and _prefix(p.name) is not None]
+        width = max([2, len(str(len(parts)))]
+                    + [len(re.match(r"\d+", p.name).group()) for p in parts])
+        total: dict[Path, Path] = {}
+        for n, old in enumerate(parts):
+            new = old.with_name(f"{_num(n + 1, width)}-{_slug_of(old.name)}")
+            if new == old:
+                continue
+            if new.exists() and (not new.is_dir() or any(new.iterdir())):
+                continue
+            self._apply_renames([(p, new / p.name) for p in self._scene_files(old)])
+            total.update(self.last_renames)
+            for rest in list(old.iterdir()):
+                new.mkdir(parents=True, exist_ok=True)
+                fsutil.rename(rest, new / rest.name)
+            old.rmdir()
+            total[old] = new
+        self.last_renames = total
+        return total
+
     def move_scene(self, path: Path, delta: int) -> Path | None:
         """Swap a scene's numeric prefix with a neighbor's within its part
         (or the unparted/unplaced group). Returns the new path, or None at the
@@ -352,9 +400,9 @@ class Structure:
         """Move a scene into *part* (None = unparted top level; *unplaced*
         = the Unplaced Scenes folder) at 0-based *index* (default: the end).
         The destination's scenes are renumbered contiguously so the order is
-        exactly what was asked for; the folder it left keeps its numbers (a gap,
-        as after a delete: only the destination is renumbered, to keep file
-        churn down). ``last_renames`` lists every file that changed name.
+        exactly what was asked for; the folder it left keeps its numbers (a gap;
+        only a delete or a restore closes gaps, see ``renumber_folder``).
+        ``last_renames`` lists every file that changed name.
         Returns the scene's new path."""
         if not self.is_scene_path(path):
             raise ValueError("not a manuscript scene")
@@ -470,7 +518,9 @@ class Structure:
         return new_a
 
     def delete_part(self, part: Path) -> None:
-        """Delete an empty part (its ``_part.md`` goes with it)."""
+        """Delete an empty part (its ``_part.md`` goes with it); the parts after
+        it are renumbered (front matter stays)."""
+        self.last_renames = {}
         if part not in self.list_parts():
             raise ValueError("not a part of this manuscript")
         if self._scene_files(part):
@@ -480,6 +530,7 @@ class Structure:
             part.rmdir()
         except OSError as exc:
             raise ValueError("the part folder still holds other files") from exc
+        self.renumber_parts()   # close the gap; last_renames tells a UI what moved
 
     # -- trash ---------------------------------------------------------------------
 
@@ -534,7 +585,10 @@ class Structure:
 
     def delete_scene(self, path: Path) -> Path:
         """Move a scene to the Trash (with its draft sidecar). Returns the
-        file's new path inside ``.trash/``."""
+        file's new path inside ``.trash/``. The scenes left in its folder are
+        renumbered contiguously (``last_renames`` says which moved); Unplaced
+        and front matter keep their numbers."""
+        self.last_renames = {}
         dest = self._trash_dest(path)
         side = drafts.sidecar_path(self.root, path)
         if side.is_file():
@@ -546,6 +600,11 @@ class Structure:
         snapshots.archive(self.root, path, dest.with_name(dest.name + ".snapshots"))
         comments.archive(self.root, path, dest.with_name(dest.name + ".comments.json"))
         fsutil.replace(path, dest)
+        try:
+            self.renumber_folder(path.parent)
+        except OSError as exc:   # the scene is safely in the Trash; a gap is harmless
+            applog.log_exc("renumber after delete", exc)
+            self.last_renames = {}
         return dest
 
     def list_trash(self) -> list[TrashItem]:
@@ -658,9 +717,11 @@ class Structure:
         return "gone", ""
 
     def restore_scene(self, name: str) -> Path:
-        """Put a trashed scene back at the end of its original part (or the
-        top level / Unplaced it came from); if that part is gone, Unplaced.
+        """Put a trashed scene back at its original position in its original
+        part (or the top level; one that came from Unplaced goes to the end),
+        and renumber that folder contiguously; if the part is gone, Unplaced.
         A trashed research note goes back to its original path instead."""
+        self.last_renames = {}
         item = self._trash_item(name)
         if item.kind == "research":
             return self._restore_research(item)
@@ -670,6 +731,11 @@ class Structure:
             return self._restore_object(item)
         orig = self.root / item.original
         folder = orig.parent
+        if folder != self.manuscript_dir and folder not in self.list_parts():
+            # the part may have been renumbered since: find it by its slug
+            folder = next((p for p in self.list_parts()
+                           if _slug_of(p.name) == _slug_of(folder.name)
+                           and folder.parent == self.manuscript_dir), folder)
         if folder == self.manuscript_dir or folder in self.list_parts():
             dest_dir = folder
         else:
@@ -686,6 +752,14 @@ class Structure:
         snapshots.unarchive(self.root, item.path.with_name(item.path.name + ".snapshots"), final)
         comments.unarchive(self.root, item.path.with_name(item.path.name + ".comments.json"), final)
         self._tidy_trash()
+        at = _prefix(orig.name)
+        if at is not None and dest_dir != self.unplaced_dir and not (
+                dest_dir != self.manuscript_dir and self.part_is_front_matter(dest_dir)):
+            try:   # back where it was (its old number), neighbours renumbered
+                final = self.place_scene(
+                    final, None if dest_dir == self.manuscript_dir else dest_dir, max(0, at - 1))
+            except OSError as exc:   # restored at the end; the order can be fixed by hand
+                applog.log_exc("renumber after restore", exc)
         return final
 
     def _next_in(self, folder: Path, slug: str) -> Path:

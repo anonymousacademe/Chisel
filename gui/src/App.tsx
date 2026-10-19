@@ -863,7 +863,7 @@ export default function App() {
         createScene={createScene} renameScene={renameScene} deleteScene={deleteScene} createPart={createPart} renamePart={renamePart}
         deletePart={deletePart} placeScene={placeScene} performMove={performMove} saveDetails={saveDetails}
         sprintFocus={sprintFocus} startSprint={startSprint} endSprint={endSprint} setInspRev={setInspRev}
-        restoreSnapshot={restoreSnapshot} setSnapshotAt={setSnapshotAt} startNewDraft={startNewDraft}
+        restoreSnapshot={restoreSnapshot} flushSave={() => saver.flush()} setSnapshotAt={setSnapshotAt} startNewDraft={startNewDraft}
         syncCommit={syncCommit} syncPush={syncPush} syncInit={syncInit}
         addComment={addComment} commentPop={commentPop} setCommentPop={setCommentPop} popComment={popComment} commentCall={commentCall}
         chatList={chatList} chatId={chatId} chatIdRef={chatIdRef} setPersist={setPersist} attachments={attachments} setAttachments={setAttachments}

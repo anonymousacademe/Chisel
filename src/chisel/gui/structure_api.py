@@ -108,7 +108,10 @@ class StructureMixin:
             rel = ws.rel_id(project, path)
             project.delete_scene(path)
             self.index.remove_file(rel)
-            return {}
+            remap = self._rel_map()   # the siblings were renumbered to close the gap
+            if remap:
+                self.index.rebuild(project)
+            return {"remap": remap}
 
     @bridge
     def new_part(self, title: str) -> dict:
@@ -139,7 +142,10 @@ class StructureMixin:
         with self._lock:
             project = self._require()
             project.delete_part(ws.part_for_id(project, part_id))
-            return {}
+            remap = self._rel_map()   # later parts were renumbered
+            if remap:
+                self.index.rebuild(project)
+            return {"remap": remap}
 
     @bridge
     def list_trash(self) -> dict:
@@ -164,7 +170,7 @@ class StructureMixin:
             if kind == "research":   # research notes are not in the link index
                 return {"id": ws.rel_id(project, path), "unplaced": False, "kind": kind}
             self.index.rebuild(project)
-            return {"id": ws.rel_id(project, path), "kind": kind,
+            return {"id": ws.rel_id(project, path), "kind": kind, "remap": self._rel_map(),
                     "unplaced": project.is_unplaced(path),
                     "where": place[0], "part": place[1]}
 

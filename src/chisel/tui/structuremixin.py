@@ -106,6 +106,8 @@ class StructureMixin:
             rel = path.relative_to(self.project.root).as_posix()
             self.project.delete_scene(path)  # to the Trash, with its draft sidecar
             self.idx.remove_file(rel)
+            if self.project.last_renames:   # the siblings were renumbered
+                self.idx.rebuild(self.project)
             # detach BEFORE open_file, whose save step would otherwise
             # resurrect the deleted file from the editor buffer
             self.current_path = None
@@ -244,12 +246,15 @@ class StructureMixin:
             def _delete(ok: bool) -> None:
                 if not ok:
                     return
+                self.save_current()
                 try:
                     self.project.delete_part(part)
                 except ValueError as exc:
                     self.notify(str(exc), severity="warning")
                     return
-                self.refresh_sidebar()
+                moved = self.project.last_renames   # later parts were renumbered
+                self._structure_changed(
+                    moved.get(self.current_path) if self.current_path is not None else None)
                 self.notify(f"Deleted part '{title}'", timeout=2)
 
             self.push_screen(ConfirmScreen(f"Delete the empty part '{title}'?"), _delete)
@@ -307,7 +312,11 @@ class StructureMixin:
                 return
             what, name = result
             if what == "restore":
+                self.save_current()   # a restore may renumber the open scene's neighbours
                 new = self.project.restore_scene(name)
+                moved = self.project.last_renames
+                if self.current_path in moved:
+                    self.current_path = moved[self.current_path]
                 if new.parent == inspiration.inspiration_dir(self.project):   # reference images: no sidebar row
                     self.notify("Restored the inspiration image", timeout=3)
                 elif research_notes.is_research_path(self.project, new):   # not indexed, no sidebar row
