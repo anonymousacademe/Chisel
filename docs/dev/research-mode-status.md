@@ -76,3 +76,25 @@ Not started (waiting on the author): wave C (research kind manuscript/proposal, 
 requirements checklist, optional pypdf extra), wave D (outline assistant from a scope paragraph), wave E (figure and
 table screens, P8b), wave F (data-aware review of Results and Discussion; pictures and data excluded from AI unless
 the author ticks them).
+
+## Update 2026-10-19 (wave C: paper kind, journal profiles, guidelines)
+
+Merged and pushed (full suite 1881 passed before the last two test-only edits; 285 front-end tests):
+- Project kind (manuscript or proposal) and target journal, chosen when a research project is created and editable in
+  Project settings. Profiles are data in src/chisel/core/paper/journals/*.toml (ems.toml, manuscript.toml,
+  proposal.toml), restated in our own words from the journal's Guide for Authors (read 2026-10-19); the guide's text is
+  not in the repository.
+- Starting from a profile creates its starter outline (front matter part + article sections + declarations) as editable
+  sections; the "Start here" note is parked.
+- Journal requirements: Python evaluates the profile's checks (abstract length, keyword and highlight counts and
+  lengths, required sections present and non-empty, figure and table captions and citations, citations resolve, DOIs,
+  AI-use declaration when AI words were accepted); advice items are reminders. Empty sections never read as ok.
+  Nothing here blocks export.
+- Guidelines: guidelines/ folder (plain files), text from md/txt/docx (stdlib) and PDF (optional pypdf >= 6), cached
+  under .chisel/guidelines; never sent to an AI by any current feature (tested).
+- Citation style option: "harvard" writes "and" (EMS), "apa" writes "&".
+- Dialogs: new-project kind/journal, Project settings, Journal requirements, Guidelines (project menu, research only).
+
+Open items: the requirements checks do not yet read numbering schemes or equation numbering; "graphical abstract" and
+file-format rules are reminders only; the outline assistant (wave D), the guideline-aware requirements extraction by AI
+and the figure/table screens (wave E) are not built.
