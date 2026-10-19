@@ -1,7 +1,7 @@
 // CodeMirror 6 setup for a Chisel document: plain Markdown on disk, drawn
 // with the design's prose styling. Live preview: [[link]] brackets and the
 // <!--ai--> markers are hidden, mentions are coloured, pending drafts tinted.
-import { Compartment, EditorState, Prec, Facet, StateEffect, StateField, type Extension, type Range } from "@codemirror/state";
+import { Compartment, EditorSelection, EditorState, Prec, Facet, StateEffect, StateField, type Extension, type Range } from "@codemirror/state";
 import { typingKeydown } from "../audio/typing";
 import { Decoration, type DecorationSet, EditorView, WidgetType, drawSelection, hoverTooltip, keymap, tooltips } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
@@ -227,7 +227,11 @@ export function build(state: EditorState): Built {
       atomic.push(hide.range(h.from, h.to));
       markerHides.push(h);
     }
-    if (mk.begin !== null) ranges.push(Decoration.widget({ widget: new SourceBanner(), block: true, side: -1 }).range(mk.begin));
+    if (mk.begin !== null) {
+      ranges.push(Decoration.widget({ widget: new SourceBanner(), block: true, side: -1 }).range(mk.begin));
+      // the hidden head is one empty visual row above the banner: collapse it
+      ranges.push(Decoration.line({ class: "lw-source-head" }).range(0));
+    }
     if (mk.title !== null) ranges.push(Decoration.line({ class: "lw-h lw-h3" }).range(mk.title));
   } else if (fm && kind === "entity") {
     const last = doc.lineAt(Math.max(fm.to - 1, 0)).number;
@@ -317,8 +321,53 @@ export const decoField = StateField.define<Built>({
   ],
 });
 
+/** Hidden ranges of a source note (frontmatter, sync markers) and the first visible offset. */
+function sourceHidden(text: string): { ranges: { from: number; to: number }[]; start: number } {
+  const fm = frontmatterRange(text);
+  const ranges = fm ? [{ from: fm.from, to: fm.to }] : [];
+  ranges.push(...sourceMarkers(text, fm?.to ?? 0).hide);
+  ranges.sort((a, b) => a.from - b.from);
+  let start = 0;
+  for (const r of ranges) if (r.from <= start && r.to > start) start = r.to;
+  return { ranges, start };
+}
+
+/** First visible offset of a source note (where its cursor starts); 0 for any other note. */
+export function sourceStart(text: string, entityType: string): number {
+  return entityType === "source" ? sourceHidden(text).start : 0;
+}
+
+const isSource = (s: EditorState) => s.facet(kindFacet) === "entity" && s.facet(entityTypeFacet) === "source";
+
+/** Source notes: the hidden ranges can never be touched by a keystroke (a Backspace that would reach into one
+ *  deletes nothing); a cursor never rests in the hidden head; whole-document replacements pass. */
+export const sourceGuard: Extension[] = [
+  EditorState.changeFilter.of((tr) => {
+    if (!isSource(tr.startState)) return true;
+    const doc = tr.startState.doc;
+    const { ranges, start } = sourceHidden(doc.toString());
+    let ok = true;
+    tr.changes.iterChanges((from, to) => {
+      if (!ok || (from === 0 && to === doc.length && doc.length > 0)) return;
+      if (from === to && from < start) { ok = false; return; }
+      for (const r of ranges) {
+        if (from < to ? from < r.to && to > r.from : from >= r.from && from < r.to) { ok = false; return; }
+      }
+    });
+    return ok;
+  }),
+  EditorState.transactionFilter.of((tr) => {
+    if (!isSource(tr.startState) || (!tr.docChanged && !tr.selection)) return tr;
+    const { start } = sourceHidden(tr.newDoc.toString());
+    const sel = tr.newSelection;
+    if (!sel.ranges.some((r) => r.from < start)) return tr;
+    const fixed = EditorSelection.create(sel.ranges.map((r) => EditorSelection.range(Math.max(r.anchor, start), Math.max(r.head, start))), sel.mainIndex);
+    return [tr, { selection: fixed, sequential: true }];
+  }),
+];
+
 /** The fields the decorations read, without the DOM-bound parts of editorExtensions (for tests). */
-export const decorationCore: Extension[] = [spansField, spellingField, commentsField, readingField, decoField];
+export const decorationCore: Extension[] = [spansField, spellingField, commentsField, readingField, decoField, sourceGuard];
 
 export interface CursorInfo {
   line: number; col: number; head: number; from: number; to: number;
@@ -459,6 +508,7 @@ export function editorExtensions(kind: string, meta: string, reflow: boolean, ho
     commentsField,
     readingField,
     decoField,
+    sourceGuard,
     keymap.of([
       ...(screenplay ? [
         { key: "Tab", run: (view: EditorView) => cycleLine(view, hooks, false), preventDefault: true },

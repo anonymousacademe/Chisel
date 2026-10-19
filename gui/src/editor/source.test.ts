@@ -96,3 +96,42 @@ describe("source note decorations", () => {
     expect(next.doc.toString()).toBe(SOURCE.slice(0, at) + " more" + SOURCE.slice(at));
   });
 });
+
+describe("source note protection", () => {
+  const start = SOURCE.indexOf("## From Zotero");
+  const press = (s: EditorState, from: number, to: number, insert = "") => s.update({ changes: { from, to, insert }, userEvent: "delete.backward" }).state;
+  it("Backspace at the first visible position changes nothing", () => {
+    const s = stateFor(SOURCE, "entity", "source");
+    expect(press(s, 0, start).doc.toString()).toBe(SOURCE);
+    expect(press(s, start - 1, start).doc.toString()).toBe(SOURCE);
+  });
+  it("Backspace after the block and Delete before a marker change nothing", () => {
+    const s = stateFor(SOURCE, "entity", "source");
+    const endMk = SOURCE.indexOf("<!-- zotero:end -->");
+    const endTo = endMk + "<!-- zotero:end -->\n".length;
+    expect(press(s, endMk, endTo + 1).doc.toString()).toBe(SOURCE);
+    expect(press(s, endMk - 1, endMk + 1).doc.toString()).toBe(SOURCE);
+    expect(press(s, endMk, endMk + 1).doc.toString()).toBe(SOURCE);
+  });
+  it("rejects insertion in the hidden head and keeps the frontmatter", () => {
+    const s = stateFor(SOURCE, "entity", "source");
+    for (const at of [0, 5, FM.length]) expect(s.update({ changes: { from: at, insert: "x" } }).state.doc.toString()).toBe(SOURCE);
+  });
+  it("lets whole-document replacement and visible typing through", () => {
+    const s = stateFor(SOURCE, "entity", "source");
+    expect(s.update({ changes: { from: 0, to: SOURCE.length, insert: "new" } }).state.doc.toString()).toBe("new");
+    expect(s.update({ changes: { from: start, insert: "x" } }).state.doc.toString()).toBe(SOURCE.slice(0, start) + "x" + SOURCE.slice(start));
+    const mine = SOURCE.indexOf("mine");
+    expect(s.update({ changes: { from: mine, to: mine + 4 } }).state.doc.toString()).toBe(SOURCE.replace("mine", ""));
+  });
+  it("moves a cursor out of the hidden head", () => {
+    const s = stateFor(SOURCE, "entity", "source");
+    expect(s.update({ selection: { anchor: 0 } }).state.selection.main.head).toBe(start);
+    expect(s.update({ selection: { anchor: 3 } }).state.selection.main.head).toBe(start);
+  });
+  it("does not touch other notes", () => {
+    const s = stateFor(SOURCE, "entity", "character");
+    expect(s.update({ changes: { from: 0, insert: "x" } }).state.doc.toString()).toBe("x" + SOURCE);
+    expect(s.update({ selection: { anchor: 0 } }).state.selection.main.head).toBe(0);
+  });
+});

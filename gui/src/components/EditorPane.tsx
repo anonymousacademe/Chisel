@@ -3,7 +3,7 @@ import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { redo, redoDepth, selectAll, undo, undoDepth } from "@codemirror/commands";
 import { api } from "../backend/api";
-import { setComments, setReading, metaCompartment, metaFacet, reflowCompartment, reflowFacet, setSpans, setSpelling, spansField, spellingField, editorExtensions, type Card, type ContextInfo, type CursorInfo, type SpellTarget } from "../editor/cm";
+import { setComments, setReading, metaCompartment, metaFacet, reflowCompartment, reflowFacet, setSpans, setSpelling, spansField, spellingField, editorExtensions, sourceStart, type Card, type ContextInfo, type CursorInfo, type SpellTarget } from "../editor/cm";
 import { replaceRange, toggleWrap } from "../editor/commands";
 import { nextMisspelling, type Span } from "../editor/spans";
 import type { ScriptNames } from "../editor/script";
@@ -251,6 +251,7 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
       parent: host.current!,
       state: EditorState.create({
         doc: hooks.current.initialText,
+        selection: { anchor: sourceStart(hooks.current.initialText, hooks.current.entityType ?? "") },
         extensions: editorExtensions(hooks.current.kind, hooks.current.meta, hooks.current.reflow, {
           onChange: (t) => { hooks.current.onChange(t); schedule(); scheduleSpelling(); scheduleComments(); },
           onSpell: (t) => hooks.current.onSpell(t),
