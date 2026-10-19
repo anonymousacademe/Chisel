@@ -45,3 +45,34 @@ and the table editor from the first release (the Product seat's recommendation).
 - Worktree agents start from the last pushed commit: push first, and tell each agent to `git merge --ff-only <commit>`.
 - Leftover worktrees under `.claude/worktrees/` (all merged) can be removed with `git worktree remove`.
 - The leadership-meeting memos are in the Windows temp folder `chisel-meeting\reports\` (not in the repo).
+
+## Update 2026-10-19 (usability slice 2, waves A and B)
+
+Built, reviewed by Opus (every branch) and merged; 1815 Python tests and 269 front-end tests pass on a clean checkout.
+Plan: docs/dev/plan-research-usability-2.md (with the author's decisions).
+- Sync: tick several collections (remembered in project.toml [research] zotero_collections; sync again picks up new
+  papers), spinner/elapsed/Cancel, select all/none and search over papers; a stale preview cannot be applied.
+- Citations: Python formats "(Name et al., year)" (core/paper/citefmt.py, APA-like, a/b letters when needed);
+  the editor shows that text in place of [[@key]] and reveals the raw text when the cursor touches it.
+- Source notes: readable block (title, authors, venue/year/DOI, Abstract, Notes, Highlights); the editor hides the
+  frontmatter and the begin marker (protected from edits) and shows the other sync markers dimmed. Existing notes
+  upgrade on the next sync ("reformatted" rows).
+- Research projects say "sections" (unit setting by mode); renumbering after a delete in ALL modes (parts keep front
+  matter first).
+
+Known open items (none block use):
+- Terminal app: footer shortcut labels ("New/Prev/Next scene") and the AI status-bar label still say scene in research
+  projects; several newly routed terminal strings lack real-path tests.
+- html_to_markdown still drops characters inside text it treats as HTML (e.g. "<p>if a<b and c>d</p>").
+- Sync dialog: the remembered selection is saved from the preview-time ticks; if the ticks change between Preview and
+  Apply the saved selection can differ from what the dialog shows until reopened. An inline comment on the
+  zotero_collections line is dropped when it is rewritten.
+- Citation widget and source-note hiding have not been seen in a running window (CSS look, dark mode contrast of the
+  dimmed markers, cursor feel around the top of a source note).
+- Flaky under load: tests/test_sync_tui.py (passes alone).
+- Leftover worktrees under .claude/worktrees (merged) and %TEMP%\chisel-clean5 can be deleted.
+
+Not started (waiting on the author): wave C (research kind manuscript/proposal, guideline documents and the confirmed
+requirements checklist, optional pypdf extra), wave D (outline assistant from a scope paragraph), wave E (figure and
+table screens, P8b), wave F (data-aware review of Results and Discussion; pictures and data excluded from AI unless
+the author ticks them).
