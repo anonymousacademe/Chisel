@@ -8,10 +8,12 @@ import type { AtmosphereInfo, KeyClass, PackRow, Prefs, Station } from "../data/
 import type { ExportInfo, ExportOptions, ExportStatus, ExportSummary } from "../data/export";
 import type { FountainImport } from "../data/script";
 import type { SourceCardInfo, SourceHit, SourceRow, SyncApplied, SyncPlan, SyncScope, ZoteroCollection, ZoteroSettings, ZoteroStatus } from "../data/research";
+import type { Estimate, PartProposal, ScaleHint, SceneProposal, StatusInfo, StoredSummary } from "../data/summaries";
 import { call } from "./transport";
 
 /** AI job kinds (the AI job contract): the first four stream text, the rest answer once. */
-export type AiKind = "ask" | "research" | "brainstorm" | "generate" | "continuity" | "voice" | "canon" | "aliases" | "relationships" | "style" | "image" | "image_regenerate" | "describe_scene";
+export type { SceneProposal, PartProposal };
+export type AiKind = "ask" | "research" | "brainstorm" | "generate" | "continuity" | "voice" | "canon" | "aliases" | "relationships" | "style" | "image" | "image_regenerate" | "describe_scene" | "summarize" | "part_summarize";
 export const STREAMING_KINDS: readonly AiKind[] = ["ask", "research", "brainstorm", "generate"];
 export type AiState = "running" | "done" | "cancelled" | "error";
 export interface AiPoll {
@@ -190,6 +192,19 @@ export const api = {
   /** Brainstorm: 3-5 "unstuck" ideas for the open scene (null: the whole project); chat text only. */
   brainstorm: (docId: string | null, text: string | null, cursor: number, attachments: { kind: AttachKind; id: string }[] = [], subjectId: string | null = null) =>
     call<{ reply: string; ideas: string[]; attached: AttachReport[]; cost: number | null; sent: SentReport }>("brainstorm", docId, text, cursor, attachments, subjectId),
+  // summaries (.summaries/): a proposal is made by the AI jobs "summarize" / "part_summarize"; only the save writes a file
+  summariesStatus: () => call<StatusInfo>("summaries_status"),
+  /** The stored summary of a scene or a "part:..." id (for its card). */
+  summaryGet: (id: string) => call<StoredSummary>("summary_get", id),
+  /** The author accepted a summary (`proposed` and `sourceHash` come from the proposal; without them it is the author's own text). */
+  summarySave: (id: string, payload: Record<string, unknown>) => call<{ status: string; authorEdited: boolean }>("summary_save", id, payload),
+  partSummarySave: (id: string, payload: Record<string, unknown>) => call<{ status: string; authorEdited: boolean }>("part_summary_save", id, payload),
+  summaryLock: (id: string, locked: boolean) => call<{ locked: boolean; status: string }>("summary_lock", id, locked),
+  summaryDelete: (id: string) => call<{ deleted: boolean; wasProtected: boolean }>("summary_delete", id),
+  /** Calls, size and price before anything is sent (no network). `ids` null = every scene that needs one. */
+  summariesEstimate: (ids: string[] | null) => call<Estimate>("summaries_estimate", ids),
+  scaleHint: () => call<ScaleHint>("scale_hint"),
+  scaleHintDismiss: (level: "notice" | "strong" | "") => call<{ dismissedLevel: string }>("scale_hint_dismiss", level),
   // inspiration pictures (inspiration/): reference only, never inserted into prose; generating costs money
   /** Every picture; with `docId` (any document) `mine` lists the ids of the pictures made for it. */
   listInspiration: (docId?: string) => call<{ images: InspirationImage[]; model: string; style: string; mine?: string[] }>("list_inspiration", docId ?? null),

@@ -20,6 +20,7 @@ from textual import work
 
 from .. import __version__
 from ..ai.budget import Budget, BudgetError, Section, SentReport
+from ..ai import client as ai_client
 from ..ai.client import MODEL_DEFAULTS, resolve_model, set_api_key
 from ..ai.images import generate as generate_image, suggest_prompt as suggest_image_prompt
 from ..ai.links import Suggestion, alias_form, plan_aliases, suggest_links
@@ -411,6 +412,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
     def __init__(self, project: Project | None = None) -> None:
         super().__init__()
         self.project = project
+        ai_client.set_meta_source(lambda: self.project.meta if self.project else None)
         self.index: Index | None = None
         self.entities: list[ent.Entity] = []
         self.current_path: Path | None = None
@@ -1430,7 +1432,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
     async def _check_continuity_worker(self) -> None:
         from dataclasses import replace
 
-        from ..ai.continuity import check_scene, plan_check
+        from ..ai.continuity import check_scene, history_for, plan_check_history
 
         scene_text = drafts.strip_pending(  # AI text isn't canon
             self.editor.text, self._originals(self.editor.text))
@@ -1438,11 +1440,14 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
         calls = LEDGER.count()
         model = self._ai_strong_model()
         try:
-            entities, canon, sent = plan_check(
-                scene_text, list(self.entities), self._canon_map(), Budget.for_model(model))
+            # the stored summaries (none: nothing is read and nothing changes), read off the UI thread
+            history = await asyncio.to_thread(history_for, self.project, scene_rel, scene_text,
+                                              list(self.entities))
+            entities, canon, sent, story = plan_check_history(
+                scene_text, list(self.entities), self._canon_map(), Budget.for_model(model), history)
             results = await self._ai_call(
                 "checking continuity", check_scene, scene_text, entities, canon,
-                model) if entities else []
+                model, **({"history": story} if story else {})) if entities else []
         except Cancelled:
             return
         except Exception as exc:
@@ -1578,18 +1583,22 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
 
     @work(exclusive=True)
     async def _update_bible_worker(self) -> None:
-        from ..ai.continuity import plan_canon, propose_canon_updates
+        from ..ai.continuity import history_for, plan_canon_history, propose_canon_updates
         from .noteupdates import NoteUpdateScreen
 
         scene_text = drafts.strip_pending(  # AI text isn't canon
             self.editor.text, self._originals(self.editor.text))
+        scene_rel = self.current_path.relative_to(self.project.root).as_posix()
         calls = LEDGER.count()
         model = self._ai_strong_model()
         try:
-            entities, sent = plan_canon(scene_text, list(self.entities), Budget.for_model(model))
+            history = await asyncio.to_thread(history_for, self.project, scene_rel, scene_text,
+                                              list(self.entities))
+            entities, sent, story = plan_canon_history(
+                scene_text, list(self.entities), Budget.for_model(model), history)
             updates = await self._ai_call(
                 "reading the scene for canon", propose_canon_updates, scene_text, entities,
-                model) if entities else []
+                model, **({"history": story} if story else {})) if entities else []
         except Cancelled:
             return
         except Exception as exc:

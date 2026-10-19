@@ -5,6 +5,32 @@ All notable changes to Chisel are listed here, newest first. The format follows
 
 ## Unreleased
 
+### Added
+- **Scene summaries for long books (groundwork).** Chisel can now keep a short summary of each scene in a
+  `.summaries/` folder, check every fact in it against your text, and give continuity checks and canon
+  proposals the story so far; a project without summaries sends exactly what it did before. It also works
+  out when a project has grown past what the AI can see, so the app can tell you in plain words. The screens
+  for it come next. A fact's quote may now differ from your text in quote marks, dashes, capitals and end
+  punctuation, or join two passages with "..." (pieces in order, at most 2000 characters apart); other
+  changes are still dropped. An unusable AI reply is retried once. In the desktop app, continuity checks, canon
+  proposals, chat and Brainstorm now read the stored summaries when a project has them (shown in "What was sent");
+  projects without summaries send exactly what they did.
+- Continuity checks now use the facts recorded in your summaries (when the project has summaries): they are listed beside the story so far,
+  with the scene each comes from, and the check is told that earlier scenes count as established. A project without summaries is unchanged.
+- **A Summary tab for the open scene.** See a scene's summary, whether it is fresh or out of date, and write, edit, lock or remove it. Chisel shows
+  the size and the price before it asks the AI, shows you the result before anything is kept, lists what it left out and why, and never saves without your
+  click.
+- **A Summaries panel for the whole book.** See how many scenes have a summary and which are out of date, write the missing ones one scene at a time (with Stop),
+  and review the proposals in one list.
+- The Summaries panel now says, once summaries cover your book, what the AI still does not see: it is sent a short story so far (with its size) and what is
+  recorded about the characters in a scene, not the full text of earlier chapters. The notice says a summary "helps with" that, not that it fixes it.
+- **A short notice when a long project has no summaries.** It says plainly that checks and suggestions see only the scene you are working on and its characters' notes, can be closed for the project, and leads to the Summaries panel.
+- Scene summaries are cut after the last whole sentence instead of in the middle of one, and the review says when that happened; part summaries may be up to 150 words.
+- **Setting `reasoning` for utility AI calls** (`default`, `low`, `off`; project.toml `[ai]` or your settings). Some cheap models
+  think for minutes before a short answer; `off` makes alias suggestions, continuity checks, canon proposals,
+  summaries, relationship suggestions, voice checks and style learning much cheaper and faster, with thinner answers.
+  Drafting, chat and local models are never affected, and the "What was sent" report says when it was used.
+
 ### Fixed
 - **Clicking in the manuscript puts the cursor where you click.** The extra space above the title rule and above
   headings (and scene headings in scripts) was margin, which the editor cannot measure, so everything below the

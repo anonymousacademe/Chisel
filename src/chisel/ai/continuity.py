@@ -11,6 +11,7 @@ import json
 from dataclasses import dataclass, replace
 
 from ..core import scenemeta
+from ..core import summaries as summary_store
 from ..core.continuity import (
     Contradiction,
     contradiction_from_dict,
@@ -22,7 +23,7 @@ from ..core.jev_interface import pre_screen
 from ..core.entities import Entity
 from . import relevance
 from .budget import Budget, Item, Section, SentReport, fit, preflight, render, trim
-from .client import openrouter_extra_body
+from .client import utility_extra_body
 from .usage import record_response
 
 CONTRADICTION_SCHEMA = {
@@ -126,6 +127,18 @@ existing canon. Rules:
 - If the scene establishes nothing new about an entity, omit that entity.
 """
 
+# Added to the continuity check's instructions ONLY when stored summaries reach the request (a project without any sends
+# exactly the instructions it always did). It makes the earlier-scene sections count as canon. The canon-proposal prompt is
+# left alone: it only adds facts, and its existing-canon rule already keeps it from restating them.
+HISTORY_ADDENDUM = """
+The request may also hold STORY SO FAR, EARLIER SCENES INVOLVING ... and ESTABLISHED FACTS ABOUT ... sections. They are
+the record of earlier scenes and count as established canon too. Flag a statement in the current scene that conflicts
+with a fact in them exactly like a canon conflict. "evidence" is still the exact text of the current scene; in
+"suggested_fix" start with "earlier: " and quote, from the section, the earlier statement it conflicts with.
+The scene may legitimately change things (a character may learn, move or be injured): do not flag a change the scene
+itself shows happening. When unsure, do not flag.
+"""
+
 CANON_CAP = 1500   # an entity's existing canon in a canon proposal
 NOTE_CAP = 1500    # canon taken from a note body (a note with no managed canon section)
 
@@ -151,13 +164,177 @@ def _details_block(scene_text: str) -> str:
             f"learned):\n{header}\n\n")
 
 
-def build_check_prompt(scene_text: str, canon_by_name: dict[str, str]) -> str:
-    """The user prompt: canon roster + scene. Pure function."""
+@dataclass(frozen=True)
+class History:
+    """What the stored summaries add to a request (``core.summaries``): the story so far before the
+    scene, and, per main character, the earlier scenes they are in. Empty = nothing is added."""
+
+    story: summary_store.StorySoFar | None = None
+    earlier: tuple[tuple[str, summary_store.EntityHistory], ...] = ()   # (entity name, its history)
+    facts: tuple[tuple[str, summary_store.EntityFacts], ...] = ()       # (entity name, its facts ledger)
+
+    @property
+    def present(self) -> bool:
+        """Something from the summaries reaches the request (so the instructions get ``HISTORY_ADDENDUM``)."""
+        return bool((self.story and self.story.blocks) or any(h.items for _, h in self.earlier)
+                    or any(f.items for _, f in self.facts))
+
+
+HISTORY_ENTITIES = 8        # the characters (most mentioned first) whose facts ledger is added
+EARLIER_ENTITIES = 3        # ... of whom this many (the same top ones) also get "Earlier scenes involving" (the expensive section)
+HISTORY_FACTS_TOTAL = 160   # the most ledger facts in one request, shared across the characters
+HISTORY_SCENES = 3          # earlier scenes per character: the first appearance and the newest
+
+
+# What reaches a continuity check from the stored summaries: "summaries" (the story so far and the earlier scenes of the
+# main characters: summary prose), "facts" (the verified-facts ledger of the main characters only) or "both". The
+# default is this one constant; it stays "summaries" until the experiment says otherwise.
+HISTORY_MODES = ("summaries", "facts", "both")
+HISTORY_MODE = "summaries"
+
+
+def _shares(needs: list[int], total: int) -> list[int]:
+    """How many facts each character may list when *needs* (in order, most mentioned first) together exceed *total*: an equal
+    share, what a character does not need goes to the others, and any rest goes to the most mentioned first."""
+    quota = [0] * len(needs)
+    todo, left = list(range(len(needs))), total
+    while todo and left > 0:
+        share = left // len(todo)
+        if share == 0:
+            for i in todo[:left]:
+                quota[i] += 1
+            break
+        small = [i for i in todo if needs[i] - quota[i] <= share]
+        if not small:
+            for i in todo:
+                quota[i] += share
+            left -= share * len(todo)
+            continue
+        for i in small:
+            left -= needs[i] - quota[i]
+            quota[i] = needs[i]
+        todo = [i for i in todo if i not in small]
+    return quota
+
+
+def history_for(project, scene_rel: str, scene_text: str, entities: list[Entity],
+                mode: str = HISTORY_MODE, max_entities: int = HISTORY_ENTITIES,
+                max_facts: int = HISTORY_FACTS_TOTAL) -> History | None:
+    """The stored summaries a continuity check or canon proposal of the scene *scene_rel* may add. *mode*:
+    "summaries" = the story so far before it and, for the ``EARLIER_ENTITIES`` characters it names most, their earlier scenes;
+    "facts" = the ledger of verified facts of earlier scenes (``core.summaries.entity_facts``) for up to *max_entities* of
+    the characters the scene names, most mentioned first (name or alias occurrences in the prose, POV and place from the
+    details once; ties by ``relevance.rank``); "both" (the earlier scenes then use the same top ``EARLIER_ENTITIES``).
+    Why so many characters: a contradiction about a character the ledger does not cover can never be found, however well
+    the model reads. The ledgers share *max_facts* in all (an equal share, what a character does not need goes to the
+    others, the rest to the most mentioned); each keeps its first and newest facts, and what was left out is named in the
+    sent report (counts and scene titles). None when the project has no summaries at all (nothing is read, the request is
+    exactly what it always was). Reads sidecars and earlier scenes: call it outside the project lock. *scene_text* has no
+    pending AI drafts. ValueError for another mode."""
+    if mode not in HISTORY_MODES:
+        raise ValueError(f"history mode must be one of {', '.join(HISTORY_MODES)}")
+    if not summary_store.has_any(project.root):
+        return None
+    named = [r.entity for r, _ in relevance.by_mentions(scene_text, entities)]
+    story, earlier, facts = None, (), ()
+    if mode in ("summaries", "both"):
+        story = summary_store.story_so_far(project, scene_rel)
+        earlier = tuple((e.name, summary_store.entity_history(project, e, scene_rel, limit=HISTORY_SCENES))
+                        for e in named[:min(EARLIER_ENTITIES, max_entities)])
+    if mode in ("facts", "both"):
+        full = [(e.name, summary_store.entity_facts(project, e, scene_rel, limit=10 ** 9)) for e in named[:max_entities]]
+        needs = [min(len(f.items), summary_store.FACTS_PER_ENTITY) for _, f in full]
+        quota = needs if sum(needs) <= max_facts else _shares(needs, max_facts)
+        facts = tuple((name, summary_store.cap_facts(f, min(q, summary_store.FACTS_PER_ENTITY)))
+                      for (name, f), q in zip(full, quota))
+    return History(story, earlier, facts)
+
+
+def _story_section(story: summary_store.StorySoFar | None) -> Section | None:
+    """"Story so far": the summaries of the earlier scenes, the newest kept first when the budget is tight."""
+    if story is None or not story.blocks:
+        return None
+    head = ("STORY SO FAR (summaries of the earlier part of the book, " + story.sentence.lower()
+            + "; they are the record of what happened, the scene below is what is being checked):\n")
+    if story.missing:
+        head += f"(no summary yet for: {', '.join(story.missing)})\n"
+    n = len(story.blocks)
+    items = tuple(Item(b.name, b.text, "", n - 1 - i) for i, b in enumerate(story.blocks))
+    return Section("Story so far", priority=2, droppable=True, items=items, head=head)
+
+
+def _earlier_section(earlier: tuple[tuple[str, summary_store.EntityHistory], ...]) -> Section | None:
+    """"Earlier scenes involving <names>": each main character's first appearance, then their newest scenes."""
+    rows = [(i, name, h) for i, (name, h) in enumerate(earlier) if h.items]
+    if not rows:
+        return None
+    items = tuple(Item(f"{name}: {it.title}", it.summary, f"### {name} - {it.title}", it.rank * 100 + i)
+                  for i, name, h in rows for it in h.items)
+    names = ", ".join(name for _, name, _ in rows)
+    return Section(f"Earlier scenes involving {names}", priority=3, droppable=True, items=items,
+                   head=f"EARLIER SCENES INVOLVING {names.upper()}:\n")
+
+
+def _fact_line(it: summary_store.FactItem) -> str:
+    more = f"; stated in {it.count} scenes" if it.count > 1 else ""
+    return f"- {it.text} ({it.title}{more})"
+
+
+def _facts_section(facts: tuple[tuple[str, summary_store.EntityFacts], ...]) -> Section | None:
+    """"Established facts about <names>": the verified facts of earlier scenes, one compact line each with its scene,
+    grouped per entity and per scene (so the report can name scenes). Priority 1: after the entity canon (0), before the
+    story so far (2). Inside it the NEWEST scenes' facts are dropped first, so first appearances survive."""
+    rows = [(name, f) for name, f in facts if f.items]
+    if not rows:
+        return None
+    items = []
+    for name, f in rows:
+        blocks: list[list[summary_store.FactItem]] = []
+        for it in f.items:
+            if blocks and blocks[-1][0].scene_id == it.scene_id:
+                blocks[-1].append(it)
+            else:
+                blocks.append([it])
+        for k, block in enumerate(blocks):
+            items.append(Item(f"{name}: {block[0].title}", "\n".join(_fact_line(it) for it in block),
+                              f"### {name}" if k == 0 else "", k))
+    names = ", ".join(name for name, _ in rows)
+    return Section(f"Established facts about {names}", priority=1, droppable=True, items=tuple(items), sep="\n",
+                   head=f"ESTABLISHED FACTS ABOUT {names.upper()} (facts recorded from the summaries of earlier scenes, "
+                        "each with the scene it comes from):\n")
+
+
+def _history_sections(history: History | None) -> list[Section]:
+    return [s for s in (_facts_section(history.facts), _story_section(history.story), _earlier_section(history.earlier))
+            if s is not None] if history is not None else []
+
+
+def _with_cap_notes(report: SentReport, history: History | None) -> SentReport:
+    """What the per-entity cap of the facts ledger left out is named in the report too ("X: 12 facts from Chapter V,
+    Chapter VI (over the cap of 60)"): counts and scene titles, because a fact has no short name."""
+    if history is None:
+        return report
+    notes = tuple(f"{name}: {f.omitted} fact{'s' if f.omitted != 1 else ''} from {', '.join(f.omitted_scenes)} "
+                  f"(over the limit of {f.limit} for them)" for name, f in history.facts if f.omitted)
+    if not notes:
+        return report
+    rows = tuple(replace(r, items_dropped=r.items_dropped + notes) if r.name.startswith("Established facts about") else r
+                 for r in report.sections)
+    return replace(report, sections=rows)
+
+
+def _history_text(fitted: list[Section], history: History | None) -> str:
+    names = {s.name for s in _history_sections(history)}
+    return render(s for s in fitted if s.name in names)
+
+
+def build_check_prompt(scene_text: str, canon_by_name: dict[str, str], history: str = "") -> str:
+    """The user prompt: canon roster + (summaries, if any) + scene. Pure function."""
     canon_lines = []
     for name, canon in canon_by_name.items():
         canon_lines.append(f"### {name}\n{canon}" if canon else f"### {name}\n(no canon)")
     canon_block = "\n\n".join(canon_lines) if canon_lines else "(no canon)"
-    return (f"ENTITY CANON:\n{canon_block}\n\n"
+    return (f"ENTITY CANON:\n{canon_block}\n\n{history + chr(10) * 2 if history else ''}"
             f"{_details_block(scene_text)}SCENE:\n{scenemeta.strip(scene_text)}")
 
 
@@ -168,6 +345,16 @@ def plan_check(scene_text: str, entities: list[Entity], canon_by_name: dict[str,
     than ``relevance.ALL_MAX``), their canon fitted into *budget*, and the report. Pass the
     returned entities and canon to ``check_scene``. Raises ``BudgetError`` when the scene
     alone does not fit."""
+    return plan_check_history(scene_text, entities, canon_by_name, budget)[:3]
+
+
+def plan_check_history(scene_text: str, entities: list[Entity], canon_by_name: dict[str, str],
+                       budget: Budget, history: History | None = None
+                       ) -> tuple[list[Entity], dict[str, str], SentReport, str]:
+    """``plan_check`` plus the summaries: *history* adds the droppable "Story so far" and "Earlier
+    scenes involving ..." sections (after the entity canon, before the scene), fitted into *budget* like
+    everything else and named in the report. The fourth value is the text of what was kept: pass it to
+    ``check_scene(..., history=)``. With no history it is ``""`` and the rest is exactly ``plan_check``."""
     items = []
     for r in relevance.rank(scene_text, entities):
         e = r.entity
@@ -176,11 +363,13 @@ def plan_check(scene_text: str, entities: list[Entity], canon_by_name: dict[str,
             items.append(Item(e.name, canon_by_name[e.name], f"### {e.name}", r.priority,
                               None if managed else NOTE_CAP, empty="(no canon)"))
     sections = [
-        Section("Instructions and question", SYSTEM_PROMPT + json.dumps(CONTRADICTION_SCHEMA),
-                visible=False),
+        Section("Instructions and question",
+                SYSTEM_PROMPT + (HISTORY_ADDENDUM if history is not None and history.present else "")
+                + json.dumps(CONTRADICTION_SCHEMA), visible=False),
         Section("Entity canon", priority=0, droppable=True, items=tuple(items),
                 head="ENTITY CANON:\n", max_priority=relevance.priority_limit(entities)),
     ]
+    sections += _history_sections(history)
     details = _details_block(scene_text).strip()
     if details:
         sections.append(Section("Scene details", details))
@@ -188,7 +377,7 @@ def plan_check(scene_text: str, entities: list[Entity], canon_by_name: dict[str,
     fitted, report = fit(sections, budget, "continuity")
     preflight(report)
     canon = {it.name: it.body for it in next(s for s in fitted if s.name == "Entity canon").items}
-    return [e for e in entities if e.name in canon], canon, report
+    return [e for e in entities if e.name in canon], canon, _with_cap_notes(report, history), _history_text(fitted, history)
 
 
 def parse_contradictions(
@@ -225,8 +414,10 @@ def check_scene(
     canon_by_name: dict[str, str],
     model: str,
     client=None,
+    history: str = "",
 ) -> list[Contradiction]:
-    """Network call: Jev pre-screen, then strong model for flagged entities.
+    """Network call: Jev pre-screen, then strong model for flagged entities. *history* is the summaries
+    text ``plan_check_history`` kept ("" = none).
 
     Synchronous — run in a worker thread from the TUI.
     """
@@ -252,10 +443,10 @@ def check_scene(
     response = client.chat.completions.create(
         model=model,
         messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": SYSTEM_PROMPT + (HISTORY_ADDENDUM if history else "")},
             {
                 "role": "user",
-                "content": build_check_prompt(scene_text, filtered_canon),
+                "content": build_check_prompt(scene_text, filtered_canon, history),
             },
         ],
         response_format={
@@ -266,7 +457,7 @@ def check_scene(
                 "schema": CONTRADICTION_SCHEMA,
             },
         },
-        extra_body=openrouter_extra_body({"provider": {"require_parameters": True}}, model=model),
+        extra_body=utility_extra_body({"provider": {"require_parameters": True}}, model=model),
     )
     record_response(response, model, "continuity")
     raw = response.choices[0].message.content or ""
@@ -358,16 +549,25 @@ def plan_canon(scene_text: str, entities: list[Entity], budget: Budget) -> tuple
     returned entities to ``propose_canon_updates`` (one whose canon had to be cut further than
     its usual cap is a copy carrying the cut text). Raises ``BudgetError`` when the scene alone
     does not fit."""
+    return plan_canon_history(scene_text, entities, budget)[:2]
+
+
+def plan_canon_history(scene_text: str, entities: list[Entity], budget: Budget,
+                       history: History | None = None) -> tuple[list[Entity], SentReport, str]:
+    """``plan_canon`` plus the summaries (see ``plan_check_history``); the third value goes to
+    ``propose_canon_updates(..., history=)``."""
     sections = [
         Section("Instructions and question", ACCUMULATION_SYSTEM_PROMPT + json.dumps(ACCUMULATION_SCHEMA),
                 visible=False),
         _canon_section(relevance.rank(scene_text, entities), relevance.priority_limit(entities)),
+        *_history_sections(history),
     ]
     details = _details_block(scene_text).strip()
     if details:
         sections.append(Section("Scene details", details))
     sections.append(Section("Scene", "SCENE:\n" + scenemeta.strip(scene_text)))
     fitted, report = fit(sections, budget, "canon")
+    report = _with_cap_notes(report, history)
     preflight(report)
     by_name = {e.name: e for e in entities}
     out = []
@@ -376,7 +576,7 @@ def plan_canon(scene_text: str, entities: list[Entity], budget: Budget) -> tuple
         full = get_canon(e.body)
         usual = trim(full, CANON_CAP) if len(full) > CANON_CAP else full
         out.append(e if item.body == usual else replace(e, body=set_canon("", item.body)))
-    return out, report
+    return out, report, _history_text(fitted, history)
 
 
 def propose_canon_updates(
@@ -384,8 +584,10 @@ def propose_canon_updates(
     entities: list[Entity],
     model: str,
     client=None,
+    history: str = "",
 ) -> list[CanonUpdate]:
-    """Network call: ask what NEW canon the scene establishes per entity.
+    """Network call: ask what NEW canon the scene establishes per entity. *history* is the summaries
+    text ``plan_canon_history`` kept ("" = none).
 
     Additions only: each entity's existing canon is sent so the model can skip
     known facts, and the reply is validated app-side against it. Every entity given is
@@ -395,7 +597,7 @@ def propose_canon_updates(
     roster = render(fit([_canon_section([relevance.Ranked(e, 0, i) for i, e in enumerate(entities)])],
                         Budget.unbounded())[0])
     roster = roster or "ENTITIES:\n(none)"
-    prompt = (f"{roster}\n\n"
+    prompt = (f"{roster}\n\n{history + chr(10) * 2 if history else ''}"
               f"{_details_block(scene_text)}SCENE:\n{scenemeta.strip(scene_text)}")
 
     if client is None:
@@ -416,7 +618,7 @@ def propose_canon_updates(
                 "schema": ACCUMULATION_SCHEMA,
             },
         },
-        extra_body=openrouter_extra_body({"provider": {"require_parameters": True}}, model=model),
+        extra_body=utility_extra_body({"provider": {"require_parameters": True}}, model=model),
     )
     record_response(response, model, "canon")
     raw = response.choices[0].message.content or ""

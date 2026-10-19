@@ -287,3 +287,32 @@ def test_restore_waived_in_palette():
 
     assert "Restore waived continuity issues (this scene)" in [
         t for t, _, _ in ActionProvider.ACTIONS]
+
+
+async def test_tui_continuity_and_canon_get_the_story_so_far_only_when_summaries_exist(tmp_path: Path, monkeypatch):
+    from chisel.core import summaries as sm
+
+    seen = {}
+    monkeypatch.setattr(ai_cont, "check_scene",
+                        lambda text, entities, canon, model, client=None, **kw: seen.__setitem__("check", kw) or [])
+    monkeypatch.setattr(ai_cont, "propose_canon_updates",
+                        lambda text, entities, model, client=None, **kw: seen.__setitem__("canon", kw) or [])
+    proj = _project(tmp_path)
+    first = proj.manuscript_dir / "01-before.md"
+    first.write_text("# Before\n\nElara arrived at dusk.\n")
+    app = ChiselApp(proj)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.open_file(proj.manuscript_dir / "02-tavern.md")
+        app.action_check_continuity()
+        await pilot.pause(1.0)
+        app.action_update_bible()
+        await pilot.pause(1.0)
+        assert seen == {"check": {}, "canon": {}}            # no summaries: the calls are exactly as before
+        sm.save(proj.root, first, sm.Summary(sm.current_hash(proj, first), "ELARA ARRIVED AT DUSK.", (), ()))
+        app.action_check_continuity()
+        await pilot.pause(1.0)
+        app.action_update_bible()
+        await pilot.pause(1.0)
+        assert "ELARA ARRIVED AT DUSK." in seen["check"]["history"]
+        assert "ELARA ARRIVED AT DUSK." in seen["canon"]["history"]

@@ -14,6 +14,7 @@ export type Dialog =
   | { kind: "trash" }
   | { kind: "details" }
   | { kind: "snapshots" }
+  | { kind: "summaries" }
   | { kind: "export" }
   | { kind: "stats" }
   | { kind: "sound" }

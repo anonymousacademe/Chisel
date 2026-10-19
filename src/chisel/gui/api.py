@@ -33,7 +33,10 @@ from ..ai.client import (
 from ..ai.budget import (
     SETTING as SETTING_WINDOW, Budget, Section, merge_attached, validate_window,
 )
-from ..ai.continuity import check_scene, plan_canon, plan_check, propose_canon_updates
+from ..ai.continuity import (
+    check_scene, history_for, plan_canon_history, plan_check_history, propose_canon_updates,
+)
+from ..ai import client as ai_client
 from ..ai import images as image_ai
 from ..ai.images import generate as generate_images, suggest_prompt as suggest_image_prompt
 from ..ai.links import alias_form, plan_aliases, suggest_links
@@ -44,6 +47,7 @@ from ..ai.relationships import (
     suggest_relationships,
 )
 from ..ai.style import learn_style
+from ..ai.summaries import summarize_part, summarize_scene
 from ..ai.voice import check_voice as voice_check, plan_voice
 from ..ai.stream import call_ai
 from ..ai.usage import LEDGER
@@ -59,10 +63,12 @@ from ..ai.writing import (
     fit_context,
     generate_instructions,
     research_sections,
+    story_section,
     generate as generate_text,
     research_answer as research_writer,
 )
 from ..core import attach
+from ..core import summaries as summary_store
 from ..core import research as research_notes
 from ..core import stats as writing_stats
 from ..core import drafts, rename as renaming, scenemeta, snapshots
@@ -107,17 +113,22 @@ from .script_api import ScriptMixin
 from .spelling_api import SpellingMixin
 from .stats_api import StatsMixin
 from .structure_api import StructureMixin
+from .summaries_api import SummariesMixin
 from .versions_api import VersionsMixin
 from .window_api import WindowMixin
 
 
+DESCRIBE_STORY_CHARS = 6000   # the most of the story so far a picture description may carry (reported when cut)
+
+
 class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMixin,
           NotebookMixin, AnnotationsMixin, InspirationMixin, AtmosphereMixin, StatsMixin,
-          ChatsMixin, WindowMixin, ResearchMixin, ScriptMixin):
+          ChatsMixin, WindowMixin, ResearchMixin, ScriptMixin, SummariesMixin):
     def __init__(self) -> None:
         self._lock = threading.RLock()  # guards every project write
         self._window: Any = None  # set by gui.app once the window exists
         self.project: Project | None = None
+        ai_client.set_meta_source(lambda: self.project.meta if self.project else None)
         self.index: Index | None = None
         self.entities: list[ent.Entity] = []
         self._session_start = time.time()
@@ -427,10 +438,12 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
         """**Describe this**: a visual prompt from the open item. For a scene, the passage around
         the cursor and the place/character notes; for an entity or notebook note, the note's
         text. The subject is *subject_id* if given, else *doc_id*. The author edits the result;
-        nothing is generated or saved."""
+        nothing is generated or saved. A project with summaries adds the story so far to a scene's
+        description (droppable, capped, and then the answer carries the `sent` report)."""
+        target = subject_id or doc_id
+        story = self._story_for(self._require(), target, False)   # reads many files: before the lock
         with self._lock:
             project = self._require()
-            target = subject_id or doc_id
             _, kind = self.resolve_document(target)
             if kind == "scene":
                 inp = self._scene_inputs(target, text)
@@ -444,8 +457,13 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
                 raise ValueError("open a scene or a note to describe it")
             model = resolve_model("fast", project.meta)
             calls = LEDGER.count()
+        extra: dict = {}
+        if kind == "scene" and story is not None and story.blocks:
+            context, sent = fit_context(
+                [story_section(story, group_cap=DESCRIBE_STORY_CHARS), Section("Scene", context)], model, "describe")
+            extra = {"sent": sent.to_dict()}
         prompt = suggest_image_prompt(context, model)
-        return {"prompt": prompt, "model": model, "cost": self._spent(calls)}
+        return {"prompt": prompt, "model": model, "cost": self._spent(calls), **extra}
 
     @bridge
     def generate_inspiration(self, prompt: str, doc_id: str | None = None, pin: bool = False) -> dict:
@@ -676,8 +694,41 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
         return build_context_sections(inp["text"], from_utf16(inp["text"], cursor), entities,
                                       canon_map(entities), load_style(project), originals=inp["originals"])
 
+    def _story_for(self, project: Project, doc_id: str | None, whole_book: bool):
+        """The stored summaries of the book before the scene *doc_id* (reading order, or story time when the project
+        has it; `StorySoFar.sentence` says which), or of the whole book (up to and including its last scene) when
+        *whole_book* or no scene is open. None when the project has no summaries (nothing is read) or the scene is
+        unknown. Reads the sidecars and scene headers: call it WITHOUT the project lock."""
+        if not summary_store.has_any(project.root):
+            return None
+        try:
+            if whole_book or not doc_id:
+                scenes = project.counted_scenes()
+                if not scenes:
+                    return None
+                return summary_store.story_so_far(project, ws.rel_id(project, scenes[-1]), through=True)
+            path, kind = self.resolve_document(doc_id)
+            if kind != "scene":
+                return None
+            return summary_store.story_so_far(project, ws.rel_id(project, path))
+        except (OSError, ValueError, LookupError):
+            return None
+
+    def _chat_story(self, scope: str, doc_id: str | None, subject_id: str | None):
+        """``_story_for`` for a chat or Brainstorm: the scene the context is built from (a scene subject replaces the
+        open document, like ``_chat_sections``), or the whole book for the project scope."""
+        project = self._require()
+        effective = doc_id
+        if subject_id and scope != "project":
+            try:
+                if self.resolve_document(subject_id)[1] == "scene":
+                    effective = subject_id
+            except (OSError, ValueError, LookupError):
+                pass
+        return self._story_for(project, effective, scope == "project")
+
     def _chat_sections(self, scope: str, doc_id: str | None, text: str | None, cursor: int,
-                       subject_id: str | None) -> list[Section]:
+                       subject_id: str | None, story=None) -> list[Section]:
         """The context of a chat question or Brainstorm as sections (call with the lock held): the
         open scene (or the whole project when *scope* is "project" or no scene is open), plus the
         *subject_id* item when it is an entity or notebook note. A scene subject *is* the scene
@@ -699,14 +750,14 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
         if scope == "project" or not doc_id:
             sections = build_project_context_sections(
                 [ws.split_title(fsutil.read_text_lenient(p))[0] or p.stem
-                 for p in project.list_scenes()], entities, canon, style_md)
+                 for p in project.list_scenes()], entities, canon, style_md, story=story)
             if not sections:
                 sections = [Section("Project", "(the project is empty)")]
         else:
             inp = self._scene_inputs(doc_id, text)
             sections = build_context_sections(
                 inp["text"], from_utf16(inp["text"], cursor), entities, canon,
-                style_md, originals=inp["originals"])
+                style_md, originals=inp["originals"], story=story)
         if note_subject:
             sections += self._subject_sections(note_subject)
         return sections
@@ -736,6 +787,7 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
         "relationships": "suggest_relationships", "voice": "check_voice",
         "style": "learn_style", "image": "generate_inspiration", "describe_scene": "describe_scene",
         "image_regenerate": "regenerate_inspiration",
+        "summarize": "summarize_propose", "part_summarize": "part_summarize_propose",
     }
 
     @bridge
@@ -874,10 +926,14 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
                 raise ValueError("No notes yet - there is nothing to check against")
             scene_text = drafts.strip_pending(inp["text"], inp["originals"])
             model = resolve_model("strong", inp["project"].meta)
-            entities, canon, sent = plan_check(scene_text, inp["entities"], canon_map(inp["entities"]),
-                                               Budget.for_model(model))
-            calls = LEDGER.count()
-        found = check_scene(scene_text, entities, canon, model) if entities else []
+            canon_all = canon_map(inp["entities"])
+        # outside the lock: the summaries are read from many files (a project without any reads nothing)
+        history = history_for(inp["project"], inp["rel"], scene_text, inp["entities"])
+        entities, canon, sent, story = plan_check_history(scene_text, inp["entities"], canon_all,
+                                                          Budget.for_model(model), history)
+        calls = LEDGER.count()
+        found = check_scene(scene_text, entities, canon, model,
+                            **({"history": story} if story else {})) if entities else []
         with self._lock:
             waived = load_waivers(inp["project"].root)
         shown = filter_waived(found, waived)
@@ -944,9 +1000,11 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
                 raise ValueError("No notes yet - create some notes first")
             scene_text = drafts.strip_pending(inp["text"], inp["originals"])
             model = resolve_model("strong", inp["project"].meta)
-            entities, sent = plan_canon(scene_text, inp["entities"], Budget.for_model(model))
-            calls = LEDGER.count()
-        updates = propose_canon_updates(scene_text, entities, model) if entities else []
+        history = history_for(inp["project"], inp["rel"], scene_text, inp["entities"])
+        entities, sent, story = plan_canon_history(scene_text, inp["entities"], Budget.for_model(model), history)
+        calls = LEDGER.count()
+        updates = propose_canon_updates(scene_text, entities, model,
+                                        **({"history": story} if story else {})) if entities else []
         return {"updates": [{
             "entity": u.entity, "facts": list(u.new_facts), "evidence": u.evidence,
             "existing": u.existing_canon,
@@ -1119,11 +1177,13 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
         """Chat: answer a question about the scene or the whole project, and about the open
         item (*subject_id*: a character / place / object note, a notebook note or a scene)
         when the author keeps it on. The reply is text for the chat only; the manuscript is
-        never touched."""
+        never touched. A project with summaries also sends the story so far (droppable, in the
+        "What was sent" report)."""
+        story = self._chat_story(scope, doc_id, subject_id)   # reads many files: before the lock
         with self._lock:
             project = self._require()
             model = resolve_model("writing", project.meta)
-            sections = self._chat_sections(scope, doc_id, text, cursor, subject_id)
+            sections = self._chat_sections(scope, doc_id, text, cursor, subject_id, story)
             sections, attached = self._with_attachments(project, sections, attachments)
             context, sent = fit_context(
                 [*sections, chat_instructions(ask_system_prompt(project.mode == "script"), prompt, history)], model, "ask")
@@ -1139,11 +1199,13 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
         open) from the scene around the cursor, the canon and the style guide, and for the
         open item (*subject_id*: a character / place / object note or a notebook note) when
         the author keeps it on. The reply is chat text (a numbered list) plus the ideas as a
-        list, for per-idea actions; the manuscript is never touched."""
+        list, for per-idea actions; the manuscript is never touched. A project with summaries also
+        sends the story so far (droppable, in the report)."""
+        story = self._chat_story("scene", doc_id, subject_id)   # reads many files: before the lock
         with self._lock:
             project = self._require()
             model = resolve_model("writing", project.meta)
-            sections = self._chat_sections("scene", doc_id, text, cursor, subject_id)
+            sections = self._chat_sections("scene", doc_id, text, cursor, subject_id, story)
             sections, attached = self._with_attachments(project, sections, attachments)
             context, sent = fit_context([*sections, brainstorm_instructions()], model, "brainstorm")
             calls = LEDGER.count()

@@ -50,6 +50,8 @@ src/
                          StatusBar Launch QuickSwitcher SettingsDialog ReviewDialogs Dialogs Toast
                          SentReport ("What was sent") InspirationPanel (pictures: generate, upload, link)
                          SpellMenu (misspelling popover; the check itself is core/spelling.py)
+  components/SummaryCard.tsx SummaryReview.tsx SummariesDialog.tsx GrowthNotice.tsx   summaries: the Summary tab, the review, the book panel, the growth notice
+  data/summaries.ts      the plain wording of the summaries screens (statuses, word counts, estimate sentence)
   components/Logo.tsx    the Chisel logo (rail avatar while no author is set, launch screen)
   components/placeholder.ts   the one "Not in Chisel yet" treatment
   assets/logo.svg        the logo the Logo component shows; same artwork as docs/brand/chisel-icon.svg

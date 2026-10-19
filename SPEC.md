@@ -47,6 +47,7 @@ my-novel/
 ├── .trash/                   # deleted scenes, notebook notes, pictures (restorable); .drafts/ = AI draft originals
 ├── .snapshots/               # verbatim copies of scenes, one folder per scene (History)
 ├── .comments/                # author notes anchored to passages, one JSON file per scene
+├── .summaries/               # scene (and part) summaries the AI reads; author data, one JSON file each
 ├── notebook/                 # plain Markdown notes about anything but the manuscript (any subfolders; not entities); was research/
 ├── inspiration/              # pictures (AI-made or uploaded) + a .md sidecar each (prompt, `for:` link to any item, notes)
 ├── exports/                  # files written by Export (author's folder; add to .gitignore if unwanted)
@@ -850,6 +851,123 @@ both edit the same plain-Markdown projects.
   draft; it is styled as a warning when anything was left out. The terminal app appends one line
   (`sent ~3.2k tokens of 200k; 2 dropped`) to each AI notification.
 
+### Summaries for long projects (wave A: core and AI plumbing; `core/summaries.py`, `ai/summaries.py`, `core/scale.py`)
+- **Why.** Chisel sends the AI one scene plus the notes about its characters. For a book that means no memory of
+  earlier chapters. Summaries kept in the project give the AI that memory, are always shown in the "What was
+  sent" report, and are never trusted silently.
+- **Author data.** One JSON file per scene in `.summaries/` at the project root (named like the draft sidecar:
+  `manuscript__01-the-recall__01-rain.md.json`), never in `.chisel/`: it costs money to make and the author may
+  edit or lock it. It holds the summary (at most 90 words, past tense), each character's state at the END of
+  the scene, facts that each carry a verbatim quote, open threads, the hash of the prose it was made from, and
+  `model`, `created`, `cost`, `author_edited`, `locked`. A part may have `_part__<part folder>.json`, made from
+  its scene summaries and remembering which ones. Both travel with the scene or part on every move, rename,
+  Trash and restore (`Structure._apply_renames`, `move_part`, `delete_scene`, `restore_scene`).
+- **Status.** The hash is of the counted prose (no details block, no pending AI drafts), so only a real edit makes
+  a summary `stale`. A `locked` or author-edited summary is never offered for regeneration; if its scene changed
+  it is shown as "scene changed since", nothing more. `coverage` counts scenes per status in reading order.
+- **Proposals, then verification.** A generated summary is saved only when the author accepts it. Before that
+  every fact must have a quote that occurs in the scene and every character name must occur in it; what fails is
+  dropped and listed by name with the rule that failed, never kept. A quote passes if it is in the scene as
+  written (white space ignored) or by a looser rule: curly and straight quote marks, `--` / en dash / em dash and
+  capital letters are treated alike, punctuation at the ends of the quote is ignored, and the quote may be several
+  pieces joined with `...` (or `[...]`). Each piece must be at least 8 characters long, occur in the scene in that
+  order without overlapping, and consecutive pieces may be at most 2000 characters apart. The prompt asks the model
+  for one unbroken passage, so the looser rule is a safety net; the proposal says how many facts needed it.
+  Limits, in plain words: the check proves the quote exists in the scene, not that the quote supports the fact
+  written beside it, so a true quote can sit under a different fact (and pieces up to 2000 characters apart can pair
+  two statements that are not together in the scene). A paraphrase, a changed word or number, or a name replaced
+  by a pronoun is still dropped. If the reply holds no usable summary, Chisel asks once more before reporting an
+  error; the diagnostic log records only the finish reason, token count, reply length and which parsing step failed.
+- **Rollups, computed when read.** `story_so_far` is the book before a scene in reading order (by story time when
+  the project has it, saying which): earlier parts as one block each, the current part's earlier scenes one
+  block each, newest last; scenes without a summary are named. `entity_history` is the first scene a character
+  or place appears in, then the newest earlier ones that name it.
+- **In AI requests.** Continuity and canon proposals gain two droppable sections after the entity notes, "Story so
+  far" and "Earlier scenes involving <names>", only when the project has summaries; the budget drops the oldest
+  first and the report names each. A project without summaries sends exactly what it did before. Model role
+  `summary` (setting `summary_model`, else the writing model); requests never ask for structured output.
+- **Thinking for utility calls.** Some cheap models think silently for minutes before a 100-word answer (one
+  tested model used 3,000 to 20,000 hidden tokens per scene summary and, for the alias finder, produced no
+  usable answer in six of six chapters). The setting `reasoning` (project.toml `[ai] reasoning`, else the user
+  settings, else `default`) takes `default` (the request is exactly what it always was), `low` or `off`. It applies
+  only to the utility calls: alias finder, continuity, canon proposals, summaries, relationship suggestions, voice
+  checks and style learning; never to drafting, expand, rewrite, chat or Brainstorm, and never to a `local:` model.
+  `low` sends `reasoning: {effort: low}` and `off` sends `reasoning: {enabled: false}`; an unknown value means
+  `default`. A call that carries it does not also send `provider.require_parameters` (the two are never sent
+  together; the answer is still checked by the app). What `off` costs: much cheaper and faster, but thinner
+  answers (in one test a summary that stopped before the end of the scene and fewer facts). The "What was sent"
+  report and the terminal's cost note say "reasoning off" or "reasoning low" when it was used.
+- **Growing projects.** `scale_hint` compares the prose with the model's window and the summary coverage and
+  returns a plain-language message (level `none`, `notice`, `strong`; constants at the top of `core/scale.py`).
+  It never blocks work and can be dismissed per project; the front ends only display it. The dismissal is the one
+  new project preference: `[ui] scale_hint_dismissed = "notice" | "strong"` in project.toml, written atomically.
+- **What the AI still does not see (`after`).** The notice says a summary "helps with" the missing earlier chapters, never that it fixes them:
+  the experiments do not justify that word. And when coverage is high enough that the notice is hidden, summaries existing is not the AI seeing the
+  book, so `scale_hint` also returns a quiet `after` sentence (None when there are no summaries or coverage is low): "Summaries cover your whole book.
+  When you check a scene, Chisel sends a short story so far (about N tokens, roughly M words, for your last scene) and what is recorded about the
+  characters in it, not the full text of earlier chapters." N is the estimated size (characters / 4) of the story so far before the last scene, cut
+  oldest-first to what a continuity request could hold (the window minus the reply reserve, `scale.CONTINUITY_RESERVE`: the continuity code has no
+  smaller cap for it), computed in Python without the network. The Summaries panel shows it as a muted line at its top; it is never a banner.
+- **The facts ledger and the continuity instructions.** The summary prose is short, so the verified FACTS of each summary can also
+  reach a continuity check. `core.summaries.entity_facts` lists, for a character, the facts of the earlier scenes (never the scene
+  itself or later ones, in reading order or story time) whose summary lists that character or whose text names them or an alias;
+  an identical text is listed once (the earliest, with how often it was stated); over 60 facts per character the earliest 10 and the
+  newest 50 are kept and the rest is counted. The ledger covers up to 8 characters, chosen by how often the scene names them (name or alias
+  occurrences in the prose, the POV and place of its details once each; ties keep the existing ranking; every character named at least once is
+  eligible), because a contradiction about a character the ledger does not cover can never be found. All ledgers of one request share 160 facts
+  (an equal share; what a character does not need goes to the others, the rest to the most mentioned) and the report names what was left out (counts
+  and scene titles). "Earlier scenes involving ..." stays at the 3 most mentioned characters (in mode "both" the same three). They reach the request as the droppable section "Established facts about <names>", one
+  compact line each with its scene; it ranks between the entity canon and the story so far, and when the budget is tight the NEWEST
+  scenes' facts go first so first appearances survive; the report names the scenes dropped and, for the cap, the counts and scene
+  titles. `history_for(..., mode)` chooses what is added: "summaries" (today's story so far and earlier scenes), "facts" (the
+  ledger only) or "both"; the default is the one constant `continuity.HISTORY_MODE`, still "summaries". Only when something from
+  the summaries reaches a continuity check do its instructions get a short addendum (counted in the budget): the earlier-scene
+  sections are established canon, a conflict with them is flagged like a canon conflict with the evidence quoted from the scene and
+  the earlier statement quoted in the suggested fix ("earlier: ..."), a change the scene itself shows is not a conflict, and when
+  unsure do not flag. The canon-proposal instructions are unchanged (it only adds facts and already must not restate canon).
+- **The desktop bridge** (`gui/summaries_api.py`, wave B1; no screen yet). `summaries_status` (every counted scene with
+  its status and summary words, every part, totals; no AI, reads each scene once to compare it with its summary, so it
+  is its own call and not part of the workspace), `summarize_propose(scene_id)` and `part_summarize_propose(part_id)` (AI
+  jobs `summarize` / `part_summarize`: the proposal, what verification dropped and why, how many facts needed the looser
+  quote rule, cost, the "What was sent" report; NOTHING is saved; the project lock is released before the call; the
+  `reasoning` setting applies), `summary_save` / `part_summary_save` (the author accepting, possibly after editing: at
+  most 90 / 150 words, every fact's quote and every character name checked again against the scene and the save refused
+  with the facts named; refused when locked or when the scene changed since the proposal; `author_edited` is set when the
+  author's own words are in it), `summary_lock`, `summary_delete` (plain deletion: a summary can be written again),
+  `summaries_estimate` (no network: calls, input tokens, a cost range from the model's price in the catalogue Chisel
+  already fetched, "unknown" when there is none, free for a local model, and whether the model thinks first),
+  `scale_hint` (with the real window of the summary model) and `scale_hint_dismiss`.
+- **Where stored summaries reach the AI.** Only when a project has any (otherwise the requests are byte-identical to
+  before): continuity checks and canon proposals in both front ends send the droppable "Story so far" and "Earlier scenes
+  involving ..." sections (`continuity.history_for`: the story before the scene, and the earlier scenes of the first three
+  characters its prose names); the desktop chat, Brainstorm and project-scope questions send "Story so far" up to the open
+  scene (the whole book, up to its last scene, for the project scope; priority 2 after the style guide and the
+  characters, 1 in the project scope; oldest scenes dropped first, named in the report); describing a scene adds it
+  capped at 6,000 characters and then reports what was sent. Drafting, expand and rewrite do not get it. In story-time
+  projects "earlier" follows story time and the sentence in the section says so.
+- **The desktop screens** (wave B2; `gui/src/components/SummaryCard.tsx`, `SummaryReview.tsx`, `SummariesDialog.tsx`,
+  `GrowthNotice.tsx`, `hooks/useSummaries.ts`, wording in `data/summaries.ts`; they only call the bridge above, all logic stays in Python):
+  - *Summary tab* of the side panel for the open scene: a status chip (None / Fresh / Out of date / Locked), the summary, its facts
+    (each with the quote it rests on), the characters at the end and the questions left open, and the buttons Write summary / Write
+    again, Edit, Lock (Unlock), Remove. An out-of-date summary says plainly that the scene changed after it was written. Write shows the
+    estimate first (how many scenes, how much text, the price or "price unknown", a plain sentence when the model thinks before it answers
+    and what the thinking setting is) with Cancel / Continue, then runs the AI job (Stop) and opens the review.
+  - *Review* (a proposal, or Edit of a stored summary): the text in an editable box with a live word count against the limit, the facts as
+    removable rows, characters and open questions, a "Left out" list that says in plain words what verification removed and why, a note when
+    facts were kept although their quote is not letter for letter the author's text, a note when the text had to be cut at the limit, the cost,
+    the "What was sent" report, and Accept / Discard. Nothing is saved before Accept; a refusal by the bridge (a quote that no longer matches, over
+    the limit, a changed scene) is shown in the dialog.
+  - *Summaries panel* (project menu, scene menu, or the link on the card): "31 of 41 scenes have a summary; 4 are out of date", a row per part
+    and scene with the chip, "Write the missing summaries" (the total estimate first, then one scene at a time with progress and Stop; each result is a
+    PROPOSAL), "Review N proposals" (open one, Accept or Discard) and "Accept all that had nothing left out", which first says what it will do. A part
+    summary is written from its scene summaries with one request.
+  - *Growth notice*: a calm, dismissible banner above the editor with Python's message verbatim (the stronger level is only another wording, not another
+    colour), a button to the panel and an explanation of "What was sent"; closed once per project through `scale_hint_dismiss`; fetched when a project opens
+    and, debounced, after saves, never from the workspace and never per keystroke.
+  - The assistant header shows "Story so far included" when the last answer was sent the earlier scenes' summaries. A scene summary is asked for in at
+    most 80 words (the limit is 90) and is cut at the last whole sentence when longer, with the cut shown in the review; part summaries are limited to 150.
+- **Not yet built.** The terminal screens for summaries; the story so far for the terminal chat.
+
 ## 8. Cost & key management
 
 - BYOK via OpenRouter, plus **local models** (Ollama and any OpenAI-compatible server) on the author's own computer; `keyring` storage (Secret Service on Linux), config-file fallback `chmod 600`, env var for dev
@@ -976,5 +1094,6 @@ Planned next, in this order (no dates; each is designed before it is built):
    OpenAI-compatible endpoints via the `local:` model-slug prefix and the `local_base_url` setting;
    the pickers list what is installed; OpenRouter-only request fields are skipped; picture
    generation stays OpenRouter-only for now.
-3. **Per-scene summaries** and a rolling story-so-far, used by the budget as compact context.
+3. **Per-scene summaries** and a rolling story-so-far, used by the budget as compact context (wave A, the
+   core, is built; the screens and the bridge are next).
 4. **A timeline view** of scenes by story time.

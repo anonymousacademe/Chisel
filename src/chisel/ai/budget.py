@@ -26,6 +26,8 @@ import re
 from dataclasses import dataclass, field, replace
 from typing import Iterable, Mapping
 
+from .client import UTILITY_FEATURES
+
 CHARS_PER_TOKEN = 4          # the estimate: ~4 characters of English prose per token
 # Window assumed when the model's real context length is unknown (the catalogue the
 # model picker fetched is not cached, or the model is not in it). Deliberately
@@ -104,6 +106,7 @@ def window_for(model_id: str, catalogue=None, settings: Mapping | None = None) -
 class Budget:
     window_tokens: int
     output_reserve: int = DEFAULT_RESERVE
+    reasoning: str = ""     # "reasoning off" / "reasoning low" for a utility call, else ""
 
     @property
     def available(self) -> int:
@@ -113,7 +116,9 @@ class Budget:
     @classmethod
     def for_model(cls, model_id: str, catalogue=None, settings: Mapping | None = None,
                   reserve: int = DEFAULT_RESERVE) -> "Budget":
-        return cls(window_for(model_id, catalogue, settings), reserve)
+        from .client import reasoning_note
+
+        return cls(window_for(model_id, catalogue, settings), reserve, reasoning_note(model_id))
 
     @classmethod
     def unbounded(cls) -> "Budget":
@@ -237,6 +242,7 @@ class SentReport:
     reserve: int
     over_budget: bool = False
     attached: tuple[dict, ...] = ()
+    reasoning: str = ""     # said when a utility call ran with reasoning off or low
 
     @property
     def dropped(self) -> tuple[str, ...]:
@@ -251,10 +257,13 @@ class SentReport:
         return bool(self.dropped or self.truncated or self.over_budget)
 
     def to_dict(self) -> dict:
-        return {"feature": self.feature, "estTokens": self.est_tokens, "window": self.window,
-                "reserve": self.reserve, "overBudget": self.over_budget, "trimmed": self.trimmed,
-                "sections": [s.to_dict() for s in self.sections],
-                "attached": [dict(a) for a in self.attached]}
+        out = {"feature": self.feature, "estTokens": self.est_tokens, "window": self.window,
+               "reserve": self.reserve, "overBudget": self.over_budget, "trimmed": self.trimmed,
+               "sections": [s.to_dict() for s in self.sections],
+               "attached": [dict(a) for a in self.attached]}
+        if self.reasoning:
+            out["reasoning"] = self.reasoning
+        return out
 
     def summary(self) -> str:
         """One line for a status bar: 'sent ~3.2k tokens of 200k; 2 dropped'."""
@@ -263,6 +272,8 @@ class SentReport:
             text += f"; {len(self.dropped)} dropped"
         if self.truncated:
             text += f"; {len(self.truncated)} trimmed"
+        if self.reasoning:
+            text += f"; {self.reasoning}"
         return text
 
 
@@ -471,7 +482,8 @@ def fit(sections: Iterable[Section], budget: Budget, feature: str = "") -> tuple
         if row is not None:
             reports.append(row)
     report = SentReport(feature, tuple(reports), -(-used // CHARS_PER_TOKEN), budget.window_tokens,
-                        budget.output_reserve, over)
+                        budget.output_reserve, over,
+                        reasoning=budget.reasoning if feature in UTILITY_FEATURES else "")
     return fitted, report
 
 

@@ -14,7 +14,7 @@ import inspect
 import threading
 from typing import Callable
 
-from .client import openrouter_extra_body
+from .client import openrouter_extra_body, utility_extra_body
 from .usage import record_response
 
 
@@ -60,7 +60,7 @@ class CancelToken(threading.Event):
 
 def stream_text(client, model: str, messages: list[dict], feature: str,
                 on_delta: Callable[[str], None] | None = None,
-                cancel: threading.Event | None = None) -> str:
+                cancel: threading.Event | None = None, utility: bool = False) -> str:
     """Run one streaming chat call and return the whole reply text.
 
     Raises ``Cancelled`` when *cancel* is set before or during the stream (the
@@ -70,7 +70,7 @@ def stream_text(client, model: str, messages: list[dict], feature: str,
         raise Cancelled()
     stream = client.chat.completions.create(
         model=model, messages=messages, stream=True,
-        extra_body=openrouter_extra_body(model=model))
+        extra_body=(utility_extra_body if utility else openrouter_extra_body)(model=model))
     if isinstance(cancel, CancelToken):
         cancel.add_closer(getattr(stream, "close", lambda: None))
     parts: list[str] = []

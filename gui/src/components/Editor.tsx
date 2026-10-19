@@ -57,6 +57,8 @@ export function Editor(props: {
   onAddComment: () => void;
   onComments: (rows: CommentRow[] | null) => void; onComment: (id: string, x: number, y: number) => void;
   extraKeys?: { key: string; run: () => boolean }[];
+  /** A calm notice above the toolbar (the growth notice); never blocks typing. */
+  banner?: React.ReactNode;
 }) {
   const { doc, editorRef } = props;
   const isScene = doc?.kind === "scene";
@@ -79,6 +81,7 @@ export function Editor(props: {
 
   return (
     <main className="lw-editor">
+      {props.banner}
       <div className="lw-editor__toolbar">
         <div className="lw-row lw-gap-4" role="tablist" aria-label="View mode">
           {modes.map((m) => (

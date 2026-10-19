@@ -16,6 +16,12 @@ import { Editor, type ViewMode } from "./components/Editor";
 import type { EditorHandle } from "./components/EditorPane";
 import { Assistant, type AssistantTab, type QuickAction } from "./components/Assistant";
 import { InspirationPanel } from "./components/InspirationPanel";
+import { SummaryCard } from "./components/SummaryCard";
+import { SummaryReview, type ReviewTarget } from "./components/SummaryReview";
+import { SummariesDialog } from "./components/SummariesDialog";
+import { GrowthNotice } from "./components/GrowthNotice";
+import { afterLine, storySoFarChip, type PartBody, type SummaryBody } from "./data/summaries";
+import { useSummaries } from "./hooks/useSummaries";
 import { scopeLabel, subjectArgs, subjectOf } from "./data/subject";
 import { atmosphere } from "./audio/store";
 import { SpellMenu } from "./components/SpellMenu";
@@ -72,6 +78,7 @@ export default function App() {
   const [spansVersion, setSpansVersion] = useState(0);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [rail, setRail] = useState<RailView>("binder");
+  const [saveTick, setSaveTick] = useState(0);   // bumped after each save of a scene: its summary may be out of date, the growth hint may change
   const [assistantOpen, setAssistantOpen] = useState(true);
   const [focus, setFocus] = useState(false);
   const [mode, setMode] = useState<ViewMode>("manuscript");
@@ -138,6 +145,7 @@ export default function App() {
       refreshSync();
       const id = saver.documentId; // the retrieved-context list follows what was just saved
       if (id?.startsWith("manuscript/")) {
+        setSaveTick((n) => n + 1);
         void api.sceneContext(id).then((c) => { if (c.ok && saver.documentId === id) setMentions(c.mentions); });
       }
     },
@@ -263,6 +271,8 @@ export default function App() {
     useAiActions({ saver, ws, docRef, editorRef, notify, refresh, openDoc, aiCall, requireAi, setDialog, setIssues, setIssuesSent, setTab,
       setAssistantOpen, setSpansVersion, setNoteVersion, setMentions });
   useGlobalShortcuts({ saver, openDoc, notify, setSwitcher, setFocus, setDialog });
+  const summaries = useSummaries({ notify, refresh, aiCall, stopAi, sceneId: sceneDocId ?? null, saveTick, projectPath: ws?.project.path ?? "",
+    enabled: !!ws && ws.project.mode !== "research" });
  
   // -- focus sprint (the countdown is client-side; the server keeps the start/end and counts the words) --
   const sprint = ws?.status.stats?.sprint ?? null;
@@ -575,6 +585,7 @@ export default function App() {
       { label: "Zotero settings…", onSelect: () => setDialog({ kind: "zotero-settings" }) },
       { label: "Sync sources from Zotero…", onSelect: () => setDialog({ kind: "zotero-sync" }) },
     ] : []),
+    ...(ws.project.mode !== "research" ? [{ label: "Summaries…", onSelect: () => setDialog({ kind: "summaries" }) }] : []),
     { label: "Rebuild the link index", onSelect: async () => {
       const r = await api.rebuildIndex();
       if (!r.ok) return notify(r.error, "error");
@@ -721,6 +732,7 @@ export default function App() {
         : { label: `Move to ${ws.project.labels.parked}`, disabled: !isScene, onSelect: () => doc && void placeScene(doc.id, null, null, true).then((r) => r && notify(`Moved to ${ws.project.labels.parked}. It no longer counts in the book.`)) },
       { label: "Collections…", disabled: !isScene, onSelect: () => setDialog({ kind: "scene-collections" }) },
       { label: "History (snapshots)…", disabled: !isScene, onSelect: openHistory },
+      ...(ws.project.mode !== "research" ? [{ label: "Summaries…", onSelect: () => setDialog({ kind: "summaries" }) }] : []),
       { label: `Delete ${unit}…`, disabled: !isScene, danger: true, onSelect: () => setDialog({ kind: "delete" }) },
       { label: "parts", separator: true, onSelect: () => {} },
       { label: part ? `Rename part “${part.title}”…` : "Rename part…", disabled: !part, onSelect: () => part && setDialog({ kind: "rename-part", id: part.id, title: part.title }) },
@@ -740,6 +752,16 @@ export default function App() {
     ],
   });
 
+  // the summary review (a proposal, or a stored summary being edited) sits above everything; Back leads to where it was opened
+  const closeReview = (from: "card" | "panel") => { summaries.setReview(null); if (from === "panel") setDialog({ kind: "summaries" }); };
+  const reviewTarget: ReviewTarget | null = (() => {
+    const r = summaries.review;
+    if (!r) return null;
+    if (r.mode === "proposal") { const p = summaries.pending.find((x) => x.id === r.id); return p ? { mode: "proposal", pending: p } : null; }
+    const s = summaries.stored;
+    if (!s || s.id !== r.id || !s.summary) return null;
+    return { mode: "edit", id: r.id, title: doc?.title ?? "", part: r.id.startsWith("part:"), stored: s.summary as SummaryBody | PartBody };
+  })();
   const showBinder = !focus;
   const showAssistant = assistantOpen && !focus;
 
@@ -772,6 +794,9 @@ export default function App() {
           onMakeNote={() => makeNote(false)} getCard={getCard} onOpenEntity={openEntitySpan}
           onResolveDraft={(i, a) => void resolveDraft(i, a)}
           spellVersion={spellVersion} onSpellCount={setSpellCount} onSpell={setSpellTarget} onContextMenu={openContextMenu} onAddPhrase={addSelectionToDictionary}
+          banner={ws.project.mode !== "research" ? (
+            <GrowthNotice hint={summaries.hint} onOpenSummaries={() => setDialog({ kind: "summaries" })} onDismiss={() => void summaries.dismissHint()} />
+          ) : null}
           onAddComment={startAddComment} onComments={setComments}
           onComment={(id, x, y) => setCommentPop({ id, x, y })}
           extraKeys={[
@@ -806,6 +831,18 @@ export default function App() {
                 rev={inspRev} getEditor={() => { const ed = editorRef.current; return ed ? { text: ed.getText(), cursor: ed.head() } : null; }}
                 requireAi={requireAi} job={aiCall} notify={notify} onSpent={() => void refresh()} />
             }
+            storyChip={storySoFarChip([...messages].reverse().flatMap((m) => (m.role === "assistant" && m.sent ? [m.sent] : []))[0])}
+            summary={ws.project.mode !== "research" ? (
+              <SummaryCard sceneId={isScene ? doc!.id : null} title={doc?.title ?? ""} unit={unit}
+                stored={summaries.stored && summaries.stored.id === doc?.id ? summaries.stored : null}
+                proposal={summaries.pending.find((p) => p.id === doc?.id)} busy={aiBusy !== null} running={summaries.writing === doc?.id}
+                onWrite={() => doc && void summaries.proposeScene(doc.id, doc.title, "card")}
+                onReview={() => doc && summaries.setReview({ id: doc.id, mode: "proposal" })}
+                onDiscard={() => doc && summaries.discard(doc.id)}
+                onEdit={() => doc && summaries.setReview({ id: doc.id, mode: "edit" })}
+                onLock={(l) => doc && void summaries.lock(doc.id, l)} onRemove={() => doc && void summaries.remove(doc.id)}
+                onOpenPanel={() => setDialog({ kind: "summaries" })} onStop={stopAi} />
+            ) : undefined}
             style={ws ? styleStatus : null} onLearnStyle={() => void learnStyle()} onOpenStyle={() => void openStyle()} />
         )}
       </div>
@@ -840,6 +877,27 @@ export default function App() {
         createResearch={createResearch} researchFromUrl={researchFromUrl} deleteResearch={deleteResearch}
         researchMode={researchMode} setAssistantOpen={setAssistantOpen} onQuick={onQuick} insertCitation={insertCitation}
         createCollection={createCollection} recolorCollection={recolorCollection} renameCollection={renameCollection} deleteCollection={deleteCollection} />
+      {dialog?.kind === "summaries" && (
+        <SummariesDialog unit={unit} after={afterLine(summaries.hint)} pending={summaries.pending} batch={summaries.batch} progress={summaries.progress} rev={summaries.rev}
+          onStartBatch={(list) => void summaries.startBatch(list)} onStop={summaries.stopBatch}
+          onReview={(id) => { setDialog(null); summaries.setReview({ id, mode: "proposal" }); }} onDiscard={summaries.discard}
+          onAcceptClean={summaries.acceptClean}
+          onOpenScene={(id) => { setDialog(null); setTab("summary"); setAssistantOpen(true); void openDoc(id); }}
+          onWritePart={(id, title) => void summaries.proposePart(id, title, "panel")}
+          onClose={() => setDialog(null)} notify={notify} />
+      )}
+      {reviewTarget && (
+        <SummaryReview key={`${summaries.review?.mode}:${summaries.review?.id}`} target={reviewTarget}
+          onAccept={async (edited) => {
+            const r = reviewTarget.mode === "proposal"
+              ? await summaries.accept(reviewTarget.pending, edited, true)
+              : await summaries.saveEdit(reviewTarget.id, reviewTarget.part, edited);
+            if (r.ok) closeReview(reviewTarget.mode === "proposal" ? reviewTarget.pending.from : "card");
+            return r;
+          }}
+          onDiscard={() => { if (reviewTarget.mode === "proposal") { summaries.discard(reviewTarget.pending.id); closeReview(reviewTarget.pending.from); } }}
+          onClose={() => closeReview(reviewTarget.mode === "proposal" ? reviewTarget.pending.from : "card")} />
+      )}
       <Toasts notices={notices} onDismiss={dismiss} />
     </div>
   );

@@ -266,6 +266,8 @@ export interface SentReport {
   overBudget: boolean; trimmed: boolean;
   sections: SentSection[];
   attached: AttachReport[];
+  /** "reasoning off" / "reasoning low" when a utility call ran with thinking turned down; absent otherwise. */
+  reasoning?: string;
 }
 
 export interface GenerateResult {

@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from ..core.entities import Entity
 from ..core.relationships import Rel, parse, set_section
 from .budget import Budget, Item, Section, SentReport, fit, preflight
-from .client import openrouter_extra_body
+from .client import utility_extra_body
 from .relevance import rank
 from .usage import record_response
 
@@ -155,7 +155,7 @@ def suggest_relationships(entity: Entity, others: list[Entity],
             "json_schema": {"name": "relationships", "strict": True,
                             "schema": SCHEMA},
         },
-        extra_body=openrouter_extra_body({"provider": {"require_parameters": True}}, model=model),
+        extra_body=utility_extra_body({"provider": {"require_parameters": True}}, model=model),
     )
     record_response(response, model, "relationships")
     raw = response.choices[0].message.content or ""

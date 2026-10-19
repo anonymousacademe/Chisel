@@ -360,6 +360,21 @@ class Project(Structure):
         unit_line = f"unit = {toml_string(current['unit'])}\n"
         self._write_section("timeline", era_line + unit_line)
 
+    SCALE_HINT_LEVELS = ("notice", "strong")
+
+    def scale_hint_dismissed(self) -> str:
+        """The "long project" hint level the author last closed (project.toml [ui] scale_hint_dismissed):
+        "" (none), "notice" or "strong". Anything else reads as none."""
+        raw = self.meta.get("ui")
+        value = raw.get("scale_hint_dismissed") if isinstance(raw, dict) else ""
+        return value if value in self.SCALE_HINT_LEVELS else ""
+
+    def set_scale_hint_dismissed(self, level: str) -> None:
+        """Remember that the author closed the hint of *level* ("" forgets it); ``ValueError`` otherwise."""
+        if level and level not in self.SCALE_HINT_LEVELS:
+            raise ValueError("level must be 'notice' or 'strong'")
+        self._write_section("ui", f"scale_hint_dismissed = {toml_string(level)}\n")
+
     def _write_section(self, name: str, body: str) -> None:
         """Replace (or append) the [name] table of project.toml, preserving
         everything else, atomically; refresh the in-memory meta."""
