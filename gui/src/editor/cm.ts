@@ -223,9 +223,17 @@ export function build(state: EditorState): Built {
     }
     const mk = sourceMarkers(text, fm?.to ?? 0);
     for (const h of mk.hide) {
-      ranges.push(hide.range(h.from, h.to));
-      atomic.push(hide.range(h.from, h.to));
-      markerHides.push(h);
+      if (h.to === mk.begin) {
+        // the head's begin marker: hidden and atomic, protected by sourceGuard
+        ranges.push(hide.range(h.from, h.to));
+        atomic.push(hide.range(h.from, h.to));
+      } else {
+        // interior markers stay visible, dimmed, editable: hiding text inside an editable document lets a
+        // Backspace join a marker to the line above unseen. A hand-damaged marker blocks that note's sync
+        // (damaged markers => row blocked), so the failure is visible and safe.
+        ranges.push(Decoration.line({ class: "lw-source-marker" }).range(h.from));
+        markerHides.push(h);
+      }
     }
     if (mk.begin !== null) {
       ranges.push(Decoration.widget({ widget: new SourceBanner(), block: true, side: -1 }).range(mk.begin));
@@ -240,7 +248,7 @@ export function build(state: EditorState): Built {
 
   // hard-wrapped source lines flow as one paragraph (display only)
   const softBreakSet = new Set<number>((state.facet(reflowFacet) && !plain ? softBreaks(text, fm) : [])
-    .filter((p) => !markerHides.some((h) => p >= h.from && p < h.to)));
+    .filter((p) => !markerHides.some((h) => p >= h.from - 1 && p < h.to)));
   for (const pos of softBreakSet) {
     ranges.push(SPACE.range(pos, pos + 1));
     atomic.push(SPACE.range(pos, pos + 1));
@@ -321,11 +329,12 @@ export const decoField = StateField.define<Built>({
   ],
 });
 
-/** Hidden ranges of a source note (frontmatter, sync markers) and the first visible offset. */
+/** Hidden ranges of a source note (frontmatter, head begin marker) and the first visible offset. */
 function sourceHidden(text: string): { ranges: { from: number; to: number }[]; start: number } {
   const fm = frontmatterRange(text);
   const ranges = fm ? [{ from: fm.from, to: fm.to }] : [];
-  ranges.push(...sourceMarkers(text, fm?.to ?? 0).hide);
+  const mk = sourceMarkers(text, fm?.to ?? 0);
+  ranges.push(...mk.hide.filter((h) => h.to === mk.begin)); // only the head's begin marker; interior markers are plain text
   ranges.sort((a, b) => a.from - b.from);
   let start = 0;
   for (const r of ranges) if (r.from <= start && r.to > start) start = r.to;

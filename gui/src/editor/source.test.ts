@@ -43,18 +43,19 @@ describe("sourceMarkers", () => {
 });
 
 describe("source note decorations", () => {
-  it("hides the frontmatter, atomically, and the marker lines", () => {
+  it("hides the frontmatter and the head begin marker atomically; interior markers are dimmed, not hidden", () => {
     const s = stateFor(SOURCE, "entity", "source");
     const hid = hidden(s);
     expect(hid).toContainEqual(expect.objectContaining({ from: 0, to: FM.length }));
-    const marker = (t: string) => SOURCE.indexOf(t);
-    for (const t of ["<!-- zotero:begin -->", "<!--zotero-ann:AB12-->", "<!-- zotero:end -->"]) {
-      const at = marker(t);
-      expect(hid.some((d) => d.from <= at && d.to >= at + t.length), t).toBe(true);
+    const beginAt = SOURCE.indexOf("<!-- zotero:begin -->");
+    expect(hid.some((d) => d.from <= beginAt && d.to >= beginAt + 21)).toBe(true);
+    for (const t of ["<!--zotero-ann:AB12-->", "<!-- zotero:end -->"]) {
+      const at = SOURCE.indexOf(t);
+      expect(hid.some((d) => d.from <= at && d.to > at), t).toBe(false);
+      expect(decos(s).some((d) => d.cls === "lw-source-marker" && d.from <= at && SOURCE.lastIndexOf("\n", at) + 1 === d.from), t).toBe(true);
+      expect(decos(s, true).some((d) => d.from <= at && d.to > at), t).toBe(false);
     }
-    const atoms = decos(s, true);
-    expect(atoms).toContainEqual(expect.objectContaining({ from: 0, to: FM.length }));
-    expect(atoms.length).toBeGreaterThanOrEqual(4);
+    expect(decos(s, true)).toContainEqual(expect.objectContaining({ from: 0, to: FM.length }));
     expect(decos(s).some((d) => d.cls === "lw-frontmatter")).toBe(false);
   });
 
@@ -105,13 +106,11 @@ describe("source note protection", () => {
     expect(press(s, 0, start).doc.toString()).toBe(SOURCE);
     expect(press(s, start - 1, start).doc.toString()).toBe(SOURCE);
   });
-  it("Backspace after the block and Delete before a marker change nothing", () => {
+  it("allows edits at interior markers (they are visible, dimmed text)", () => {
     const s = stateFor(SOURCE, "entity", "source");
     const endMk = SOURCE.indexOf("<!-- zotero:end -->");
-    const endTo = endMk + "<!-- zotero:end -->\n".length;
-    expect(press(s, endMk, endTo + 1).doc.toString()).toBe(SOURCE);
-    expect(press(s, endMk - 1, endMk + 1).doc.toString()).toBe(SOURCE);
-    expect(press(s, endMk, endMk + 1).doc.toString()).toBe(SOURCE);
+    expect(press(s, endMk - 1, endMk).doc.toString()).toBe(SOURCE.slice(0, endMk - 1) + SOURCE.slice(endMk));
+    expect(press(s, endMk, endMk + 1).doc.toString()).toBe(SOURCE.slice(0, endMk) + SOURCE.slice(endMk + 1));
   });
   it("rejects insertion in the hidden head and keeps the frontmatter", () => {
     const s = stateFor(SOURCE, "entity", "source");
