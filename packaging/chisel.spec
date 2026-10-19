@@ -44,7 +44,7 @@ def everything(package):
     hiddenimports.extend(h)
 
 
-for package in ("textual", "rich", "spellchecker", "pyphen", "reportlab", "certifi",
+for package in ("textual", "rich", "spellchecker", "pyphen", "reportlab", "pypdf", "certifi",
                 "openai", "webview"):
     everything(package)
 # textual[syntax]: the tree-sitter grammars are separate packages
