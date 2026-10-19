@@ -596,6 +596,9 @@ export default function App() {
     ...(ws.project.mode === "script" ? [{ label: "Import a Fountain file…", onSelect: () => void importFountain() }] : []),
     ...(ws.project.mode === "research" ? [
       { label: `Cite a source… (${CITE_KEY_LABEL})`, onSelect: openCite },
+      { label: "Project settings…", onSelect: () => setDialog({ kind: "project-settings" }) },
+      { label: "Journal requirements…", onSelect: () => setDialog({ kind: "requirements" }) },
+      { label: "Guidelines…", onSelect: () => setDialog({ kind: "guidelines" }) },
       { label: "Zotero settings…", onSelect: () => setDialog({ kind: "zotero-settings" }) },
       { label: "Sync sources from Zotero…", onSelect: () => setDialog({ kind: "zotero-sync" }) },
     ] : []),

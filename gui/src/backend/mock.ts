@@ -192,12 +192,58 @@ const MOCK_SOURCES = [
   { key: "smith2023", display: "Smith and Lee 2023", title: "Rainfall-runoff prediction with recurrent networks", authors: "Smith, J.; Lee, K.", year: 2023, venue: "Journal of Hydrology", doi: "10.1016/j.jhydrol.2023.00002", url: "", zoteroKey: "EF56GH78" },
 ];
 
+const MOCK_PROFILES = [
+  { id: "ems", name: "Environmental Modelling & Software", publisher: "Elsevier", kind: "manuscript", source: "https://www.sciencedirect.com/journal/environmental-modelling-and-software/publish/guide-for-authors", readOn: "2026-10-01" },
+  { id: "generic-manuscript", name: "Generic manuscript", publisher: "", kind: "manuscript", source: "", readOn: "" },
+  { id: "generic-proposal", name: "Generic proposal", publisher: "", kind: "proposal", source: "", readOn: "" },
+];
+const mockResearch = { kind: "manuscript", journal: "ems" };
+const mockSettings = () => {
+  const p = MOCK_PROFILES.find((x) => x.id === mockResearch.journal && x.kind === mockResearch.kind);
+  return { ok: true, kind: mockResearch.kind, journal: p ? p.id : "", journalName: p?.name ?? "", citationStyle: "apa", source: p?.source ?? "", readOn: p?.readOn ?? "" };
+};
+const mockGuidelines = [
+  { name: "ems-guide.pdf", type: "pdf", size: 183200, chars: 41210, extracted: true, message: "" },
+  { name: "scanned-call.pdf", type: "pdf", size: 904100, chars: 0, extracted: false, message: "No text could be read from this PDF. It may be a scan." },
+];
+
 /** URLs passed to open_external in the mock (read by tests). */
 export const openedUrls: string[] = [];
 
 export function mockCall(method: string, args: unknown[]): object {
   switch (method) {
     case "ping": return { ok: true };
+    case "research_profiles": return { ok: true, profiles: MOCK_PROFILES.map((p) => ({ ...p })) };
+    case "research_get_settings": return mockSettings();
+    case "research_set_settings": {
+      const [kind, journal] = args as [string, string];
+      const p = MOCK_PROFILES.find((x) => x.id === journal);
+      if (journal && !p) return { ok: false, error: "Unknown journal profile." };
+      if (p && p.kind !== kind) return { ok: false, error: "That profile is for a different kind of project." };
+      mockResearch.kind = kind; mockResearch.journal = journal;
+      return mockSettings();
+    }
+    case "research_requirements": return { ok: true, journal: "ems", name: "Environmental Modelling & Software", source: MOCK_PROFILES[0].source, readOn: "2026-10-01",
+      summary: { ok: 2, warn: 1, info: 0, advice: 1 }, groups: [
+        { title: "Structure", items: [
+          { id: "abstract-words", title: "Abstract length", status: "ok", message: "The abstract has 218 words (limit 250)." },
+          { id: "highlights", title: "Highlights", status: "warn", message: "No Highlights section found." },
+        ] },
+        { title: "Submission", items: [
+          { id: "keywords", title: "Keywords", status: "ok", message: "5 keywords." },
+          { id: "software-availability", title: "Software availability", status: "advice", message: "State where the software can be obtained, with its version." },
+        ] },
+      ] };
+    case "guidelines_list": return { ok: true, files: mockGuidelines.map((g) => ({ ...g })) };
+    case "guidelines_add": return { ok: true, added: [], skipped: [] };
+    case "guidelines_add_text": {
+      const text = String(args[1]);
+      const name = String(args[0]).trim().replace(/\s+/g, "-") + ".md";
+      mockGuidelines.push({ name, type: "note", size: text.length, chars: text.length, extracted: true, message: "" });
+      return { ok: true, name };
+    }
+    case "guidelines_read": return { ok: true, name: String(args[0]), text: "Sample guideline text.", truncated: false, chars: 22 };
+    case "guidelines_remove": { const i = mockGuidelines.findIndex((g) => g.name === args[0]); if (i >= 0) mockGuidelines.splice(i, 1); return { ok: true }; }
     case "zotero_collections": return { ok: true, collections: [
       { key: "AB12CD34", path: "AI and Computing / WRRI - AI and Process Modeling", items: 42, parent: null },
       { key: "EF56GH78", path: "Hydrology / Rainfall-runoff", items: null, parent: null },

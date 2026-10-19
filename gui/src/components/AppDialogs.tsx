@@ -23,6 +23,9 @@ import { AttachDialog, ChatHistoryDialog } from "./ChatDialogs";
 import { NewNoteDialog, NotebookDialog } from "./NotebookDialogs";
 import { SettingsDialog } from "./SettingsDialog";
 import { ZoteroSettingsDialog } from "./research/ZoteroSettingsDialog";
+import { ProjectSettingsDialog } from "./research/ProjectSettingsDialog";
+import { RequirementsDialog } from "./research/RequirementsDialog";
+import { GuidelinesDialog } from "./research/GuidelinesDialog";
 import { SyncReviewDialog } from "./research/SyncReviewDialog";
 import { CiteDialog } from "./research/CiteDialog";
 
@@ -212,6 +215,9 @@ export function AppDialogs(p: AppDialogsProps) {
         <SnapshotsDialog docId={doc.id} title={doc.title} unit={unit} getText={liveText} notify={notify}
           onChanged={setSnapshotAt} onRestore={restoreSnapshot} onClose={() => setDialog(null)} />
       )}
+      {dialog?.kind === "project-settings" && <ProjectSettingsDialog notify={notify} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "requirements" && <RequirementsDialog notify={notify} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "guidelines" && <GuidelinesDialog notify={notify} onClose={() => setDialog(null)} />}
       {dialog?.kind === "zotero-settings" && <ZoteroSettingsDialog notify={notify} onClose={() => setDialog(null)} />}
       {dialog?.kind === "cite" && <CiteDialog notify={notify} onInsert={insertCitation} onSync={() => setDialog({ kind: "zotero-sync" })} onClose={() => setDialog(null)} />}
       {dialog?.kind === "zotero-sync" && <SyncReviewDialog notify={notify} onApplied={() => void refresh()} onClose={() => setDialog(null)} />}
