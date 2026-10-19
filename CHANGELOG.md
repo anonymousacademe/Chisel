@@ -24,6 +24,11 @@ All notable changes to Chisel are listed here, newest first. The format follows
   title bar now ignores the right button.
 
 ### Added
+- **Brainstorm about a passage (desktop).** Select some text, right-click and choose *Brainstorm about this…*: the
+  passage waits on a chip in the Assistant, you can add a direction ("what is she hiding?") or just press Enter, and
+  the AI gives 3-5 ideas about that passage. It still knows the story (project, the note you are in, the story
+  bible, your style guide), and its angles fit where you are: a character's past, wants and contradictions in a
+  character note, a place's history in a place note, complications in a scene. Your text is never changed.
 - **Read aloud (desktop).** The speaker button in the editor toolbar opens a reading strip: play from the cursor
   (or from the start), pause, next and previous passage, stop, a speed, and the time left. The passage being read
   is highlighted in the text. It works on scenes in any kind of project and on notes. A script is read by speaker

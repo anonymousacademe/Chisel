@@ -612,19 +612,83 @@ def brainstorm_instructions() -> Section:
     return instructions(BRAINSTORM_SYSTEM_PROMPT, "Give me ideas to get unstuck.")
 
 
-def brainstorm(context: str, model: str, client=None, on_delta=None, cancel=None) -> list[str]:
+# -- brainstorm about a passage the author selected ------------------------------------------
+
+FOCUS_CHARS = 6000          # a longer selection is trimmed (an Item cap: reported, never silent)
+
+BRAINSTORM_FOCUS_SYSTEM_PROMPT = """\
+You help a novelist think about one passage of their work: the FOCUS PASSAGE, which
+the author selected in {where}. Using the story notes, the style guide and the other
+context you are given, propose between 3 and 5 ideas about that passage.
+
+Make the ideas different from each other. {angles}
+
+Rules:
+- Be concrete and specific to THIS passage and THIS story: tie ideas to the
+  characters, places and events the notes mention when you can. No generic
+  writing advice.
+- Keep to what the notes establish; if an idea would change an established fact,
+  say so plainly in the idea.
+- If the author gives a direction, follow it.
+- One to three sentences per idea. Do not rewrite the passage and do not write
+  prose for the book; the author decides what to use.
+- Reply as a numbered list ("1. ..."), nothing before or after it.
+- Never write HTML comments or the text "<!--".
+"""
+
+FOCUS_ANGLES = {
+    "character": ("Draw them from angles such as: something in their past that would explain this; what they "
+                  "want, fear or hide; a contradiction that makes them more human; a relationship with another "
+                  "character this could touch; an event in the story this could set up or pay off; a question "
+                  "the passage leaves open."),
+    "place": ("Draw them from angles such as: the place's history; who uses it and how; how it looks, sounds "
+              "and smells; a secret it keeps; how it could matter to the plot or to a character."),
+    "thing": ("Draw them from angles such as: where it came from and who has had it; what it means to the "
+              "people around it; a secret or flaw it has; how it could move the plot."),
+    "scene": ("Draw them from angles such as: a what-if question about this moment; a complication or reversal; "
+              "a sensory detail or image not used yet; a pressure point on one of the characters; something "
+              "from the story notes that has not come into play yet."),
+    "notebook": ("Draw them from angles such as: what this means for the story; a character or event it could "
+                 "connect to; a scene it could feed; a question worth looking into next."),
+}
+
+
+def focus_section(passage: str) -> Section:
+    """The selected passage as context: never dropped, capped at ``FOCUS_CHARS`` (the cap is reported)."""
+    return Section("Focus passage", head="FOCUS PASSAGE (selected by the author):\n",
+                   items=(Item("the selected passage", body=passage.strip(), cap=FOCUS_CHARS),))
+
+
+def brainstorm_focus_prompts(kind: str, where: str, direction: str = "") -> tuple[str, str]:
+    """(system prompt, request) for a Brainstorm about the focus passage. *kind*: character, place, thing,
+    scene or notebook (the angles); *where*: what the passage was selected in ("the character note “Derek”")."""
+    system = BRAINSTORM_FOCUS_SYSTEM_PROMPT.format(where=where, angles=FOCUS_ANGLES.get(kind, FOCUS_ANGLES["thing"]))
+    ask = "Give me ideas about the focus passage."
+    if direction.strip():
+        ask += f"\nMy direction: {' '.join(direction.split())}"
+    return system, ask
+
+
+def brainstorm_focus_instructions(kind: str, where: str, direction: str = "") -> Section:
+    """The non-context part of a focused Brainstorm (counted, never dropped)."""
+    return instructions(*brainstorm_focus_prompts(kind, where, direction))
+
+
+def brainstorm(context: str, model: str, client=None, on_delta=None, cancel=None,
+               system: str | None = None, ask: str | None = None) -> list[str]:
     """Network call: 3-5 "unstuck" ideas for the scene in *context* (see
     ``build_context`` / ``build_project_context``). Chat text only; never
     touches the manuscript. Synchronous - run it off the UI thread. Raises
     ValueError when the model returns nothing usable. Streams when *on_delta* /
-    *cancel* is given (see ``generate``; the deltas are the raw numbered list)."""
+    *cancel* is given (see ``generate``; the deltas are the raw numbered list). *system* / *ask*
+    replace the prompt and the request (``brainstorm_focus_prompts``: ideas about a selected passage)."""
     if client is None:
         from .client import make_client
 
         client = make_client(model)
     messages = [
-        {"role": "system", "content": BRAINSTORM_SYSTEM_PROMPT},
-        {"role": "user", "content": f"{context}\n\nGive me ideas to get unstuck."},
+        {"role": "system", "content": system or BRAINSTORM_SYSTEM_PROMPT},
+        {"role": "user", "content": f"{context}\n\n{ask or 'Give me ideas to get unstuck.'}"},
     ]
     if on_delta is not None or cancel is not None:
         raw = stream_text(client, model, messages, "brainstorm", on_delta, cancel)

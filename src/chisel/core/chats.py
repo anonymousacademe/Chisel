@@ -5,7 +5,9 @@
      "attachments": [{"kind": "scene", "id": "manuscript/01-rain.md"}],
      "messages": [{"id": "...", "role": "user" | "assistant", "text": "...",
                    "error": false, "sources": [{"id": "notebook/tides.md", "title": "Tides"}],
-                   "ideas": ["What if the tram never stopped?"]}]}   # ideas: a Brainstorm reply
+                   "ideas": ["What if the tram never stopped?"],      # ideas: a Brainstorm reply
+                   "focus": {"text": "...", "direction": "...", "doc": "entities/derek.md"}}]}
+                                                                      # focus: about a selected passage
 
 Plain JSON, author data (committed with the project, never under ``.chisel/``).
 The title is the first prompt. Chat ids arrive over the GUI bridge, so every
@@ -93,6 +95,11 @@ def _clean_message(m: object) -> dict | None:
     ideas = [i.strip()[:MAX_IDEA] for i in m.get("ideas") or [] if isinstance(i, str) and i.strip()]
     if ideas:
         out["ideas"] = ideas[:MAX_IDEAS]
+    focus = m.get("focus")       # a Brainstorm about a selected passage: kept so Regenerate asks the same
+    if isinstance(focus, dict) and isinstance(focus.get("text"), str) and focus["text"].strip():
+        out["focus"] = {"text": focus["text"][:MAX_TEXT],
+                        "direction": str(focus.get("direction") or "")[:MAX_IDEA],
+                        "doc": str(focus.get("doc") or "")[:300]}
     return out
 
 

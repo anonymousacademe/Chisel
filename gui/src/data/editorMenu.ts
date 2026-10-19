@@ -18,6 +18,7 @@ export interface ContextTarget {
 export type MenuAction =
   | { id: "open-note"; label: string; entityId: string }
   | { id: "create-note"; label: string; name: string }
+  | { id: "brainstorm-selection"; label: string }
   | { id: "selection-to-notebook"; label: string }
   | { id: "selection-to-dictionary"; label: string }
   | { id: "cut" | "copy" | "paste" | "select-all"; label: string; disabled?: boolean }
@@ -42,7 +43,8 @@ export function contextActions(target: ContextTarget, entities: MenuEntity[]): M
     notes.push({ id: "create-note", label: `Create note from “${short(word)}”…`, name: word });
   }
   const selected: MenuAction[] = has
-    ? [{ id: "selection-to-notebook", label: "Send selection to notebook" },
+    ? [...(/\p{L}/u.test(selection!) ? [{ id: "brainstorm-selection" as const, label: "Brainstorm about this…" }] : []),
+       { id: "selection-to-notebook", label: "Send selection to notebook" },
        { id: "selection-to-dictionary", label: "Add selection to dictionary" }]
     : [];
   const clipboard: MenuAction[] = [

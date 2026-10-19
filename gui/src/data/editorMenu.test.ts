@@ -33,7 +33,7 @@ describe("contextActions", () => {
 
   it("lists selection actions and an enabled Cut / Copy for a selection", () => {
     const a = contextActions({ selection: "the night bus" }, entities);
-    expect(labels(a)).toEqual(["Create note from “the night bus”…", "---", "Send selection to notebook", "Add selection to dictionary",
+    expect(labels(a)).toEqual(["Create note from “the night bus”…", "---", "Brainstorm about this…", "Send selection to notebook", "Add selection to dictionary",
       "---", "Cut", "Copy", "Paste", "Select all"]);
     expect(a.filter((x) => x.id === "cut" || x.id === "copy").every((x) => !("disabled" in x && x.disabled))).toBe(true);
   });

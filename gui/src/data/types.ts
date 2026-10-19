@@ -285,13 +285,16 @@ export interface DraftEdit { from: number; to: number; insert: string }
 
 export type ChatMessage =
   | { id: string; role: "user"; text: string }
-  | { id: string; role: "assistant"; text: string; error?: boolean; stopped?: boolean; sources?: ChatSource[]; ideas?: string[]; sent?: SentReport };
+  | { id: string; role: "assistant"; text: string; error?: boolean; stopped?: boolean; sources?: ChatSource[]; ideas?: string[]; sent?: SentReport; focus?: BrainFocus };
+/** A Brainstorm about a passage the author selected (right-click > Brainstorm about this): the passage, their
+ * optional direction and the document it came from. Kept on the reply so Regenerate asks the same. */
+export interface BrainFocus { text: string; direction: string; doc: string }
 /** A saved conversation (.assistant/chats/), newest activity first in lists. */
 export interface ChatSummary { id: string; title: string; created: string; updated: string; count: number }
 export interface SavedChat {
   id: string; title: string; created: string; updated: string; scope: "scene" | "project";
   attachments: { kind: AttachKind; id: string }[];
-  messages: { id: string; role: "user" | "assistant"; text: string; error?: boolean; sources?: ChatSource[]; ideas?: string[] }[];
+  messages: { id: string; role: "user" | "assistant"; text: string; error?: boolean; sources?: ChatSource[]; ideas?: string[]; focus?: BrainFocus }[];
 }
 export type AttachKind = "scene" | "note" | "research" | "comments";
 /** Something the paperclip can add to a chat's context; `words` is approximate. */

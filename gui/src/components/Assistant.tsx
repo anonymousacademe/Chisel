@@ -9,6 +9,7 @@ import { SentReport } from "./SentReport";
 import { NotesPanel } from "./NotesPanel";
 import { attachKey, type Attachment } from "../data/chat";
 import type { Subject } from "../data/subject";
+import { focusExcerpt } from "../data/brainstorm";
 import { Icon, IconButton, SectionLabel, Tag } from "./primitives";
 import { placeholderProps } from "./placeholder";
 import { Markdown } from "./Markdown";
@@ -60,6 +61,11 @@ export function Assistant(props: {
   /** Set when the author removed the chip and an item that could be the subject is open. */
   onRestoreSubject?: () => void;
   onSend: (text: string) => void; onRegenerate: (id: string) => void; onInsertDraft: (id: string) => void;
+  /** A passage the author chose to brainstorm about (right-click > Brainstorm about this): shown as a chip; the
+   * composer then takes an optional direction and sends a Brainstorm, not a question. */
+  focusPassage?: { text: string } | null; onRemoveFocus?: () => void; onBrainstormFocus?: (direction: string) => void;
+  /** Changes when the composer should take the keyboard (the passage was just chosen). */
+  composerPing?: number;
   /** Ask-my-notebook mode: the next question is answered from the notebook notes (and canon), citing them. */
   researchMode: boolean; onOpenSource: (id: string) => void;
   /** Conversation history, attach and Save to notes (Wave 3.4). */
@@ -91,11 +97,14 @@ export function Assistant(props: {
     return () => window.removeEventListener("keydown", onKey);
   }, [setTab]);
   useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: "smooth" }); }, [props.messages.length]);
+  useEffect(() => { if (props.composerPing) inputRef.current?.focus(); }, [props.composerPing]);
+  const focusing = !!props.focusPassage && !props.researchMode;
 
   const send = () => {
     const t = draft.trim();
-    if (!t || busy) return;
-    props.onSend(t); setDraft(""); if (inputRef.current) inputRef.current.style.height = "15px";
+    if (busy || (!t && !focusing)) return;
+    if (focusing) props.onBrainstormFocus?.(t); else props.onSend(t);
+    setDraft(""); if (inputRef.current) inputRef.current.style.height = "15px";
   };
 
   return (
@@ -250,6 +259,14 @@ export function Assistant(props: {
       </div>
 
       <div className="lw-composer-region">
+        {focusing && (
+          <div className="lw-attachments" aria-label="Brainstorm about this passage">
+            <span className="lw-chip lw-chip--attached lw-chip--focus" title={props.focusPassage!.text}>
+              <Icon icon={Lightbulb} size={11} stroke={2} /> Brainstorm about “{focusExcerpt(props.focusPassage!.text)}”
+              <button aria-label="Do not brainstorm about this passage" onClick={props.onRemoveFocus}><Icon icon={X} size={11} stroke={2} /></button>
+            </span>
+          </div>
+        )}
         {props.attachments.length > 0 && (
           <div className="lw-attachments" aria-label="Attached to this chat">
             {props.attachments.map((a) => (
@@ -261,7 +278,7 @@ export function Assistant(props: {
           </div>
         )}
         <div className="lw-composer">
-          <textarea ref={inputRef} rows={1} value={draft} disabled={!props.aiReady} placeholder={props.researchMode ? "Ask a question your notebook can answer…" : "Ask about this scene or your project…"}
+          <textarea ref={inputRef} rows={1} value={draft} disabled={!props.aiReady} placeholder={focusing ? "A direction (optional), then Enter…" : props.researchMode ? "Ask a question your notebook can answer…" : "Ask about this scene or your project…"}
             onChange={(e) => { setDraft(e.target.value); const t = e.currentTarget; t.style.height = "15px"; t.style.height = `${t.scrollHeight}px`; }}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
           <div className="lw-composer__controls">
@@ -273,7 +290,7 @@ export function Assistant(props: {
               </button>
               {props.researchMode && <span className="lw-tag lw-tag--success">Notebook</span>}
             </div>
-            <button className="lw-send" aria-label="Send" onClick={send} disabled={!draft.trim() || busy || !props.aiReady}>
+            <button className="lw-send" aria-label={focusing ? "Brainstorm" : "Send"} onClick={send} disabled={(!draft.trim() && !focusing) || busy || !props.aiReady}>
               <Icon icon={ArrowUp} size={14} stroke={2} />
             </button>
           </div>

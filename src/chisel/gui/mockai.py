@@ -249,11 +249,17 @@ def install(api_module) -> None:
         _spend("research")
         return reply
 
-    def brainstorm_writer(context, model, client=None, on_delta=None, cancel=None):
-        ideas = ["What if the caller ID did not go dark, but showed Rook's own number?",
-                 "Let the rain stop mid-sentence, so the market hears what it was covering.",
-                 "Wren is lying about something small; let Rook notice and say nothing.",
-                 "The holo koi turns toward the door a beat before anyone walks in."]
+    def brainstorm_writer(context, model, client=None, on_delta=None, cancel=None, system=None, ask=None):
+        if ask:   # a Brainstorm about a selected passage
+            ideas = ["Give the habit an origin: someone they admired used to say it, and they kept it after that "
+                     "person let them down.",
+                     "Let the phrase land wrong once, with someone who takes it literally, and show what it costs.",
+                     "What if the line is a shield: the more serious things get, the more they lean on it?"]
+        else:
+            ideas = ["What if the caller ID did not go dark, but showed Rook's own number?",
+                     "Let the rain stop mid-sentence, so the market hears what it was covering.",
+                     "Wren is lying about something small; let Rook notice and say nothing.",
+                     "The holo koi turns toward the door a beat before anyone walks in."]
         _stream("\n".join(f"{i}. {idea}" for i, idea in enumerate(ideas, 1)), on_delta, cancel)
         _spend("brainstorm")
         return ideas

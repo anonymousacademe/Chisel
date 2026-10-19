@@ -17,6 +17,8 @@ import type { EditorHandle } from "./components/EditorPane";
 import { Assistant, type AssistantTab, type QuickAction } from "./components/Assistant";
 import { InspirationPanel } from "./components/InspirationPanel";
 import { scopeLabel, subjectArgs, subjectOf } from "./data/subject";
+import { focusPrompt } from "./data/brainstorm";
+import type { BrainFocus } from "./data/types";
 import { atmosphere } from "./audio/store";
 import { SpellMenu } from "./components/SpellMenu";
 import { StatusBar } from "./components/StatusBar";
@@ -266,6 +268,11 @@ export default function App() {
   const reader = useReadAloud({ editorRef, docRef, projectKey: ws?.project.path ?? "", notify });
   const closeReader = reader.close;
   useEffect(() => { closeReader(); }, [doc?.id, closeReader]);
+  // Brainstorm about a passage (right-click a selection): it waits as a chip in the Assistant for an optional
+  // direction, and Enter (or Brainstorm) sends it. It belongs to the document it was selected in.
+  const [brainFocus, setBrainFocus] = useState<{ text: string; doc: string } | null>(null);
+  const [composerPing, setComposerPing] = useState(0);
+  const activeFocus = brainFocus && brainFocus.doc === doc?.id ? brainFocus : null;
 
   // -- focus sprint (the countdown is client-side; the server keeps the start/end and counts the words) --
   const sprint = ws?.status.stats?.sprint ?? null;
@@ -444,19 +451,27 @@ export default function App() {
     setPersist(!!r);
     setMessages((m) => [...m, r ? { id: uid(), role: "assistant", text: r.reply, sent: r.sent } : failedReply()]);
   };
-  /** Brainstorm quick action: ideas to get unstuck, from the scene around the cursor + canon + style. */
-  const runBrainstorm = async (replaceId?: string) => {
+  /** Brainstorm quick action: ideas to get unstuck, from the scene around the cursor + canon + style; with *focus*,
+   * ideas about a passage the author selected (and their direction). */
+  const runBrainstorm = async (replaceId?: string, focus?: BrainFocus) => {
     const ed = editorRef.current, d = docRef.current;
     if (!requireAi()) return;
     const attached = attachments.map(({ kind, id }) => ({ kind, id }));
     const sent = subjectArgs(d, subjectOf(d, { scope: "scene", removed: subjectRemoved, researchMode: false }));
     if (replaceId) setMessages((m) => m.filter((x) => x.id !== replaceId));
-    else setMessages((m) => [...m, { id: uid(), role: "user", text: "Brainstorm: ideas to get unstuck." }]);
-    const r = await aiCall<{ reply: string; ideas: string[]; attached: AttachReport[]; cost: number | null; sent: SentInfo }>("Brainstorming…", "brainstorming", "brainstorm", { ...sent, text: ed && sent.doc_id ? ed.getText() : null, cursor: ed?.head() ?? 0, attachments: attached });
+    else setMessages((m) => [...m, { id: uid(), role: "user", text: focus ? focusPrompt(focus) : "Brainstorm: ideas to get unstuck." }]);
+    const about = focus ? { focus: focus.text, direction: focus.direction, focus_doc: focus.doc } : {};
+    const r = await aiCall<{ reply: string; ideas: string[]; attached: AttachReport[]; cost: number | null; sent: SentInfo }>("Brainstorming…", "brainstorming", "brainstorm", { ...sent, text: ed && sent.doc_id ? ed.getText() : null, cursor: ed?.head() ?? 0, attachments: attached, ...about });
     if (r) reportAttached(r.attached);
     setPersist(!!r);
-    setMessages((m) => [...m, r ? { id: uid(), role: "assistant", text: r.reply, ideas: r.ideas, sent: r.sent }
+    setMessages((m) => [...m, r ? { id: uid(), role: "assistant", text: r.reply, ideas: r.ideas, sent: r.sent, ...(focus ? { focus } : {}) }
       : failedReply()]);
+  };
+  /** The chip was sent: brainstorm about the passage with the author's direction (may be empty). */
+  const brainstormFocus = (direction: string) => {
+    if (!activeFocus) return;
+    setBrainFocus(null);
+    void runBrainstorm(undefined, { ...activeFocus, direction: direction.trim() });
   };
   /** "Draft from this": the ctrl+g prompt, prefilled with the idea, at the cursor. */
   const draftFromIdea = (idea: string) => {
@@ -477,7 +492,8 @@ export default function App() {
   };
   const regenerate = (id: string) => {
     const i = messages.findIndex((m) => m.id === id);
-    if (messages[i]?.role === "assistant" && (messages[i] as { ideas?: string[] }).ideas) { void runBrainstorm(id); return; }
+    const reply = messages[i] as { ideas?: string[]; focus?: BrainFocus } | undefined;
+    if (messages[i]?.role === "assistant" && reply?.ideas) { void runBrainstorm(id, reply.focus); return; }
     const prompt = messages.slice(0, i).reverse().find((m) => m.role === "user");
     if (prompt) void sendChat(prompt.text, id);
   };
@@ -490,7 +506,7 @@ export default function App() {
     notify("Inserted as an AI draft: F7 accept, F8 reject.");
   };
   const onQuick = (a: QuickAction) => {
-    if (a === "brainstorm") void runBrainstorm();
+    if (a === "brainstorm") { if (activeFocus) brainstormFocus(""); else void runBrainstorm(); }
     else if (a === "rewrite") rewriteSelection();
     else if (a === "research") {
       setResearchMode((on) => !on);
@@ -611,6 +627,13 @@ export default function App() {
       switch (a.id) {
         case "open-note": void openDoc(a.entityId); break;
         case "create-note": setDialog({ kind: "new-note", name: a.name, openAfter: false }); break;
+        case "brainstorm-selection": {
+          const sel = ed?.selection(), d = docRef.current;
+          if (!sel?.text.trim() || !d || !requireAi()) break;
+          setBrainFocus({ text: sel.text, doc: d.id });
+          setFocus(false); setAssistantOpen(true); setTab("assistant"); setComposerPing((n) => n + 1);
+          break;
+        }
         case "selection-to-notebook": void sendSelectionToNotebook(); break;
         case "selection-to-dictionary": addSelectionToDictionary(); break;
         case "copy": void ed?.copy().then(denied("C")); break;
@@ -766,6 +789,7 @@ export default function App() {
             messages={messages} busy={aiBusy} run={aiRun} onStop={stopAi} aiReady={aiReady} scope={scope} onScope={() => setScope((c) => (c === "scene" ? "project" : "scene"))}
             scopeText={scopeLabel(scope, subject)} subject={subject} onRemoveSubject={() => setSubjectRemoved(true)}
             onRestoreSubject={subjectRemoved && !researchMode && eligibleSubject ? () => setSubjectRemoved(false) : undefined}
+            focusPassage={activeFocus} onRemoveFocus={() => setBrainFocus(null)} onBrainstormFocus={brainstormFocus} composerPing={composerPing}
             onSend={(t) => void sendChat(t)} onRegenerate={regenerate} onInsertDraft={(id) => void insertReplyAsDraft(id)}
             researchMode={researchMode} onOpenSource={(id) => void openDoc(id)}
             onHistory={() => void openChatHistory()} onAttach={() => void openAttach()} attachments={attachments}

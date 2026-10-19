@@ -52,7 +52,10 @@ from ..ai.writing import (
     ask_system_prompt,
     ask as ask_writer,
     brainstorm as brainstorm_writer,
+    brainstorm_focus_instructions,
+    brainstorm_focus_prompts,
     brainstorm_instructions,
+    focus_section,
     build_context_sections,
     build_project_context_sections,
     chat_instructions,
@@ -677,6 +680,26 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
         return build_context_sections(inp["text"], from_utf16(inp["text"], cursor), entities,
                                       canon_map(entities), load_style(project), originals=inp["originals"])
 
+    def _focus_source(self, doc_id: str | None) -> tuple[str, str]:
+        """(kind, where) of the document a Brainstorm passage was selected in (call with the lock held):
+        kind picks the angles (character, place, thing, scene, notebook), where names it for the prompt."""
+        if not doc_id:
+            return "thing", "the author's project"
+        path, kind = self.resolve_document(doc_id)
+        if kind in ("entity", "research"):
+            heading = attach.subject(self._require(), doc_id)[0]          # "SUBJECT (character): Derek"
+            m = re.match(r"SUBJECT \((.+?)\): (.*)", heading)
+            label, name = (m.group(1), m.group(2)) if m else ("note", doc_id)
+            if kind == "research":
+                return "notebook", f"the notebook note “{name}”"
+            low = label.lower()
+            group = "character" if low == "character" else "place" if low in ("place", "location", "setting") else "thing"
+            return group, f"the {label} note “{name}”"
+        if kind == "scene":
+            title = ws.split_title(fsutil.read_text_lenient(path))[0] or path.stem
+            return "scene", f"the scene “{title}”"
+        raise ValueError("Brainstorm works on a passage of a scene or a note")
+
     def _chat_sections(self, scope: str, doc_id: str | None, text: str | None, cursor: int,
                        subject_id: str | None) -> list[Section]:
         """The context of a chat question or Brainstorm as sections (call with the lock held): the
@@ -1135,20 +1158,34 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
 
     @bridge
     def brainstorm(self, doc_id: str | None = None, text: str | None = None, cursor: int = 0,
-                   attachments: list | None = None, subject_id: str | None = None) -> dict:
+                   attachments: list | None = None, subject_id: str | None = None,
+                   focus: str | None = None, direction: str | None = None, focus_doc: str | None = None) -> dict:
         """Chat: 3-5 "unstuck" ideas for the open scene (or the project when no scene is
         open) from the scene around the cursor, the canon and the style guide, and for the
         open item (*subject_id*: a character / place / object note or a notebook note) when
-        the author keeps it on. The reply is chat text (a numbered list) plus the ideas as a
-        list, for per-idea actions; the manuscript is never touched."""
+        the author keeps it on. With *focus* (a passage the author selected in *focus_doc*) the
+        ideas are about that passage, with the author's optional *direction*. The reply is chat
+        text (a numbered list) plus the ideas as a list, for per-idea actions; the manuscript is
+        never touched."""
+        focus = (focus or "").strip()
         with self._lock:
             project = self._require()
             model = resolve_model("writing", project.meta)
             sections = self._chat_sections("scene", doc_id, text, cursor, subject_id)
             sections, attached = self._with_attachments(project, sections, attachments)
-            context, sent = fit_context([*sections, brainstorm_instructions()], model, "brainstorm")
+            if focus:
+                kind, where = self._focus_source(focus_doc or subject_id or doc_id)
+                sections = [*sections, focus_section(focus)]
+                ask = brainstorm_focus_instructions(kind, where, direction or "")
+            else:
+                ask = brainstorm_instructions()
+            context, sent = fit_context([*sections, ask], model, "brainstorm")
             calls = LEDGER.count()
-        ideas = self._stream(brainstorm_writer, context, model)
+        if focus:   # the prompt and request are passed only here, so a plain Brainstorm calls exactly as before
+            system, request = brainstorm_focus_prompts(kind, where, direction or "")
+            ideas = self._stream(brainstorm_writer, context, model, system=system, ask=request)
+        else:
+            ideas = self._stream(brainstorm_writer, context, model)
         reply = "\n".join(f"{i}. {idea}" for i, idea in enumerate(ideas, 1))
         return {"reply": reply, "ideas": ideas, "attached": attached, "cost": self._spent(calls),
                 "sent": merge_attached(sent, attached).to_dict()}

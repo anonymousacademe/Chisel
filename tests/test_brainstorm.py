@@ -175,3 +175,72 @@ async def test_tui_brainstorm_lists_ideas_saves_and_drafts(tmp_path, monkeypatch
 def test_palette_lists_brainstorm():
     from chisel.tui.commands import ActionProvider
     assert any(a[0] == "Brainstorm" for a in ActionProvider.ACTIONS)
+
+
+# -- Brainstorm about a selected passage --------------------------------------------------
+
+NOTE = "entities/characters/mara-vale.md"
+
+
+def test_focused_brainstorm_sends_the_passage_direction_and_character_angles(tmp_path, monkeypatch):
+    api, root = open_api(tmp_path)
+    seen = {}
+
+    def fake(context, model, client=None, on_delta=None, cancel=None, system=None, ask=None):
+        seen.update(context=context, system=system, ask=ask)
+        return ["Idea one.", "Idea two.", "Idea three."]
+
+    monkeypatch.setattr(api_module, "brainstorm_writer", fake)
+    before = (root / NOTE).read_text()
+    r = api.brainstorm(None, None, 0, [], NOTE, focus="She left the archive the night it flooded.",
+                       direction="what was she hiding?", focus_doc=NOTE)
+    assert r["ok"] and r["ideas"] == ["Idea one.", "Idea two.", "Idea three."]
+    assert "FOCUS PASSAGE (selected by the author):\nShe left the archive the night it flooded." in seen["context"]
+    assert "SUBJECT (character): Mara Vale" in seen["context"]                 # the note and the story stay in
+    assert "the character note “Mara Vale”" in seen["system"] and "in their past" in seen["system"]
+    assert seen["ask"].endswith("My direction: what was she hiding?")
+    assert "Focus passage" in [s["name"] for s in r["sent"]["sections"]]     # in the "What was sent" report
+    assert (root / NOTE).read_text() == before                               # the note is never touched
+
+
+def test_focused_brainstorm_in_a_scene_uses_scene_angles_and_trims_a_long_passage(tmp_path, monkeypatch):
+    api, _ = open_api(tmp_path)
+    seen = {}
+    monkeypatch.setattr(api_module, "brainstorm_writer",
+                        lambda context, model, client=None, system=None, ask=None: seen.update(c=context, s=system) or ["x"])
+    long = "The tram hummed. " * 600                                            # past FOCUS_CHARS
+    r = api.brainstorm(SCENE, None, 0, focus=long, focus_doc=SCENE)
+    assert r["ok"] and "what-if" in seen["s"] and "the scene “" in seen["s"]
+    focus = next(s for s in r["sent"]["sections"] if s["name"] == "Focus passage")
+    assert focus["truncated"], focus                                         # trimmed, and the report says so
+    assert len(seen["c"]) < len(long) + 20000
+
+
+def test_plain_brainstorm_calls_exactly_as_before(tmp_path, monkeypatch):
+    api, _ = open_api(tmp_path)
+    calls = []
+    monkeypatch.setattr(api_module, "brainstorm_writer", lambda context, model, client=None: calls.append(1) or ["x"])
+    assert api.brainstorm(SCENE, None, 0)["ok"] and calls                    # no system / ask passed
+    assert api.brainstorm(SCENE, None, 0, focus="   ")["ok"]                  # a blank passage is a plain Brainstorm
+
+
+def test_focus_prompt_angles_by_kind():
+    system, ask = writing.brainstorm_focus_prompts("place", "the place note “The Spur”", "")
+    assert "history" in system and "the place note “The Spur”" in system and ask == "Give me ideas about the focus passage."
+    assert "connect" in writing.brainstorm_focus_prompts("notebook", "x")[0]
+    assert writing.brainstorm_focus_prompts("unknown", "x")[0] == writing.brainstorm_focus_prompts("thing", "x")[0]
+
+
+def test_brainstorm_sends_the_focus_prompt_to_the_model():
+    client = FakeClient("1. A.\n2. B.\n3. C.")
+    system, ask = writing.brainstorm_focus_prompts("character", "the character note “Derek”", "why the phrase?")
+    assert writing.brainstorm("CTX", "m", client=client, system=system, ask=ask) == ["A.", "B.", "C."]
+    sent = client.calls[0]["messages"]
+    assert sent[0]["content"] == system and sent[1]["content"] == f"CTX\n\n{ask}"
+
+
+def test_saved_chats_keep_the_focus_of_a_brainstorm_reply(tmp_path):
+    msg = chats._clean_message({"id": "a", "role": "assistant", "text": "1. x", "ideas": ["x"],
+                                "focus": {"text": "He never calls home.", "direction": "why", "doc": NOTE}})
+    assert msg["focus"] == {"text": "He never calls home.", "direction": "why", "doc": NOTE}
+    assert "focus" not in chats._clean_message({"id": "b", "role": "assistant", "text": "t", "focus": {"text": " "}})

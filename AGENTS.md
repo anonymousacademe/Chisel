@@ -292,7 +292,10 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   (`tui/assistantscreen.py`) has no attach in v1; its AI calls are `chisel.tui.app.ask_writer` /
   `research_answer` (mock those names). Brainstorm is `chisel.tui.app.brainstorm_ideas` (terminal) and
   `chisel.gui.api.brainstorm_writer` (GUI; `gui/mockai.py` fakes it, and the signature test in
-  `tests/test_gui_shell.py` lists it); a brainstorm reply is a chat message carrying `ideas`.
+  `tests/test_gui_shell.py` lists it); a brainstorm reply is a chat message carrying `ideas`. *Brainstorm about this*
+  (a selected passage: `focus` / `direction` / `focus_doc` on `Api.brainstorm`) passes `system=` / `ask=` to
+  `brainstorm_writer` **only** when there is a passage (many test fakes take `(context, model, client=None)`); the
+  reply carries `focus`, which `chats._clean_message` keeps so Regenerate asks the same.
 - **Context budget** (`ai/budget.py`, `ai/relevance.py`; SPEC "Context budget and the sent report"). Every
   AI context is a list of `budget.Section`s run through `fit()` (or `writing.fit_context`, which also
   preflights and renders): continuity (`continuity.plan_check`), canon proposals (`plan_canon`), the alias
