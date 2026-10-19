@@ -71,8 +71,15 @@ def _citation_spans(scan: str, entities: list[ent.Entity]) -> list[dict]:
     """One ``citation`` span per ``[[@key]]`` group (research projects): resolved when every key names a
     source note; ``label`` is the author-year display (several joined with "; "), ``title`` the paper title."""
     from .links import find_citations
+    from .paper import citefmt
+    found = find_citations(scan)
+    records = {}
+    if found:
+        records = {ent.source_key(e): citefmt.source_record(e.extra.get("csl"), source_title(e))
+                   for e in entities if e.is_source}
+    letters = citefmt.suffixes(records)
     out = []
-    for cite in find_citations(scan):
+    for cite in found:
         keys, labels, titles, ok = [], [], [], True
         for ref in cite.refs:
             keys.append(ref.key)
@@ -86,6 +93,7 @@ def _citation_spans(scan: str, entities: list[ent.Entity]) -> list[dict]:
         out.append({"kind": "citation", "start": cite.start, "end": cite.end,
                     "status": "resolved" if ok else "unresolved", "keys": keys,
                     "label": "; ".join(labels),
+                    "display": citefmt.format_citation(cite, records, letters),
                     "title": "; ".join(t for t in titles if t) if ok else ""})
     return out
 

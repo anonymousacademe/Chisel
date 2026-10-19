@@ -25,6 +25,7 @@ from ..core.applog import log_exc
 from ..core.export import research as research_export
 from ..core.export.manuscript import ExportOptions
 from ..core.desktop import open_uri
+from ..core.paper import citefmt
 from ..core.spans import source_title
 from ..core.researchchecks import blocking, run_checks
 from ._bridge import bridge
@@ -340,9 +341,15 @@ class ResearchSourcesMixin:
                        "venue": parts["venue"]}
                 hay = " ".join((row["display"], row["title"], row["authors"], row["year"], key)).casefold()
                 if all(w in hay for w in words):
-                    rows.append(row)
-        rows.sort(key=lambda r: r["key"].casefold())
-        return {"sources": rows[:limit]}
+                    # rank: a first-author match, then a title match, then the rest
+                    names = citefmt.source_record(e.extra.get("csl")).names
+                    first = names[0].casefold() if names else ""
+                    title = row["title"].casefold()
+                    rank = 0 if words and any(w in first for w in words) else (
+                        1 if words and any(w in title for w in words) else 2)
+                    rows.append((rank, row))
+        rows.sort(key=lambda t: (t[0], t[1]["key"].casefold()))
+        return {"sources": [r for _, r in rows][:limit]}
 
     @bridge
     def source_card(self, id: str) -> dict:

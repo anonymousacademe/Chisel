@@ -250,13 +250,8 @@ def book_words(scenes: list[dict]) -> int:
 def _source_year(e: ent.Entity) -> str | None:
     year = e.extra.get("year")
     if year in (None, ""):
-        csl = e.extra.get("csl")
-        parts = ((csl.get("issued") or {}).get("date-parts") if isinstance(csl, dict)
-                 and isinstance(csl.get("issued"), dict) else None)
-        try:
-            year = parts[0][0]
-        except (TypeError, IndexError, KeyError):
-            year = None
+        from ..core.paper.citefmt import csl_year
+        year = csl_year(e.extra.get("csl"))
     return str(year) if year not in (None, "") else None
 
 

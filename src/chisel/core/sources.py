@@ -37,8 +37,11 @@ from pathlib import Path
 
 from . import entities as ent
 from . import fsutil, recents
+from .paper.citefmt import csl_year
 from .paper.types import ZItem
 from .zotero.base import FetchResult, Scope
+from .zotero.html2md import _escape as _escape_md
+from .zotero.html2md import _line_start_escape
 from .zotero.html2md import annotation_to_markdown, html_to_markdown
 
 BEGIN = "<!-- zotero:begin -->"
@@ -91,9 +94,79 @@ def _ann_id(raw: str) -> str:
     return re.sub(r"[^A-Za-z0-9_-]", "", raw)
 
 
+def _safe_url(url: str) -> str:
+    """An http(s) URL that is safe inside a Markdown link target, else ""."""
+    url = url.strip()
+    if not re.match(r"https?://", url, re.IGNORECASE) or re.search(r"[\s<>]", url):
+        return ""
+    return url.replace("(", "%28").replace(")", "%29")
+
+
+def _csl_header(csl: dict) -> list[str]:
+    """Title line, authors line, venue/year/DOI/URL line (each omitted when the CSL has nothing for it)."""
+    out = []
+    title = " ".join(str(csl.get("title") or "").split())
+    if title:
+        out.append("**" + _escape_md(title) + "**")
+    authors = _authors(csl)
+    if authors:
+        out.append(_escape_md("; ".join(authors)))
+    venue = csl.get("container-title") or csl.get("publisher") or ""
+    if isinstance(venue, list):
+        venue = venue[0] if venue else ""
+    bits = []
+    if str(venue).strip():
+        bits.append("*" + _escape_md(" ".join(str(venue).split())) + "*")
+    year = _year(csl)
+    if year is not None:
+        bits.append(str(year))
+    doi = re.sub(r"^https?://(dx\.)?doi\.org/", "", str(csl.get("DOI") or "").strip(), flags=re.IGNORECASE)
+    if doi and not re.search(r"[\s<>]", doi):
+        bits.append(f"[DOI](https://doi.org/{doi.replace('(', '%28').replace(')', '%29')})")
+    url = _safe_url(str(csl.get("URL") or ""))
+    if url:
+        bits.append(f"[URL]({url})")
+    if bits:
+        out.append(" · ".join(bits))
+    return out
+
+
+_HTML_TAGS = re.compile(
+    r"<(p|b|i|em|strong|sup|sub|a|ul|ol|li)\b[^<>]*>.*?</\1\s*>|<br\s*/?>", re.IGNORECASE | re.DOTALL)
+
+
+def _abstract_markdown(text: str) -> str:
+    """A CSL abstract is usually plain text; only text with a complete HTML element (an open and a close tag,
+    or a <br>) goes through the converter. Plain text keeps its paragraph breaks and is escaped, never stripped."""
+    if _HTML_TAGS.search(text):
+        return html_to_markdown(text).strip()
+    paras = [" ".join(p.split()) for p in re.split(r"\n\s*\n", text.replace("\r\n", "\n"))]
+    return "\n\n".join(_line_start_escape(_escape_md(p)) for p in paras if p).strip()
+
+
 def block_markdown(item: ZItem) -> str:
-    """The text of the zotero block for *item*: sanitised notes, then highlights with their annotation id."""
+    """The text of the zotero block for *item*, as readable Markdown: a title line, an authors line, a
+    venue/year/DOI/URL line, "### Abstract", "### Notes" and "### Highlights" (each only when present).
+    ``source_card`` counts the highlight markers and the Notes section, so those headings stay as they are."""
+    csl = item.csl if isinstance(item.csl, dict) else {}
     out = ["## From Zotero"]
+    header = _csl_header(csl)
+    if header:
+        out.append("\n\n".join(header))
+    abstract = _abstract_markdown(str(csl.get("abstract") or ""))
+    if abstract:
+        out += ["### Abstract", abstract]
+    out += _notes_and_highlights(item)
+    return "\n\n".join(out) if len(out) > 1 else out[0]
+
+
+def legacy_block_markdown(item: ZItem) -> str:
+    """The block as versions before the readable layout wrote it (only to recognise an old note)."""
+    return "\n\n".join(["## From Zotero"] + _notes_and_highlights(item))
+
+
+def _notes_and_highlights(item: ZItem) -> list[str]:
+    out: list[str] = []
     notes = [n for n in (html_to_markdown(h).strip() for h in item.notes) if n]
     if notes:
         out += ["### Notes", "\n\n".join(notes)]
@@ -105,7 +178,7 @@ def block_markdown(item: ZItem) -> str:
             row = "- " + lines[0] + "\n" + "\n".join(("  " + ln) if ln else "" for ln in lines[1:])
             rows.append(row.rstrip("\n") + f"\n  <!--zotero-ann:{_ann_id(a.id)}-->")
         out += ["### Highlights", "\n".join(rows)]
-    return "\n\n".join(out) if len(out) > 1 else out[0]
+    return out
 
 
 # -- note content ----------------------------------------------------------------------------------
@@ -125,17 +198,7 @@ def _authors(csl: dict) -> list[str]:
 
 
 def _year(csl: dict) -> int | None:
-    issued = csl.get("issued")
-    if isinstance(issued, dict):
-        parts = issued.get("date-parts")
-        try:
-            return int(parts[0][0])
-        except (TypeError, ValueError, IndexError, KeyError):
-            pass
-        m = re.search(r"\b(\d{4})\b", str(issued.get("raw") or issued.get("literal") or ""))
-        if m:
-            return int(m.group(1))
-    return None
+    return csl_year(csl)
 
 
 def _family(author: str) -> str:
@@ -388,15 +451,23 @@ def plan_sync(project, result: FetchResult, *, scope: Scope | None = None, state
         what = []
         if _synced(note) != _synced(e) or e.extra.get("zotero_status") != "current":
             what.append("details")
-        if _block_text(note.body) != _block_text(e.body):
-            what.append("notes and highlights")
+        old_block, new_block = _block_text(e.body), _block_text(note.body)
+        if old_block != new_block:
+            if old_block is not None and old_block.strip() == _block_text(
+                    replace_block("", legacy_block_markdown(item))).strip():
+                what.append("reformatted")   # an old-layout block with nothing new in it
+            else:
+                what.append("notes and highlights")
         if web and item.version is not None and e.extra.get("web_version") != item.version:
             what.append("version")
         if not what:
             continue
         if e.extra.get("zotero_status") == "missing":
             what.insert(0, "back in Zotero")
-        add(SyncRow(rid, stored, "changed", f"{_title(note, item) or stored}: " + ", ".join(what) + " updated"),
+        said = {"details": "details changed", "notes and highlights": "notes and highlights changed",
+                "version": "version changed", "reformatted": "reformatted to the readable layout"}
+        text = "; ".join(said.get(w, w) for w in what)
+        add(SyncRow(rid, stored, "changed", f"{_title(note, item) or stored}: {text}"),
             _digest_bytes(e.path), item)
 
     for zkey in result.deleted_keys:
