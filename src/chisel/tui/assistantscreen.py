@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable
 
+from .dialogs import unit_word
 from ..core.chats import ChatInfo
 
 from rich.text import Text
@@ -110,11 +111,11 @@ class AssistantScreen(ModalScreen["str | None"]):
 
     def _refresh_header(self) -> None:
         mode = ("Ask my notebook - answers from your notebook notes and the canon, citing them"
-                if self.mode == "research" else "Assistant - about the open scene, or the project")
+                if self.mode == "research" else f"Assistant - about the open {unit_word(self)}, or the project")
         self.query_one("#as-header", Label).update(Text(mode + ("   (working...)" if self.busy else "")))
         self.query_one("#as-input", Input).placeholder = (
             "Ask a question your notebook can answer..." if self.mode == "research"
-            else "Ask about this scene or your project...")
+            else f"Ask about this {unit_word(self)} or your project...")
 
     # -- messages ----------------------------------------------------------------------
 

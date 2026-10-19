@@ -13,6 +13,7 @@ from textual.containers import Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Checkbox, Label, ListItem, ListView, TextArea
 
+from .dialogs import relabel_bindings, unit_word
 from ..core.inspiration import Image
 
 
@@ -41,32 +42,37 @@ class InspirationPromptScreen(ModalScreen["tuple[str, str, bool] | None"]):
         self._initial = initial
         self._scene_title = scene_title
 
+    def _u(self) -> str:
+        """The open project's unit word (scene / chapter / section)."""
+        return getattr(self.app, "_unit_word", "scene")
+
     def compose(self) -> ComposeResult:
         with Vertical(id="insp-box"):
             yield Label("Inspiration image - describe the setting", id="insp-title")
             yield Label("Reference only: the picture is saved under inspiration/ and never goes into your prose.")
             yield TextArea(self._initial, id="insp-input", soft_wrap=True)
-            pin = Checkbox(f"Pin to the open scene ({self._scene_title})" if self._scene_title
-                           else "Pin to the open scene (no scene is open)", True, id="insp-pin",
+            pin = Checkbox(f"Pin to the open {self._u()} ({self._scene_title})" if self._scene_title
+                           else f"Pin to the open {self._u()} (no {self._u()} is open)", True, id="insp-pin",
                            disabled=not self._scene_title)
             yield pin
             hint = "ctrl+g generate (about $0.03)"
             if self._scene_title:
-                hint += " · ctrl+d describe this scene"
+                hint += f" · ctrl+d describe this {self._u()}"
             yield Label(hint + " · esc cancel", id="insp-hint")
 
     def on_mount(self) -> None:
+        relabel_bindings(self, {"submit('describe')": f"Describe this {self._u()}"})
         area = self.query_one("#insp-input", TextArea)
         area.focus()
         area.move_cursor(area.document.end)
 
     def action_submit(self, what: str) -> None:
         if what == "describe" and not self._scene_title:
-            self.app.notify("Open a scene to describe it", severity="warning")
+            self.app.notify(f"Open a {self._u()} to describe it", severity="warning")
             return
         text = self.query_one("#insp-input", TextArea).text.strip()
         if what == "generate" and not text:
-            self.app.notify("Describe the picture first (ctrl+d writes a description from the open scene)",
+            self.app.notify("Describe the picture first (ctrl+d writes a description from the open " + self._u() + ")",
                             severity="warning")
             return
         self.dismiss((what, text, bool(self.query_one("#insp-pin", Checkbox).value)))
@@ -116,10 +122,11 @@ class InspirationListScreen(ModalScreen["tuple[str, str] | None"]):
         with Vertical(id="insp-list-box"):
             yield Label("", id="insp-list-header")
             yield ListView(id="insp-list")
-            yield Label("enter / o open · p pin or unpin · t move to Trash · a all or this scene · esc close",
+            yield Label(f"enter / o open · p pin or unpin · t move to Trash · a all or this {unit_word(self)} · esc close",
                         id="insp-list-hint")
 
     def on_mount(self) -> None:
+        relabel_bindings(self, {"toggle_all": f"All / this {unit_word(self)}"})
         self._fill()
         self.query_one("#insp-list", ListView).focus()
 

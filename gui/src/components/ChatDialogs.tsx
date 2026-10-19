@@ -4,6 +4,8 @@ import type { AttachItem, AttachKind, ChatSummary } from "../data/types";
 import { attachKey, type Attachment } from "../data/chat";
 import { Icon, IconButton } from "./primitives";
 import { ConfirmDialog, Modal } from "./Dialogs";
+import { useUnit } from "../data/unitContext";
+import { unitWords } from "../data/unitWords";
 
 const KIND_LABEL: Record<AttachKind, string> = { scene: "Scenes", comments: "Comments", note: "Notes", research: "Notebook" };
 const KIND_ORDER: AttachKind[] = ["scene", "comments", "note", "research"];
@@ -15,6 +17,7 @@ export function AttachDialog({ items, current, maxWords, maxItems, onSave, onClo
   items: AttachItem[]; current: Attachment[]; maxWords: number; maxItems: number;
   onSave: (picked: Attachment[]) => void; onClose: () => void;
 }) {
+  const unit = useUnit();
   const [picked, setPicked] = useState(() => new Map(current.map((a) => [attachKey(a), a])));
   const [query, setQuery] = useState("");
   const total = [...picked.values()].reduce((n, a) => n + a.words, 0);
@@ -38,7 +41,7 @@ export function AttachDialog({ items, current, maxWords, maxItems, onSave, onClo
           if (!rows.length) return null;
           return (
             <div key={kind} className="lw-attach-group">
-              <span className="lw-attach-group__label">{KIND_LABEL[kind]}</span>
+              <span className="lw-attach-group__label">{kind === "scene" ? unitWords(unit).Many : KIND_LABEL[kind]}</span>
               {rows.map((i) => (
                 <label key={attachKey(i)} className="lw-picklist__row lw-collections__check">
                   <input type="checkbox" checked={picked.has(attachKey(i))} onChange={() => flip(i)} />

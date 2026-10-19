@@ -14,7 +14,7 @@ export interface Group {
 }
 
 /** Scenes grouped as the book reads: top level, parts (front matter first), then Unplaced when asked. */
-export function sceneGroups(scenes: SceneSummary[], parts: PartSummary[], opts: { unplaced?: boolean; unit?: string } = {}): Group[] {
+export function sceneGroups(scenes: SceneSummary[], parts: PartSummary[], opts: { unplaced?: boolean; parked?: string } = {}): Group[] {
   const out: Group[] = [];
   const top = scenes.filter((s) => s.part === null && !s.unplaced);
   if (top.length || parts.length === 0) {
@@ -28,7 +28,7 @@ export function sceneGroups(scenes: SceneSummary[], parts: PartSummary[], opts: 
   }
   if (opts.unplaced) {
     const un = scenes.filter((s) => s.unplaced);
-    if (un.length) out.push({ key: "unplaced", partId: null, unplaced: true, title: "Parked scenes", frontMatter: false, scenes: un });
+    if (un.length) out.push({ key: "unplaced", partId: null, unplaced: true, title: opts.parked ?? "Parked scenes", frontMatter: false, scenes: un });
   }
   return out;
 }
@@ -51,7 +51,7 @@ export interface MovePlan {
   sentence: string;
 }
 
-const label = (g: Group) => (g.unplaced ? "Parked scenes" : g.partId ? g.title : "the top level");
+const label = (g: Group) => (g.unplaced ? g.title : g.partId ? g.title : "the top level");
 
 /**
  * Plan moving *sourceId* to *drop*, or null when the drop changes nothing

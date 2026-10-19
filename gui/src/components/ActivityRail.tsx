@@ -1,6 +1,8 @@
 import { Library, Search, Sparkles, BookMarked, History, Settings, type LucideIcon } from "lucide-react";
 import { Icon } from "./primitives";
 import { Logo } from "./Logo";
+import { useUnit } from "../data/unitContext";
+import { unitText } from "../data/unitWords";
 
 export type RailView = "binder" | "search" | "assistant" | "library";
 
@@ -13,6 +15,7 @@ const primary: { id: RailView; icon: LucideIcon; label: string }[] = [
 
 export function ActivityRail({ view, assistantOpen, onView, onSettings, onHistory, badge, initials, author }:
   { view: RailView; assistantOpen: boolean; onView: (v: RailView) => void; onSettings?: () => void; onHistory: () => void; badge: number; initials: string; author: string }) {
+  const unit = useUnit();
   return (
     <nav className="lw-rail" aria-label="Primary">
       <div className="lw-rail__group lw-rail__group--top">
@@ -32,7 +35,7 @@ export function ActivityRail({ view, assistantOpen, onView, onSettings, onHistor
         <span className="lw-rail__item lw-rail__item--empty" aria-hidden />
       </div>
       <div className="lw-rail__group lw-rail__group--bottom">
-        <button className="lw-rail__item" aria-label="History" title="History: snapshots of this scene" onClick={onHistory}><Icon icon={History} size={19} /></button>
+        <button className="lw-rail__item" aria-label="History" title={unitText("History: snapshots of this scene", unit)} onClick={onHistory}><Icon icon={History} size={19} /></button>
         <button className="lw-rail__item" aria-label="Settings" title="Settings" onClick={onSettings}><Icon icon={Settings} size={19} /></button>
         <button className="lw-rail__profile" aria-label="Author profile" title={author || "Author (set `author` in project.toml)"}>
           <span className={`lw-rail__avatar${author ? "" : " is-logo"}`}>{author ? initials : <Logo size={24} />}</span>

@@ -6,6 +6,7 @@ import { castKey, loadPrefs, resolveCast, savePrefs } from "../reader/cast";
 import { clipEngine } from "../reader/clips";
 import { browserEngine, type SpeechEngine } from "../reader/engine";
 import { ReadSession, utteranceIndexAt, type SessionStatus } from "../reader/session";
+import { unitText } from "../data/unitWords";
 import {
   DEFAULT_READ_OPTIONS, type DownloadStatus, type EngineId, type OpenRouterModel, type ReadOptions, type ReadPlan, type SpeechInfo,
   type SpeechPrefs, type VoiceInfo,
@@ -58,6 +59,7 @@ export function useReadAloud(d: {
   editorRef: RefObject<EditorHandle | null>;
   docRef: RefObject<DocumentPayload | null>;
   projectKey: string;
+  unit?: string;
   notify: (text: string, tone?: "info" | "error") => void;
 }) {
   const prefs = useRef(loadPrefs());
@@ -113,7 +115,7 @@ export function useReadAloud(d: {
   const load = useCallback(async (): Promise<boolean> => {
     const doc = d.docRef.current, ed = d.editorRef.current;
     if (!doc || !ed || !READABLE.includes(doc.kind)) {
-      d.notify("Open a scene or a note to read aloud.");
+      d.notify(unitText("Open a scene or a note to read aloud.", d.unit ?? "scene"));
       return false;
     }
     setState((s) => ({ ...s, busy: true, message: "" }));

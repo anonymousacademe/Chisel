@@ -52,7 +52,7 @@ class StructureMixin:
             self.refresh_sidebar()
             self.update_status()
             s, p = result["scenes"], result["parts"]
-            line = f"Imported {s} scene" + ("" if s == 1 else "s")
+            line = f"Imported {s} {self._unit_word}" + ("" if s == 1 else "s")
             if p:
                 line += f" in {p} part" + ("" if p == 1 else "s")
             self.notify(f"{line} from {result['name']}", timeout=8)
@@ -73,7 +73,7 @@ class StructureMixin:
     def rename_scene_prompt(self) -> None:
         path = self._current_scene_path()
         if path is None:
-            self.notify("Open a scene first", severity="warning")
+            self.notify(f"Open a {self._unit_word} first", severity="warning")
             return
         current = self.project.scene_title(path)
 
@@ -95,7 +95,7 @@ class StructureMixin:
     def delete_scene_confirm(self) -> None:
         path = self._current_scene_path()
         if path is None:
-            self.notify("Open a scene first", severity="warning")
+            self.notify(f"Open a {self._unit_word} first", severity="warning")
             return
         title = self.project.scene_title(path)
         unit = self.project.unit
@@ -129,7 +129,7 @@ class StructureMixin:
     def _move_scene(self, delta: int) -> None:
         path = self._current_scene_path()
         if path is None:
-            self.notify("Open a scene first", severity="warning")
+            self.notify(f"Open a {self._unit_word} first", severity="warning")
             return
         self.save_current()
         new_path = self.project.move_scene(path, delta)
@@ -237,7 +237,7 @@ class StructureMixin:
         def _go(part: Path) -> None:
             title = self.project.part_title(part)
             if self.project.part_scenes(part):
-                self.notify(f"'{title}' still has scenes - move them out first",
+                self.notify(f"'{title}' still has {self._unit_word}s - move them out first",
                             severity="warning")
                 return
 
@@ -271,7 +271,7 @@ class StructureMixin:
     def move_scene_to_part_prompt(self) -> None:
         path = self._current_scene_path()
         if path is None:
-            self.notify("Open a scene first", severity="warning")
+            self.notify(f"Open a {self._unit_word} first", severity="warning")
             return
         self._place_in(path, f"Move '{self.project.scene_title(path)}' to which part?",
                        "Moved (at the end of the part)")
@@ -280,22 +280,22 @@ class StructureMixin:
         """Move the open scene out of the book into Unplaced Scenes."""
         path = self._current_scene_path()
         if path is None:
-            self.notify("Open a scene first", severity="warning")
+            self.notify(f"Open a {self._unit_word} first", severity="warning")
             return
         if self.project.is_unplaced(path):
-            self.notify("Already unplaced - use Action · Place scene in the book",
+            self.notify(f"Already unplaced - use Action · Place {self._unit_word} in the book",
                         severity="warning")
             return
         self.save_current()
         new = self.project.unplace_scene(path)
         self._structure_changed(new)
-        self.notify("Moved to Unplaced scenes (not counted in the book)", timeout=2)
+        self.notify(f"Moved to Unplaced {self._unit_word}s (not counted in the book)", timeout=2)
 
     def place_scene_action(self) -> None:
         """Bring the open unplaced scene back into the book."""
         path = self._current_scene_path()
         if path is None or not self.project.is_unplaced(path):
-            self.notify("Open an unplaced scene first", severity="warning")
+            self.notify(f"Open an unplaced {self._unit_word} first", severity="warning")
             return
         self._place_in(path, "Place in which part?", "Placed in the book")
 

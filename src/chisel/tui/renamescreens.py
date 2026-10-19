@@ -13,6 +13,7 @@ from textual.containers import VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Checkbox, Input, Label, ListItem, ListView
 
+from .dialogs import unit_word
 from ..core.rename import Occurrence, RenamePlan
 
 
@@ -53,7 +54,7 @@ class RenameFormScreen(ModalScreen["RenameForm | None"]):
                 yield Label("\nAliases (change a spelling to rename it too):")
                 for i, alias in enumerate(self._aliases):
                     yield Input(alias, id=f"rename-alias-{i}")
-            yield Label("\nLook in (scenes and this note are always included):")
+            yield Label(f"\nLook in ({unit_word(self)}s and this note are always included):")
             yield Checkbox("Other notes", True, id="rename-entities")
             yield Checkbox("Notebook notes", False, id="rename-research")
             yield Checkbox("Comments", False, id="rename-comments")

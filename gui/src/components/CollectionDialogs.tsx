@@ -4,6 +4,7 @@ import type { CollectionColor, CollectionSummary } from "../data/types";
 import { COLLECTION_COLORS, swatchVar } from "../data/collections";
 import { Icon } from "./primitives";
 import { ConfirmDialog, Modal } from "./Dialogs";
+import { unitWords } from "../data/unitWords";
 
 function Swatches({ value, onPick, label }: { value: CollectionColor; onPick: (c: CollectionColor) => void; label: string }) {
   return (
@@ -68,7 +69,7 @@ export function CollectionsManager({ collections, unit, onCreate, onRecolor, onR
                 <button className="lw-link lw-collections__name" title="Rename" onClick={() => setEditing({ name: c.name, value: c.name })}>{c.name}</button>
               )}
               <span className="lw-faint">
-                {c.count} {unit}{c.count === 1 ? "" : "s"}{c.declared ? "" : " · used by scenes, not yet defined: pick a colour to keep it"}
+                {c.count} {unit}{c.count === 1 ? "" : "s"}{c.declared ? "" : ` · used by ${unitWords(unit).many}, not yet defined: pick a colour to keep it`}
               </span>
             </span>
             <span className="lw-row lw-gap-8">

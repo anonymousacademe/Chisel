@@ -3,6 +3,7 @@ import { Check, CornerUpLeft, MessageSquareText, Trash2 } from "lucide-react";
 import type { CommentRow } from "../data/types";
 import { Icon, IconButton, SectionLabel } from "./primitives";
 import { ConfirmDialog, Modal } from "./Dialogs";
+import { useUnit } from "../data/unitContext";
 
 const when = (iso: string) => {
   const d = new Date(iso);
@@ -12,6 +13,7 @@ const snippet = (s: string, n = 90) => { const t = s.replace(/\s+/g, " ").trim()
 
 /** Write a new comment on the selected passage. Comments live beside the scene, never in its text. */
 export function AddCommentDialog({ quote, onAdd, onClose }: { quote: string; onAdd: (body: string) => void; onClose: () => void }) {
+  const unit = useUnit();
   const [body, setBody] = useState("");
   const submit = () => { if (body.trim()) onAdd(body.trim()); };
   return (
@@ -22,7 +24,7 @@ export function AddCommentDialog({ quote, onAdd, onClose }: { quote: string; onA
           onChange={(e) => setBody(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) submit(); }} />
       </label>
-      <p className="lw-dialog__message lw-faint">Saved in <code>.comments/</code> next to the scene. It is not part of the text, is not spell-checked and is not sent to the AI unless you attach it to a chat.</p>
+      <p className="lw-dialog__message lw-faint">Saved in <code>.comments/</code> next to the {unit}. It is not part of the text, is not spell-checked and is not sent to the AI unless you attach it to a chat.</p>
       <div className="lw-dialog__buttons">
         <button className="lw-btn" onClick={onClose}>Cancel</button>
         <button className="lw-btn lw-btn--primary" disabled={!body.trim()} onClick={submit}>Add comment</button>
@@ -82,6 +84,7 @@ export function CommentPopover({ comment, x, y, onSave, onResolve, onDelete, onC
 export function CommentsPanel({ comments, onOpen, onResolve }: {
   comments: CommentRow[] | null; onOpen: (c: CommentRow) => void; onResolve: (c: CommentRow, resolved: boolean) => void;
 }) {
+  const unit = useUnit();
   const [showDone, setShowDone] = useState(false);
   if (comments === null) return null;
   const open = comments.filter((c) => !c.resolved);
@@ -100,7 +103,7 @@ export function CommentsPanel({ comments, onOpen, onResolve }: {
   return (
     <section className="lw-comments" aria-label="Comments">
       <SectionLabel>Comments · {open.length}</SectionLabel>
-      {open.length === 0 && <p className="lw-empty">No comments on this scene. Select a passage and use the comment button above the page.</p>}
+      {open.length === 0 && <p className="lw-empty">No comments on this {unit}. Select a passage and use the comment button above the page.</p>}
       {open.map(row)}
       {done.length > 0 && (
         <>

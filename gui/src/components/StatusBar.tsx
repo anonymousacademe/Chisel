@@ -10,6 +10,8 @@ import { AiStatus } from "./AiProgress";
 import type { AiRunView } from "./aiRun";
 import { atmosphere, useAtmosphere } from "../audio/store";
 import { activeCount, ambienceLabel } from "../data/atmosphere";
+import { useUnit } from "../data/unitContext";
+import { unitText } from "../data/unitWords";
 
 export function StatusBar(props: {
   projectWords: number; aiCost: number;
@@ -32,6 +34,7 @@ export function StatusBar(props: {
   /** Opens the Sound panel (typing sounds, ambience, radio). */
   onSound: () => void;
 }) {
+  const unit = useUnit();
   const sound = useAtmosphere();
   const [, tick] = useState(0);
   useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 30_000); return () => clearInterval(t); }, []);
@@ -46,8 +49,8 @@ export function StatusBar(props: {
         </button>
         <span className="lw-status__div" />
         {props.snapshotAt === undefined
-          ? <span className="lw-status__item" title="Open a scene to see its snapshots"><Icon icon={Clock3} size={12} stroke={1.5} color="var(--lw-text-faint)" />Snapshots</span>
-          : <button className="lw-status__item" title="Snapshots of this scene" onClick={props.onSnapshots}>
+          ? <span className="lw-status__item" title={unitText("Open a scene to see its snapshots", unit)}><Icon icon={Clock3} size={12} stroke={1.5} color="var(--lw-text-faint)" />Snapshots</span>
+          : <button className="lw-status__item" title={unitText("Snapshots of this scene", unit)} onClick={props.onSnapshots}>
             <Icon icon={Clock3} size={12} stroke={1.5} color="var(--lw-text-faint)" />
             {props.snapshotAt ? `Snapshot ${agoText(props.snapshotAt)}` : "No snapshot"}
           </button>}

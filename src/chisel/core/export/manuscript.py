@@ -212,6 +212,7 @@ class Book:
     words: int = 0
     scenes: int = 0
     draft_scenes: list[str] = field(default_factory=list)  # titles of scenes with pending AI drafts
+    unit: str = "scene"            # the project's display word (scene / chapter / section)
     warnings: list[Notice] = field(default_factory=list)
     # research mode only (empty for a story)
     cited: list[str] = field(default_factory=list)          # citation keys in order of first use
@@ -232,7 +233,7 @@ class Book:
         n = len(self.draft_scenes)
         if n:
             what = "included as written" if self.options.include_drafts else "left out (the original text is used)"
-            out.append(f"{n} scene{'s have' if n != 1 else ' has'} unaccepted AI drafts, {what}.")
+            out.append(f"{n} {self.unit}{'s have' if n != 1 else ' has'} unaccepted AI drafts, {what}.")
         out += [w.message for w in self.warnings]
         return out
 
@@ -455,8 +456,8 @@ def assemble(project, options: ExportOptions | None = None) -> Book:
     author = info["pen_name"] or info["author"]
     book = Book(title=project.title, author=author, options=opts,
                 subtitle=info["subtitle"], copyright=opts.copyright.strip() or info["copyright"],
-                contact=info["contact"], language=info["language"])
-    unit_word = "Chapter" if project.unit == "chapter" else "Scene"
+                contact=info["contact"], language=info["language"], unit=project.unit)
+    unit_word = project.unit.capitalize()
     script = project.mode == "script"
 
     groups: list[tuple[Part, list[Path]]] = []
@@ -490,7 +491,7 @@ def assemble(project, options: ExportOptions | None = None) -> Book:
             else:
                 blocks = parse_blocks(body)
             if not blocks:
-                book.warnings.append(Notice("empty", rel, f"{rel}: the scene has no text"))
+                book.warnings.append(Notice("empty", rel, f"{rel}: the {project.unit} has no text"))
             ch = Chapter(title=title, blocks=blocks, scene=rel)
             if not part.front:
                 number += 1

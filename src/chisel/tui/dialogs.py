@@ -11,6 +11,23 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label
 
 
+def unit_word(widget) -> str:
+    """The open project's unit word (scene / chapter / section) for a screen's text; "scene" if unknown."""
+    return getattr(getattr(widget, "app", None), "_unit_word", "scene")
+
+
+def relabel_bindings(screen, descriptions: dict[str, str]) -> None:
+    """Re-describe a screen's bindings by action name (wording only; never raises)."""
+    try:
+        from dataclasses import replace
+        for key, items in list(screen._bindings.key_to_bindings.items()):
+            screen._bindings.key_to_bindings[key] = [
+                replace(b, description=descriptions[b.action]) if b.action in descriptions else b
+                for b in items]
+    except Exception:
+        pass
+
+
 class NamePrompt(ModalScreen[str | None]):
     """Single-line input modal. Dismisses with the entered text or None."""
 

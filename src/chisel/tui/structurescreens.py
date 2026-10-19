@@ -11,6 +11,7 @@ from textual.screen import ModalScreen
 from textual.suggester import SuggestFromList
 from textual.widgets import Input, Label, ListItem, ListView
 
+from .dialogs import unit_word
 from ..core import scenemeta
 from ..core.structure import TrashItem
 
@@ -134,9 +135,9 @@ class DetailsScreen(ModalScreen["dict | None"]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="details-box"):
-            yield Label("Scene details", id="details-header")
+            yield Label(f"{unit_word(self).capitalize()} details", id="details-header")
             for key, label in self.FIELDS:
-                yield Label(label, classes="details-label")
+                yield Label(label.replace("Scene", unit_word(self).capitalize()), classes="details-label")
                 value = self._current[key]
                 suggester = (SuggestFromList(self._suggest[key], case_sensitive=False)
                              if key in self._suggest else None)

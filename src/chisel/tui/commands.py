@@ -12,6 +12,7 @@ from functools import partial
 from textual.command import DiscoveryHit, Hit, Provider
 
 from ..core import research as research_notes
+from ..core.structure import unit_choices
 
 
 class _Provider(Provider):
@@ -250,7 +251,8 @@ class ActionProvider(_Provider):
 
     def _entries(self):
         app = self.app
-        chapters = app.project is not None and app.project.unit == "chapter"
+        unit = app.project.unit if app.project is not None else "scene"
+        default = unit_choices(app.project.mode)[0] if app.project is not None else "scene"
         for title, method, help_text in self.ACTIONS:
             visible = getattr(app, "sync_visible", None)
             if visible is not None and method.startswith("sync_") and not visible(method):
@@ -259,11 +261,12 @@ class ActionProvider(_Provider):
                     app.project is not None and app.project.mode == "script"):
                 continue   # only script projects import Fountain or check voices
             if method == "toggle_unit":  # names the switch it performs
-                title = "Call them scenes" if chapters else "Call them chapters"
-            elif chapters:  # the manuscript's unit is a label only
-                title = title.replace("scene", "chapter").replace("Scene", "Chapter")
-                help_text = help_text.replace("scene", "chapter")
+                title = f"Call them {default}s" if unit == "chapter" else "Call them chapters"
+                help_text = f"Switch the manuscript's wording between {default}s and chapters (labels only)"
+            elif unit != "scene":  # the manuscript's unit is a label only
+                title = title.replace("scene", unit).replace("Scene", unit.capitalize())
+                help_text = help_text.replace("scene", unit)
             category = self.CATEGORY.get(method, "Action")
-            if chapters and category == "Scene":
-                category = "Chapter"
+            if unit != "scene" and category == "Scene":
+                category = unit.capitalize()
             yield f"{category} · {title}", title, getattr(app, method), help_text

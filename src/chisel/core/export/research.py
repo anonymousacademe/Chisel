@@ -442,7 +442,7 @@ def assemble_research(project, options: ExportOptions | None = None) -> Book:
     author = info["pen_name"] or info["author"]
     book = Book(title=project.title, author=author, options=opts, subtitle=info["subtitle"],
                 copyright=opts.copyright.strip() or info["copyright"], contact=info["contact"],
-                language=info["language"])
+                language=info["language"], unit=project.unit)
     ctx = _Ctx(project, book)
 
     groups: list[tuple[Part, list[Path]]] = []
@@ -465,7 +465,7 @@ def assemble_research(project, options: ExportOptions | None = None) -> Book:
             title, body = _scene_text(project, path, opts, book, rel, research=True)
             blocks = parse_research_blocks(body, ctx)
             if not blocks:
-                book.warnings.append(Notice("empty", rel, f"{rel}: the scene has no text"))
+                book.warnings.append(Notice("empty", rel, f"{rel}: the {project.unit} has no text"))
             ch = Chapter(title=title, blocks=blocks, scene=rel)
             if not part.front:
                 number += 1

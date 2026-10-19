@@ -39,8 +39,8 @@ export function whenText(created: string): string {
 export const costText = (c: number | null | undefined) => (c == null ? "" : `$${c.toFixed(c < 0.01 ? 4 : 3)}`);
 
 /** What to call the open item in the panel's words. */
-export function itemNoun(kind: string | null | undefined): string {
-  return kind === "scene" ? "scene" : "note";
+export function itemNoun(kind: string | null | undefined, unit = "scene"): string {
+  return kind === "scene" ? unit : "note";
 }
 
 /** The menu / lightbox pin action for an image ("show with that item"), given the item that is open. */

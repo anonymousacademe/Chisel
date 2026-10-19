@@ -3,8 +3,10 @@ import { Search } from "lucide-react";
 import type { Workspace } from "../data/types";
 import { filterSwitcher, switcherItems } from "../data/switcher";
 import { Icon } from "./primitives";
+import { useUnit } from "../data/unitContext";
 
 export function QuickSwitcher({ ws, onPick, onClose }: { ws: Workspace; onPick: (id: string) => void; onClose: () => void }) {
+  const unit = useUnit();
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
   const all = useMemo(() => switcherItems(ws), [ws]);
@@ -26,7 +28,7 @@ export function QuickSwitcher({ ws, onPick, onClose }: { ws: Workspace; onPick: 
         <div className="lw-switcher__input">
           <Icon icon={Search} size={14} stroke={1.7} color="var(--lw-text-muted)" />
           <input autoFocus value={query} onChange={(e) => { setQuery(e.target.value); setIndex(0); }} onKeyDown={onKey}
-            placeholder="Jump to a scene or note…" aria-label="Quick switcher" />
+            placeholder={`Jump to a ${unit} or note…`} aria-label="Quick switcher" />
         </div>
         <div className="lw-switcher__list" ref={listRef} role="listbox">
           {shown.map((it, i) => (

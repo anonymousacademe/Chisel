@@ -35,6 +35,8 @@ import { firstScene, sentence } from "./data/appLogic";
 import { importedLine } from "./data/script";
 import { contextActions, type MenuAction } from "./data/editorMenu";
 import { citationCard } from "./data/research";
+import { unitWords, otherUnit } from "./data/unitWords";
+import { UnitContext } from "./data/unitContext";
 import { CITE_KEY, CITE_KEY_LABEL } from "./components/research/CiteDialog";
 import { SourceCard } from "./components/research/SourceCard";
 import type { ContextInfo } from "./editor/cm";
@@ -251,7 +253,7 @@ export default function App() {
   }, [noteName, sceneDocId, noteVersion]);
 
   const { comments, setComments, commentPop, setCommentPop, startAddComment, addComment, commentCall, openComment, popComment } =
-    useComments({ editorRef, docRef, dialog, setDialog, notify, setTab, setAssistantOpen });
+    useComments({ editorRef, docRef, dialog, setDialog, notify, setTab, setAssistantOpen, unit: ws?.project.unit ?? "scene" });
   const { renamePreview, renameApply, renameUndo } = useRenameEverywhere({ saver, docRef, dialog, notify, refresh, openDoc, setSpansVersion, setNoteVersion, setNoteName });
   const { collection, setCollection, createCollection, recolorCollection, renameCollection, deleteCollection } = useCollectionOps({ saver, docRef, notify, refresh, openDoc });
   const { syncCommit, syncPush, syncInit } = useSyncActions({ saver, notify, setDialog, setSync, refreshSync });
@@ -268,7 +270,7 @@ export default function App() {
       setAssistantOpen, setSpansVersion, setNoteVersion, setMentions });
   useGlobalShortcuts({ saver, openDoc, notify, setSwitcher, setFocus, setDialog });
   // read aloud (desktop): speaks what Python plans (core/reader.py); closed when another document opens
-  const reader = useReadAloud({ editorRef, docRef, projectKey: ws?.project.path ?? "", notify });
+  const reader = useReadAloud({ editorRef, docRef, projectKey: ws?.project.path ?? "", unit: ws?.project.unit, notify });
   const closeReader = reader.close;
   useEffect(() => { closeReader(); }, [doc?.id, closeReader]);
   // Brainstorm about a passage (right-click a selection): it waits as a chip in the Assistant for an optional
@@ -315,7 +317,7 @@ export default function App() {
   // The open item can be the assistant's subject (chip) and can have pictures when it is a scene or a note.
   const eligibleSubject = doc?.kind === "scene" || doc?.kind === "entity" || doc?.kind === "research";
   const pictureItem = eligibleSubject;
-  const subject = subjectOf(doc, { scope, removed: subjectRemoved, researchMode });
+  const subject = subjectOf(doc, { scope, removed: subjectRemoved, researchMode, unit: ws?.project.unit });
   const unit = ws.project.unit;
   const select = async (n: BinderNode) => {
     if (n.kind === "part") { setPartFocus(n.id); toggle(n.id); return; }
@@ -456,7 +458,7 @@ export default function App() {
       return;
     }
     // the open item is the subject of the question (shown as a chip); scenes travel as doc_id, notes as subject_id
-    const sent = subjectArgs(d, subjectOf(d, { scope, removed: subjectRemoved, researchMode }));
+    const sent = subjectArgs(d, subjectOf(d, { scope, removed: subjectRemoved, researchMode, unit: ws?.project.unit }));
     const r = await aiCall<{ reply: string; attached: AttachReport[]; cost: number | null; sent: SentInfo }>("Thinking…", "thinking", "ask", { prompt: text, scope, ...sent, text: ed && sent.doc_id ? ed.getText() : null, cursor: ed?.head() ?? 0, history, attachments: attached });
     if (r) reportAttached(r.attached);
     setPersist(!!r);
@@ -468,7 +470,7 @@ export default function App() {
     const ed = editorRef.current, d = docRef.current;
     if (!requireAi()) return;
     const attached = attachments.map(({ kind, id }) => ({ kind, id }));
-    const sent = subjectArgs(d, subjectOf(d, { scope: "scene", removed: subjectRemoved, researchMode: false }));
+    const sent = subjectArgs(d, subjectOf(d, { scope: "scene", removed: subjectRemoved, researchMode: false, unit: ws?.project.unit }));
     if (replaceId) setMessages((m) => m.filter((x) => x.id !== replaceId));
     else setMessages((m) => [...m, { id: uid(), role: "user", text: focus ? focusPrompt(focus) : "Brainstorm: ideas to get unstuck." }]);
     const about = focus ? { focus: focus.text, direction: focus.direction, focus_doc: focus.doc } : {};
@@ -487,7 +489,7 @@ export default function App() {
   /** "Draft from this": the ctrl+g prompt, prefilled with the idea, at the cursor. */
   const draftFromIdea = (idea: string) => {
     const ed = editorRef.current;
-    if (!ed || docRef.current?.kind !== "scene") return notify("Open a scene to draft into.");
+    if (!ed || docRef.current?.kind !== "scene") return notify(`Open a ${unit} to draft into.`);
     if (!requireAi()) return;
     const head = ed.head();
     setDialog({ kind: "generate", mode: "draft", from: head, to: head, title: "Draft from this idea",
@@ -510,7 +512,7 @@ export default function App() {
   };
   const insertReplyAsDraft = async (id: string) => {
     const d = docRef.current, ed = editorRef.current, msg = messages.find((m) => m.id === id);
-    if (!d || d.kind !== "scene" || !ed || !msg) return notify("Open a scene to insert into.");
+    if (!d || d.kind !== "scene" || !ed || !msg) return notify(`Open a ${unit} to insert into.`);
     const r = await api.draftFromReply(d.id, ed.getText(), msg.text, ed.head());
     if (!r.ok) return notify(r.error, "error");
     ed.insertDraft(r.from, r.to, r.insert);
@@ -603,8 +605,8 @@ export default function App() {
       await refresh(); setSpansVersion((v) => v + 1); setNoteVersion((v) => v + 1);
       notify("Index rebuilt from the files.");
     } },
-    { label: unit === "scene" ? "Call scenes “chapters”" : "Call chapters “scenes”", onSelect: async () => {
-      const next = unit === "scene" ? "chapter" : "scene";
+    { label: unit === "chapter" ? `Call chapters “${unitWords(otherUnit(unit, ws.project.mode)).many}”` : `Call ${unitWords(unit).many} “chapters”`, onSelect: async () => {
+      const next = otherUnit(unit, ws.project.mode);
       const r = await api.setUnit(next);
       if (!r.ok) return notify(r.error, "error");
       await refresh();
@@ -639,13 +641,13 @@ export default function App() {
   /** Cite dialog result: the citation goes where the cursor is (a selection is replaced). */
   const insertCitation = (text: string) => {
     const ed = editorRef.current;
-    if (!ed) return notify("Open a scene or note to cite into.");
+    if (!ed) return notify(`Open a ${unit} or note to cite into.`);
     const { from, to } = ed.selection();
     ed.replace(from, to, text);
     ed.focus();
   };
   const openCite = () => {
-    if (!docRef.current || docRef.current.kind === "dictionary") { notify("Open a scene or note to cite into."); return; }
+    if (!docRef.current || docRef.current.kind === "dictionary") { notify(`Open a ${unit} or note to cite into.`); return; }
     setDialog({ kind: "cite" });
   };
   const openContextMenu = (info: ContextInfo) => {
@@ -773,6 +775,7 @@ export default function App() {
   const showAssistant = assistantOpen && !focus;
 
   return (
+    <UnitContext.Provider value={unit}>
     <div className="lw-app" style={{ ["--lw-zoom" as string]: zoom / 100 }}>
       <TitleBar projectTitle={ws.project.title} documentLabel={docLabel} saveState={saveState}
         assistantOpen={showAssistant} onToggleAssistant={() => setAssistantOpen((o) => !o)}
@@ -791,7 +794,7 @@ export default function App() {
             onNew={() => setDialog(rail === "library" ? { kind: "new-note", name: "", openAfter: true } : { kind: "new-scene" })} onMenu={openSceneMenu} />
         )}
         <Editor story={ws.project.mode !== "research"} script={ws.project.mode === "script"} research={ws.project.mode === "research"} names={{ characters: ws.entities.filter((e) => e.type === "character").map((e) => e.name), places: ws.entities.filter((e) => e.type === "place").map((e) => e.name) }} doc={doc} scenes={ws.scenes} filter={boardFilter}
-          onEditCollections={() => setDialog({ kind: "scene-collections" })} parts={ws.parts} unit={unit} words={words} mentions={mentions} reflow={reflow}
+          onEditCollections={() => setDialog({ kind: "scene-collections" })} parts={ws.parts} unit={unit} parked={ws.project.labels.parked} words={words} mentions={mentions} reflow={reflow}
           sessionWords={ws.status.sessionWords} sessionMinutes={ws.status.sessionMinutes}
           onEditDetails={() => setDialog({ kind: "details" })} onMoveRequest={(plan) => setDialog({ kind: "move", plan })}
           mode={mode} onMode={setMode} focus={focus} onFocus={() => setFocus((f) => !f)} onOpen={(id) => void openDoc(id)}
@@ -817,7 +820,7 @@ export default function App() {
             onCreateNote={(t) => setDialog({ kind: "new-note", name: t, openAfter: false })} onOpenBacklink={(id, row) => void openBacklink(id, row)}
             issues={issues} issuesSent={issuesSent} onReviewIssue={reviewIssue} onDismissIssue={(i) => void dismissIssue(i)}
             messages={messages} busy={aiBusy} run={aiRun} onStop={stopAi} aiReady={aiReady} scope={scope} onScope={() => setScope((c) => (c === "scene" ? "project" : "scene"))}
-            scopeText={scopeLabel(scope, subject)} subject={subject} onRemoveSubject={() => setSubjectRemoved(true)}
+            scopeText={scopeLabel(scope, subject, unit)} unit={unit} subject={subject} onRemoveSubject={() => setSubjectRemoved(true)}
             onRestoreSubject={subjectRemoved && !researchMode && eligibleSubject ? () => setSubjectRemoved(false) : undefined}
             focusPassage={activeFocus} onRemoveFocus={() => setBrainFocus(null)} onBrainstormFocus={brainstormFocus} composerPing={composerPing}
             onSend={(t) => void sendChat(t)} onRegenerate={regenerate} onInsertDraft={(id) => void insertReplyAsDraft(id)}
@@ -873,5 +876,6 @@ export default function App() {
         createCollection={createCollection} recolorCollection={recolorCollection} renameCollection={renameCollection} deleteCollection={deleteCollection} />
       <Toasts notices={notices} onDismiss={dismiss} />
     </div>
+    </UnitContext.Provider>
   );
 }

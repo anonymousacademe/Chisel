@@ -16,7 +16,7 @@ class StructureMixin:
     def _scene_path(self, doc_id: str) -> Path:
         path, kind = self.resolve_document(doc_id)
         if kind != "scene":
-            raise ValueError("not a scene")
+            raise ValueError(f"not a {self._require().unit}")
         return path
 
     def _rel_map(self) -> dict[str, str]:
@@ -38,7 +38,7 @@ class StructureMixin:
         one, in the part of *near_id* (the open scene), else the last part."""
         title = " ".join(title.split())
         if not title:
-            raise ValueError("a scene needs a title")
+            raise ValueError(f"a {self._require().unit} needs a title")
         with self._lock:
             project = self._require()
             if part_id:
@@ -64,7 +64,7 @@ class StructureMixin:
         edits first and reload the document afterwards."""
         title = " ".join(title.split())
         if not title:
-            raise ValueError("a scene needs a title")
+            raise ValueError(f"a {self._require().unit} needs a title")
         with self._lock:
             project = self._require()
             path = self._scene_path(doc_id)
@@ -79,7 +79,7 @@ class StructureMixin:
             project = self._require()
             new_path = project.move_scene(self._scene_path(doc_id), int(delta))
             if new_path is None:
-                raise ValueError("the scene is already at the edge of its part")
+                raise ValueError(f"the {project.unit} is already at the edge of its part")
             self.index.rebuild(project)  # two files changed names
             return {"id": ws.rel_id(project, new_path), "remap": self._rel_map()}
 

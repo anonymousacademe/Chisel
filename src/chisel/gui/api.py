@@ -276,7 +276,7 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
                 kicker = ws.scene_kicker(project, path)
                 part = project.part_of(path)
                 parent = (project.part_title(part) if part
-                          else ws.PARKED_TITLE if project.is_unplaced(path)
+                          else ws.LABELS[project.mode]["parked"] if project.is_unplaced(path)
                           else ws.LABELS["script"]["manuscript"] if project.mode == "script" else "Manuscript")
                 if self.stats is not None:  # baseline for the stats; nothing is counted here
                     self.stats.seen(self._scene_key(path), project.count_words(text, originals))
@@ -446,7 +446,7 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
                 heading, body = attach.subject(project, target)
                 context = f"{heading}\n{body}"
             else:
-                raise ValueError("open a scene or a note to describe it")
+                raise ValueError(f"open a {project.unit} or a note to describe it")
             model = resolve_model("fast", project.meta)
             calls = LEDGER.count()
         prompt = suggest_image_prompt(context, model)
@@ -652,7 +652,7 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
         project = self._require()
         path, kind = self.resolve_document(doc_id)
         if kind != "scene":
-            raise ValueError("open a scene first")
+            raise ValueError(f"open a {project.unit} first")
         disk, originals = ws.read_text(project, path)
         text = disk if text is None else text
         if '<!--ai id="' in text and not originals:
@@ -698,8 +698,8 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
             return group, f"the {label} note “{name}”"
         if kind == "scene":
             title = ws.split_title(fsutil.read_text_lenient(path))[0] or path.stem
-            return "scene", f"the scene “{title}”"
-        raise ValueError("Brainstorm works on a passage of a scene or a note")
+            return "scene", f"the {self._require().unit} “{title}”"
+        raise ValueError(f"Brainstorm works on a passage of a {self._require().unit} or a note")
 
     def _chat_sections(self, scope: str, doc_id: str | None, text: str | None, cursor: int,
                        subject_id: str | None) -> list[Section]:
@@ -1000,7 +1000,7 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
             project = self._require()
             samples = sample_manuscript(project)
             if not samples:
-                raise ValueError("Nothing to learn from yet - write some scenes first")
+                raise ValueError(f"Nothing to learn from yet - write some {project.unit}s first")
             model = resolve_model("writing", project.meta)
             replacing = style_path(project).is_file()
             manuscript = manuscript_stats(project)
@@ -1089,7 +1089,7 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
             project = self._require()
             path, kind = self.resolve_document(doc_id)
             if kind != "scene":
-                raise ValueError("not a scene")
+                raise ValueError(f"not a {project.unit}")
             drafts.add_original(project.root, path, draft_id, original)
         return {}
 
@@ -1104,7 +1104,7 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
             project = self._require()
             path, kind = self.resolve_document(doc_id)
             if kind != "scene":
-                raise ValueError("not a scene")
+                raise ValueError(f"not a {project.unit}")
             found = drafts.find_pending(text)
             if index is not None:
                 if not 0 <= index < len(found):

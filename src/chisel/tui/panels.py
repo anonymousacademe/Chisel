@@ -7,6 +7,7 @@ from textual.containers import Vertical
 from textual.message import Message
 from textual.widgets import Label, ListItem, ListView, Markdown
 
+from .dialogs import unit_word
 from ..core.index import Backlink
 
 
@@ -28,7 +29,7 @@ class EntityPanel(Vertical):
         yield Label("Entity", classes="panel-heading", id="entity-title")
         yield Markdown(
             "*Put the cursor on a character or place name to inspect it."
-            " Its note and every scene mentioning it shows up here.*",
+            f" Its note and every {unit_word(self)} mentioning it shows up here.*",
             id="entity-body",
         )
         yield Label("Backlinks", classes="panel-heading")

@@ -9,6 +9,7 @@ from textual.containers import Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Label, ListItem, ListView
 
+from .dialogs import unit_word
 from ..core.comments import Placed
 
 
@@ -65,7 +66,7 @@ class CommentsScreen(ModalScreen["tuple[str, str] | None"]):
                                  for p in self._placed], id="cm-list")
                 yield Label("", id="cm-detail")
             else:
-                yield Label("No comments on this scene. Select text and use "
+                yield Label(f"No comments on this {unit_word(self)}. Select text and use "
                             "'Add comment on selection'.", id="cm-empty")
             yield Label("enter jump to it · r resolve / reopen · e edit · d delete · esc close",
                         id="cm-hint")

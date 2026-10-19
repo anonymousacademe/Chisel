@@ -8,6 +8,7 @@ from textual.binding import Binding
 from textual.screen import ModalScreen
 from textual.widgets import Label, ListItem, ListView
 
+from .dialogs import unit_word
 from ..ai.links import Suggestion
 from ..core.links import offset_to_rowcol
 
@@ -49,7 +50,7 @@ class AliasReviewScreen(ModalScreen[list[Suggestion] | None]):
     def compose(self) -> ComposeResult:
         yield Label(
             f"Add {len(self._suggestions)} alias(es) to entity notes? Your"
-            " scene text is never changed; nothing happens until you press enter.",
+            f" {unit_word(self)} text is never changed; nothing happens until you press enter.",
             id="review-header",
         )
         yield ListView(id="suggestions")

@@ -112,6 +112,20 @@ class TrashItem:
     kind: str = "scene"  # "scene" | "research" | "inspiration" | "object" (figure, table, equation)
 
 
+UNITS_BY_MODE = {"story": ("scene", "chapter"), "script": ("scene", "chapter"),
+                 "research": ("section", "chapter")}
+
+
+def unit_choices(mode: str) -> tuple[str, str]:
+    """The two unit words a mode allows; the first is its default."""
+    return UNITS_BY_MODE.get(mode, UNITS_BY_MODE["story"])
+
+
+def unit_words(unit: str) -> tuple[str, str]:
+    """(singular, plural) lower-case words for a display unit."""
+    return unit, f"{unit}s"
+
+
 class Structure:
     """Mixin for ``Project`` (uses ``self.root`` / ``self.manuscript_dir``)."""
 
@@ -254,9 +268,12 @@ class Structure:
 
     @property
     def unit(self) -> str:
-        """``"scene"`` (default) or ``"chapter"``: only a label."""
+        """The display word: story/script allow scene (default) or chapter,
+        research allows section (default) or chapter. Only a label; a stored
+        value the mode does not allow reads as the mode's default."""
+        allowed = unit_choices(self.mode)
         raw = (self.meta.get("manuscript") or {}).get("unit")
-        return raw if raw in ("scene", "chapter") else "scene"
+        return raw if raw in allowed else allowed[0]
 
     # -- scene filenames --------------------------------------------------------
 
@@ -357,7 +374,7 @@ class Structure:
         churn down). ``last_renames`` lists every file that changed name.
         Returns the scene's new path."""
         if not self.is_scene_path(path):
-            raise ValueError("not a manuscript scene")
+            raise ValueError(f"not a manuscript {self.unit}")
         dest = self.unplaced_dir if unplaced else (
             part if part is not None else self.manuscript_dir)
         if not unplaced and part is not None and part.parent != self.manuscript_dir:
@@ -474,7 +491,7 @@ class Structure:
         if part not in self.list_parts():
             raise ValueError("not a part of this manuscript")
         if self._scene_files(part):
-            raise ValueError("the part still has scenes - move them out first")
+            raise ValueError(f"the part still has {self.unit}s - move them out first")
         (part / PART_FILE).unlink(missing_ok=True)
         try:
             part.rmdir()

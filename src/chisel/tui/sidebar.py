@@ -101,7 +101,7 @@ class Sidebar(Vertical):
                                          classes="part-header"))
         if not rows and not self._scenes:
             scene_lv.append(
-                ListItem(Label(Text("ctrl+n — your first scene")),
+                ListItem(Label(Text(f"ctrl+n — your first {self._unit}")),
                          classes="empty-hint")
             )
 

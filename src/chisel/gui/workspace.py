@@ -348,7 +348,7 @@ def _scene_node(s: dict, project: Project) -> dict:
 LABELS = {
     "story": {"manuscript": "Manuscript", "parked": "Parked scenes", "characters": "Characters",
               "world": "World Bible"},
-    "research": {"manuscript": "Sections", "parked": "Parked paragraphs", "characters": "Sources",
+    "research": {"manuscript": "Sections", "parked": "Parked sections", "characters": "Sources",
                  "world": "Concepts and methods"},
     "script": {"manuscript": "Script", "parked": "Parked scenes", "characters": "Characters",
                "world": "Locations and props"},

@@ -6,6 +6,7 @@ import {
 } from "../data/export";
 import { Modal } from "./Dialogs";
 import "../styles/export.css";
+import { unitWords } from "../data/unitWords";
 
 type Run = { stage: string; fraction: number } | null;
 
@@ -133,7 +134,7 @@ export function ExportDialog({ unit, onClose, notify }: {
       {layout && layout.page_sizes.length > 1 && chips("Page size", layout.page_sizes.map((p) => ({ value: p, text: PAGE_SIZE_LABEL[p] ?? p })), opts.page_size, (v) => set({ page_size: v }))}
       {layout && layout.fonts.length > 1 && chips("Font", layout.fonts.map((f) => ({ value: f.key, text: f.label, disabled: !f.available, title: f.available ? undefined : "not installed" })), opts.font, (v) => set({ font: v }))}
       {!script && chips(`${unit[0].toUpperCase()}${unit.slice(1)} headings`, [
-        { value: "words", text: `“${unit === "scene" ? "Scene" : "Chapter"} 3”` }, { value: "numbers", text: "Numbers" }, { value: "titles-only", text: "Titles only" },
+        { value: "words", text: `“${unitWords(unit).One} 3”` }, { value: "numbers", text: "Numbers" }, { value: "titles-only", text: "Titles only" },
       ], opts.numbering, (v) => set({ numbering: v as ExportOptions["numbering"] }))}
       <div className="lw-export__checks">
         {!script && (!layout || layout.toc) && check("Table of contents", "toc")}

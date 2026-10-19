@@ -1,11 +1,13 @@
 import type { Workspace } from "./types";
+import { unitWords } from "./unitWords";
 
-export interface SwitcherItem { id: string; title: string; detail: string; category: "Scene" | "Note" | "Notebook" | "Style" | "Dictionary" }
+export interface SwitcherItem { id: string; title: string; detail: string; category: string | "Notebook" | "Style" | "Dictionary" }
 
 /** Everything the quick switcher (Ctrl K) can open: scenes, notes, the style guide. */
 export function switcherItems(ws: Workspace): SwitcherItem[] {
+  const One = unitWords(ws.project.unit).One;
   const items: SwitcherItem[] = ws.scenes.map((s) => ({
-    id: s.id, title: s.title, detail: s.number ? `Scene ${s.number}` : "Scene", category: "Scene",
+    id: s.id, title: s.title, detail: s.number ? `${One} ${s.number}` : One, category: One,
   }));
   for (const e of ws.entities) {
     items.push({ id: e.id, title: e.name, detail: [e.type, ...e.aliases].join(" · "), category: "Note" });
