@@ -34,7 +34,10 @@ def test_sample_opening_note(tmp_path):
     assert find_citations(SAMPLE_RESEARCH_SCENE) == []
     assert len(SAMPLE_RESEARCH_SCENE.splitlines()) < 25
     project = Project.create(tmp_path / "p", "P", "research")
-    assert (project.root / "manuscript" / "01-opening.md").read_text(encoding="utf-8") == SAMPLE_RESEARCH_SCENE
+    # a research project has a starter outline now; the note is parked so it neither counts nor exports
+    parked = project.root / "manuscript" / "_unplaced" / "01-opening.md"
+    assert parked.read_text(encoding="utf-8") == SAMPLE_RESEARCH_SCENE
+    assert not (project.root / "manuscript" / "01-opening.md").exists()
     story = Project.create(tmp_path / "s", "S")
     assert (story.root / "manuscript" / "01-opening.md").read_text(encoding="utf-8") == SAMPLE_SCENE
 
@@ -42,7 +45,8 @@ def test_sample_opening_note(tmp_path):
 def test_citation_spans(tmp_path):
     api, project = make(tmp_path)
     text = "See [[@daneshgar2024]] and [[@daneshgar2024; @nope]] \U0001F600 [[+@lee2020, p. 3]]."
-    spans = [s for s in api.link_spans("manuscript/01-opening.md", text)["spans"] if s["kind"] == "citation"]
+    doc = "manuscript/_unplaced/01-opening.md"      # the parked "Start here" note of a new research project
+    spans = [s for s in api.link_spans(doc, text)["spans"] if s["kind"] == "citation"]
     assert [s["status"] for s in spans] == ["resolved", "unresolved", "resolved"]
     assert spans[0]["label"] == "Daneshgar et al. 2024" and spans[0]["title"] == "Digital twins for water"
     assert spans[1]["keys"] == ["daneshgar2024", "nope"] and spans[1]["label"] == "Daneshgar et al. 2024; nope"

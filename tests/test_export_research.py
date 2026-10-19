@@ -19,6 +19,7 @@ from chisel.core.export.manuscript import (
 from chisel.core.project import Project
 
 from tests.export_helpers import make_structured
+from tests.research_helpers import clear_starter
 
 has_pandoc = pytest.mark.skipif(shutil.which("pandoc") is None, reason="pandoc not installed")
 has_tex = pytest.mark.skipif(shutil.which("pandoc") is None or pandoc.find_pdf_engine() is None,
@@ -65,9 +66,7 @@ Not math: $5 and $10 stay text.
 
 
 def make_paper(root, text=INTRO, with_source=True):
-    p = Project.create(root, "Flow Paper", "research")
-    for f in (root / "manuscript").glob("*.md"):
-        f.unlink()
+    p = clear_starter(Project.create(root, "Flow Paper", "research"))
     (root / "manuscript" / "01-introduction.md").write_text(text, encoding="utf-8", newline="\n")
     if with_source:
         e, path = p.create_entity("smith2024", "source")

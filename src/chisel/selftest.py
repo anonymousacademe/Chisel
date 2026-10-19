@@ -56,6 +56,16 @@ def _research_data() -> str:
     return f"{len(needed)} files"
 
 
+def _journal_profiles() -> str:
+    """The journal profiles ship as package data and parse."""
+    from .core.paper import journals
+    found = journals.list_profiles()
+    ids = {p.id for p in found}
+    if not {"ems", "manuscript", "proposal"} <= ids:
+        raise RuntimeError(f"journal profiles missing: {sorted({'ems', 'manuscript', 'proposal'} - ids)}")
+    return f"{len(found)} profiles"
+
+
 def _spelling() -> str:
     from .core import spelling
     flagged = [m.word for m in spelling.check("This sentense has a mispelled wrd.")]
@@ -196,6 +206,7 @@ CHECKS: list[tuple[str, Callable[[], str]]] = [
     ("web ui", _web),
     ("fonts", _fonts),
     ("research data", _research_data),
+    ("journal profiles", _journal_profiles),
     ("spelling", _spelling),
     ("hyphenation", _pyphen),
     ("textual", _textual),

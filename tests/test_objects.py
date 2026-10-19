@@ -10,6 +10,7 @@ from chisel.core.objects import (
     strip_math, _figure_file,
 )
 from chisel.core.project import Project
+from tests.research_helpers import clear_starter
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 JPG = b"\xff\xd8\xff\xe0" + b"\x00" * 32
@@ -17,7 +18,7 @@ JPG = b"\xff\xd8\xff\xe0" + b"\x00" * 32
 
 @pytest.fixture
 def proj(tmp_path):
-    return Project.create(tmp_path / "paper", "Paper", "research")
+    return clear_starter(Project.create(tmp_path / "paper", "Paper", "research"))
 
 
 def scene(project, folder, name, text):

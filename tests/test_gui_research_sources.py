@@ -269,8 +269,12 @@ def test_saved_collections_round_trip_keeps_other_research_keys(tmp_path, monkey
     assert api.zotero_saved_collections() == {"ok": True, "keys": []}
     path = project.root / "project.toml"
     text = path.read_text(encoding="utf-8").rstrip("\n")
-    path.write_text(text + '\n\n[research]\nfigure_width = 5.5\nnumbering = "by-section"\n'
-                    'flag = true\n', encoding="utf-8", newline="\n")
+    extra = 'figure_width = 5.5\nnumbering = "by-section"\nflag = true\n'
+    if "[research]" in text:      # a new research project already has the table (kind, journal)
+        text = text + "\n" + extra.rstrip("\n")
+    else:
+        text = text + "\n\n[research]\n" + extra.rstrip("\n")
+    path.write_text(text + "\n", encoding="utf-8", newline="\n")
     project.meta = tomllib.loads(path.read_text(encoding="utf-8"))
     patch_fetch(monkeypatch, [zitem()])
     plan = api.zotero_sync_plan({"collections": ["C1", 'we"ird']})
@@ -341,7 +345,7 @@ def test_settings_write_failure_does_not_fail_the_sync(tmp_path, monkeypatch):
 def test_research_settings_edit_only_its_line(tmp_path):
     api, project = research_api(tmp_path)
     path = project.root / "project.toml"
-    base = path.read_text(encoding="utf-8").rstrip("\n")
+    base = path.read_text(encoding="utf-8").split("\n[research]")[0].rstrip("\n")   # the new project's own table
     body = ('\n\n[research]\n# keep this comment\nstyle = { name = "apa", year = 2020 }\n'
             'when = 2024-01-02\nflag = true\n\n[other]\nx = 1\n')
     path.write_text(base + body, encoding="utf-8", newline="\n")
@@ -358,7 +362,7 @@ def test_research_settings_edit_only_its_line(tmp_path):
 def test_research_settings_multiline_array_refused(tmp_path):
     api, project = research_api(tmp_path)
     path = project.root / "project.toml"
-    text = path.read_text(encoding="utf-8").rstrip("\n") + '\n\n[research]\nzotero_collections = [\n  "A",\n]\n'
+    text = path.read_text(encoding="utf-8").split("\n[research]")[0].rstrip("\n") + '\n\n[research]\nzotero_collections = [\n  "A",\n]\n'
     path.write_text(text, encoding="utf-8", newline="\n")
     project = Project.open(project.root)
     with pytest.raises(ValueError):

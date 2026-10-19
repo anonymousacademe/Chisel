@@ -65,9 +65,9 @@ def _short_title(title: str) -> str:
     return '"' + " ".join(words) + '"' if words else ""
 
 
-def _who(s: CiteSource, narrative: bool) -> str:
+def _who(s: CiteSource, narrative: bool, style: str = "apa") -> str:
     """The author part as displayed: the names, or a short quoted title when the source has no authors."""
-    return _authors(s, narrative) or _short_title(s.title)
+    return _authors(s, narrative, style) or _short_title(s.title)
 
 
 def suffixes(sources: dict[str, CiteSource]) -> dict[str, str]:
@@ -88,32 +88,35 @@ def suffixes(sources: dict[str, CiteSource]) -> dict[str, str]:
     return out
 
 
-def _authors(s: CiteSource, narrative: bool) -> str:
+def _authors(s: CiteSource, narrative: bool, style: str = "apa") -> str:
     if not s.names:
         return ""
     if len(s.names) == 1:
         return s.names[0]
     if len(s.names) == 2:
-        return f"{s.names[0]} {'and' if narrative else '&'} {s.names[1]}"
+        joiner = "and" if narrative or style == "harvard" else "&"
+        return f"{s.names[0]} {joiner} {s.names[1]}"
     return f"{s.names[0]} et al."
 
 
 def format_citation(citation: Citation, sources: dict[str, CiteSource],
-                    letters: dict[str, str] | None = None) -> str:
+                    letters: dict[str, str] | None = None, style: str = "apa") -> str:
     """The display string of one citation group. *letters* may be passed to avoid recomputing
-    ``suffixes(sources)`` for every citation of a document."""
+    ``suffixes(sources)`` for every citation of a document. *style* is ``apa`` (two authors in parentheses
+    joined by "&") or ``harvard`` ("and")."""
     letters = suffixes(sources) if letters is None else letters
     narrative = citation.kind == "narrative"
-    parts = [_one(ref, sources.get(ref.key), letters.get(ref.key, ""), narrative) for ref in citation.refs]
+    parts = [_one(ref, sources.get(ref.key), letters.get(ref.key, ""), narrative, style)
+             for ref in citation.refs]
     return "; ".join(parts) if narrative else "(" + "; ".join(parts) + ")"
 
 
-def _one(ref: CiteRef, s: CiteSource | None, letter: str, narrative: bool) -> str:
+def _one(ref: CiteRef, s: CiteSource | None, letter: str, narrative: bool, style: str = "apa") -> str:
     if s is None:
         return ref.key
     year = (s.year + letter) if s.year else "n.d."
     tail = year + (f", {ref.locator.strip()}" if ref.locator.strip() else "")
-    who = _who(s, narrative)
+    who = _who(s, narrative, style)
     if narrative:
         return f"{who} ({tail})" if who and not ref.suppress_author else f"({tail})"
     prefix = (ref.prefix.strip() + " ") if ref.prefix.strip() else ""

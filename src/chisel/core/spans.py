@@ -21,7 +21,7 @@ _OFFSET_KEYS = ("start", "end", "innerStart", "innerEnd", "bodyStart", "bodyEnd"
 
 def compute_spans(text: str, entities: list[ent.Entity], *,
                   mentions: bool = True, script: bool = False,
-                  citations: bool = False) -> list[dict]:
+                  citations: bool = False, citation_style: str = "apa") -> list[dict]:
     """Spans in document order. *mentions*: also report plain-text mentions of
     entity names/aliases (scenes do; entity notes and the style guide only
     show explicit links). Links and mentions inside pending AI drafts are
@@ -58,7 +58,7 @@ def compute_spans(text: str, entities: list[ent.Entity], *,
         spans.append({"kind": "expand", "start": marker.start,
                       "end": marker.end, "instruction": marker.instruction})
     if citations:
-        spans += _citation_spans(scan, entities)
+        spans += _citation_spans(scan, entities, citation_style)
     if script:
         from . import fountain
         spans += _cue_mentions(text, entities, spans, pending) if mentions else []
@@ -67,7 +67,7 @@ def compute_spans(text: str, entities: list[ent.Entity], *,
     return spans
 
 
-def _citation_spans(scan: str, entities: list[ent.Entity]) -> list[dict]:
+def _citation_spans(scan: str, entities: list[ent.Entity], style: str = "apa") -> list[dict]:
     """One ``citation`` span per ``[[@key]]`` group (research projects): resolved when every key names a
     source note; ``label`` is the author-year display (several joined with "; "), ``title`` the paper title."""
     from .links import find_citations
@@ -93,7 +93,7 @@ def _citation_spans(scan: str, entities: list[ent.Entity]) -> list[dict]:
         out.append({"kind": "citation", "start": cite.start, "end": cite.end,
                     "status": "resolved" if ok else "unresolved", "keys": keys,
                     "label": "; ".join(labels),
-                    "display": citefmt.format_citation(cite, records, letters),
+                    "display": citefmt.format_citation(cite, records, letters, style),
                     "title": "; ".join(t for t in titles if t) if ok else ""})
     return out
 

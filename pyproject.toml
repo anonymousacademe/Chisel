@@ -81,6 +81,8 @@ where = ["src"]
 "chisel.core.export" = ["fonts/*", "csl/*"]
 # research mode: the figure-script template and matplotlib style (the runner itself is a module)
 "chisel.core" = ["figscript_template.py.txt", "figure.mplstyle"]
+# research mode: journal and funder profiles (starter outline, requirements)
+"chisel.core.paper" = ["journals/*.toml"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

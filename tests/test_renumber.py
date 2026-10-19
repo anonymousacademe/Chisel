@@ -1,5 +1,6 @@
 """Renumber on delete / restore (all modes): core/structure.py and the GUI bridge."""
 
+import shutil
 from pathlib import Path
 
 import pytest
@@ -25,6 +26,9 @@ def proj(request, tmp_path: Path) -> Project:
     p = Project.create(tmp_path / "p", "P", mode=request.param)
     for f in p.manuscript_dir.glob("*.md"):
         f.unlink()
+    for d in p.manuscript_dir.iterdir():      # a research project starts with an outline
+        if d.is_dir():
+            shutil.rmtree(d)
     return p
 
 

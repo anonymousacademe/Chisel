@@ -29,6 +29,8 @@ datas = [
     (str(SRC / "chisel" / "core" / "chisel_runner.py"), "chisel/core"),
     (str(SRC / "chisel" / "core" / "figscript_template.py.txt"), "chisel/core"),
     (str(SRC / "chisel" / "core" / "figure.mplstyle"), "chisel/core"),
+    # research mode: journal and funder profiles
+    (str(SRC / "chisel" / "core" / "paper" / "journals"), "chisel/core/paper/journals"),
 ]
 binaries = []
 hiddenimports = collect_submodules("chisel")  # layouts and export writers load by name

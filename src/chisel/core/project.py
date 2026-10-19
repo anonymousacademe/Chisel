@@ -9,9 +9,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import drafts, migrate, research
+from .paper import journals
 from . import entities as ent
 from . import scenemeta, snapshots
-from .structure import Structure, recover_staged, unit_choices
+from .structure import UNPLACED_DIR, Structure, recover_staged, unit_choices
 from . import fsutil
 
 MANUSCRIPT_DIR = "manuscript"
@@ -182,25 +183,59 @@ class Project(Structure):
     # -- lifecycle ---------------------------------------------------------
 
     @classmethod
-    def create(cls, root: Path, title: str, mode: str = DEFAULT_MODE) -> Project:
+    def create(cls, root: Path, title: str, mode: str = DEFAULT_MODE, kind: str = journals.DEFAULT_KIND,
+               journal: str = "") -> Project:
+        """A new project. *kind* and *journal* matter only for mode "research": they go into [research] and the
+        starter outline comes from the journal's profile (when its kind matches), else the generic profile of
+        the kind."""
         if mode not in MODES:
             raise ValueError(f"mode must be one of: {', '.join(MODES)}")
+        if mode == "research":
+            if kind not in journals.KINDS:
+                raise ValueError(f"kind must be one of: {', '.join(journals.KINDS)}")
+            if journal:
+                profile = journals.load_profile(journal)     # ValueError when unknown
+                if profile.kind != kind:
+                    raise ValueError(f"The profile {journal} is for a {profile.kind}, not a {kind}.")
         root = root.expanduser().resolve()
         (root / MANUSCRIPT_DIR).mkdir(parents=True, exist_ok=True)
-        for kind, sub in TYPE_SUBDIRS.items():
-            if kind in FICTION_KINDS or mode == "research":
+        for note_kind, sub in TYPE_SUBDIRS.items():
+            if note_kind in FICTION_KINDS or mode == "research":
                 (root / ENTITIES_DIR / sub).mkdir(parents=True, exist_ok=True)
         template = PROJECT_TEMPLATE.format(title=toml_string(title), mode=toml_string(mode))
         if mode == "research":
             template += '\n[manuscript]\nunit = "section"\n'
+            template += f'\n[research]\nkind = {toml_string(kind)}\njournal = {toml_string(journal)}\n'
         (root / PROJECT_FILE).write_text(template, encoding="utf-8", newline="\n")
+        starter = journals.starter_profile(kind, journal) if mode == "research" else None
         sample = root / MANUSCRIPT_DIR / "01-opening.md"
+        if starter is not None and starter.outline:
+            # the "Start here" note is parked so it neither counts nor exports; the outline is the book
+            sample = root / MANUSCRIPT_DIR / UNPLACED_DIR / "01-opening.md"
+            sample.parent.mkdir(parents=True, exist_ok=True)
         if not sample.exists():
             sample.write_text(sample_scene(mode), encoding="utf-8", newline="\n")
         gitignore = root / ".gitignore"
         if not gitignore.exists():
             gitignore.write_text(f"{CACHE_DIR}/\n", encoding="utf-8", newline="\n")
-        return cls(root=root, title=title, meta={"title": title, "project": {"mode": mode}})
+        meta: dict = {"title": title, "project": {"mode": mode}}
+        if mode == "research":
+            meta["manuscript"] = {"unit": "section"}
+            meta["research"] = {"kind": kind, "journal": journal}
+        project = cls(root=root, title=title, meta=meta)
+        if starter is not None and starter.outline:
+            project._write_starter_outline(starter)
+        return project
+
+    def _write_starter_outline(self, profile) -> None:
+        """Parts and empty sections from a journal profile, through the ordinary structure functions. The
+        profile's one-line purpose becomes the section's ``purpose`` detail."""
+        for outline in profile.outline:
+            part = self.new_part("Front matter" if outline.front_matter else outline.part)
+            for section in outline.sections:
+                path = self.next_scene_path(section.title, part)
+                text = scenemeta.set_details(f"# {section.title}\n\n", purpose=section.purpose)
+                path.write_text(text, encoding="utf-8", newline="\n")
 
     @classmethod
     def open(cls, root: Path) -> Project:
@@ -385,36 +420,81 @@ class Project(Structure):
         raw = self.meta.get("research")
         return dict(raw) if isinstance(raw, dict) else {}
 
-    def update_research_settings(self, zotero_collections: list[str] | tuple[str, ...] | None = None) -> None:
-        """Set ``zotero_collections`` in the [research] table of project.toml. Only that one line is
-        replaced (or added at the end of the table); every other line, comment and value stays byte for byte.
-        A table that cannot be edited that way (the key written as a multi-line array, say) raises
-        ``ValueError`` instead of losing anything."""
-        if zotero_collections is None:
+    @property
+    def research_kind(self) -> str:
+        """``manuscript`` or ``proposal`` ([research] kind); anything else reads as manuscript."""
+        raw = self.research_settings().get("kind")
+        return raw if isinstance(raw, str) and raw in journals.KINDS else journals.DEFAULT_KIND
+
+    @property
+    def journal(self) -> str:
+        """The chosen journal profile id ([research] journal), "" for none. An id that names no readable
+        profile reads as none."""
+        raw = self.research_settings().get("journal")
+        if not isinstance(raw, str) or not raw:
+            return ""
+        try:
+            journals.load_profile(raw)
+        except ValueError:
+            return ""
+        return raw
+
+    def research_profile(self):
+        """The journal profile that applies to this project (its kind matches), or None. Never raises."""
+        return journals.profile_for(self.research_kind, self.journal)
+
+    @property
+    def citation_style(self) -> str:
+        """``apa`` or ``harvard``: the profile's style, apa without a profile."""
+        if self.mode != "research":
+            return journals.DEFAULT_STYLE
+        profile = self.research_profile()
+        return profile.citation_style if profile else journals.DEFAULT_STYLE
+
+    def update_research_settings(self, zotero_collections: list[str] | tuple[str, ...] | None = None,
+                                 kind: str | None = None, journal: str | None = None) -> None:
+        """Set ``kind``, ``journal`` and/or ``zotero_collections`` in the [research] table of project.toml
+        (the table is created when absent). Only the named lines are replaced (or added at the end of the
+        table); every other line, comment and value stays byte for byte. A table that cannot be edited that way
+        (a key written as a multi-line array, say) raises ``ValueError`` instead of losing anything."""
+        lines: dict[str, str] = {}
+        if kind is not None:
+            if kind not in journals.KINDS:
+                raise ValueError(f"The kind must be one of: {', '.join(journals.KINDS)}.")
+            lines["kind"] = json.dumps(kind)
+        if journal is not None:
+            if journal and not journals.is_plain_id(journal):
+                raise ValueError("That is not a journal profile name.")
+            lines["journal"] = json.dumps(journal)
+        if zotero_collections is not None:
+            value = _toml_value([str(k) for k in zotero_collections if str(k)])
+            if value is None:
+                raise ValueError("The collection list could not be written.")
+            lines["zotero_collections"] = value
+        if not lines:
             return
-        value = _toml_value([str(k) for k in zotero_collections if str(k)])
-        if value is None:
-            raise ValueError("The collection list could not be written.")
-        new_line = f"zotero_collections = {value}\n"
         path = self.root / PROJECT_FILE
         text = path.read_text(encoding="utf-8")
         head = re.search(r"(?m)^\[research\][ \t]*(#.*)?$", text)
         if head is None:
-            text = text.rstrip("\n") + "\n\n[research]\n" + new_line
+            body = "".join(f"{k} = {v}\n" for k, v in lines.items())
+            text = text.rstrip("\n") + "\n\n[research]\n" + body
         else:
             nxt = re.compile(r"(?m)^\[").search(text, head.end())
             end = nxt.start() if nxt else len(text)
             block = text[head.end():end]
-            line = re.search(r'(?m)^[ \t]*(?:zotero_collections|"zotero_collections")[ \t]*=.*$', block)
-            if line:
-                old = line.group(0)
-                if old.count("[") != old.count("]") or old.rstrip().endswith(("[", ",")):
-                    raise ValueError("zotero_collections spans several lines in project.toml; edit it there.")
-                block = block[:line.start()] + new_line.rstrip("\n") + block[line.end():]
-            else:
-                stripped = block.rstrip("\n")
-                tail = block[len(stripped):]
-                block = stripped + "\n" + new_line + tail[1:]
+            for key, value in lines.items():
+                new_line = f"{key} = {value}"
+                line = re.search(rf'(?m)^[ \t]*(?:{re.escape(key)}|"{re.escape(key)}")[ \t]*=.*$', block)
+                if line:
+                    old = line.group(0)
+                    if old.count("[") != old.count("]") or old.rstrip().endswith(("[", ",")):
+                        raise ValueError(f"{key} spans several lines in project.toml; edit it there.")
+                    block = block[:line.start()] + new_line + block[line.end():]
+                else:
+                    stripped = block.rstrip("\n")
+                    tail = block[len(stripped):]
+                    block = stripped + "\n" + new_line + "\n" + tail[1:]
             text = text[:head.end()] + block + text[end:]
         try:
             check = tomllib.loads(text)

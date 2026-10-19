@@ -172,15 +172,23 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
         return {}
 
     @bridge
-    def new_project(self, title: str, path: str = "", mode: str = "story") -> dict:
+    def new_project(self, title: str, path: str = "", mode: str = "story",
+                    kind: str = "manuscript", journal: str = "") -> dict:
         title = title.strip()
         if not title:
             raise ValueError("a project needs a title")
         root = Path(path).expanduser() if path.strip() else default_project_path(title)
         if Project.is_project(root):
             raise FileExistsError(f"{root} already holds a project")
+        if mode == "research":   # refused here, before any folder is made (Project.create checks again)
+            from ..core.paper import journals
+            if kind not in journals.KINDS:
+                raise ValueError(f"The kind must be one of: {', '.join(journals.KINDS)}.")
+            if journal and journals.profile_for(kind, journal) is None:
+                journals.load_profile(journal)   # unknown profile: its own ValueError
+                raise ValueError(f"The profile {journal} is not for a {kind}.")
         with self._lock:
-            self._load(Project.create(root, title, mode))
+            self._load(Project.create(root, title, mode, kind, journal))
         return {}
 
     @bridge
@@ -368,7 +376,8 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
             _, kind = self.resolve_document(doc_id)
             spans = compute_spans(text, self.entities, mentions=kind == "scene",
                                   script=kind == "scene" and self._require().mode == "script",
-                                  citations=self._require().mode == "research")
+                                  citations=self._require().mode == "research",
+                                  citation_style=self._require().citation_style)
             return {"spans": to_utf16(text, spans)}
 
     @bridge
