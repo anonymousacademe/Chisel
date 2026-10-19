@@ -120,6 +120,7 @@ export function useSceneOps(d: Deps) {
     setPartFocus(null);
     await refresh();
     if (docRef.current) await reopen(docRef.current.id, r.remap);   // later parts were renumbered
+    if (r.warning) notify(r.warning, "warning");
   };
   const saveDetails = async (patch: DetailsPatch) => {
     setDialog(null);

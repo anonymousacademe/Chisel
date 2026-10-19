@@ -385,6 +385,7 @@ button.lw-status__item:hover { color: var(--lw-text); }
   background: var(--lw-bg-raised); border: 1px solid var(--lw-border-strong); color: var(--lw-text); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); user-select: text;
 }
 .lw-toast.is-error { border-color: var(--lw-traffic-close); }
+.lw-toast.is-warning { border-color: var(--lw-traffic-minimize, var(--lw-traffic-close)); }
 .lw-toast span { flex: 1; }
 .lw-toast button { color: var(--lw-text-muted); margin-top: 1px; }
 

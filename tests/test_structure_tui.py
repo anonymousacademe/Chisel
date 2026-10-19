@@ -287,3 +287,30 @@ async def test_details_form_sets_and_clears_story_time(tmp_path: Path):
         app.screen.action_save()
         await pilot.pause()
         assert scene.read_text() == original
+
+
+async def test_delete_part_shows_the_renumber_warning(tmp_path: Path):
+    p = _book(tmp_path)
+    empty = p.new_part("Epilogue")
+    real = p.delete_part
+
+    def delete(part):
+        real(part)
+        p.renumber_warning = "Some parts could not be renumbered (test)."
+
+    p.delete_part = delete
+    app = ChiselApp(p)
+    seen = []
+    app.notify = lambda msg, **kw: seen.append((str(msg), kw.get("severity")))
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.delete_part_confirm()
+        await pilot.pause()
+        lv = app.screen.query_one("#choice-list", ListView)
+        lv.index = len(p.list_parts()) - 1
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert not empty.exists()
+        assert ("Some parts could not be renumbered (test).", "warning") in seen

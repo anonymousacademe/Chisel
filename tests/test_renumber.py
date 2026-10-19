@@ -297,3 +297,28 @@ def test_restore_keeps_a_three_digit_folder_width(proj: Project):
 
 def test_helpers_unchanged_names():
     assert structure._slug_of("03-c.md") == "c"
+
+
+@pytest.mark.parametrize("fail_at", [1, 2, 3])
+def test_renumber_failure_never_splits_a_part(proj: Project, monkeypatch, fail_at):
+    m = proj.manuscript_dir
+    for name in ("01-a", "02-b"):
+        (m / name).mkdir()
+    (m / "02-b" / "_part.md").write_text("# Title B\n", encoding="utf-8", newline="\n")
+    _mk(m / "02-b" / "01-s.md", "S")
+    real, calls = fsutil.rename, {"n": 0}
+
+    def flaky(a, b):
+        calls["n"] += 1
+        if calls["n"] == fail_at:
+            raise OSError("injected")
+        return real(a, b)
+
+    monkeypatch.setattr(fsutil, "rename", flaky)
+    proj.delete_part(m / "01-a")                 # must not raise
+    monkeypatch.setattr(fsutil, "rename", real)
+    assert proj.renumber_warning
+    assert not list(m.rglob(".mv*"))
+    assert (m / "02-b" / "_part.md").is_file()   # title and scene stay together
+    assert (m / "02-b" / "01-s.md").is_file()
+    assert not (m / "01-b").exists()

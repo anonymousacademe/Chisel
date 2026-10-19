@@ -8,7 +8,7 @@ export function useNotices() {
   const notify = useCallback((text: string, tone: Notice["tone"] = "info", action?: Notice["action"]) => {
     const id = ++noticeId.current;
     setNotices((n) => [...n, { id, text, tone, action }]);
-    setTimeout(() => setNotices((n) => n.filter((x) => x.id !== id)), tone === "error" || action ? 9000 : 3500);
+    setTimeout(() => setNotices((n) => n.filter((x) => x.id !== id)), tone !== "info" || action ? 9000 : 3500);
   }, []);
   const dismiss = useCallback((id: number) => setNotices((n) => n.filter((x) => x.id !== id)), []);
   return { notices, notify, dismiss };

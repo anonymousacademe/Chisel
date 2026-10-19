@@ -256,6 +256,8 @@ class StructureMixin:
                 self._structure_changed(
                     moved.get(self.current_path) if self.current_path is not None else None)
                 self.notify(f"Deleted part '{title}'", timeout=2)
+                if self.project.renumber_warning:
+                    self.notify(self.project.renumber_warning, severity="warning", timeout=10)
 
             self.push_screen(ConfirmScreen(f"Delete the empty part '{title}'?"), _delete)
 

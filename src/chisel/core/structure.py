@@ -380,12 +380,34 @@ class Structure:
                     continue
                 if new.exists() and (not new.is_dir() or any(new.iterdir())):
                     continue
-                self._apply_renames([(p, new / p.name) for p in self._scene_files(old)])
+                scenes = self._scene_files(old)
+                scene_set = set(scenes)
+                # Move the folder's other files (_part.md) FIRST and undo it if
+                # anything fails (_apply_renames rolls its own scenes back), so
+                # a part is never split in two.
+                moved: list[tuple[Path, Path]] = []
+                try:
+                    for rest in [r for r in old.iterdir() if r not in scene_set]:
+                        new.mkdir(parents=True, exist_ok=True)
+                        fsutil.rename(rest, new / rest.name)
+                        moved.append((rest, new / rest.name))
+                    self._apply_renames([(p, new / p.name) for p in scenes])
+                except OSError:
+                    for src, dst in reversed(moved):
+                        try:
+                            fsutil.rename(dst, src)
+                        except OSError:
+                            pass
+                    try:
+                        new.rmdir()      # only succeeds when empty
+                    except OSError:
+                        pass
+                    raise
                 total.update(self.last_renames)
-                for rest in list(old.iterdir()):
-                    new.mkdir(parents=True, exist_ok=True)
-                    fsutil.rename(rest, new / rest.name)
-                old.rmdir()
+                try:
+                    old.rmdir()
+                except OSError:
+                    pass
                 total[old] = new
         except OSError as exc:
             applog.log_exc("renumber parts", exc)

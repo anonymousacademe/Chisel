@@ -1,7 +1,7 @@
 import { X } from "lucide-react";
 import { Icon } from "./primitives";
 
-export interface Notice { id: number; text: string; tone: "info" | "error"; action?: { label: string; run: () => void } }
+export interface Notice { id: number; text: string; tone: "info" | "error" | "warning"; action?: { label: string; run: () => void } }
 
 export function Toasts({ notices, onDismiss }: { notices: Notice[]; onDismiss: (id: number) => void }) {
   if (notices.length === 0) return null;
