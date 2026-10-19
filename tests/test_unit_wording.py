@@ -76,7 +76,8 @@ def test_research_workspace_says_section(tmp_path):
     w = api.get_workspace()["workspace"]
     assert w["project"]["unit"] == "section"
     assert w["project"]["labels"]["parked"] == "Parked sections"
-    doc_id = w["scenes"][0]["id"]
+    # the starter outline begins with a front-matter part: look at the first section of the article itself
+    doc_id = next(sc["id"] for sc in w["scenes"] if not sc["frontMatter"])
     project = api.project
     assert ws.scene_kicker(project, project.root / doc_id).startswith("SECTION")
 
@@ -277,4 +278,4 @@ def test_export_summary_text_pinned(tmp_path):
     script = P.create(tmp_path / "sc", "S", "script")
     assert summary_line(summarize(script, ExportOptions()), script.unit) == "1 scene, 50 words"
     paper = P.create(tmp_path / "paper", "P", "research")
-    assert summary_line(summarize(paper, ExportOptions()), paper.unit) == "1 section, 167 words"
+    assert summary_line(summarize(paper, ExportOptions()), paper.unit) == "11 sections, 0 words, 2 parts"   # the starter outline (the opening note is parked)
