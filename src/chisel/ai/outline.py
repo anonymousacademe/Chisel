@@ -10,6 +10,7 @@ dropped and why. Nothing is ever deleted or merged by the assistant (such a requ
 
 from __future__ import annotations
 
+import itertools
 import json
 import re
 
@@ -23,6 +24,7 @@ FEATURE = "outline"
 ACTIONS = ("add", "rename", "move", "keep", "advice")
 DELETE_LIKE = ("delete", "remove", "drop", "cut", "merge", "combine", "consolidate", "join", "split")
 MAX_ITEMS = 40
+MAX_DROPPED = 40
 MAX_GUIDELINES = 8
 GUIDELINE_ITEM_CHARS = 8_000        # per guideline document (trimmed and reported)
 TITLE_MAX = 120
@@ -177,6 +179,7 @@ def suggest_outline(context: str, model: str, client=None, cancel=None, on_delta
 _FENCE = re.compile(r"```[a-zA-Z]*\n?")
 _PATH_SEPS = re.compile(r"[\\/]+")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]+")
+_ITEMS_OBJECT = re.compile(r'\{\s*"items"\s*:')
 
 
 def _find_json(text: str):
@@ -184,6 +187,13 @@ def _find_json(text: str):
     objects. Tolerates prose around it, code fences and trailing text. None when there is none."""
     text = _FENCE.sub("", text[:MAX_REPLY_CHARS])
     decoder = json.JSONDecoder()
+    for m in itertools.islice(_ITEMS_OBJECT.finditer(text), MAX_JSON_STARTS):   # the usual shape first
+        try:
+            value, _ = decoder.raw_decode(text, m.start())
+        except (ValueError, RecursionError):
+            continue
+        if isinstance(value, dict) and isinstance(value.get("items"), list):
+            return value["items"]
     starts = 0
     for m in re.finditer(r"[{\[]", text):
         starts += 1
@@ -205,6 +215,12 @@ def clean_title(value, limit: int = TITLE_MAX) -> str:
     """A section title the structure functions can use: one line, no path separators, no heading marks."""
     text = _CONTROL.sub(" ", str(value if value is not None else ""))
     text = _PATH_SEPS.sub(" ", text).replace("[[", "").replace("]]", "")
+    while True:                     # no comment or marker fragment may survive (even one made by removing another)
+        before = text
+        for frag in ("<!--", "-->", "{{", "}}"):
+            text = text.replace(frag, "")
+        if text == before:
+            break
     text = " ".join(text.split()).lstrip("# ").strip()
     return text[:limit].strip()
 
@@ -312,19 +328,26 @@ def parse_outline_items(text: str, outline: dict) -> tuple[list[dict], list[dict
     dropped: list[dict] = []
     taken: set[str] = set()
     used_ids: set[str] = set()
+    extra_dropped = 0
     for n, raw in enumerate(raw_items, 1):
         label = _line(raw.get("title") or raw.get("newTitle") or raw.get("section"), 60) \
             if isinstance(raw, dict) else ""
         if len(items) >= MAX_ITEMS:
-            dropped.append({"id": str(n), "title": label,
-                            "reason": f"Only the first {MAX_ITEMS} items are shown."})
+            if len(dropped) < MAX_DROPPED:
+                dropped.append({"id": str(n), "title": label,
+                                "reason": f"Only the first {MAX_ITEMS} items are shown."})
+            else:
+                extra_dropped += 1
             continue
         try:
             item, reason = clean_item(raw, outline, taken, n)
         except Exception:                           # a hostile or odd reply must never break the list
             item, reason = None, "It could not be read."
         if item is None:
-            dropped.append({"id": str(n), "title": label, "reason": reason})
+            if len(dropped) < MAX_DROPPED:
+                dropped.append({"id": str(n), "title": label, "reason": reason})
+            else:
+                extra_dropped += 1
             continue
         iid = item["id"] if item["id"] and item["id"] not in used_ids else f"o{n}"
         while iid in used_ids:
@@ -332,6 +355,8 @@ def parse_outline_items(text: str, outline: dict) -> tuple[list[dict], list[dict
         used_ids.add(iid)
         item["id"] = iid
         items.append(item)
+    if extra_dropped:
+        dropped.append({"id": "", "title": "", "reason": f"{extra_dropped} more items were dropped."})
     return items, dropped
 
 

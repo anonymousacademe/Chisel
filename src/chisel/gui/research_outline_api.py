@@ -82,52 +82,61 @@ class ResearchOutlineMixin:
         want = title.casefold()
         return next((p for p in project.list_parts() if project.part_title(p).casefold() == want), None)
 
-    def _compose_remap(self, project, cum: dict, step: dict) -> None:
-        """Fold one structure step's {old Path: new Path} into the cumulative {original id: current id}."""
+    @staticmethod
+    def _compose_remap(project, st: dict, step: dict) -> None:
+        """Fold one structure step's {old Path: new Path} into the apply state *st*.
+
+        ``cum`` maps ORIGINAL ids (what the client saw) to current ids; ``created`` / ``changed`` /
+        ``last_add`` hold CURRENT ids and are moved by the step directly, never through ``cum`` (a new
+        section can take the path an original section just left, so the two namespaces must stay apart)."""
         ids = {outlines.section_id(project, o): outlines.section_id(project, n) for o, n in step.items()}
+        cum, created = st["cum"], st["created"]
+        made = set(created)
+        values = set(cum.values())
         for k in list(cum):
             if cum[k] in ids:
                 cum[k] = ids[cum[k]]
-        known = set(cum) | set(cum.values())
         for old, new in ids.items():
-            if old not in known:
+            if old not in made and old not in values and old not in cum:
                 cum[old] = new
+        for lst in (created, st["changed"]):
+            lst[:] = [ids.get(x, x) for x in lst]
+        for k in list(st["last_add"]):
+            st["last_add"][k] = ids.get(st["last_add"][k], st["last_add"][k])
 
     @bridge
     def outline_apply(self, items: list) -> dict:
         """Apply the ticked *items* (the full item objects). Returns {changed, remap, skipped, created}."""
-        changed: list[str] = []
-        created: list[str] = []
         created_parts: list[str] = []
         skipped: list[dict] = []
-        cum: dict[str, str] = {}
-        last_add: dict[tuple[str, str], str] = {}
+        st = {"cum": {}, "created": [], "changed": [], "last_add": {}, "renamed": {}}
         with self._lock:
             project = self._outline_project()
             for raw in items if isinstance(items, list) else []:
                 iid = str(raw.get("id", "")) if isinstance(raw, dict) else ""
                 try:
-                    self._apply_one(project, raw, cum, last_add, changed, created, created_parts)
+                    self._apply_one(project, raw, st, created_parts)
                 except _Skip as why:
                     skipped.append({"id": iid, "reason": str(why)})
                 except (OSError, ValueError) as exc:        # includes NotUtf8Error: the file stays as it was
                     skipped.append({"id": iid, "reason": str(exc) or "It could not be applied."})
-            if changed or created or created_parts or cum:
+            if st["changed"] or st["created"] or created_parts or st["cum"]:
                 self.index.rebuild(project)
-        remap = {k: v for k, v in cum.items() if k != v}
-        out_changed = []
-        for c in changed:
-            c = cum.get(c, c)
+        remap = {k: v for k, v in st["cum"].items() if k != v}
+        out_changed: list[str] = []
+        for c in st["changed"]:
             if c not in out_changed:
                 out_changed.append(c)
-        out_created = [cum.get(c, c) for c in created]
-        return {"changed": out_changed, "remap": remap, "skipped": skipped, "created": out_created,
+        return {"changed": out_changed, "remap": remap, "skipped": skipped, "created": list(st["created"]),
                 "createdParts": created_parts}
 
-    def _apply_one(self, project, raw, cum, last_add, changed, created, created_parts) -> None:
+    def _apply_one(self, project, raw, st, created_parts) -> None:
         if not isinstance(raw, dict):
             raise _Skip("It is not an item.")
+        cum = st["cum"]
         item = dict(raw)
+        orig_after = str(item.get("after") or "")
+        orig_section = str(item.get("section") or "")
         for key in ("section", "after"):                     # earlier items may have renumbered the files
             ref = str(item.get(key) or "")
             item[key] = cum.get(ref, ref)
@@ -138,17 +147,26 @@ class ResearchOutlineMixin:
         if action not in ("add", "rename", "move"):
             raise _Skip("This is advice only; nothing was changed." if action in ("advice", *outline_ai.DELETE_LIKE)
                         else "Unknown action.")
+        if action in ("rename", "move"):                     # the author reviewed THIS title: it must still be it
+            sec = next((s for s in outline["sections"] if s["id"] == item["section"]), None)
+            if sec is not None:
+                shown = " ".join(str(item.get("title") or "").split()).casefold()
+                now = " ".join(sec["title"].split()).casefold()
+                if shown != now and st["renamed"].get(orig_section) != (shown, now):    # not our own rename
+                    raise _Skip("This section has changed since the suggestion.")
         clean, reason = outline_ai.clean_item(item, outline, set())
         if clean is None:
             raise _Skip(reason)
         if clean["action"] != action:
             raise _Skip("This is advice only; nothing was changed.")
         if action == "rename":
-            self._apply_rename(project, clean, changed)
+            self._apply_rename(project, clean, st["changed"])
+            st["renamed"][orig_section] = (" ".join(clean["title"].split()).casefold(),
+                                           " ".join(clean["newTitle"].split()).casefold())
         elif action == "move":
-            self._apply_move(project, clean, cum, changed, created_parts)
+            self._apply_move(project, clean, st, created_parts)
         else:
-            self._apply_add(project, clean, cum, last_add, created, created_parts)
+            self._apply_add(project, clean, st, orig_after, created_parts)
 
     def _dest(self, project, title: str, created_parts: list):
         """The part folder called *title* (created when it does not exist yet), None for the top level."""
@@ -178,7 +196,7 @@ class ResearchOutlineMixin:
         project.rename_scene(path, item["newTitle"])
         changed.append(item["section"])
 
-    def _apply_move(self, project, item, cum, changed, created_parts) -> None:
+    def _apply_move(self, project, item, st, created_parts) -> None:
         path = project.root / item["section"]
         if not project.is_scene_path(path) or not path.is_file() or path not in project.list_scenes():
             raise _Skip("That section no longer exists.")
@@ -187,13 +205,13 @@ class ResearchOutlineMixin:
         index = self._index_for(project, part, after_path, moving=path)
         snapshots.create(project, path, "before-outline-move")
         new = project.place_scene(path, part, index)
-        self._compose_remap(project, cum, dict(project.last_renames))
-        changed.append(outlines.section_id(project, new))
+        self._compose_remap(project, st, dict(project.last_renames))
+        st["changed"].append(outlines.section_id(project, new))
 
-    def _apply_add(self, project, item, cum, last_add, created, created_parts) -> None:
-        key = (item["part"].casefold(), item["after"])
-        prior = last_add.get(key, "")                        # several adds after the same section keep their order
-        after = cum.get(prior, prior) or item["after"]
+    def _apply_add(self, project, item, st, orig_after, created_parts) -> None:
+        key = (item["part"].casefold(), orig_after)          # keyed by the ORIGINAL "after" the client sent
+        prior = st["last_add"].get(key, "")                  # several adds after the same section keep their order
+        after = prior or item["after"]                       # prior is already a current id
         after_path = project.root / after if after else None
         part = self._dest(project, item["part"], created_parts)
         index = self._index_for(project, part, after_path)
@@ -202,9 +220,10 @@ class ResearchOutlineMixin:
         text = scenemeta.set_details(f"# {item['title']}\n\n", purpose=item.get("purpose", ""))
         write_atomic(path, text)
         new = project.place_scene(path, part, index)
-        self._compose_remap(project, cum, {o: n for o, n in project.last_renames.items() if o != path})
-        last_add[key] = outlines.section_id(project, new)
-        created.append(outlines.section_id(project, new))
+        self._compose_remap(project, st, {o: n for o, n in project.last_renames.items() if o != path})
+        new_id = outlines.section_id(project, new)
+        st["last_add"][key] = new_id
+        st["created"].append(new_id)
 
 
 class _Skip(Exception):

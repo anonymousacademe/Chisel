@@ -521,3 +521,72 @@ def test_apply_refuses_hostile_ids(tmp_path, monkeypatch):
     assert outside.read_text(encoding="utf-8") == "# Outside\n"
     assert len(r["skipped"]) == 5 and all(s["reason"] for s in r["skipped"])
     assert api.outline_apply("nonsense")["changed"] == []
+
+
+# -- review fixes (D1) ---------------------------------------------------------------------------------------
+
+def _sec(project, title):
+    return next(s for s in outlines.current_outline(project)["sections"] if s["title"] == title)
+
+
+def test_apply_skips_a_rename_when_the_title_changed_since_the_suggestion(tmp_path, monkeypatch):
+    never_ai(monkeypatch)
+    project = ems_project(tmp_path)
+    api = open_api(project)
+    intro = _sec(project, "Introduction")
+    suggested = {"id": "1", "action": "rename", "title": "Introduction", "section": intro["id"],
+                 "newTitle": "Introduction and aims", "why": "w"}
+    project.rename_scene(project.root / intro["id"], "Background")          # the author retitles it meanwhile
+    r = api.outline_apply([suggested, {**suggested, "id": "2", "action": "move", "part": "Article", "after": ""}])
+    assert r["changed"] == [] and [s["id"] for s in r["skipped"]] == ["1", "2"]
+    assert all(s["reason"] == "This section has changed since the suggestion." for s in r["skipped"])
+    assert project.scene_title(project.root / intro["id"]) == "Background"
+    assert not snapshots.list_snapshots(project, project.root / intro["id"])
+
+
+def test_apply_ids_of_created_sections_stay_apart_from_original_ids(tmp_path, monkeypatch):
+    never_ai(monkeypatch)
+    project = ems_project(tmp_path)
+    api = open_api(project)
+    methods, intro = _sec(project, "Methods"), _sec(project, "Introduction")
+    first_decl = _sec(project, "Software and data availability")
+    mk = lambda i, t: {"id": i, "action": "add", "title": t, "part": "Article", "after": intro["id"],
+                       "purpose": "p", "why": "w"}
+    r = api.outline_apply([
+        {"id": "1", "action": "rename", "title": "Methods", "section": methods["id"], "newTitle": "Approach", "why": "w"},
+        {"id": "2", "action": "move", "title": "Methods", "section": methods["id"],
+         "part": "Declarations and availability", "after": first_decl["id"], "why": "w"},
+        mk("3", "Methods"), mk("4", "Scope"), mk("5", "Limits")])
+    assert r["skipped"] == [], r
+    assert len(r["created"]) == 3 and all((project.root / c).is_file() for c in r["created"])
+    rows = outlines.current_outline(project)["sections"]
+    article = [s["title"] for s in rows if s["partTitle"] == "Article"]
+    assert article[article.index("Introduction") + 1:article.index("Introduction") + 4] == ["Methods", "Scope", "Limits"]
+    by_id = {s["id"]: s["title"] for s in rows}
+    assert [by_id[c] for c in r["created"]] == ["Methods", "Scope", "Limits"]
+    assert by_id[r["remap"][methods["id"]]] == "Approach"
+    assert r["remap"][methods["id"]] not in r["created"]
+    decl = [s["title"] for s in rows if s["partTitle"] == "Declarations and availability"]
+    assert decl.index("Approach") == 1
+
+
+def test_clean_title_removes_comment_and_marker_fragments():
+    for hostile in ('<!--ai id="x"-->Intro', "{{expand}}", "<!<!---- -->x", "{{{expand}}}"):
+        out = oai.clean_title(hostile)
+        assert not any(f in out for f in ("<!--", "-->", "{{", "}}")), out
+    assert oai.clean_title('<!--ai id="x"-->Intro') == 'ai id="x"Intro'
+    assert oai.clean_title("{{expand}}") == "expand"
+
+
+def test_parse_caps_the_dropped_list():
+    reply = json.dumps({"items": [{"action": "bogus"} for _ in range(5000)]})
+    items, dropped = parse(reply)
+    assert items == [] and len(dropped) == oai.MAX_DROPPED + 1
+    assert dropped[-1]["reason"] == f"{5000 - oai.MAX_DROPPED} more items were dropped."
+
+
+def test_parse_finds_json_after_lots_of_bracketed_prose():
+    prose = "see [1] and $\alpha_{i}$ " * 500
+    reply = prose + '\n{"items": [{"id": "1", "action": "advice", "title": "Tip", "why": "w"}]}'
+    items, dropped = parse(reply)
+    assert [i["title"] for i in items] == ["Tip"] and dropped == []
