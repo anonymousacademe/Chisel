@@ -344,3 +344,205 @@ def numbering(project, scheme: str | None = None) -> Numbering:
                 display = str(seq[p.kind])
             seen[key] = Num(seq[p.kind], display)
     return seen
+
+
+# -- creating and editing tables and equations (F0) ------------------------------------------
+
+
+MAX_TABLE_ROWS = 60
+MAX_TABLE_COLS = 20
+MAX_CELL_CHARS = 2000
+MAX_LATEX_CHARS = 10_000
+MAX_CAPTION_CHARS = 1000
+MIN_WIDTH, MAX_WIDTH = 1.0, 20.0
+KIND_WORDS = {"fig": "figure", "tbl": "table", "eq": "equation"}
+_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+
+
+def _strip_markers(text: str, *, join_braces: bool = False) -> str:
+    """Remove comment openers and closers and double curly braces until none survive (also one made by removing
+    another). With *join_braces* (LaTeX, where ``\\frac{{a}}{b}`` is legal) a brace pair is split with a space
+    instead, which TeX reads the same."""
+    while True:
+        before = text
+        for frag in ("<!--", "-->"):
+            text = text.replace(frag, "")
+        if join_braces:
+            text = text.replace("{{", "{ {").replace("}}", "} }")
+        else:
+            text = text.replace("{{", "").replace("}}", "")
+        if text == before:
+            return text
+
+
+def clean_line(value, limit: int = MAX_CAPTION_CHARS) -> str:
+    """A caption or alt text: one line, no markers, no control characters."""
+    text = _CONTROL.sub(" ", str(value if value is not None else "")).replace("\r", "\n")
+    text = _strip_markers(text)
+    return " ".join(text.split())[:limit].strip()
+
+
+def clean_latex(value) -> str:
+    """LaTeX source: markers removed (see ``_strip_markers``), never longer than MAX_LATEX_CHARS (ValueError)."""
+    text = _CONTROL.sub(" ", str(value if value is not None else "")).replace("\r\n", "\n").replace("\r", "\n")
+    text = _strip_markers(text, join_braces=True).strip()
+    if not text:
+        raise ValueError("an equation needs some LaTeX")
+    if len(text) > MAX_LATEX_CHARS:
+        raise ValueError(f"an equation is limited to {MAX_LATEX_CHARS:,} characters")
+    return text
+
+
+def _check_label(label: str, what: str) -> str:
+    label = (label or "").strip()
+    if not _LABEL_RE.match(label):
+        raise ValueError(f"a {what} label uses letters, digits, hyphens and underscores")
+    return label
+
+
+def _head(meta: dict) -> str:
+    return "---\n" + yaml.safe_dump(meta, sort_keys=False, allow_unicode=True, width=10_000,
+                                    default_flow_style=False) + "---\n"
+
+
+def _new_note(project, kind: str, label: str, meta: dict, body: str) -> RefObject:
+    folder = _folder(project, kind)
+    md = folder / f"{KINDS[kind][1]}{label}.md"
+    if md.exists() or md.is_symlink():
+        raise ValueError(f"a {KIND_WORDS[kind]} labelled {label} already exists")
+    folder.mkdir(parents=True, exist_ok=True)
+    _write(md, _head(meta) + body)
+    obj = _object(project, kind, md)
+    assert obj is not None
+    return obj
+
+
+def create_table(project, label: str, caption: str, cells, align) -> RefObject:
+    """Add ``tables/tbl-<label>.md`` with a canonical pipe table (``tables.to_pipe``). ValueError for a bad
+    label, a label in use, more than 60 rows or 20 columns, a cell over 2000 characters or a bad alignment."""
+    from . import tables
+    label = _check_label(label, "table")
+    if not isinstance(cells, (list, tuple)) or not cells or not all(isinstance(r, (list, tuple)) for r in cells):
+        raise ValueError("a table needs a header row and at least one column")
+    if len(cells) > MAX_TABLE_ROWS:
+        raise ValueError(f"a table is limited to {MAX_TABLE_ROWS} rows")
+    width = max(len(r) for r in cells)
+    align = [str(a) for a in align] if align else ["default"] * len(cells[0])
+    if not align or width == 0:
+        raise ValueError("a table needs a header row and at least one column")
+    if width > len(align):
+        raise ValueError("a row has more cells than the table has columns")
+    if len(align) > MAX_TABLE_COLS:
+        raise ValueError(f"a table is limited to {MAX_TABLE_COLS} columns")
+    rows = [[str(c if c is not None else "") for c in r] for r in cells]
+    if any(len(c) > MAX_CELL_CHARS for r in rows for c in r):
+        raise ValueError(f"a table cell is limited to {MAX_CELL_CHARS:,} characters")
+    text = tables.to_pipe(tables.Table(rows, align))       # validates the alignments
+    return _new_note(project, "tbl", label, {"caption": clean_line(caption)}, text + "\n")
+
+
+def create_equation(project, label: str, latex: str, caption: str = "") -> RefObject:
+    """Add ``equations/eq-<label>.md`` (the LaTeX is the body). ValueError for a bad or used label, empty or
+    over-long LaTeX."""
+    label = _check_label(label, "equation")
+    body = clean_latex(latex)
+    cap = clean_line(caption)
+    return _new_note(project, "eq", label, {"caption": cap} if cap else {}, body + "\n")
+
+
+def update_object(project, kind: str, label: str, *, caption=None, alt=None, width=None, latex=None) -> RefObject:
+    """Change an object's note in place, atomically; every other frontmatter key and the rest of the body are
+    kept. Figure: caption, alt, width (inches, 1 to 20; None leaves it). Equation: latex, caption. Table:
+    caption only. A field the kind does not have is a ValueError."""
+    if kind not in KINDS:
+        raise ValueError("no such figure, table or equation")
+    allowed = {"fig": ("caption", "alt", "width"), "tbl": ("caption",), "eq": ("latex", "caption")}[kind]
+    given = {"caption": caption, "alt": alt, "width": width, "latex": latex}
+    for name, value in given.items():
+        if value is not None and name not in allowed:
+            raise ValueError(f"a {KIND_WORDS[kind]} has no {name}")
+    label = _check_label(label, KIND_WORDS[kind])
+    md = _folder(project, kind) / f"{KINDS[kind][1]}{label}.md"
+    if not md.is_file() or md.is_symlink():
+        raise ValueError(f"no such {KIND_WORDS[kind]}: {kind}:{label}")
+    text = md.read_text(encoding="utf-8").replace("\r\n", "\n")
+    m = _BLOCK_RE.match(text)
+    meta: dict = {}
+    body = text
+    if m is not None:
+        try:
+            loaded = yaml.safe_load(m.group(1))
+        except yaml.YAMLError:
+            raise ValueError("the note's front matter is not valid; fix it in the file first") from None
+        meta = loaded if isinstance(loaded, dict) else {}
+        body = text[m.end():]
+    if caption is not None:
+        meta["caption"] = clean_line(caption)
+    if alt is not None:
+        a = clean_line(alt)
+        if a:
+            meta["alt"] = a
+        else:
+            meta.pop("alt", None)
+    if width is not None:
+        try:
+            w = float(width)
+        except (TypeError, ValueError):
+            raise ValueError("the width is a number of inches") from None
+        if not (MIN_WIDTH <= w <= MAX_WIDTH):          # also rejects nan
+            raise ValueError(f"the width is between {MIN_WIDTH:g} and {MAX_WIDTH:g} inches")
+        meta["width"] = int(w) if w == int(w) else round(w, 2)
+    if latex is not None:
+        body = clean_latex(latex) + "\n"
+    if kind == "eq" and not meta.get("caption"):
+        meta.pop("caption", None)
+    _write(md, (_head(meta) if meta else "") + body)
+    obj = _object(project, kind, md)
+    assert obj is not None
+    return obj
+
+
+def suggest_label(project, kind: str, caption: str) -> str:
+    """A unique plain label for a new object: the caption slugified (ASCII, at most 40 characters), else the
+    kind word; ``-2``, ``-3`` when taken."""
+    import unicodedata
+    if kind not in KINDS:
+        raise ValueError("no such figure, table or equation")
+    text = unicodedata.normalize("NFKD", str(caption or "")).encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:40].strip("-") or KIND_WORDS[kind]
+    prefix = KINDS[kind][1]
+    taken = {o.label.lower() for o in list_objects(project) if o.kind == kind}
+    folder = _folder(project, kind)
+    if folder.is_dir():
+        taken |= {p.stem[len(prefix):].lower() for p in folder.iterdir() if p.name.startswith(prefix)}
+    label, n = slug, 1
+    while label in taken:
+        n += 1
+        label = f"{slug}-{n}"
+    return label
+
+
+def scan_text(project, text: str) -> str:
+    """*text* as the object scanners read it: pending drafts, scene details and math blanked, then code (fenced
+    and inline) blanked, all same length."""
+    from .links import _mask_code
+    return _mask_code(_prose_for_scan(text, project.mode))
+
+
+def references(project, kind: str, label: str) -> dict:
+    """Where an object is placed and referenced in the book (``list_scenes``; Parked scenes excluded):
+    ``{"placements": [(path, row)], "refs": [(path, row)]}`` with 0-based rows, in reading order."""
+    out: dict[str, list] = {"placements": [], "refs": []}
+    for scene in project.list_scenes():
+        try:
+            text = scene.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        scan = scan_text(project, text)
+        for p in find_placements(scan):
+            if p.kind == kind and p.label == label:
+                out["placements"].append((scene, text.count("\n", 0, p.start)))
+        for r in find_refs(scan):
+            if r.kind == kind and r.label == label:
+                out["refs"].append((scene, text.count("\n", 0, r.start)))
+    return out

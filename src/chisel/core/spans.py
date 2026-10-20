@@ -21,7 +21,8 @@ _OFFSET_KEYS = ("start", "end", "innerStart", "innerEnd", "bodyStart", "bodyEnd"
 
 def compute_spans(text: str, entities: list[ent.Entity], *,
                   mentions: bool = True, script: bool = False,
-                  citations: bool = False, citation_style: str = "apa") -> list[dict]:
+                  citations: bool = False, citation_style: str = "apa",
+                  object_info: tuple[set[str], dict[str, str]] | None = None) -> list[dict]:
     """Spans in document order. *mentions*: also report plain-text mentions of
     entity names/aliases (scenes do; entity notes and the style guide only
     show explicit links). Links and mentions inside pending AI drafts are
@@ -59,6 +60,8 @@ def compute_spans(text: str, entities: list[ent.Entity], *,
                       "end": marker.end, "instruction": marker.instruction})
     if citations:
         spans += _citation_spans(scan, entities, citation_style)
+    if object_info is not None:
+        spans += _object_spans(text, *object_info)
     if script:
         from . import fountain
         spans += _cue_mentions(text, entities, spans, pending) if mentions else []
@@ -95,6 +98,60 @@ def _citation_spans(scan: str, entities: list[ent.Entity], style: str = "apa") -
                     "label": "; ".join(labels),
                     "display": citefmt.format_citation(cite, records, letters, style),
                     "title": "; ".join(t for t in titles if t) if ok else ""})
+    return out
+
+
+_OBJECT_WORDS = {"fig": "Figure", "tbl": "Table"}
+
+
+def object_display(kind: str, number: str | None) -> str:
+    """"Figure 2", "Table 1", "Equation (3)"; "?" stands for an object that is not placed anywhere yet."""
+    n = number or "?"
+    return f"Equation ({n})" if kind == "eq" else f"{_OBJECT_WORDS[kind]} {n}"
+
+
+def _object_spans(text: str, keys: set[str], numbers: dict[str, str]) -> list[dict]:
+    """``placement`` (``![[fig:x]]`` alone on a line) and ``objref`` (``[[fig:x]]`` in prose) spans of a research
+    document. Code (fenced and inline), math, scene details and pending AI drafts are ignored. *keys* are the
+    existing objects (``fig:label``), *numbers* their display numbers from ``objects.numbering``."""
+    from . import objects
+    from .links import _mask_code
+    scan = _mask_code(objects._prose_for_scan(text, "research"))
+    out = []
+    for kind, found in (("placement", objects.find_placements(scan)), ("objref", objects.find_refs(scan))):
+        for o in found:
+            key = f"{o.kind}:{o.label}"
+            ok = key in keys
+            out.append({"kind": kind, "start": o.start, "end": o.end, "objectKind": o.kind, "label": o.label,
+                        "key": key, "display": object_display(o.kind, numbers.get(key)) if ok else key,
+                        "status": "resolved" if ok else "unresolved"})
+    return out
+
+
+_OBJECT_WORDS = {"fig": "Figure", "tbl": "Table"}
+
+
+def object_display(kind: str, number: str | None) -> str:
+    """"Figure 2", "Table 1", "Equation (3)"; "?" stands for an object that is not placed anywhere yet."""
+    n = number or "?"
+    return f"Equation ({n})" if kind == "eq" else f"{_OBJECT_WORDS[kind]} {n}"
+
+
+def _object_spans(text: str, keys: set[str], numbers: dict[str, str]) -> list[dict]:
+    """``placement`` (``![[fig:x]]`` alone on a line) and ``objref`` (``[[fig:x]]`` in prose) spans of a research
+    document. Code (fenced and inline), math, scene details and pending AI drafts are ignored. *keys* are the
+    existing objects (``fig:label``), *numbers* their display numbers from ``objects.numbering``."""
+    from . import objects
+    from .links import _mask_code
+    scan = _mask_code(objects._prose_for_scan(text, "research"))
+    out = []
+    for kind, found in (("placement", objects.find_placements(scan)), ("objref", objects.find_refs(scan))):
+        for o in found:
+            key = f"{o.kind}:{o.label}"
+            ok = key in keys
+            out.append({"kind": kind, "start": o.start, "end": o.end, "objectKind": o.kind, "label": o.label,
+                        "key": key, "display": object_display(o.kind, numbers.get(key)) if ok else key,
+                        "status": "resolved" if ok else "unresolved"})
     return out
 
 

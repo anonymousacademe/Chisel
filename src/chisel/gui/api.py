@@ -370,6 +370,16 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
                     "words": project.count_words(text, originals),
                     **({"snapshotAt": self._snapshot_at(path)} if kind == "scene" else {})}
 
+    def _object_info(self, text: str):
+        """Research projects: (existing object keys, display numbers) for the placement / objref spans; None
+        elsewhere and, to keep typing cheap, when the text names no object at all."""
+        project = self._require()
+        if project.mode != "research" or not re.search(r"\[\[(?:fig|tbl|eq):", text):
+            return None
+        from ..core import objects
+        keys = {f"{o.kind}:{o.label}" for o in objects.list_objects(project)}
+        return keys, {k: n.display for k, n in objects.numbering(project).items()}
+
     @bridge
     def link_spans(self, doc_id: str, text: str) -> dict:
         """Mentions, links, pending drafts and expand markers of *text* (the
@@ -379,7 +389,8 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
             spans = compute_spans(text, self.entities, mentions=kind == "scene",
                                   script=kind == "scene" and self._require().mode == "script",
                                   citations=self._require().mode == "research",
-                                  citation_style=self._require().citation_style)
+                                  citation_style=self._require().citation_style,
+                                  object_info=self._object_info(text))
             return {"spans": to_utf16(text, spans)}
 
     @bridge

@@ -383,6 +383,74 @@ class ResearchObjectsMixin:
             obj = objects.create_figure(project, data, label, caption)
             return {"id": _key(obj), "object": _row(project, obj)}
 
+    # -- creating, editing and removing objects (F0) -----------------------------------------------------
+
+    @bridge
+    def create_table(self, label: str, caption: str, cells: list, align: list | None = None) -> dict:
+        """Add a table note from a grid (canonical pipe table; caps in core.objects)."""
+        with self._lock:
+            project = self._require()
+            require_research(project)
+            obj = objects.create_table(project, label, caption, cells, align)
+            return {"id": _key(obj), "object": _row(project, obj)}
+
+    @bridge
+    def create_equation(self, label: str, latex: str, caption: str = "") -> dict:
+        """Add an equation note (the LaTeX is its body)."""
+        with self._lock:
+            project = self._require()
+            require_research(project)
+            obj = objects.create_equation(project, label, latex, caption)
+            return {"id": _key(obj), "object": _row(project, obj)}
+
+    @bridge
+    def update_object(self, id: str, caption: str | None = None, alt: str | None = None,
+                      width: float | None = None, latex: str | None = None) -> dict:
+        """Change a figure's caption / alt / width, an equation's latex / caption or a table's caption. Other
+        frontmatter keys are kept; the write is atomic."""
+        with self._lock:
+            project = self._require()
+            require_research(project)
+            obj = _find_object(project, id)
+            new = objects.update_object(project, obj.kind, obj.label, caption=caption, alt=alt,
+                                        width=width, latex=latex)
+            return {"object": _row(project, new)}
+
+    @bridge
+    def trash_object(self, id: str) -> dict:
+        """Move an object (note plus image / CSV) to the project Trash. A placement of it in a section is left
+        as it is and shows as unresolved; restoring from the Trash brings the object back."""
+        with self._lock:
+            project = self._require()
+            require_research(project)
+            obj = _find_object(project, id)
+            project.trash_object(obj.path)
+            return {"trashed": True, "name": obj.caption or obj.label}
+
+    @bridge
+    def object_references(self, id: str) -> dict:
+        """Where an object is placed (``![[id]]``) and referenced (``[[id]]``) in the book's sections, as
+        ``{doc, title, row}`` (0-based row). Parked sections are not in the book."""
+        from . import workspace as ws
+        with self._lock:
+            project = self._require()
+            require_research(project)
+            obj = _find_object(project, id)
+            found = objects.references(project, obj.kind, obj.label)
+
+            def rows(items):
+                return [{"doc": ws.rel_id(project, p), "title": project.scene_title(p), "row": r}
+                        for p, r in items]
+            return {"placements": rows(found["placements"]), "refs": rows(found["refs"])}
+
+    @bridge
+    def object_suggest_label(self, kind: str, caption: str = "") -> dict:
+        """A unique plain label for a new figure, table or equation (no AI)."""
+        with self._lock:
+            project = self._require()
+            require_research(project)
+            return {"label": objects.suggest_label(project, kind, caption)}
+
     # -- generated figures: trust and run ----------------------------------------------------------------
 
     @bridge

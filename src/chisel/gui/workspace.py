@@ -358,6 +358,39 @@ PARKED_TITLE = "Parked scenes"
 PARKED_HELP = "Written but not part of the book. Not counted in word totals or export. Still searchable."
 
 
+OBJECT_GROUPS = (("fig", "Figures", "Figure"), ("tbl", "Tables", "Table"), ("eq", "Equations", "Equation"))
+
+
+def object_groups(project: Project) -> list[dict]:
+    """Research projects: the Figures / Tables / Equations binder groups, each only while it has objects. A node's
+    title is "Figure 2: caption" (the number from ``objects.numbering``; "Figure: caption" while never placed)."""
+    from ..core import objects
+    from .research_objects_api import _status
+    try:
+        found = objects.list_objects(project)
+        numbers = objects.numbering(project) if found else {}
+    except OSError:
+        return []
+    groups = []
+    for kind, plural, word in OBJECT_GROUPS:
+        children = []
+        for o in found:
+            if o.kind != kind:
+                continue
+            key = f"{kind}:{o.label}"
+            num = numbers.get(key)
+            if kind == "eq":
+                head = f"Equation ({num.display})" if num else "Equation"
+            else:
+                head = f"{word} {num.display}" if num else word
+            children.append({"id": key, "title": f"{head}: {o.caption or o.label}", "kind": "object",
+                             "meta": _status(project, o)})
+        if children:
+            groups.append({"id": f"group:{plural.lower()}", "title": plural, "kind": "objects",
+                           "children": children})
+    return groups
+
+
 def build_binder(project: Project, scenes: list[dict], entities: list[dict],
                  has_style: bool, parts: list[dict] | None = None,
                  trash_count: int = 0, research: list[dict] | None = None) -> list[dict]:
@@ -407,6 +440,8 @@ def build_binder(project: Project, scenes: list[dict], entities: list[dict],
         "children": [{"id": e["id"], "title": e["name"], "kind": "entity",
                       "meta": e["type"]} for e in world],
     }]
+    if is_research:
+        binder += object_groups(project)
     # always listed: opening it before it exists creates the stub (Api.ensure_style)
     binder.append({"id": STYLE_ID, "title": "Style Guide", "kind": "style",
                    **({} if has_style else {"meta": "new"})})
