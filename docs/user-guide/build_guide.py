@@ -36,9 +36,9 @@ from reportlab.platypus import Image as RLImage  # noqa: E402
 
 sys.path.insert(0, str(HERE / "build" / "chapters"))
 import ch_aids, ch_aisees, ch_export, ch_history, ch_inspiration  # noqa: E402
-import ch_notes, ch_organize, ch_safety, ch_storytime, ch_comingnext  # noqa: E402
+import ch_notes, ch_organize, ch_research, ch_safety, ch_storytime, ch_comingnext  # noqa: E402
 NEW_CHAPTERS = [ch_organize, ch_history, ch_notes, ch_aids, ch_inspiration, ch_export,
-                ch_aisees, ch_storytime, ch_safety, ch_comingnext]
+                ch_aisees, ch_storytime, ch_safety, ch_research, ch_comingnext]
 
 
 def palette_rows():
@@ -534,19 +534,22 @@ def build_story(st) -> list:
 
     # ------------------------------------------------------------ about
     s.front("About This Book")
-    s.p("This book describes Chisel, a program for writing fiction. It "
+    s.p("This book describes Chisel, a program for writing fiction and "
+        "research papers. It "
         "comes in two forms that work on the same files: a //terminal "
         "application//, started with `chisel`, and a //desktop "
         "application//, started with `chisel-gui`, whose window is "
         "titled Chisel. The book explains what Chisel does, how to "
         "install and start it, how to write and organize scenes, how to "
         "keep track of your characters and places, how to keep a history "
-        "of your work, how to check your spelling, how to use its optional "
+        "of your work, how to check your spelling, how to write a "
+        "research paper from the sources you cite, how to use its optional "
         "AI assistance, and where every key, menu entry and setting is. It "
         "is both a guide, which you can read from the front, and a "
         "reference, which you can look things up in.")
     s.h2("Who Should Read This Book")
-    s.p("This book is for people who write stories, not for programmers. "
+    s.p("This book is for people who write stories or research papers, not "
+        "for programmers. "
         "You do not need to know how Chisel works inside. You should be "
         "comfortable opening a terminal window and typing a command, and "
         "you should know what a folder and a file are. Everything else is "
@@ -613,6 +616,10 @@ def build_story(st) -> list:
         "**Chapter 19, Command and Key Reference**, lists every key and "
         "every entry in the command palette and the desktop application's "
         "menus.",
+        "**Chapter 20, Writing a Research Paper**, describes research "
+        "projects: creating one with a product type and a target "
+        "journal, the starter outline, sources from Zotero, citations, "
+        "journal requirements and guidelines.",
         "**Appendix A, File Formats**, shows what is in your project folder "
         "and describes every file Chisel reads and writes.",
         "**Appendix B, Messages and Problem Solving**, lists the messages "
@@ -3436,6 +3443,8 @@ the koi holo.<!--/ai-->""")
          "dictionary entries."],
     ], [0.34, 0.66])
     s.gfigure("fig_gmenu", "aimenu", "The AI menu", width=200)
+
+    ch_research.build(s, R)
 
     # ============================================================ APP A
     s.chapter("A", "File Formats",
