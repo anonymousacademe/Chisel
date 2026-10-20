@@ -34,7 +34,7 @@ describe("describeItem", () => {
     const move: OutlineItem = { id: "m", action: "move", title: "x", section: "d", part: "Article", after: "r" };
     expect(describeItem(move, SECTIONS)).toBe("Move “Discussion” to Part “Article”, after “Results”.");
     expect(describeItem({ ...move, after: "" }, SECTIONS)).toBe("Move “Discussion” to the start of Part “Article”.");
-    expect(describeItem({ ...move, after: undefined }, SECTIONS)).toBe("Move “Discussion” to the end of Part “Article”.");
+    expect(describeItem({ ...move, after: undefined }, SECTIONS)).toBe("Move “Discussion” to the start of Part “Article”.");
     const add: OutlineItem = { id: "a", action: "add", title: "Limitations", part: "Article", after: "d" };
     expect(describeItem(add, SECTIONS)).toBe("Add “Limitations” to Part “Article”, after “Discussion”.");
   });
@@ -70,9 +70,9 @@ describe("previewOutline", () => {
     const p = previewOutline(withPart, [byId]);
     expect(p.after.find((g) => g.part === "Part One")!.rows.map((r) => r.title)).toEqual(["Intro", "Methods"]);
   });
-  it("adds to the end of a part when there is no anchor, and after an anchor otherwise", () => {
+  it("adds to the start of a part when there is no anchor (as Python does), and after an anchor otherwise", () => {
     const end: OutlineItem = { id: "e", action: "add", title: "Extra", part: "Part One" };
-    expect(previewOutline(withPart, [end]).after.find((g) => g.part === "Part One")!.rows.map((r) => r.title)).toEqual(["Intro", "Methods", "Extra"]);
+    expect(previewOutline(withPart, [end]).after.find((g) => g.part === "Part One")!.rows.map((r) => r.title)).toEqual(["Extra", "Intro", "Methods"]);
     const mid: OutlineItem = { id: "f", action: "add", title: "Mid", part: "Part One", after: "x" };
     expect(previewOutline(withPart, [mid]).after.find((g) => g.part === "Part One")!.rows.map((r) => r.title)).toEqual(["Intro", "Mid", "Methods"]);
   });

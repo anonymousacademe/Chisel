@@ -217,7 +217,7 @@ class ResearchOutlineMixin:
         index = self._index_for(project, part, after_path)
         path = project.next_scene_path(item["title"], part)
         path.parent.mkdir(parents=True, exist_ok=True)
-        text = scenemeta.set_details(f"# {item['title']}\n\n", purpose=item.get("purpose", ""))
+        text = scenemeta.set_details(f"# {item['title']}\n\n", purpose=outline_ai.clean_title(item.get("purpose", ""), 300))
         write_atomic(path, text)
         new = project.place_scene(path, part, index)
         self._compose_remap(project, st, {o: n for o, n in project.last_renames.items() if o != path})

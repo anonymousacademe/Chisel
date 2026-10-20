@@ -129,7 +129,7 @@ function mockResult(kind: string, args: Record<string, unknown>): Record<string,
     case "continuity": return { issues: [], waived: 0, cost: 0.002, sent: sampleSent("continuity") };
     case "canon": return { updates: [], cost: 0.002, sent: sampleSent("canon") };
     case "aliases": return { suggestions: [], cost: 0.002, sent: sampleSent("aliases") };
-    case "outline": return { items: mockOutlineItems(), cost: 0.002, model: "mock", sent: sampleSent("outline"), ignored: MOCK_OUTLINE_IGNORED };
+    case "outline": return { items: mockOutlineItems(), cost: 0.002, model: "mock", sent: sampleSent("outline"), dropped: MOCK_OUTLINE_IGNORED };
     case "style": return { markdown: "# Style guide\n\nShort, concrete sentences.", replacing: false, samples: 3, cost: 0.004 };
     case "describe_scene": return { prompt: "A rain-lit kitchen at 3 a.m., a terminal glowing behind smoked glass.", model: "mock", cost: 0.001 };
     case "image": case "image_regenerate": return { images: [], cost: 0.03 };
@@ -236,7 +236,7 @@ function mockOutlineApply(items: { id: string; action: string; title: string; se
     row.partTitle = part; row.part = part ? `part-${slug(part)}` : "";
     const anchor = after ? mockOutline.findIndex((s) => s.id === after) : -1;
     if (anchor >= 0) mockOutline.splice(anchor + 1, 0, row);
-    else if (after === "") { const first = mockOutline.findIndex((s) => s.partTitle === part); mockOutline.splice(first >= 0 ? first : mockOutline.length, 0, row); }
+    else if (!after) { const first = mockOutline.findIndex((s) => s.partTitle === part); mockOutline.splice(first >= 0 ? first : mockOutline.length, 0, row); }
     else mockOutline.push(row);
   };
   const renumber = () => mockOutline.forEach((s, n) => { s.position = n + 1; });
@@ -306,7 +306,7 @@ export function mockCall(method: string, args: unknown[]): object {
         .map((title, n) => ({ id: `s${n + 1}`, action: "add", title, part: "", after: mockOutline[mockOutline.length - 1].id, purpose: `The ${title.toLowerCase()} of the paper.`, why: "Part of the standard structure." }));
       return { ok: true, name: "Environmental Modelling & Software", items };
     }
-    case "outline_suggest": return { ok: true, items: mockOutlineItems(), sent: sampleSent("outline"), cost: 0.002, model: "mock", ignored: MOCK_OUTLINE_IGNORED };
+    case "outline_suggest": return { ok: true, items: mockOutlineItems(), sent: sampleSent("outline"), cost: 0.002, model: "mock", dropped: MOCK_OUTLINE_IGNORED };
     case "outline_apply": return mockOutlineApply(args[0] as Parameters<typeof mockOutlineApply>[0]);
     case "guidelines_remove": { const i = mockGuidelines.findIndex((g) => g.name === args[0]); if (i >= 0) mockGuidelines.splice(i, 1); return { ok: true }; }
     case "zotero_collections": return { ok: true, collections: [

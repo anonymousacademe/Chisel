@@ -14,12 +14,7 @@ from chisel.core.paper import outlines, scope
 from chisel.core.project import Project
 from chisel.gui import api as api_module
 from chisel.gui.api import Api
-from chisel.gui.research_outline_api import ResearchOutlineMixin
 from tests.research_helpers import clear_starter
-
-
-class OApi(ResearchOutlineMixin, Api):
-    pass
 
 
 @pytest.fixture(autouse=True)
@@ -35,7 +30,7 @@ def ems_project(tmp_path, journal="ems"):
 
 
 def open_api(project):
-    api = OApi()
+    api = Api()
     api._load(project)
     return api
 
@@ -154,7 +149,7 @@ def test_outline_standard_works_with_no_ai(tmp_path, monkeypatch):
 
 
 def test_outline_methods_refuse_a_story_project(tmp_path):
-    api = OApi()
+    api = Api()
     api._load(Project.create(tmp_path / "s", "S"))
     for call in (api.outline_current, api.outline_standard, api.outline_get_scope):
         r = call()

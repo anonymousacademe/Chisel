@@ -6,8 +6,8 @@ const current = () => (mockCall("outline_current", []) as { sections: Section[] 
 
 describe("mock outline_* contract", () => {
   it("suggest reports an ignored entry", () => {
-    const r = mockCall("outline_suggest", []) as { ignored: { reason: string }[] };
-    expect(r.ignored.length).toBeGreaterThan(0);
+    const r = mockCall("outline_suggest", []) as { dropped: { reason: string }[] };
+    expect(r.dropped.length).toBeGreaterThan(0);
   });
   it("places an add after its anchor and in its part, and a move returns a remap", () => {
     const before = current();

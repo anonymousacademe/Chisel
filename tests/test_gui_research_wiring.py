@@ -13,6 +13,7 @@ RESEARCH_METHODS = [
     "suggest_latex", "suggest_plot_code",
     "research_profiles", "research_get_settings", "research_set_settings", "research_requirements",
     "guidelines_list", "guidelines_add", "guidelines_add_text", "guidelines_read", "guidelines_remove",
+    "outline_get_scope", "outline_set_scope", "outline_current", "outline_standard", "outline_suggest", "outline_apply",
 ]
 
 

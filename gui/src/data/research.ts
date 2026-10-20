@@ -178,7 +178,7 @@ export interface OutlineSection {
 }
 export interface OutlineCurrent { kind: ResearchKind; journal: string; journalName: string; sections: OutlineSection[] }
 export interface OutlineIgnored { title?: string; reason: string }
-/** outline_suggest: `ignored` lists reply items Python dropped as invalid, with the reason (optional field). */
-export interface OutlineProposal { items: OutlineItem[]; sent: SentReport; cost: number | null; model: string; ignored?: OutlineIgnored[] }
+/** outline_suggest: `dropped` lists reply items Python dropped as invalid (Python's key), with the reason (optional field). */
+export interface OutlineProposal { items: OutlineItem[]; sent: SentReport; cost: number | null; model: string; dropped?: OutlineIgnored[] }
 export interface OutlineStandard { name: string; items: OutlineItem[] }
 export interface OutlineApplied { changed: string[]; remap: Record<string, string>; skipped: { id: string; reason: string }[]; created: string[] }

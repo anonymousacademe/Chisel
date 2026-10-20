@@ -56,7 +56,7 @@ beforeEach(() => {
   m.outlineCurrent.mockResolvedValue(CURRENT);
   m.guidelinesList.mockResolvedValue({ ok: true, files: [{ name: "guide.pdf", type: "pdf", size: 1, chars: 10, extracted: true, message: "" }] });
   m.aiStart.mockResolvedValue({ ok: true, job: "j1" });
-  m.aiPoll.mockResolvedValue({ ok: true, state: "done", text: "", length: 0, elapsed: 1, cost: 0.01, result: { items: ITEMS, sent: SENT, cost: 0.01, model: "x", ignored: [{ title: "Bad", reason: "Unknown section." }] } });
+  m.aiPoll.mockResolvedValue({ ok: true, state: "done", text: "", length: 0, elapsed: 1, cost: 0.01, result: { items: ITEMS, sent: SENT, cost: 0.01, model: "x", dropped: [{ title: "Bad", reason: "Unknown section." }] } });
   m.aiCancel.mockResolvedValue({ ok: true, state: "cancelled" });
   m.outlineApply.mockResolvedValue({ ok: true, changed: ["m"], remap: { m: "m2" }, skipped: [{ id: "1", reason: "Gone." }], created: ["n"] });
 });

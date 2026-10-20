@@ -20,8 +20,8 @@ function destination(i: OutlineItem, sections: OutlineSection[]): string {
   const part = i.part ? `Part ${q(i.part)}` : "the top level";
   const anchor = i.after ? sections.find((s) => s.id === i.after) : undefined;
   if (anchor) return `to ${part}, after ${q(anchor.title)}`;
-  if (i.after === "") return `to the start of ${part}`;
-  return `to the end of ${part}`;
+  if (!i.after) return `to the start of ${part}`;   // Python: no anchor means the start of the part
+  return `to ${part}`;
 }
 
 /** One line saying what ticking this item will change. Titles are the sections' real current ones (looked up by section id). */
@@ -48,8 +48,8 @@ function insertAt(rows: PreviewRow[], row: PreviewRow, part: string, after: stri
   const at = after ? rows.findIndex((r) => r.key === after) : -1;
   if (at >= 0) { rows.splice(at + 1, 0, row); return; }
   const first = rows.findIndex((r) => r.part === part);
-  if (after === "" && first >= 0) { rows.splice(first, 0, row); return; }   // the start of the part
-  let last = -1;                                                           // no anchor or an unknown one: the end of the part
+  if (!after && first >= 0) { rows.splice(first, 0, row); return; }   // no anchor: the start of the part, as Python places it
+  let last = -1;                                                     // an unknown anchor: the end of the part
   rows.forEach((r, n) => { if (r.part === part) last = n; });
   if (last >= 0) rows.splice(last + 1, 0, row); else rows.push(row);
 }

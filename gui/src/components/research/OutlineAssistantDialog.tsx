@@ -104,7 +104,7 @@ export function OutlineAssistantDialog({ notify, onClose, requireAi, flushSave, 
       const r = await job.promise;
       const cur = await api.outlineCurrent();
       if (!cur.ok) return notify(cur.error, "error");
-      setIgnored(r.ignored ?? []); setSent(r.sent ?? null);
+      setIgnored(r.dropped ?? []); setSent(r.sent ?? null);
       toReview(r.items ?? [], cur, "Suggested outline");
     } catch (e) {
       if (e instanceof AiCancelled) notify("Stopped. Nothing was changed.");
