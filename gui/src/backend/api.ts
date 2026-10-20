@@ -12,10 +12,11 @@ import type {
   VoiceInfo,
 } from "../reader/types";
 import type { CustomRequirement, RequirementsProposal, OutlineApplied,OutlineCurrent, OutlineItem, OutlineProposal, OutlineStandard, GuidelineFile, GuidelineText, JournalProfile, RequirementsReport, ResearchKind, ResearchSettings, SourceCardInfo, SourceHit, SourceRow, SyncApplied, SyncPlan, SyncScope, ZoteroCollection, ZoteroSettings, ZoteroStatus } from "../data/research";
+import type { BuiltTable, FigureRunStatus, FigureTrustInfo, ObjectKind, ObjectPatch, ObjectRefs, ObjectRender, ObjectRow, TableAlign, TableData, TrustState } from "../data/research";
 import { call } from "./transport";
 
 /** AI job kinds (the AI job contract): the first four stream text, the rest answer once. */
-export type AiKind = "ask" | "research" | "brainstorm" | "generate" | "continuity" | "voice" | "canon" | "aliases" | "relationships" | "outline" | "requirements" | "style" | "image" | "image_regenerate" | "describe_scene";
+export type AiKind = "ask" | "research" | "brainstorm" | "generate" | "continuity" | "voice" | "canon" | "aliases" | "relationships" | "outline" | "latex" | "requirements" | "style" | "image" | "image_regenerate" | "describe_scene";
 export const STREAMING_KINDS: readonly AiKind[] = ["ask", "research", "brainstorm", "generate"];
 export type AiState = "running" | "done" | "cancelled" | "error";
 export interface AiPoll {
@@ -150,6 +151,33 @@ export const api = {
   requirementsSave: (rows: CustomRequirement[]) => call<{ rows: CustomRequirement[] }>("requirements_save", rows),
   requirementsRemove: (id: string) => call<{ rows: CustomRequirement[] }>("requirements_remove", id),
   requirementsSuggest: (instruction: string, guidelines: string[]) => call<RequirementsProposal>("requirements_suggest", instruction, guidelines),
+  // Figures, tables and equations (research projects; figures/ tables/ equations/). Python numbers and writes them.
+  listObjects: () => call<{ objects: ObjectRow[] }>("list_objects"),
+  objectNumbers: () => call<{ numbers: Record<string, { seq: number; display: string }> }>("object_numbers"),
+  objectRender: (ids: string[], images = true) => call<{ objects: ObjectRender[] }>("object_render", ids, images),
+  objectSuggestLabel: (kind: ObjectKind, caption: string) => call<{ label: string }>("object_suggest_label", kind, caption),
+  objectReferences: (id: string) => call<ObjectRefs>("object_references", id),
+  updateObject: (id: string, patch: ObjectPatch) =>
+    call<{ object: ObjectRow }>("update_object", id, patch.caption ?? null, patch.alt ?? null, patch.width ?? null, patch.latex ?? null),
+  trashObject: (id: string) => call<{ trashed: boolean; name: string }>("trash_object", id),
+  insertFigure: (dataUrl: string, label: string, caption = "") => call<{ id: string; object: ObjectRow }>("insert_figure", dataUrl, label, caption),
+  createTable: (label: string, caption: string, cells: string[][], align: TableAlign[]) =>
+    call<{ id: string; object: ObjectRow }>("create_table", label, caption, cells, align),
+  createEquation: (label: string, latex: string, caption = "") => call<{ id: string; object: ObjectRow }>("create_equation", label, latex, caption),
+  readTable: (id: string) => call<TableData>("read_table", id),
+  /** A stale base_mtime comes back as {ok: false, conflict: true, mtime, error}. */
+  saveTable: (id: string, cells: string[][], align: TableAlign[], baseMtime: string) =>
+    call<{ id: string; mtime: string; conflict?: boolean }>("save_table", id, cells, align, baseMtime),
+  buildTable: (id: string) => call<BuiltTable>("build_table", id),
+  applyTable: (id: string) => call<BuiltTable>("apply_table", id),
+  figureTrustInfo: (id: string) => call<FigureTrustInfo>("figure_trust_info", id),
+  trustFigure: (id: string, sha: string) => call<{ id: string; trust: TrustState }>("trust_figure", id, sha),
+  figureRunStart: (id: string) => call<{ job: string; id: string }>("figure_run_start", id),
+  figureRunStatus: (job: string) => call<FigureRunStatus>("figure_run_status", job),
+  figureRunCancel: (job: string) => call<{ job: string; state: string }>("figure_run_cancel", job),
+  /** Text only: the author's typed description goes out, nothing else. The reply is a proposal, never inserted. */
+  // suggest_latex runs as an AI job (aiStart kind "latex"); the direct call is the same method run synchronously.
+  suggestLatex: (description: string) => call<{ text: string; model: string; cost: number | null; sent?: unknown }>("suggest_latex", description),
   // Notebook notes (notebook/; "research" internally): plain Markdown, never indexed
   newResearchNote: (title: string, template = "") => call<{ id: string }>("new_research_note", title, template),
   /** Copies the selected passage into notebook/clippings.md (the scene is not changed). */

@@ -5,8 +5,8 @@ export const isOpenable = (n: BinderNode) =>
   !n.placeholder && (n.kind === "document" || n.kind === "entity" || n.kind === "style" || n.kind === "dictionary");
 
 /** Rows that do something other than open a document when clicked: a part is focused (and
- * toggled), Trash opens its dialog. */
-export const isActionable = (n: BinderNode) => !n.placeholder && (n.kind === "part" || n.kind === "trash");
+ * toggled), Trash opens its dialog, a figure / table / equation opens its card. */
+export const isActionable = (n: BinderNode) => !n.placeholder && (n.kind === "part" || n.kind === "trash" || n.kind === "object");
 
 export function collectExpanded(nodes: BinderNode[], out = new Set<string>()) {
   for (const n of nodes) { if (n.expanded) out.add(n.id); if (n.children) collectExpanded(n.children, out); }

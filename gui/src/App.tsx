@@ -34,6 +34,7 @@ import type { Dialog } from "./data/dialog";
 import { firstScene, sentence } from "./data/appLogic";
 import { importedLine } from "./data/script";
 import { contextActions, type MenuAction } from "./data/editorMenu";
+import { placeObject } from "./data/objects";
 import { citationCard } from "./data/research";
 import { unitWords, otherUnit } from "./data/unitWords";
 import { UnitContext } from "./data/unitContext";
@@ -322,6 +323,7 @@ export default function App() {
   const select = async (n: BinderNode) => {
     if (n.kind === "part") { setPartFocus(n.id); toggle(n.id); return; }
     if (n.kind === "trash" && !n.placeholder) { setDialog({ kind: "trash" }); return; }
+    if (n.kind === "object" && !n.placeholder) { setDialog({ kind: "object", id: n.id }); return; }
     if (!isOpenable(n)) return;
     if (n.kind === "dictionary") { // first open creates dictionary.txt with a comment header
       const r = await api.openDictionary();
@@ -596,6 +598,9 @@ export default function App() {
     ...(ws.project.mode === "script" ? [{ label: "Import a Fountain file…", onSelect: () => void importFountain() }] : []),
     ...(ws.project.mode === "research" ? [
       { label: `Cite a source… (${CITE_KEY_LABEL})`, onSelect: openCite },
+      { label: "Insert figure…", onSelect: () => openInsert("insert-figure") },
+      { label: "Insert table…", onSelect: () => openInsert("insert-table") },
+      { label: "Insert equation…", onSelect: () => openInsert("insert-equation") },
       { label: "Project settings…", onSelect: () => setDialog({ kind: "project-settings" }) },
       { label: "Journal requirements…", onSelect: () => setDialog({ kind: "requirements" }) },
       { label: "Guidelines…", onSelect: () => setDialog({ kind: "guidelines" }) },
@@ -654,6 +659,18 @@ export default function App() {
     if (!docRef.current || docRef.current.kind === "dictionary") { notify(`Open a ${unit} or note to cite into.`); return; }
     setDialog({ kind: "cite" });
   };
+  // -- figures, tables and equations (research projects) ----------------------------------------------------
+  const openInsert = (kind: "insert-figure" | "insert-table" | "insert-equation") => setDialog({ kind });
+  /** An object was created: its placement goes on its own line at the cursor of the open section. With no section open only the object exists, and the message says so. */
+  const placeCreatedObject = (id: string) => {
+    const d = docRef.current;
+    const placed = placeObject(editorRef.current, !!d && d.kind === "scene", id);
+    setDialog(null);
+    void refresh();
+    if (placed) setSpansVersion((v) => v + 1);
+    notify(placed ? `Inserted ${id} here.` : `Created ${id}. Open a section and place it with ![[${id}]] (or insert it again from the editor's right-click menu).`);
+  };
+  const objectsChanged = () => { void refresh(); setSpansVersion((v) => v + 1); };
   const openContextMenu = (info: ContextInfo) => {
     const ed = editorRef.current;
     const denied = (key: string) => (ok: boolean) => { if (!ok) notify(`The clipboard is not available here: use Ctrl ${key}.`); };
@@ -661,6 +678,7 @@ export default function App() {
       switch (a.id) {
         case "open-note": void openDoc(a.entityId); break;
         case "cite": openCite(); break;
+        case "insert-figure": case "insert-table": case "insert-equation": openInsert(a.id); break;
         case "create-note": setDialog({ kind: "new-note", name: a.name, openAfter: false }); break;
         case "brainstorm-selection": {
           const sel = ed?.selection(), d = docRef.current;
@@ -795,6 +813,7 @@ export default function App() {
             collections={ws.collections} activeCollection={activeCollection} onCollection={setCollection} onEditCollections={() => setDialog({ kind: "collections" })}
             onDropUrl={(url) => setDialog({ kind: "research-url", url })}
             onNewNote={() => setDialog({ kind: "new-research" })}
+            onInsertObject={ws.project.mode === "research" ? (k) => openInsert(k === "fig" ? "insert-figure" : k === "tbl" ? "insert-table" : "insert-equation") : undefined}
             onNew={() => setDialog(rail === "library" ? { kind: "new-note", name: "", openAfter: true } : { kind: "new-scene" })} onMenu={openSceneMenu} />
         )}
         <Editor story={ws.project.mode !== "research"} script={ws.project.mode === "script"} research={ws.project.mode === "research"} onOutlineAssistant={ws.project.mode === "research" ? () => setDialog({ kind: "outline-assistant" }) : undefined} names={{ characters: ws.entities.filter((e) => e.type === "character").map((e) => e.name), places: ws.entities.filter((e) => e.type === "place").map((e) => e.name) }} doc={doc} scenes={ws.scenes} filter={boardFilter}
@@ -876,7 +895,7 @@ export default function App() {
         chatList={chatList} chatId={chatId} chatIdRef={chatIdRef} setPersist={setPersist} attachments={attachments} setAttachments={setAttachments}
         loadChat={loadChat} newChat={newChat} renameChat={renameChat} deleteChat={deleteChat}
         createResearch={createResearch} researchFromUrl={researchFromUrl} deleteResearch={deleteResearch}
-        researchMode={researchMode} setAssistantOpen={setAssistantOpen} onQuick={onQuick} insertCitation={insertCitation}
+        researchMode={researchMode} setAssistantOpen={setAssistantOpen} onQuick={onQuick} insertCitation={insertCitation} placeObject={placeCreatedObject} objectsChanged={objectsChanged}
         createCollection={createCollection} recolorCollection={recolorCollection} renameCollection={renameCollection} deleteCollection={deleteCollection} />
       <Toasts notices={notices} onDismiss={dismiss} />
     </div>
