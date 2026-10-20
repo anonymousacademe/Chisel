@@ -26,6 +26,8 @@ import { ZoteroSettingsDialog } from "./research/ZoteroSettingsDialog";
 import { ProjectSettingsDialog } from "./research/ProjectSettingsDialog";
 import { RequirementsDialog } from "./research/RequirementsDialog";
 import { GuidelinesDialog } from "./research/GuidelinesDialog";
+import { OutlineAssistantDialog } from "./research/OutlineAssistantDialog";
+import { follow } from "../data/reorder";
 import { SyncReviewDialog } from "./research/SyncReviewDialog";
 import { CiteDialog } from "./research/CiteDialog";
 
@@ -79,6 +81,8 @@ export interface AppDialogsProps {
   setInspRev: Dispatch<SetStateAction<number>>;
   restoreSnapshot: (snapshotId: string) => Promise<boolean>;
   flushSave: () => Promise<boolean>;
+  /** False (and Settings opens) when no AI key is set. */
+  requireAi: () => boolean;
   setSnapshotAt: Dispatch<SetStateAction<string | null>>;
   startNewDraft: () => Promise<void>;
   syncCommit: (message: string) => Promise<void>;
@@ -126,7 +130,7 @@ export function AppDialogs(p: AppDialogsProps) {
     restoreSnapshot, flushSave, setSnapshotAt, startNewDraft, syncCommit, syncPush, syncInit, addComment, commentPop, setCommentPop, popComment,
     commentCall, chatList, chatId, chatIdRef, setPersist, attachments, setAttachments, loadChat, newChat, renameChat, deleteChat,
     createResearch, researchFromUrl, deleteResearch, researchMode, setAssistantOpen, onQuick, insertCitation,
-    createCollection, recolorCollection, renameCollection, deleteCollection,
+    createCollection, recolorCollection, renameCollection, deleteCollection, requireAi,
   } = p;
   return (
     <>
@@ -220,6 +224,10 @@ export function AppDialogs(p: AppDialogsProps) {
       {dialog?.kind === "project-settings" && <ProjectSettingsDialog notify={notify} onSaved={onProjectSettingsSaved} onClose={() => setDialog(null)} />}
       {dialog?.kind === "requirements" && <RequirementsDialog notify={notify} onClose={() => setDialog(null)} />}
       {dialog?.kind === "guidelines" && <GuidelinesDialog notify={notify} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "outline-assistant" && (
+        <OutlineAssistantDialog notify={notify} requireAi={requireAi} flushSave={flushSave} refresh={refresh} onClose={() => setDialog(null)}
+          onApplied={async (remap) => { await refresh(); if (doc) await openDoc(follow(doc.id, remap), { force: true, keepMode: true }); }} />
+      )}
       {dialog?.kind === "zotero-settings" && <ZoteroSettingsDialog notify={notify} onClose={() => setDialog(null)} />}
       {dialog?.kind === "cite" && <CiteDialog notify={notify} onInsert={insertCitation} onSync={() => setDialog({ kind: "zotero-sync" })} onClose={() => setDialog(null)} />}
       {dialog?.kind === "zotero-sync" && <SyncReviewDialog notify={notify} onApplied={() => void refresh()} onClose={() => setDialog(null)} />}

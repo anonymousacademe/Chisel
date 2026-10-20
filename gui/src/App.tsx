@@ -599,6 +599,7 @@ export default function App() {
       { label: "Project settings…", onSelect: () => setDialog({ kind: "project-settings" }) },
       { label: "Journal requirements…", onSelect: () => setDialog({ kind: "requirements" }) },
       { label: "Guidelines…", onSelect: () => setDialog({ kind: "guidelines" }) },
+      { label: "Outline assistant…", onSelect: () => setDialog({ kind: "outline-assistant" }) },
       { label: "Zotero settings…", onSelect: () => setDialog({ kind: "zotero-settings" }) },
       { label: "Sync sources from Zotero…", onSelect: () => setDialog({ kind: "zotero-sync" }) },
     ] : []),
@@ -796,7 +797,7 @@ export default function App() {
             onNewNote={() => setDialog({ kind: "new-research" })}
             onNew={() => setDialog(rail === "library" ? { kind: "new-note", name: "", openAfter: true } : { kind: "new-scene" })} onMenu={openSceneMenu} />
         )}
-        <Editor story={ws.project.mode !== "research"} script={ws.project.mode === "script"} research={ws.project.mode === "research"} names={{ characters: ws.entities.filter((e) => e.type === "character").map((e) => e.name), places: ws.entities.filter((e) => e.type === "place").map((e) => e.name) }} doc={doc} scenes={ws.scenes} filter={boardFilter}
+        <Editor story={ws.project.mode !== "research"} script={ws.project.mode === "script"} research={ws.project.mode === "research"} onOutlineAssistant={ws.project.mode === "research" ? () => setDialog({ kind: "outline-assistant" }) : undefined} names={{ characters: ws.entities.filter((e) => e.type === "character").map((e) => e.name), places: ws.entities.filter((e) => e.type === "place").map((e) => e.name) }} doc={doc} scenes={ws.scenes} filter={boardFilter}
           onEditCollections={() => setDialog({ kind: "scene-collections" })} parts={ws.parts} unit={unit} parked={ws.project.labels.parked} words={words} mentions={mentions} reflow={reflow}
           sessionWords={ws.status.sessionWords} sessionMinutes={ws.status.sessionMinutes}
           onEditDetails={() => setDialog({ kind: "details" })} onMoveRequest={(plan) => setDialog({ kind: "move", plan })}
@@ -869,7 +870,7 @@ export default function App() {
         createScene={createScene} renameScene={renameScene} deleteScene={deleteScene} createPart={createPart} renamePart={renamePart}
         deletePart={deletePart} placeScene={placeScene} performMove={performMove} saveDetails={saveDetails}
         sprintFocus={sprintFocus} startSprint={startSprint} endSprint={endSprint} setInspRev={setInspRev}
-        restoreSnapshot={restoreSnapshot} flushSave={() => saver.flush()} setSnapshotAt={setSnapshotAt} startNewDraft={startNewDraft}
+        restoreSnapshot={restoreSnapshot} flushSave={() => saver.flush()} requireAi={requireAi} setSnapshotAt={setSnapshotAt} startNewDraft={startNewDraft}
         syncCommit={syncCommit} syncPush={syncPush} syncInit={syncInit}
         addComment={addComment} commentPop={commentPop} setCommentPop={setCommentPop} popComment={popComment} commentCall={commentCall}
         chatList={chatList} chatId={chatId} chatIdRef={chatIdRef} setPersist={setPersist} attachments={attachments} setAttachments={setAttachments}

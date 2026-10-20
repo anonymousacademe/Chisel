@@ -11,11 +11,11 @@ import type {
   DownloadStatus, EndpointCost, EngineId, KokoroStatus, OpenRouterModel, ReadOptions, ReadPlan, SpeechInfo, SpeechPrefs,
   VoiceInfo,
 } from "../reader/types";
-import type { GuidelineFile, GuidelineText, JournalProfile, RequirementsReport, ResearchKind, ResearchSettings, SourceCardInfo, SourceHit, SourceRow, SyncApplied, SyncPlan, SyncScope, ZoteroCollection, ZoteroSettings, ZoteroStatus } from "../data/research";
+import type { OutlineApplied, OutlineCurrent, OutlineItem, OutlineProposal, OutlineStandard, GuidelineFile, GuidelineText, JournalProfile, RequirementsReport, ResearchKind, ResearchSettings, SourceCardInfo, SourceHit, SourceRow, SyncApplied, SyncPlan, SyncScope, ZoteroCollection, ZoteroSettings, ZoteroStatus } from "../data/research";
 import { call } from "./transport";
 
 /** AI job kinds (the AI job contract): the first four stream text, the rest answer once. */
-export type AiKind = "ask" | "research" | "brainstorm" | "generate" | "continuity" | "voice" | "canon" | "aliases" | "relationships" | "style" | "image" | "image_regenerate" | "describe_scene";
+export type AiKind = "ask" | "research" | "brainstorm" | "generate" | "continuity" | "voice" | "canon" | "aliases" | "relationships" | "outline" | "style" | "image" | "image_regenerate" | "describe_scene";
 export const STREAMING_KINDS: readonly AiKind[] = ["ask", "research", "brainstorm", "generate"];
 export type AiState = "running" | "done" | "cancelled" | "error";
 export interface AiPoll {
@@ -137,6 +137,14 @@ export const api = {
   guidelinesAddText: (title: string, text: string) => call<{ name: string }>("guidelines_add_text", title, text),
   guidelinesRead: (name: string, limit = 20000) => call<GuidelineText>("guidelines_read", name, limit),
   guidelinesRemove: (name: string) => call("guidelines_remove", name),
+  // Outline assistant: the scope paragraph, the current outline, the standard structure (no AI) and apply (ticked items only).
+  // outline_suggest runs as an AI job (aiStart kind "outline"); the direct call is the same method run synchronously.
+  outlineGetScope: () => call<{ text: string }>("outline_get_scope"),
+  outlineSetScope: (text: string) => call("outline_set_scope", text),
+  outlineCurrent: () => call<OutlineCurrent>("outline_current"),
+  outlineStandard: () => call<OutlineStandard>("outline_standard"),
+  outlineSuggest: (instruction: string, guidelines: string[]) => call<OutlineProposal>("outline_suggest", instruction, guidelines),
+  outlineApply: (items: OutlineItem[]) => call<OutlineApplied>("outline_apply", items),
   // Notebook notes (notebook/; "research" internally): plain Markdown, never indexed
   newResearchNote: (title: string, template = "") => call<{ id: string }>("new_research_note", title, template),
   /** Copies the selected passage into notebook/clippings.md (the scene is not changed). */

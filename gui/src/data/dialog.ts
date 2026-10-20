@@ -47,4 +47,5 @@ export type Dialog =
   | { kind: "project-settings" }
   | { kind: "requirements" }
   | { kind: "guidelines" }
+  | { kind: "outline-assistant" }
   | null;

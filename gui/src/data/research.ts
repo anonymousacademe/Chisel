@@ -112,6 +112,8 @@ export function citationCard(span: { status?: string; keys?: string[]; label?: s
 /** Plain-words fallback when the paper's Zotero collections cannot be read. */
 export const COLLECTIONS_FALLBACK = "Zotero's collections could not be read. Is Zotero running?";
 
+import type { SentReport } from "./types";
+
 // -- Journal profiles, requirements and guidelines (project settings, Journal requirements, Guidelines) ----
 
 export type ResearchKind = "manuscript" | "proposal";
@@ -162,3 +164,21 @@ export function fileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
+
+// -- Outline assistant (wave D). Python decides what is proposed and applies it; this is only the shape. ----
+
+export type OutlineAction = "add" | "rename" | "move" | "keep" | "advice";
+/** One proposed change. For add: `title` is the new section; for rename / move / keep: the existing section's current title. */
+export interface OutlineItem {
+  id: string; action: OutlineAction; title: string;
+  section?: string; newTitle?: string; part?: string; after?: string; purpose?: string; why?: string;
+}
+export interface OutlineSection {
+  id: string; title: string; part: string; partTitle: string; frontMatter: boolean; position: number; words: number; purpose: string;
+}
+export interface OutlineCurrent { kind: ResearchKind; journal: string; journalName: string; sections: OutlineSection[] }
+export interface OutlineIgnored { title?: string; reason: string }
+/** outline_suggest: `ignored` lists reply items Python dropped as invalid, with the reason (optional field). */
+export interface OutlineProposal { items: OutlineItem[]; sent: SentReport; cost: number | null; model: string; ignored?: OutlineIgnored[] }
+export interface OutlineStandard { name: string; items: OutlineItem[] }
+export interface OutlineApplied { changed: string[]; remap: Record<string, string>; skipped: { id: string; reason: string }[]; created: string[] }
