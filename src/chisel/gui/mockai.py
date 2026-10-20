@@ -311,7 +311,29 @@ def install(api_module) -> None:
                       "why": "Each section should serve the question in the scope statement."})
         return _stream(json.dumps({"items": items}, indent=1), on_delta, cancel)
 
+    def suggest_requirements(context, model, client=None, cancel=None, on_delta=None):
+        _pause(1.5)
+        _spend("requirements")
+        names = re.findall(r"^GUIDELINE DOCUMENT (\S+) ", context, re.MULTILINE)
+        src = names[0] if names else ""
+        body = context.split("GUIDELINE DOCUMENT", 1)[-1].split("\n", 1)[-1].strip()
+        first = re.split(r"(?<=[.!?])\s+", body)[0][:200] if body else ""
+        items = [
+            {"id": "abstract-words", "group": "Abstract", "title": "Abstract is at most 250 words",
+             "kind": "check", "check": "section-words-max", "section": ["abstract"], "max": 250,
+             "severity": "warn", "source": src, "quote": first,
+             "why": "The guideline limits the abstract."},
+            {"id": "keywords-count", "group": "Keywords", "title": "3 to 6 keywords", "kind": "check",
+             "check": "list-count", "section": ["keywords"], "min": 3, "max": 6, "severity": "warn",
+             "source": src, "quote": "Authors must supply between three and six keywords after the abstract.",
+             "why": "The guideline asks for a short keyword list."},
+            {"id": "cover-letter", "group": "Submission", "title": "Prepare a cover letter", "kind": "advice",
+             "severity": "info", "source": src, "quote": first, "why": "It cannot be checked in the text."},
+        ]
+        return _stream(json.dumps({"items": items}, indent=1), on_delta, cancel)
+
     api_module.suggest_outline = suggest_outline
+    api_module.suggest_requirements = suggest_requirements
     api_module.generate_images = generate_images
     api_module.suggest_image_prompt = suggest_image_prompt
     api_module.suggest_latex = suggest_latex
