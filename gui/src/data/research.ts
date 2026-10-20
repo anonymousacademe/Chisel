@@ -158,6 +158,26 @@ export function requirementSummary(s: RequirementsReport["summary"]): string {
   return [`${s.ok} ok`, n(s.warn, "needs attention", "need attention"), n(s.advice, "reminder", "reminders")].join(", ");
 }
 
+// -- Custom requirements (wave E). Python validates and evaluates them; this is only the shape. ----
+
+export type CustomCheck =
+  | "section-present" | "section-words-max" | "section-no-citations" | "list-count" | "last-section"
+  | "objects-captioned" | "objects-referenced" | "citations-resolved" | "sources-doi";
+export type CustomSeverity = "warn" | "info";
+
+/** A row of requirements.toml: the schema of the journal profile rows plus where it came from. */
+export interface CustomRequirement {
+  id: string; group: string; title: string; kind: "check" | "advice";
+  check?: CustomCheck; section?: string[]; min?: number; max?: number; item_chars_max?: number; object?: ObjectKind;
+  severity: CustomSeverity; source?: string; quote?: string;
+}
+/** One proposed row. `verified` is set by the app: the quote was found in that guideline's text. */
+export interface SuggestedRequirement extends CustomRequirement { why: string; verified: boolean }
+export interface RequirementDropped { id?: string; title?: string; reason: string }
+export interface RequirementsProposal {
+  items: SuggestedRequirement[]; dropped?: RequirementDropped[]; sent: SentReport; cost: number | null; model: string;
+}
+
 /** A readable size: "1.2 MB". */
 export function fileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

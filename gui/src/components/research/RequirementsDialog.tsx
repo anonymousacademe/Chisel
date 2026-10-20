@@ -5,6 +5,7 @@ import { REQUIREMENT_LABEL, requirementSummary, type RequirementStatus, type Req
 import { Modal } from "../Dialogs";
 import { Icon } from "../primitives";
 import { SourceLine } from "./SourceLine";
+import { ManageRequirements } from "./ManageRequirements";
 
 type Notify = (text: string, tone?: "info" | "error") => void;
 
@@ -68,6 +69,7 @@ export function RequirementsDialog({ onClose, notify }: { onClose: () => void; n
             ))}
           </>
         )}
+        <ManageRequirements notify={notify} onChanged={() => void load()} />
       </div>
       <div className="lw-dialog__buttons">
         <button className="lw-btn" disabled={busy} onClick={() => void load()}>{busy ? "Checking…" : "Check again"}</button>

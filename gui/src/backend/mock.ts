@@ -3,6 +3,7 @@
 // chisel.gui.api.Api; methods it does not implement return an error so the
 // UI shows "not available" instead of inventing results.
 import type { BinderNode, DocumentPayload, EntityInfo, EntitySummary, InspirationImage, SceneMention, SceneSummary, SentReport, Workspace } from "../data/types";
+import type { CustomRequirement, SuggestedRequirement } from "../data/research";
 
 const CH07 = [
   "The city woke before Mara did. It moved beneath the floorboards in small electrical sighs, drawing yesterday’s rain back through the copper veins of the building. By three seventeen, every window on Vesper Street had clouded from the inside.",
@@ -130,6 +131,7 @@ function mockResult(kind: string, args: Record<string, unknown>): Record<string,
     case "canon": return { updates: [], cost: 0.002, sent: sampleSent("canon") };
     case "aliases": return { suggestions: [], cost: 0.002, sent: sampleSent("aliases") };
     case "outline": return { items: mockOutlineItems(), cost: 0.002, model: "mock", sent: sampleSent("outline"), dropped: MOCK_OUTLINE_IGNORED };
+    case "requirements": return mockRequirementsProposal((args.guidelines as string[]) ?? []);
     case "style": return { markdown: "# Style guide\n\nShort, concrete sentences.", replacing: false, samples: 3, cost: 0.004 };
     case "describe_scene": return { prompt: "A rain-lit kitchen at 3 a.m., a terminal glowing behind smoked glass.", model: "mock", cost: 0.001 };
     case "image": case "image_regenerate": return { images: [], cost: 0.03 };
@@ -207,6 +209,65 @@ const mockGuidelines = [
   { name: "ems-guide.pdf", type: "pdf", size: 183200, chars: 41210, extracted: true, message: "" },
   { name: "scanned-call.pdf", type: "pdf", size: 904100, chars: 0, extracted: false, message: "No text could be read from this PDF. It may be a scan." },
 ];
+
+// -- Custom requirements (wave E): the contract of requirements_* with an in-memory requirements.toml.
+let mockCustom: CustomRequirement[] = [];
+const MOCK_CHECKS = ["section-present", "section-words-max", "section-no-citations", "list-count", "last-section",
+  "objects-captioned", "objects-referenced", "citations-resolved", "sources-doi"];
+/** Python's rules, roughly: a plain message naming the row, or "" when every row is fine. */
+function validateCustom(rows: unknown): string {
+  if (!Array.isArray(rows)) return "The requirements must be a list.";
+  if (rows.length > 100) return "At most 100 requirements are allowed.";
+  const seen = new Set<string>();
+  for (const raw of rows as Partial<CustomRequirement>[]) {
+    const name = `"${raw.title || raw.id || "a requirement"}"`;
+    if (!raw.id || seen.has(raw.id)) return `${name}: the id is missing or used twice.`;
+    seen.add(raw.id);
+    if (!raw.title || raw.title.length > 160 || raw.title.includes("\n")) return `${name}: the title must be one line of 1 to 160 characters.`;
+    if (raw.kind === "advice") continue;
+    if (raw.kind !== "check" || !raw.check || !MOCK_CHECKS.includes(raw.check)) return `${name}: this kind of check is not available.`;
+    const need = ["section-present", "section-words-max", "section-no-citations", "list-count", "last-section"].includes(raw.check);
+    if (need && (!raw.section || raw.section.length < 1 || raw.section.length > 6 || raw.section.some((s) => !s || s.length > 60)))
+      return `${name}: give 1 to 6 section names of up to 60 characters.`;
+    for (const key of ["min", "max"] as const) {
+      const v = raw[key];
+      if (v !== undefined && (!Number.isInteger(v) || v < 0 || v > 100000)) return `${name}: ${key} must be a whole number from 0 to 100000.`;
+    }
+    if (raw.item_chars_max !== undefined && (!Number.isInteger(raw.item_chars_max) || raw.item_chars_max < 1 || raw.item_chars_max > 10000))
+      return `${name}: the character limit must be a whole number from 1 to 10000.`;
+    if (raw.check === "section-words-max" && raw.max === undefined) return `${name}: a word limit is needed.`;
+  }
+  return "";
+}
+const mockCustomGroups = () => {
+  const by = new Map<string, { id: string; title: string; status: string; message: string }[]>();
+  for (const r of mockCustom) {
+    const g = r.group || "Your requirements";
+    by.set(g, [...(by.get(g) ?? []), r.kind === "advice"
+      ? { id: r.id, title: r.title, status: "advice", message: r.title }
+      : { id: r.id, title: r.title, status: "na", message: "Checked by the app against your paper." }]);
+  }
+  return [...by].map(([title, items]) => ({ title, items }));
+};
+/** A believable proposal; the last item's quote is not in any guideline, so the unverified path shows. */
+function mockRequirementsProposal(names: string[]) {
+  const source = names[0] ?? "ems-guide.pdf";
+  const base = { group: "Your requirements", kind: "check" as const, severity: "warn" as const, source };
+  const items: SuggestedRequirement[] = [
+    { ...base, id: "abstract-150", title: "Abstract length", check: "section-words-max", section: ["abstract"], max: 150,
+      quote: "The abstract must not exceed 150 words.", why: "The guide sets a hard limit on the abstract.", verified: true },
+    { ...base, id: "keywords-count", title: "Keywords", check: "list-count", section: ["keywords"], min: 3, max: 6, item_chars_max: 40,
+      quote: "Provide 3 to 6 keywords, each at most 40 characters.", why: "The guide asks for a short keyword list.", verified: true },
+    { ...base, id: "figures-captioned", title: "Figure captions", check: "objects-captioned", object: "fig",
+      quote: "Every figure needs a descriptive caption.", why: "The guide asks for captions on all figures.", verified: true },
+    { ...base, id: "highlights-count", title: "Highlights", check: "list-count", section: ["highlights"], min: 3, max: 5,
+      quote: "Include three to five highlights of at most 85 characters each.", why: "Journals of this publisher usually ask for highlights.", verified: false },
+  ];
+  return {
+    items, cost: 0.003, model: "mock", sent: sampleSent("requirements"),
+    dropped: [{ id: "tone", title: "Writing style", reason: "Not something the app can check (kind: tone)." }],
+  };
+}
 
 // -- Outline assistant (wave D): the contract of outline_* with a small in-memory manuscript.
 let mockScope = "";
@@ -287,7 +348,19 @@ export function mockCall(method: string, args: unknown[]): object {
           { id: "keywords", title: "Keywords", status: "ok", message: "5 keywords." },
           { id: "software-availability", title: "Software availability", status: "advice", message: "State where the software can be obtained, with its version." },
         ] },
-      ] };
+      ].concat(mockCustomGroups()) };
+    case "requirements_custom": return { ok: true, rows: structuredClone(mockCustom) };
+    case "requirements_save": {
+      const bad = validateCustom(args[0]);
+      if (bad) return { ok: false, error: bad };
+      mockCustom = structuredClone(args[0] as CustomRequirement[]);
+      return { ok: true, rows: structuredClone(mockCustom) };
+    }
+    case "requirements_remove": {
+      mockCustom = mockCustom.filter((r) => r.id !== args[0]);
+      return { ok: true, rows: structuredClone(mockCustom) };
+    }
+    case "requirements_suggest": return { ok: true, ...mockRequirementsProposal((args[1] as string[]) ?? []) };
     case "guidelines_list": return { ok: true, files: mockGuidelines.map((g) => ({ ...g })) };
     case "guidelines_add": return { ok: true, added: [], skipped: [] };
     case "guidelines_add_text": {
