@@ -11,3 +11,5 @@ code), and **Unplaced Scenes** is **Parked scenes** in the desktop UI (the folde
 
 [packaging.md](packaging.md) describes the current build and release process, including where the icons come
 from. The logo artwork is in [../brand/](../brand/README.md).
+
+[long-project-test/](long-project-test/README.md) is the October 2026 long-novel stress test of the AI features (report PDF and summary).
