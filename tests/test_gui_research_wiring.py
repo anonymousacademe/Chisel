@@ -14,6 +14,7 @@ RESEARCH_METHODS = [
     "research_profiles", "research_get_settings", "research_set_settings", "research_requirements",
     "guidelines_list", "guidelines_add", "guidelines_add_text", "guidelines_read", "guidelines_remove",
     "outline_get_scope", "outline_set_scope", "outline_current", "outline_standard", "outline_suggest", "outline_apply",
+    "requirements_custom", "requirements_save", "requirements_remove", "requirements_suggest",
 ]
 
 

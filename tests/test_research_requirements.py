@@ -516,10 +516,8 @@ def snapshot_files(root):
 
 
 def test_bridge_custom_save_remove(tmp_path):
-    from chisel.gui.research_requirements_api import ResearchRequirementsMixin
-    assert issubclass(Api, ResearchRequirementsMixin) or True      # the lead wires the mixin into ResearchMixin
     p = make(tmp_path)
-    api = type("A", (ResearchRequirementsMixin, Api), {})()
+    api = Api()
     api._load(p)
     assert api.requirements_custom() == {"ok": True, "rows": []}
     r = api.requirements_save([row()])
@@ -532,8 +530,7 @@ def test_bridge_custom_save_remove(tmp_path):
 
 
 def test_bridge_refuses_a_story_project(tmp_path):
-    from chisel.gui.research_requirements_api import ResearchRequirementsMixin
-    api = type("A", (ResearchRequirementsMixin, Api), {})()
+    api = Api()
     api._load(Project.create(tmp_path / "s", "S"))
     for call in (api.requirements_custom, lambda: api.requirements_save([]),
                  lambda: api.requirements_suggest("", ["a.md"])):
@@ -542,7 +539,6 @@ def test_bridge_refuses_a_story_project(tmp_path):
 
 
 def test_suggest_is_mocked_verifies_and_changes_no_file(tmp_path, monkeypatch):
-    from chisel.gui.research_requirements_api import ResearchRequirementsMixin
     p = make(tmp_path)
     guidelines.add_text(p, "Rules", GUIDE)
     cr.save_custom(p, [row(id="abstract-words", title="Mine already")])
@@ -556,7 +552,7 @@ def test_suggest_is_mocked_verifies_and_changes_no_file(tmp_path, monkeypatch):
                  source="rules.md")]})
 
     monkeypatch.setattr(api_module, "suggest_requirements", fake)
-    api = type("A", (ResearchRequirementsMixin, Api), {})()
+    api = Api()
     api._load(p)
     before = snapshot_files(p.root)
     r = api.requirements_suggest("", ["rules.md"])
@@ -657,8 +653,7 @@ def test_save_and_remove_refuse_to_overwrite_an_unreadable_file(tmp_path):
 def test_bridge_save_refuses_unreadable_file_cleanly(tmp_path):
     p = make(tmp_path)
     (p.root / "requirements.toml").write_bytes(UNREADABLE_FILE.encode())
-    from chisel.gui.research_requirements_api import ResearchRequirementsMixin
-    api = type("A", (ResearchRequirementsMixin, Api), {})()
+    api = Api()
     api._load(p)
     out = api.requirements_save([{"id": "new", "title": "N", "kind": "advice"}])
     assert out["ok"] is False and "will not overwrite" in out["error"]
@@ -724,8 +719,7 @@ def test_oversized_file_is_not_read(tmp_path):
 
 def test_suggested_id_avoids_profile_ids(tmp_path, monkeypatch):
     p = make(tmp_path)
-    from chisel.gui.research_requirements_api import ResearchRequirementsMixin
-    api = type("A", (ResearchRequirementsMixin, Api), {})()
+    api = Api()
     api._load(p)
     guidelines.add_text(p, "Rules", GUIDE)
     profile_id = p.research_profile().requirements[0].id
