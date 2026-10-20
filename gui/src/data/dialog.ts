@@ -48,4 +48,8 @@ export type Dialog =
   | { kind: "requirements" }
   | { kind: "guidelines" }
   | { kind: "outline-assistant" }
+  | { kind: "insert-figure" }
+  | { kind: "insert-table" }
+  | { kind: "insert-equation" }
+  | { kind: "object"; id: string }
   | null;

@@ -22,6 +22,7 @@ export type MenuAction =
   | { id: "create-note"; label: string; name: string }
   | { id: "brainstorm-selection"; label: string }
   | { id: "cite"; label: string }
+  | { id: "insert-figure" | "insert-table" | "insert-equation"; label: string }
   | { id: "selection-to-notebook"; label: string }
   | { id: "selection-to-dictionary"; label: string }
   | { id: "cut" | "copy" | "paste" | "select-all"; label: string; disabled?: boolean }
@@ -47,7 +48,10 @@ export function contextActions(target: ContextTarget, entities: MenuEntity[]): M
   } else if (!has && word && word.length >= 2 && /\p{L}/u.test(word)) {
     notes.push({ id: "create-note", label: `Create note from “${short(word)}”…`, name: word });
   }
-  if (target.research) notes.push({ id: "cite", label: "Cite…" });
+  if (target.research) {
+    notes.push({ id: "cite", label: "Cite…" });
+    notes.push({ id: "insert-figure", label: "Insert figure…" }, { id: "insert-table", label: "Insert table…" }, { id: "insert-equation", label: "Insert equation…" });
+  }
   const selected: MenuAction[] = has
     ? [...(/\p{L}/u.test(selection!) ? [{ id: "brainstorm-selection" as const, label: "Brainstorm about this…" }] : []),
        { id: "selection-to-notebook", label: "Send selection to notebook" },

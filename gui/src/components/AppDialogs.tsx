@@ -30,6 +30,8 @@ import { OutlineAssistantDialog } from "./research/OutlineAssistantDialog";
 import { follow } from "../data/reorder";
 import { SyncReviewDialog } from "./research/SyncReviewDialog";
 import { CiteDialog } from "./research/CiteDialog";
+import { InsertEquationDialog, InsertFigureDialog, InsertTableDialog } from "./research/objects/InsertDialogs";
+import { ObjectDialog } from "./research/objects/ObjectDialog";
 
 type Notify = (text: string, tone?: Notice["tone"], action?: Notice["action"]) => void;
 type Collections = ComponentProps<typeof CollectionsManager>;
@@ -114,6 +116,10 @@ export interface AppDialogsProps {
   onQuick: (a: "research") => void;
   /** Cite dialog: put this text at the cursor of the open document. */
   insertCitation: (text: string) => void;
+  /** An object was just created: put its placement in the open section (or say there is none), refresh, close. */
+  placeObject: (id: string) => void;
+  /** An object changed or was trashed: refresh the binder and the editor's widgets. */
+  objectsChanged: () => void;
   // collections
   createCollection: Collections["onCreate"];
   recolorCollection: Collections["onRecolor"];
@@ -129,7 +135,7 @@ export function AppDialogs(p: AppDialogsProps) {
     createPart, renamePart, deletePart, placeScene, performMove, saveDetails, sprintFocus, startSprint, endSprint, setInspRev,
     restoreSnapshot, flushSave, setSnapshotAt, startNewDraft, syncCommit, syncPush, syncInit, addComment, commentPop, setCommentPop, popComment,
     commentCall, chatList, chatId, chatIdRef, setPersist, attachments, setAttachments, loadChat, newChat, renameChat, deleteChat,
-    createResearch, researchFromUrl, deleteResearch, researchMode, setAssistantOpen, onQuick, insertCitation,
+    createResearch, researchFromUrl, deleteResearch, researchMode, setAssistantOpen, onQuick, insertCitation, placeObject, objectsChanged,
     createCollection, recolorCollection, renameCollection, deleteCollection, requireAi,
   } = p;
   return (
@@ -230,7 +236,11 @@ export function AppDialogs(p: AppDialogsProps) {
       )}
       {dialog?.kind === "zotero-settings" && <ZoteroSettingsDialog notify={notify} onClose={() => setDialog(null)} />}
       {dialog?.kind === "cite" && <CiteDialog notify={notify} onInsert={insertCitation} onSync={() => setDialog({ kind: "zotero-sync" })} onClose={() => setDialog(null)} />}
-      {dialog?.kind === "zotero-sync" && <SyncReviewDialog notify={notify} onApplied={() => void refresh()} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "insert-figure" && <InsertFigureDialog notify={notify} onCreated={placeObject} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "insert-table" && <InsertTableDialog notify={notify} onCreated={placeObject} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "insert-equation" && <InsertEquationDialog notify={notify} onCreated={placeObject} requireAi={requireAi} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "object" && <ObjectDialog id={dialog.id} notify={notify} onChanged={objectsChanged} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "zotero-sync" &&<SyncReviewDialog notify={notify} onApplied={() => void refresh()} onClose={() => setDialog(null)} />}
       {dialog?.kind === "export" && <ExportDialog unit={unit} notify={notify} onClose={() => setDialog(null)} />}
       {dialog?.kind === "new-draft" && (
         <ConfirmDialog title={`Start draft ${ws.project.draft + 1}`} confirm="Start new draft" tone="primary"

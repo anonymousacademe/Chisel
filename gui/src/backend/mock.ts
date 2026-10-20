@@ -4,6 +4,7 @@
 // UI shows "not available" instead of inventing results.
 import type { BinderNode, DocumentPayload, EntityInfo, EntitySummary, InspirationImage, SceneMention, SceneSummary, SentReport, Workspace } from "../data/types";
 import type { CustomRequirement, SuggestedRequirement } from "../data/research";
+import { mockObjectGroups, mockObjectsCall } from "./mockObjects";
 
 const CH07 = [
   "The city woke before Mara did. It moved beneath the floorboards in small electrical sighs, drawing yesterday’s rain back through the copper veins of the building. By three seventeen, every window on Vesper Street had clouded from the inside.",
@@ -421,7 +422,15 @@ export function mockCall(method: string, args: unknown[]): object {
     case "ai_start": return aiStart(String(args[0]), (args[1] ?? {}) as Record<string, unknown>);
     case "ai_poll": return aiPoll(String(args[0]), Number(args[1] ?? 0));
     case "ai_cancel": return aiCancel(String(args[0]));
-    case "get_workspace": return { ok: true, workspace: structuredClone(workspace) };
+    case "get_workspace": {
+      const ws = structuredClone(workspace);
+      // research projects only: the Figures / Tables / Equations groups sit after the Notebook (Concepts) group
+      if (ws?.project.mode === "research") {
+        const at = ws.binder.findIndex((n) => n.id === "group:research" || n.id === "ph:research");
+        ws.binder.splice(at < 0 ? ws.binder.length : at + 1, 0, ...mockObjectGroups());
+      }
+      return { ok: true, workspace: ws };
+    }
     case "read_document": {
       const doc = readDocument(String(args[0]));
       return doc ? { ok: true, ...doc } : { ok: false, error: "no such document" };
@@ -475,6 +484,11 @@ export function mockCall(method: string, args: unknown[]): object {
     case "open_project": case "new_project": workspace = buildWorkspace(); return { ok: true };
     case "choose_folder": return { ok: true, path: null };
     case "minimize": case "toggle_maximize": case "close": return { ok: true };
-    default: return { ok: false, error: `${method} is not available without the Chisel core` };
+    default: return mockObjectsCall(method, args) ?? { ok: false, error: `${method} is not available without the Chisel core` };
   }
+}
+
+/** Dev / tests: make the mock project a research project, so the object groups appear in the binder. */
+export function makeMockResearchProject() {
+  if (workspace) workspace.project.mode = "research";
 }

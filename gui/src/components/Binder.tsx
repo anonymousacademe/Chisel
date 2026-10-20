@@ -1,9 +1,10 @@
 import {
   FilePlus2, Ellipsis, ChevronDown, ChevronRight, BookOpen, Folder, FolderOpen, FileText,
-  FilePenLine, Users, Globe2, BookMarked, Inbox, Trash2, ScrollText, SpellCheck, type LucideIcon,
+  FilePenLine, Users, Globe2, BookMarked, Inbox, Trash2, ScrollText, SpellCheck, Image as ImageIcon, Table2, Sigma, Shapes, type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
 import type { BinderNode, CollectionSummary } from "../data/types";
+import type { ObjectKind } from "../data/research";
 import { allIds, filterByIds, filterTree, isActionable, isOpenable } from "../data/tree";
 import { memberIds, swatchVar } from "../data/collections";
 import { Icon, IconButton, SectionLabel } from "./primitives";
@@ -21,12 +22,19 @@ function nodeIcon(node: BinderNode, open: boolean, active: boolean): LucideIcon 
     case "research": return BookMarked;
     case "inbox": return Inbox;
     case "trash": return Trash2;
+    case "objects": return Shapes;
+    case "object": return node.id.startsWith("tbl:") ? Table2 : node.id.startsWith("eq:") ? Sigma : ImageIcon;
     default: return FileText;
   }
 }
 
-function Row({ node, depth, activeId, focusId, expanded, onToggle, onSelect, onNewNote }: {
+/** The kind a Figures / Tables / Equations group header inserts. */
+const GROUP_KIND: Record<string, ObjectKind> = { "group:figures": "fig", "group:tables": "tbl", "group:equations": "eq" };
+
+function Row({ node, depth, activeId, focusId, expanded, onToggle, onSelect, onNewNote, onInsertObject }: {
   onNewNote: () => void;
+  /** The + Insert button on a Figures / Tables / Equations group (research projects). */
+  onInsertObject?: (kind: ObjectKind) => void;
   node: BinderNode; depth: number; activeId: string | null; focusId: string | null;
   expanded: Set<string>; onToggle: (id: string) => void; onSelect: (n: BinderNode) => void;
 }) {
@@ -63,9 +71,13 @@ function Row({ node, depth, activeId, focusId, expanded, onToggle, onSelect, onN
           <button className="lw-binder__add" aria-label="New note" title="New note in the Notebook"
             onClick={(e) => { e.stopPropagation(); onNewNote(); }}>+ New note</button>
         )}
+        {node.kind === "objects" && !ph && onInsertObject && GROUP_KIND[node.id] && (
+          <button className="lw-binder__add" aria-label={`Insert ${node.title.toLowerCase()}`} title={`Insert into ${node.title}`}
+            onClick={(e) => { e.stopPropagation(); onInsertObject(GROUP_KIND[node.id]); }}>+ Insert</button>
+        )}
       </div>
       {hasChildren && open && node.children!.map((c) => (
-        <Row key={c.id} node={c} depth={depth + 1} activeId={activeId} focusId={focusId} expanded={expanded} onToggle={onToggle} onSelect={onSelect} onNewNote={onNewNote} />
+        <Row key={c.id} node={c} depth={depth + 1} activeId={activeId} focusId={focusId} expanded={expanded} onToggle={onToggle} onSelect={onSelect} onNewNote={onNewNote} onInsertObject={onInsertObject} />
       ))}
     </>
   );
@@ -73,9 +85,10 @@ function Row({ node, depth, activeId, focusId, expanded, onToggle, onSelect, onN
 
 const LIBRARY_KINDS = new Set(["characters", "world", "style", "dictionary"]);
 
-export function Binder({ nodes, count, activeId, focusId, unit, expanded, onToggle, onSelect, onNew, onMenu, searching, library, canNew, canMenu, collections, activeCollection, onCollection, onEditCollections, onDropUrl, onNewNote }: {
+export function Binder({ nodes, count, activeId, focusId, unit, expanded, onToggle, onSelect, onNew, onMenu, searching, library, canNew, canMenu, collections, activeCollection, onCollection, onEditCollections, onDropUrl, onNewNote, onInsertObject }: {
   /** The + New note button on the Notebook group. */
   onNewNote: () => void;
+  onInsertObject?: (kind: ObjectKind) => void;
   searching: boolean; library: boolean; canNew: boolean; canMenu: boolean;
   collections: CollectionSummary[]; activeCollection: string | null;
   /** Click a collection to show only its scenes; click it again (or Show all) to clear. */
@@ -130,7 +143,7 @@ export function Binder({ nodes, count, activeId, focusId, unit, expanded, onTogg
       )}
       <div className="lw-binder__tree" role="tree">
         {shown.map((n) => (
-          <Row key={n.id} node={n} depth={0} activeId={activeId} focusId={focusId} expanded={open} onToggle={onToggle} onSelect={onSelect} onNewNote={onNewNote} />
+          <Row key={n.id} node={n} depth={0} activeId={activeId} focusId={focusId} expanded={open} onToggle={onToggle} onSelect={onSelect} onNewNote={onNewNote} onInsertObject={onInsertObject} />
         ))}
         {q && shown.length === 0 && <p className="lw-empty">Nothing matches “{query}”.</p>}
       </div>

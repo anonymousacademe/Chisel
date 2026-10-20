@@ -202,3 +202,33 @@ export interface OutlineIgnored { title?: string; reason: string }
 export interface OutlineProposal { items: OutlineItem[]; sent: SentReport; cost: number | null; model: string; dropped?: OutlineIgnored[] }
 export interface OutlineStandard { name: string; items: OutlineItem[] }
 export interface OutlineApplied { changed: string[]; remap: Record<string, string>; skipped: { id: string; reason: string }[]; created: string[] }
+
+// -- Figures, tables and equations (wave F). Python numbers, renders, validates and writes; this is only the shape. ----
+
+/** A binder / list row of list_objects: the object plus its id ("fig:label") and its number when it is placed. */
+export interface ObjectRow extends RefObject { id: string; number?: { seq: number; display: string } | null }
+
+/** One entry of object_render (a bad id has only `error`). */
+export interface ObjectRender {
+  id: string; kind: ObjectKind; label: string; caption: string; number: string | null; seq: number | null;
+  status: ObjectStatus; source: "static" | "script" | "data"; path: string;
+  imageUrl?: string | null; width?: number | null; alt?: string;
+  cells?: string[][] | null; align?: string[] | null; mtime?: string; generated?: boolean;
+  latex?: string; error?: string;
+}
+
+export interface ObjectUse { doc: string; title: string; row: number }
+/** object_references: where an object is placed (own line) and referenced (inside prose). Book sections only. */
+export interface ObjectRefs { placements: ObjectUse[]; refs: ObjectUse[] }
+
+export type TableAlign = "default" | "left" | "right" | "center";
+export interface TableData { id: string; caption: string; cells: string[][]; align: TableAlign[]; mtime: string; generated: boolean }
+export interface BuiltTable { id: string; markdown: string; grid: string[][]; latex: string; warnings: string[]; caption: string; footnotes: string[]; mtime?: string }
+
+export type TrustState = "trusted" | "untrusted" | "changed";
+export interface FigureTrustInfo { id: string; script: string; sha: string; path: string; interpreter: string | null; data: string[]; trust: TrustState }
+export interface FigureRunStatus { job: string; figure: string; state: "running" | "done" | "failed" | "cancelled"; cancelling?: boolean; error?: string; stderr?: string; refused?: boolean; timedOut?: boolean }
+
+export interface ObjectPatch { caption?: string; alt?: string; width?: number; latex?: string }
+
+export const OBJECT_NAMES: Record<ObjectKind, string> = { fig: "Figure", tbl: "Table", eq: "Equation" };

@@ -4,7 +4,9 @@
 
 export type BinderKind =
   | "project" | "folder" | "part" | "document" | "entity" | "style" | "dictionary"
-  | "characters" | "world" | "research" | "inbox" | "trash";
+  | "characters" | "world" | "research" | "inbox" | "trash"
+  /** Research projects: the Figures / Tables / Equations groups and their rows (id "fig:label"; clicking opens the object card). */
+  | "objects" | "object";
 
 export interface BinderNode {
   id: string;
