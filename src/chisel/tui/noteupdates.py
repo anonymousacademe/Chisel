@@ -100,14 +100,11 @@ class NoteUpdateScreen(ModalScreen[list | None]):
             self.action_apply()
 
     def action_apply(self) -> None:
-        from dataclasses import replace
-
         result = []
         for u, update in enumerate(self._updates):
-            facts = tuple(fact for f, fact in enumerate(update.new_facts)
-                          if (u, f) in self._accepted)
-            if facts:
-                result.append(replace(update, new_facts=facts))
+            keep = [f for f in range(len(update.new_facts)) if (u, f) in self._accepted]
+            if keep:
+                result.append(update.select(keep))
         self.dismiss(result)
 
     def action_cancel(self) -> None:

@@ -1,0 +1,99 @@
+/* Summaries: the Summary tab, the review, the Summaries panel and the growth notice. Tokens only (styles/tokens.css).
+   No vertical margins on anything that sits in the editor's lines; these are panels and dialogs, but padding is used anyway. */
+.lw-sumchip {
+  display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: var(--lw-radius-pill);
+  font-size: 10px; font-weight: 600; letter-spacing: 0.3px; white-space: nowrap;
+  border: 1px solid var(--lw-border-strong); color: var(--lw-text-muted); background: var(--lw-bg-raised);
+}
+.lw-sumchip--fresh { color: var(--lw-success); border-color: var(--lw-success); background: var(--lw-success-soft); }
+.lw-sumchip--stale { color: var(--lw-warning); border-color: var(--lw-warning); }
+.lw-sumchip--locked { color: var(--lw-accent-text); border-color: var(--lw-accent); background: var(--lw-accent-soft); }
+
+/* the card in the side panel */
+.lw-sumcard { display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px; }
+.lw-sumcard__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.lw-sumcard__title { margin: 0; font-size: 12px; font-weight: 600; color: var(--lw-text-strong); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lw-sumcard__note { margin: 0; font-size: 11px; line-height: 1.45; color: var(--lw-text-muted); }
+.lw-sumcard__note.is-warn { color: var(--lw-warning); }
+.lw-sumcard__text { margin: 0; font-size: 12px; line-height: 1.55; color: var(--lw-text); }
+.lw-sumcard__count { margin: 0; font-size: 10px; }
+.lw-sumcard__chars { margin: 0; font-size: 11px; line-height: 1.45; color: var(--lw-text); }
+.lw-sumcard__facts { font-size: 11px; color: var(--lw-text); }
+.lw-sumcard__facts summary { cursor: pointer; color: var(--lw-text-muted); }
+.lw-sumcard__facts ul { margin: 0; padding: 6px 0 0 16px; display: flex; flex-direction: column; gap: 4px; line-height: 1.4; }
+.lw-sumcard__actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.lw-sumcard__more { margin: 0; font-size: 11px; }
+.lw-sumcard__proposal {
+  display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; font-size: 11px; line-height: 1.45;
+  border: 1px solid var(--lw-accent); border-radius: var(--lw-radius-md); background: var(--lw-accent-soft); color: var(--lw-text);
+}
+
+/* the estimate */
+.lw-sumest { display: flex; flex-direction: column; gap: 6px; }
+.lw-sumest__note { margin: 0; font-size: 11px; line-height: 1.5; }
+
+/* the review */
+.lw-sumrev { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; max-height: 62vh; padding-right: 4px; }
+.lw-sumrev__lead { margin: 0; }
+.lw-sumrev__label { font-size: 11px; color: var(--lw-text-muted); }
+.lw-sumrev__text {
+  width: 100%; box-sizing: border-box; resize: vertical; padding: 8px 10px; font: 400 13px/1.55 var(--lw-font-prose);
+  color: var(--lw-text-strong); background: var(--lw-bg-raised); border: 1px solid var(--lw-border-strong); border-radius: var(--lw-radius-md);
+}
+.lw-sumrev__text:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--lw-accent); }
+.lw-sumrev__count { font-size: 11px; color: var(--lw-text-muted); text-align: right; }
+.lw-sumrev__count.is-over { color: var(--lw-danger); font-weight: 600; }
+.lw-sumrev__h { margin: 0; padding-top: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; color: var(--lw-text-muted); text-transform: uppercase; }
+.lw-sumrev__none { margin: 0; font-size: 11px; }
+.lw-sumrev__rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.lw-sumrev__row {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 6px 8px; font-size: 12px; line-height: 1.45;
+  border: 1px solid var(--lw-border); border-radius: var(--lw-radius-sm); background: var(--lw-bg-raised); color: var(--lw-text);
+}
+.lw-sumrev__rowmain { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.lw-sumrev__show { align-self: flex-start; font-size: 10px; }
+.lw-sumrev__quote { margin: 0; padding: 4px 8px; font: 400 11px/1.5 var(--lw-font-prose); color: var(--lw-text-muted); border-left: 2px solid var(--lw-accent); background: var(--lw-bg-panel); }
+.lw-sumrev__x { flex: none; color: var(--lw-text-faint); line-height: 1; padding: 3px; border-radius: var(--lw-radius-xs); }
+.lw-sumrev__x:hover { color: var(--lw-danger); background: var(--lw-bg-panel); }
+.lw-sumrev__left { font-size: 11px; color: var(--lw-text-muted); border: 1px solid var(--lw-warning); border-radius: var(--lw-radius-sm); padding: 6px 8px; }
+.lw-sumrev__left summary { cursor: pointer; color: var(--lw-warning); }
+.lw-sumrev__left ul { margin: 0; padding: 6px 0 0 16px; display: flex; flex-direction: column; gap: 4px; line-height: 1.45; }
+.lw-sumrev__note { margin: 0; font-size: 11px; line-height: 1.5; color: var(--lw-text-muted); }
+.lw-sumrev__note.is-warn { color: var(--lw-warning); }
+.lw-sumrev__meta { margin: 0; font-size: 10px; }
+.lw-sumrev__error { margin: 0; padding: 6px 8px; font-size: 12px; line-height: 1.45; color: var(--lw-danger); border: 1px solid var(--lw-danger); border-radius: var(--lw-radius-sm); }
+
+/* the Summaries panel */
+.lw-sumpanel { display: flex; flex-direction: column; gap: 10px; }
+.lw-sumpanel__coverage { margin: 0; font-size: 14px; font-weight: 600; color: var(--lw-text-strong); }
+.lw-sumpanel__after { margin: 0; font-size: 11px; line-height: 1.5; max-width: 640px; }
+.lw-sumpanel__lead { margin: 0; font-size: 11px; line-height: 1.5; }
+.lw-sumpanel__buttons { flex-wrap: wrap; }
+.lw-sumpanel__progress {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; font-size: 12px;
+  border: 1px solid var(--lw-accent); border-radius: var(--lw-radius-md); background: var(--lw-accent-soft); color: var(--lw-text);
+}
+.lw-sumpanel__list { display: flex; flex-direction: column; gap: 10px; max-height: 44vh; overflow-y: auto; padding-right: 4px; }
+.lw-sumpanel__group { display: flex; flex-direction: column; gap: 4px; }
+.lw-sumpanel__part { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; color: var(--lw-text-strong); border-bottom: 1px solid var(--lw-border); }
+.lw-sumpanel__part .lw-faint { flex: 1; font-size: 11px; }
+.lw-sumpanel__btn { height: 24px; font-size: 11px; }
+.lw-sumpanel__rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.lw-sumpanel__row { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 12px; border-bottom: 1px solid var(--lw-border); }
+.lw-sumpanel__title { flex: 0 1 260px; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lw-sumpanel__meta { flex: 1; min-width: 0; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lw-sumpanel__confirm {
+  display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.5;
+  border: 1px solid var(--lw-accent); border-radius: var(--lw-radius-md); background: var(--lw-accent-soft); color: var(--lw-text);
+}
+.lw-sumpanel__confirm p { margin: 0; }
+.lw-sumpanel__confirm .lw-row { justify-content: flex-end; }
+
+/* the growth notice: calm, one colour for both wordings */
+.lw-growth {
+  display: flex; flex-direction: column; gap: 8px; padding: 10px 16px; font-size: 12px; line-height: 1.5;
+  background: var(--lw-accent-soft); border-bottom: 1px solid var(--lw-border-strong); color: var(--lw-text);
+}
+.lw-growth__text { margin: 0; max-width: 900px; }
+.lw-growth__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.lw-growth__actions .lw-btn { height: 28px; }

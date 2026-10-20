@@ -50,6 +50,8 @@ src/chisel/
     spelling.py         # spell check: check/suggestions, accepted terms, dictionary files
     collections.py      # collections: definitions in project.toml, membership in scene frontmatter
     comments.py         # comments: .comments/<scene>.json, anchored by quote + context
+    summaries.py        # summaries: .summaries/<sidecar key>.json (+ _part__<folder>.json): path_for/load/save, hash_of, status, coverage, verify, story_so_far, entity_history
+    scale.py            # scale_hint(project, window): none|notice|strong + plain message; constants at the top
     research.py         # Notebook notes (notebook/; research/ migrated on open): list/new/templates/from-url/delete/clippings, keyword search, assistant-notes
     chats.py            # saved assistant chats: .assistant/chats/<id>.json
     attach.py           # chat attachments (scene/note/research(=notebook)/comments), capped and reported
@@ -65,7 +67,7 @@ src/chisel/
   ai/
     client.py           # OpenRouter via openai SDK; keyring/env key resolution
     links.py            # alias finder (ctrl+l): prompt, schema, validate (never edits text)
-    continuity.py       # continuity check + canon (story-bible) proposals: plan_check / plan_canon
+    continuity.py       # continuity check + canon (story-bible) proposals: plan_check / plan_canon; propose_canon (CanonProposal: verified updates + dropped + tolerant) / propose_canon_updates (its .updates)
     stream.py           # streaming text calls, CancelToken, Cancelled
     usage.py            # AI spend ledger (usage.cost) -> status bar
     style.py            # learn a style guide from sampled prose
@@ -73,6 +75,7 @@ src/chisel/
     images.py           # inspiration pictures: generate (OpenRouter image output), suggest_prompt
     budget.py           # context budget: estimate_tokens, Section/Item, fit(), SentReport, window_for, BudgetError
     relevance.py        # which entities a scene is about (named / POV+place / rest), for continuity, canon, aliases
+    summaries.py        # scene/part summaries: plan_summarize (budget) / summarize_scene / summarize_part (network, verified proposal, cancel/on_delta)
     relationships.py    # relationship suggestions: plan_suggestions (budget) / suggest_relationships (network) / apply_suggestions (set_section + save_entity; no snapshot, like the canon apply)
   speech/               # read-aloud voices (desktop): engine.py (setting, render door, cache), kokoro.py + kokoro_worker.py
                         #   (local voices, separate process), models.py (Hugging Face download), endpoint.py (OpenAI-compatible
@@ -96,6 +99,8 @@ src/chisel/
     atmosphere_api.py   # AtmosphereMixin: sounds, ambience, packs, native file dialog (_pick_file)
     stats_api.py        # StatsMixin: usage, writing stats, sprints
     chats_api.py        # ChatsMixin: attachable items, saved chats, save_reply_to_notes
+    summaries_api.py    # SummariesMixin: summaries_status, summarize_propose / part_summarize_propose (AI jobs), summary_save / lock / delete,
+                        #   summaries_estimate, scale_hint(+_dismiss). AI functions are looked up on gui/api.py at call time (mock names there)
     window_api.py       # WindowMixin: minimize / maximize / close, open_external
     workspace.py        # Project -> Workspace JSON for the React UI
     devserver.py        # headless: built UI (gui/web/, see webroot.py) + POST /api/<method> (+ --mock-ai)
@@ -225,6 +230,57 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   (restore, accept/reject-all) call `snapshots.create` with the editor buffer first; the daily
   auto snapshot (`ensure_daily`, setting `auto_snapshot`) runs in both save paths *before* the
   write and must never block a save. `snapshots._daily_done` is a per-process cache — tests clear it.
+- **Summaries** (`core/summaries.py`, `ai/summaries.py`, `core/scale.py`; SPEC "Summaries for long projects").
+  Author data in `.summaries/` (never `.chisel/`): they cost money and may be edited or locked. Build the path
+  only with `summaries.path_for` / `part_path_for`. They ride with the scene exactly like comments (`stage` /
+  `unstage` in `Structure._apply_renames` and `move_part`, `archive` / `unarchive` in `delete_scene` /
+  `restore_scene`, `recover_staged` walks `.summaries/`); a part's file is keyed by its folder name, its inputs by
+  scene file name so moving the part is not a change. Hash and summarise `summaries.prose_of` (no details, no
+  pending drafts). A generated summary is a proposal: `ai.summaries.summarize_scene` returns it already
+  `verify`-ed (quote not in the scene, name not in the scene: dropped and listed with the rule that failed) and
+  NOTHING saves it but the author accepting. The quote rule is `summaries.quote_check`: exact (or whitespace-collapsed)
+  first, else tolerant (folded quotes / dashes / ellipsis / case, edge punctuation stripped, pieces split at `...` or
+  `[...]`, each >= `MIN_QUOTE`, in order, no overlap, <= `QUOTE_GAP_MAX` apart); `Proposal.tolerant` counts those facts
+  and is not stored. It proves the quote exists, never that it supports the fact text: do not loosen it further.
+  `summarize_scene` retries ONCE when the reply has no usable summary (never when cancelled; both costs are added up)
+  and logs to applog only finish reason, completion tokens, reply length and the failed parse step (no reply text).
+  Do not add `max_tokens`; reasoning is only the `reasoning` setting (see the Reasoning bullet).
+  `scale_hint` also returns `after` (a quiet "what the AI still does not see" line with a real size, None unless coverage is at least
+  `NOTICE_QUIET_COVERAGE`): shown only as a muted line in the Summaries panel, never a banner; the notices say summaries "help with" the problem, never
+  "fix" it. `scale.CONTINUITY_RESERVE` mirrors `ai/budget.DEFAULT_RESERVE` (a test checks).
+  The ledger covers up to `HISTORY_ENTITIES` = 8 characters chosen by `relevance.by_mentions` (mention count, most first; never narrow it to the
+  "named" tier again: an uncovered character's contradiction is invisible), sharing `HISTORY_FACTS_TOTAL` = 160 facts (`continuity._shares`;
+  `summaries.cap_facts` keeps the first `FACTS_FIRST` = 10 and the newest); "Earlier scenes involving" stays at `EARLIER_ENTITIES` = 3.
+  Facts ledger (`summaries.entity_facts`, `continuity._facts_section`, `History.facts`): the verified facts of earlier scenes about
+  an entity, a droppable section of priority 1 (canon 0, story 2, earlier scenes 3; newest scenes' facts drop first), capped per
+  entity (`FACTS_PER_ENTITY` / `FACTS_FIRST`) with the cap named in the report by `_with_cap_notes`. `history_for(mode=)`: summaries /
+  facts / both, default the constant `HISTORY_MODE`. `HISTORY_ADDENDUM` is added to the continuity instructions (in `plan_check_history`
+  and `check_scene`) ONLY when history is present; the canon prompt never gets it. A project without summaries must stay byte-identical. A locked or author-edited summary is status `locked`, never regenerated. `story_so_far` /
+  `entity_history` are read-time rollups (reading order, or `timeline.scenes_up_to` when there are story times;
+  they say which); they only reach an AI as droppable `budget.Section`s (`continuity.History`,
+  `plan_check_history`, `plan_canon_history`, with the kept text passed on as `history=`), so every drop is in the
+  SentReport and a project without summaries is byte-identical (`tests/test_summaries_context.py` locks it
+  against `tests/fixtures/context_no_summaries.json`). Never send `provider.require_parameters` for these calls.
+  Model role `summary` falls back to the writing model. `scale_hint` reads every scene: not on the UI thread.
+  Bridge (`gui/summaries_api.py`): propose methods save NOTHING and release `self._lock` before the AI call (they look
+  `summarize_scene` / `summarize_part` up on `gui.api`, which `gui/mockai.py` replaces); `summary_save` re-verifies every
+  quote and name, refuses a locked summary or a changed scene, and sets `author_edited` only for the author's own words.
+  Wiring: `continuity.history_for` (None without summaries: `summaries.has_any`, one directory listing) feeds
+  `plan_check_history` / `plan_canon_history` in `gui/api.py` AND `tui/app.py`, and `history=` is passed to `check_scene` /
+  `propose_canon_updates` ONLY when non-empty (the test fakes keep their old signatures). Chat / Brainstorm / project scope
+  go through `writing.story_section` via the `story=` argument of `build_context_sections` /
+  `build_project_context_sections` (priority 2, project scope 1, droppable, oldest first; computed by `Api._story_for`
+  BEFORE taking the lock: it reads every scene header). `describe_scene` adds it capped (`DESCRIBE_STORY_CHARS`) and then
+  returns `sent`. Never compute these inside `get_workspace` or under the lock. The terminal chat and the GUI / TUI screens
+  are still to come.
+- **Canon proposals** (`ai/continuity.py`; SPEC "Note accumulation"). Each fact is `{fact, quote, kind}` (`ACCUMULATION_SCHEMA`, `CANON_KINDS`); the prompt asks for stable details first and ONE unbroken
+  quote per fact. `parse_canon_updates(raw, entities, scene_text=None)` verifies only with `scene_text` (`summaries.quote_check` on `prose_of`: a missing or unfound quote is DROPPED and listed as a `CanonDropped`,
+  a tolerant pass is counted); without it, and for the old shape (`new_facts` + `evidence`), it only parses. `propose_canon` is the network call and returns a `CanonProposal`; `propose_canon_updates` keeps its
+  signature and returns `.updates`. The front ends (`gui/api.py propose_canon`, `tui/app.py`) call `propose_canon`, so a test fake of the canon call patches `propose_canon` (`tests/canonfake.proposal_of` wraps an
+  old list-returning fake) and `gui/mockai.py` must keep its output passing the real verification. `CanonUpdate.quotes` / `kinds` run parallel to `new_facts`: anything that keeps a subset of the facts uses
+  `CanonUpdate.select` (the TUI review screen does), never `replace(new_facts=...)`; `evidence` is the quotes joined with " / ". The proposer's view of existing canon is capped at `CANON_CAP` keeping the NEWEST
+  lines (`Item.keep="end"`, `budget.trim_tail`), reported as a trimmed item; dedupe still uses the full text. Never add a silent drop: the reasons are listed (`left_out_sentence`, bridge `dropped` / `tolerant` /
+  `left_out`, React `data/canon.ts`).
 - **Collections** (`core/collections.py`). Membership is scene frontmatter, so a rename or delete
   rewrites many files: the GUI flushes the open scene first and reopens it when its id is in the
   bridge's `changed`; the TUI re-reads its buffer (`_collection_op`; never `open_file`, which
@@ -519,6 +575,13 @@ CI (`.github/workflows/ci.yml`): pytest on ubuntu / windows / macos x Python 3.1
   silent: never autoplay, never contact a station before the author picks it. Pack/loop names cross the
   bridge: go through `soundpacks._plain` / `_inside`; zip import is all-or-nothing. Tests set
   `CHISEL_DATA_DIR` (conftest does).
+- **Summaries screens** (`components/SummaryCard.tsx` / `SummaryReview.tsx` / `SummariesDialog.tsx` / `GrowthNotice.tsx`, `hooks/useSummaries.ts`,
+  `data/summaries.ts`; SPEC "The desktop screens"). They call only the `summaries_*` / `summary_*` / `scale_hint*` bridge methods and AI job kinds `summarize` /
+  `part_summarize`; every number, verification and rule stays in Python and the wording lives in `data/summaries.ts` (vitest). A proposal is held in memory by
+  `useSummaries` and saved ONLY by `accept` (the author's click): never add an auto-save or a silent "accept all" (the batch button says what it will do and the
+  bridge re-checks every quote). The review sits above the dialogs, and Back from it leads to the panel it came from. Wording rules: "Summaries", "story so far",
+  "out of date"; no "hash", "tolerant" or "token" without a gloss (`tokenGloss`). The growth notice is one calm style for both levels. The side-panel tab is hidden in
+  research projects. The rail's two empty slots stay empty (the panel is reached from the menus, the card and the notice).
 - **Placeholders** use `components/placeholder.ts` only. Do not invent a second
   treatment, and do not show fake data in them.
 - **Dev-only fakes**: `mockai.py` and `backend/mock.ts` must never be reachable in
@@ -608,6 +671,14 @@ Planned next, in this order (SPEC §14 has the one-line descriptions): "talk as 
 point (use `timeline.scenes_up_to`), per-scene summaries and a rolling story-so-far, a timeline view.
 Local models and character relationships landed (see below); picture generation is still OpenRouter-only.
 
+- **Reasoning setting** (`ai/client.py`; SPEC "Thinking for utility calls"). `resolve_reasoning(meta)` (project.toml `[ai]
+  reasoning` > user setting `reasoning` > `default`; unknown = next level) and `reasoning_extra_body`. Only UTILITY calls
+  use `utility_extra_body` (links, continuity, canon, relationships, voice, style, summaries; `stream_text(utility=True)`);
+  drafting / chat / Brainstorm keep `openrouter_extra_body`: do not switch them. `default` must stay byte-identical to the old
+  request; with `low`/`off` `provider.require_parameters` is dropped, `local:` models get nothing. The project's meta reaches
+  `ai/` through `client.set_meta_source` (registered by `Api` and `ChiselApp`, so call signatures did not change).
+  `Budget.for_model` carries `reasoning_note`; `fit` puts it in `SentReport.reasoning` for `client.UTILITY_FEATURES` only
+  (a new utility feature name must be added there).
 - **Local models** (`ai/client.py`; SPEC §8, docs/dev/plan-local-models.md). A model slug prefixed
   `local:` (`local:llama3.1`) runs on the author's OpenAI-compatible server at the `local_base_url`
   setting (default Ollama `http://127.0.0.1:11434/v1`), no key. `make_client(model)` routes by the

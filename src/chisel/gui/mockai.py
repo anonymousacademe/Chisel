@@ -16,7 +16,7 @@ import zlib
 from types import SimpleNamespace
 
 from ..ai.client import ModelInfo
-from ..ai.continuity import CanonUpdate
+from ..ai.continuity import CanonProposal
 from ..ai.links import Suggestion
 from ..ai.relationships import Suggestion as RelSuggestion
 from ..ai.stream import Cancelled
@@ -160,7 +160,7 @@ def install(api_module) -> None:
         labels = ["owes them a favour", "kept them from the tide"]
         return [RelSuggestion(o.name, label) for o, label in zip(others, labels)]
 
-    def check_scene(scene_text, entities, canon, model):
+    def check_scene(scene_text, entities, canon, model, client=None, history=""):
         _pause(1.5)
         _spend("continuity")
         names = [n for e in entities for n in e.names]
@@ -187,14 +187,53 @@ def install(api_module) -> None:
             "Keep it short and plain: " + " ".join(line.split()[:4]).rstrip(".,!?") + ".", scene_rel, None,
             f"{name} speaks more formally here than in the other scenes.")]
 
-    def propose_canon_updates(scene_text, entities, model):
+    def propose_canon(scene_text, entities, model, client=None, history=""):
+        """Canned: one fact quoted from the scene's first sentence, run through the real parse and verification."""
+        import json
+        from ..ai.continuity import parse_canon
+        from ..core import summaries as store
         _pause(1.5)
         _spend("canon")
         if not entities:
-            return []
+            return CanonProposal([])
+        prose = store.prose_of(scene_text)
+        body = " ".join(line for line in prose.splitlines() if line.strip() and not line.startswith("#"))
+        quote = next((s.strip() for s in re.split(r"(?<=[.!?])\s+", body) if s.strip()), "")
         e = entities[0]
-        return [CanonUpdate(e.name, ("Appears in the opening scene of the manuscript",),
-                            "from the first paragraphs", "")]
+        raw = json.dumps({"updates": [{"entity": e.name, "facts": [
+            {"fact": "appears in the opening scene of the manuscript", "quote": quote, "kind": "other"}]}]})
+        return parse_canon(raw, entities, scene_text)
+
+    def propose_canon_updates(scene_text, entities, model, client=None, history=""):
+        return propose_canon(scene_text, entities, model, client, history).updates
+
+    def summarize_scene(scene_text, entities, model, client=None, on_delta=None, cancel=None, originals=None):
+        """Canned: the first two sentences as the summary, the entities it names as characters, and a fact quoted
+        from its first sentence (so it passes the real verification)."""
+        from ..ai.summaries import Proposal
+        from ..core import summaries as store
+        _pause(1.5)
+        _spend("summary")
+        prose = store.prose_of(scene_text, originals)
+        body = " ".join(line for line in prose.splitlines() if line.strip() and not line.startswith("#"))
+        sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", body) if s.strip()]
+        names = [e.name for e in entities if store.name_found(prose, e.name)][:3]
+        text = " ".join(sentences[:2]) or "Nothing happens yet."
+        facts = (store.Fact("The scene opens: " + sentences[0][:80], sentences[0]),) if sentences else ()
+        draft = store.Summary(store.hash_of(scene_text, originals), text,
+                              tuple(store.Character(n, "present at the end") for n in names), facts,
+                              ("What happens next?",), model, store.now(), COST)
+        clean, dropped, tolerant = store.verify_counted(draft, scene_text, originals)
+        _stream(text, on_delta, cancel)
+        return Proposal(clean, tuple(dropped), tolerant)
+
+    def summarize_part(title, scenes, model, inputs=(), client=None, on_delta=None, cancel=None):
+        from ..core import summaries as store
+        _pause(1.5)
+        _spend("part summary")
+        text = " ".join(s.summary.split(".")[0].strip() + "." for _, s in scenes[:3]) or "Nothing happens yet."
+        _stream(text, on_delta, cancel)
+        return store.PartSummary(text, (), ("What happens next?",), tuple(inputs), model, store.now(), COST)
 
     def learn_style(samples, model, client=None, manuscript=None):
         _pause(1.5)
@@ -347,8 +386,11 @@ def install(api_module) -> None:
     api_module.suggest_relationships = suggest_relationships
     api_module.check_scene = check_scene
     api_module.voice_check = voice_check
+    api_module.propose_canon = propose_canon
     api_module.propose_canon_updates = propose_canon_updates
     api_module.learn_style = learn_style
+    api_module.summarize_scene = summarize_scene
+    api_module.summarize_part = summarize_part
     api_module.generate_text = generate_text
     api_module.ask_writer = ask_writer
     api_module.research_writer = research_writer

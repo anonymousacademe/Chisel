@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from . import applog, comments, drafts
+from . import applog, comments, drafts, summaries
 from . import inspiration
 from . import entities as ent
 from . import research as research_notes
@@ -85,7 +85,7 @@ def recover_staged(root: Path) -> list[Path]:
     ``<name>``, unless that name is taken (then they are left alone). Returns
     the restored paths."""
     restored: list[Path] = []
-    for top in ("manuscript", ".drafts", ".comments", ".snapshots"):
+    for top in ("manuscript", ".drafts", ".comments", ".summaries", ".snapshots"):
         base = root / top
         if not base.is_dir():
             continue
@@ -321,8 +321,11 @@ class Structure:
                 note_tmp = comments.stage(self.root, old, str(k))
                 if note_tmp is not None:
                     done.append((note_tmp, comments.sidecar_path(self.root, old)))
-                staged.append((tmp, new, side_tmp, snap_tmp, note_tmp))
-            for tmp, new, side_tmp, snap_tmp, note_tmp in staged:
+                sum_tmp = summaries.stage(self.root, old, str(k))
+                if sum_tmp is not None:
+                    done.append((sum_tmp, summaries.path_for(self.root, old)))
+                staged.append((tmp, new, side_tmp, snap_tmp, note_tmp, sum_tmp))
+            for tmp, new, side_tmp, snap_tmp, note_tmp, sum_tmp in staged:
                 new.parent.mkdir(parents=True, exist_ok=True)
                 fsutil.rename(tmp, new)
                 done.append((new, tmp))
@@ -337,6 +340,9 @@ class Structure:
                 if note_tmp is not None:
                     comments.unstage(self.root, note_tmp, new)
                     done.append((comments.sidecar_path(self.root, new), note_tmp))
+                if sum_tmp is not None:
+                    summaries.unstage(self.root, sum_tmp, new)
+                    done.append((summaries.path_for(self.root, new), sum_tmp))
         except BaseException:
             _rollback(done)  # never leave a scene hidden under a .mv name
             self.last_renames = {}
@@ -536,6 +542,8 @@ class Structure:
         staged = []
         snap_staged = []
         note_staged = []
+        sum_staged = []
+        part_staged = []
         self.last_renames = {**dict(moves), a: new_a, b: new_b}
         done: list[tuple[Path, Path]] = []  # (where it is now, where it was)
         try:
@@ -554,6 +562,15 @@ class Structure:
                 if note is not None:
                     done.append((note, comments.sidecar_path(self.root, old)))
                     note_staged.append((note, new))
+                digest = summaries.stage(self.root, old, str(k))
+                if digest is not None:
+                    done.append((digest, summaries.path_for(self.root, old)))
+                    sum_staged.append((digest, new))
+            for k, (old_part, new_part) in enumerate([(a, new_a), (b, new_b)]):
+                digest = summaries.stage_part(self.root, old_part, f"p{k}")
+                if digest is not None:
+                    done.append((digest, summaries.part_path_for(self.root, old_part)))
+                    part_staged.append((digest, new_part))
             tmp_a = a.with_name(f".swap-{a.name}")
             fsutil.rename(a, tmp_a)
             done.append((tmp_a, a))
@@ -571,6 +588,12 @@ class Structure:
             for note, new in note_staged:
                 comments.unstage(self.root, note, new)
                 done.append((comments.sidecar_path(self.root, new), note))
+            for digest, new in sum_staged:
+                summaries.unstage(self.root, digest, new)
+                done.append((summaries.path_for(self.root, new), digest))
+            for digest, new_part in part_staged:
+                summaries.unstage_part(self.root, digest, new_part)
+                done.append((summaries.part_path_for(self.root, new_part), digest))
         except BaseException:
             _rollback(done)
             self.last_renames = {}
@@ -587,6 +610,7 @@ class Structure:
         if self._scene_files(part):
             raise ValueError(f"the part still has {self.unit}s - move them out first")
         (part / PART_FILE).unlink(missing_ok=True)
+        summaries.delete_part(self.root, part)
         try:
             part.rmdir()
         except OSError as exc:
@@ -660,6 +684,7 @@ class Structure:
                 pass
         snapshots.archive(self.root, path, dest.with_name(dest.name + ".snapshots"))
         comments.archive(self.root, path, dest.with_name(dest.name + ".comments.json"))
+        summaries.archive(self.root, path, dest.with_name(dest.name + ".summaries.json"))
         fsutil.replace(path, dest)
         try:
             self.renumber_folder(path.parent)
@@ -844,6 +869,7 @@ class Structure:
             fsutil.replace(side, target)
         snapshots.unarchive(self.root, item.path.with_name(item.path.name + ".snapshots"), final)
         comments.unarchive(self.root, item.path.with_name(item.path.name + ".comments.json"), final)
+        summaries.unarchive(self.root, item.path.with_name(item.path.name + ".summaries.json"), final)
         self._tidy_trash()
         at = _prefix(orig.name)
         if at is not None and dest_dir != self.unplaced_dir and not (
@@ -865,6 +891,7 @@ class Structure:
         item.path.unlink(missing_ok=True)
         item.path.with_name(item.path.name + ".drafts.json").unlink(missing_ok=True)
         item.path.with_name(item.path.name + ".comments.json").unlink(missing_ok=True)
+        item.path.with_name(item.path.name + ".summaries.json").unlink(missing_ok=True)
         for ext in dict.fromkeys(inspiration.EXTENSIONS + OBJECT_COMPANIONS):
             item.path.with_name(f"{item.path.name}.{ext}").unlink(missing_ok=True)
         shutil.rmtree(item.path.with_name(item.path.name + ".snapshots"), ignore_errors=True)

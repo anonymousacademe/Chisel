@@ -27,6 +27,7 @@ export function sentSummary(r: SentReport): string {
   if (dropped) out.push(`${dropped} dropped`);
   if (cut) out.push(`${cut} trimmed`);
   if (r.overBudget) out.push("over the window");
+  if (r.reasoning) out.push(r.reasoning.replace(/^reasoning/, "thinking"));
   return out.join("; ");
 }
 
