@@ -57,6 +57,9 @@ class ResearchRequirementsMixin:
             model = resolve_model("strong", project.meta)
             sources = req_ai.read_guideline_sources(project, names)      # bytes only under the lock
             taken = [r["id"] for r in cr.load_custom(project)]
+            profile = project.research_profile()
+            if profile is not None:
+                taken += [r.id for r in profile.requirements]
         texts = req_ai.load_texts(project, sources)                      # extraction outside the lock
         context, sent = req_ai.plan_requirements(project, str(instruction or ""), names, model,
                                                  Budget.for_model(model), texts=texts)

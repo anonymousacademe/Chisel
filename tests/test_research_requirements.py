@@ -130,12 +130,208 @@ def test_a_bad_row_in_a_good_file_is_skipped_with_a_warning(tmp_path):
 
 # -- evaluate ---------------------------------------------------------------------------------------------------
 
+# the pre-change output of requirements.evaluate for the EMS profile on a fresh project
+GOLDEN_EMS = [('abstract-words', 'Front matter', 'Abstract is at most 150 words', 'check', 'warn', 'Abstract is empty.'),
+ ('abstract-no-citations', 'Front matter', 'Abstract avoids citations', 'check', 'na', 'Abstract is empty.'),
+ ('keywords-count', 'Front matter', '1 to 7 keywords', 'check', 'warn', 'Keywords is empty.'),
+ ('highlights',
+  'Front matter',
+  '3 to 5 highlights, each at most 85 characters',
+  'check',
+  'warn',
+  'Highlights is empty.'),
+ ('title-page',
+  'Front matter',
+  "Title page has the title, authors, affiliations with postal address, and the corresponding author's email",
+  'check',
+  'info',
+  'Title page is there but empty.'),
+ ('graphical-abstract',
+  'Front matter',
+  'A graphical abstract is required: a separate file at least 1328 pixels wide, longest side horizontal, '
+  'readable at 13 cm',
+  'advice',
+  'advice',
+  ''),
+ ('software-data',
+  'Structure',
+  'A software and/or data availability section is present',
+  'check',
+  'warn',
+  'Software and data availability is there but empty.'),
+ ('credit',
+  'Structure',
+  'A CRediT author contribution statement is present',
+  'check',
+  'warn',
+  'CRediT authorship contribution statement is there but empty.'),
+ ('competing-interests',
+  'Structure',
+  'A declaration of competing interests is present',
+  'check',
+  'warn',
+  'Declaration of competing interest is there but empty.'),
+ ('funding', 'Structure', 'A funding statement is present', 'check', 'warn', 'Funding is there but empty.'),
+ ('genai-declaration',
+  'Structure',
+  'Generative AI use is declared (required when AI tools were used in preparing the manuscript)',
+  'check',
+  'na',
+  'No accepted AI-written words are recorded for this project.'),
+ ('acknowledgements-before-references',
+  'Structure',
+  'Acknowledgements form their own section directly before the references',
+  'check',
+  'na',
+  'Acknowledgements is empty.'),
+ ('numbered-sections',
+  'Structure',
+  'Sections are numbered 1, 1.1, 1.1.1 and cross-referenced by number; the abstract is not numbered',
+  'advice',
+  'advice',
+  ''),
+ ('appendices',
+  'Structure',
+  'Appendices are lettered A, B; equations Eq. (A.1), tables Table A.1, figures Fig. A.1',
+  'advice',
+  'advice',
+  ''),
+ ('figures-captioned',
+  'Figures, tables and equations',
+  'Every figure has a caption (a brief title and a description)',
+  'check',
+  'na',
+  'There are no figures yet.'),
+ ('tables-captioned',
+  'Figures, tables and equations',
+  'Every table has a caption',
+  'check',
+  'na',
+  'There are no tables yet.'),
+ ('figures-cited',
+  'Figures, tables and equations',
+  'Every figure is cited in the text',
+  'check',
+  'na',
+  'There are no figures yet.'),
+ ('tables-cited',
+  'Figures, tables and equations',
+  'Every table is cited in the text',
+  'check',
+  'na',
+  'There are no tables yet.'),
+ ('tables-style',
+  'Figures, tables and equations',
+  'Tables are editable text with notes below, no vertical rules or shading, and do not repeat results given '
+  'elsewhere',
+  'advice',
+  'advice',
+  ''),
+ ('figures-files',
+  'Figures, tables and equations',
+  'Figures are separate files named Figure_1, Figure_2; photographs at least 300 dpi, line drawings at least '
+  '1000 dpi; no several images combined in one file; colours readable for colour-blind readers',
+  'advice',
+  'advice',
+  ''),
+ ('equations',
+  'Figures, tables and equations',
+  'Equations are editable text, displayed equations are numbered in the order they are referred to, '
+  'variables in italics',
+  'advice',
+  'advice',
+  ''),
+ ('maps',
+  'Figures, tables and equations',
+  'Maps show only the study area and carry the note that map lines delineate study areas and do not '
+  'necessarily depict accepted national boundaries',
+  'advice',
+  'advice',
+  ''),
+ ('genai-figures',
+  'Figures, tables and equations',
+  'Plots made by AI tools must come from your data by a reproducible method; any AI-generated image is '
+  'disclosed in its caption',
+  'advice',
+  'advice',
+  ''),
+ ('citations-resolve',
+  'References',
+  'Every citation matches a source in the project',
+  'check',
+  'na',
+  'There are no citations yet.'),
+ ('sources-doi',
+  'References',
+  'Cited sources have a DOI where one exists',
+  'check',
+  'na',
+  'No cited source to check.'),
+ ('reference-style',
+  'References',
+  'Any consistent reference style is accepted at submission; in text: Smith, Smith and Jones, Smith et al., '
+  'with a/b/c for the same author and year. The journal applies its own style after acceptance',
+  'advice',
+  'advice',
+  ''),
+ ('data-references',
+  'References',
+  'Datasets and software you use are cited as references (a [dataset] or [software] tag before the entry); '
+  'data are deposited in a repository and linked, or the reason they cannot be shared is stated',
+  'advice',
+  'advice',
+  ''),
+ ('content-aims',
+  'What the journal looks for',
+  'The objectives of the model or software are stated clearly, with the rationale for the approach and '
+  'substantial testing and evaluation (comparisons with alternatives are encouraged)',
+  'advice',
+  'advice',
+  ''),
+ ('content-literature',
+  'What the journal looks for',
+  'A brief review of the historical progress on the problem, and a clear statement of how the work adds '
+  'value',
+  'advice',
+  'advice',
+  ''),
+ ('content-software',
+  'What the journal looks for',
+  'For software: usability, reliability, verification and validation backed by quantitative results; '
+  'development and maintenance costs and adoption; licensing and open-source access stated clearly',
+  'advice',
+  'advice',
+  ''),
+ ('content-insight',
+  'What the journal looks for',
+  'Insights are generalisable: about the modelling, method, application or the systems modelled, and of '
+  'interest to people studying other systems',
+  'advice',
+  'advice',
+  ''),
+ ('files',
+  'Submission',
+  'Submit editable files: .docx or .tex (a PDF is not accepted); Word files in one column; no strikethrough '
+  "or underline unless scientifically relevant; highlights as a separate file with 'highlights' in its name",
+  'advice',
+  'advice',
+  ''),
+ ('reviewer-software',
+  'Submission',
+  'If software is essential to the paper, be ready to give reviewers a download (password-protected if '
+  'needed) that keeps their identity hidden',
+  'advice',
+  'advice',
+  '')]
+
+
 def test_evaluate_is_unchanged_without_the_file(tmp_path):
     p = make(tmp_path)
     before = requirements.evaluate(p)
     assert before and not (p.root / "requirements.toml").exists()
     assert all(r["group"] != "Your requirements" for r in before)
-    assert [r["id"] for r in before] == [r.id for r in p.research_profile().requirements]
+    assert [(r["id"], r["group"], r["title"], r["kind"], r["status"], r["message"]) for r in before] == GOLDEN_EMS
+    assert all(set(r) == {"id", "group", "title", "kind", "status", "message"} for r in before)
     q = make(tmp_path / "x", journal="")
     assert requirements.evaluate(q) == []
 
@@ -418,3 +614,124 @@ def test_requirements_toml_is_in_no_existing_ai_context(tmp_path, monkeypatch):
              if re.search(r"custom_requirements|requirements\.toml", f.read_text(encoding="utf-8"))}
     assert users <= {"core/paper/custom_requirements.py", "core/paper/requirements.py",
                      "gui/research_requirements_api.py", "ai/requirements.py"}, users
+
+
+# -- review fixes (E1) -----------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("bad", ["inf", "-inf", "nan", "1e400", "1.0e999"])
+def test_non_finite_numbers_are_refused_and_never_blank_the_report(tmp_path, bad):
+    p = make(tmp_path)
+    with pytest.raises(ValueError, match="whole number"):
+        cr.validate_row(row(max=float(bad)))
+    (p.root / "requirements.toml").write_text(
+        '[[requirement]]\nid = "x"\ntitle = "T"\nkind = "check"\ncheck = "list-count"\n'
+        f'section = ["keywords"]\nmax = {bad}\n\n'
+        '[[requirement]]\nid = "ok"\ntitle = "Fine"\nkind = "advice"\n', encoding="utf-8", newline="\n")
+    rows, warning = cr.load_report(p)
+    assert [r["id"] for r in rows] == ["ok"] and "skipped" in warning
+    assert any(r["id"] == "ok" for r in requirements.evaluate(p))
+
+
+UNREADABLE_FILE = ('[[requirement]]\nid = "kw"\ntitle = "Keep me"\nkind = "advice"\n\n'
+                   '[[requirement]]\nid = "bad"\ntitle = "Broken"\nkind = "check"\ncheck = "nope"\n')
+
+
+def test_save_and_remove_refuse_to_overwrite_an_unreadable_file(tmp_path):
+    p = make(tmp_path)
+    path = p.root / "requirements.toml"
+    path.write_bytes(UNREADABLE_FILE.encode())
+    before = path.read_bytes()
+    with pytest.raises(ValueError, match="will not overwrite"):
+        cr.save_custom(p, [{"id": "new", "title": "N", "kind": "advice"}])
+    with pytest.raises(ValueError, match="will not overwrite"):
+        cr.save_custom(p, [])
+    with pytest.raises(ValueError, match="will not overwrite"):
+        cr.remove(p, "kw")
+    assert path.read_bytes() == before
+    path.write_bytes(b"not = [valid")           # a file that does not parse at all
+    with pytest.raises(ValueError, match="will not overwrite"):
+        cr.save_custom(p, [{"id": "new", "title": "N", "kind": "advice"}])
+    assert path.read_bytes() == b"not = [valid"
+
+
+def test_bridge_save_refuses_unreadable_file_cleanly(tmp_path):
+    p = make(tmp_path)
+    (p.root / "requirements.toml").write_bytes(UNREADABLE_FILE.encode())
+    from chisel.gui.research_requirements_api import ResearchRequirementsMixin
+    api = type("A", (ResearchRequirementsMixin, Api), {})()
+    api._load(p)
+    out = api.requirements_save([{"id": "new", "title": "N", "kind": "advice"}])
+    assert out["ok"] is False and "will not overwrite" in out["error"]
+    assert (p.root / "requirements.toml").read_bytes() == UNREADABLE_FILE.encode()
+
+
+def test_a_clean_file_still_saves_and_removes(tmp_path):
+    p = make(tmp_path)
+    cr.save_custom(p, [row(), {"id": "cover", "title": "Cover", "kind": "advice"}])
+    cr.save_custom(p, [row(title="Changed")])
+    assert cr.load_custom(p)[0]["title"] == "Changed"
+    assert cr.remove(p, "kw") == []
+
+
+def test_custom_file_warning_id_never_clashes(tmp_path):
+    p = make(tmp_path, journal="")
+    clear_starter(p)
+    cr.save_custom(p, [{"id": "custom-file", "title": "Mine", "kind": "advice"}])
+    path = p.root / "requirements.toml"
+    path.write_text(path.read_text(encoding="utf-8") + '\n[[requirement]]\nid = "!"\ntitle = "x"\nkind = "advice"\n',
+                    encoding="utf-8", newline="\n")
+    ids = [r["id"] for r in requirements.evaluate(p)]
+    assert len(ids) == len(set(ids)) == 2
+
+
+def test_validate_row_typing_and_cleaning():
+    for key in ("title", "group", "source", "quote"):
+        with pytest.raises(ValueError, match="must be text"):
+            cr.validate_row({"id": "a", "title": "T", "kind": "advice", **{key: {"x": 1}}})
+    with pytest.raises(ValueError, match="must be text"):
+        cr.validate_row({"id": "a", "title": ["T"], "kind": "advice"})
+    with pytest.raises(ValueError, match="list of title words"):
+        cr.validate_row(row(section=[{"a": 1}]))
+    out = cr.validate_row({"id": "a", "title": "[[Evil]] <!--ai--> {{x}} ok", "kind": "advice",
+                           "quote": "q [[a]] {{b}} <!--c-->", "source": "s<!--x-->.pdf"})
+    assert "[[" not in out["title"] and "<!--" not in out["title"] and "{{" not in out["title"]
+    assert out["title"] == "Evil ai x ok"
+    assert out["quote"] == "q a b c"
+    assert out["source"] == "sx.pdf"
+
+
+def test_quote_with_link_marks_in_the_guideline_still_verifies():
+    guide = "Authors must list [[three]] to {{six}} keywords after the abstract."
+    saved = cr.validate_row({"id": "a", "title": "T", "kind": "advice", "quote": guide})["quote"]
+    assert "[[" not in saved
+    assert rai.quote_in(saved, guide) and rai.quote_in(guide, guide)
+
+
+def test_long_model_title_is_trimmed_not_dropped():
+    reply = json.dumps({"items": [{"id": "a", "title": "Word " * 60, "kind": "advice", "quote": "", "source": ""}]})
+    items, dropped = rai.parse_requirement_rows(reply, {})
+    assert not dropped and items and 0 < len(items[0]["title"]) <= cr.LINE_MAX
+
+
+def test_oversized_file_is_not_read(tmp_path):
+    p = make(tmp_path)
+    (p.root / "requirements.toml").write_bytes(b"# " + b"x" * (cr.FILE_MAX_BYTES + 10))
+    rows, warning = cr.load_report(p)
+    assert rows == [] and "1 MB" in warning
+    with pytest.raises(ValueError, match="will not overwrite"):
+        cr.save_custom(p, [{"id": "n", "title": "N", "kind": "advice"}])
+
+
+def test_suggested_id_avoids_profile_ids(tmp_path, monkeypatch):
+    p = make(tmp_path)
+    from chisel.gui.research_requirements_api import ResearchRequirementsMixin
+    api = type("A", (ResearchRequirementsMixin, Api), {})()
+    api._load(p)
+    guidelines.add_text(p, "Rules", GUIDE)
+    profile_id = p.research_profile().requirements[0].id
+    monkeypatch.setattr(api_module, "suggest_requirements", lambda context, model, **k: json.dumps(
+        {"items": [{"id": profile_id, "title": "Mine", "kind": "advice", "quote": "", "source": ""}]}),
+        raising=False)
+    out = api.requirements_suggest("", ["rules.md"])
+    assert out["ok"], out
+    assert out["items"][0]["id"] != profile_id

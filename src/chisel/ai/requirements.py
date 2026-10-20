@@ -202,14 +202,7 @@ def _find_json(text: str):
 
 def clean_text(value, limit: int) -> str:
     """One plain line: no control characters and no marker fragment (comments, expand marks, links)."""
-    text = _CONTROL.sub(" ", str(value if value is not None else ""))
-    while True:                     # a fragment made by removing another must not survive either
-        before = text
-        for frag in ("<!--", "-->", "{{", "}}", "[[", "]]"):
-            text = text.replace(frag, "")
-        if text == before:
-            break
-    return " ".join(text.split())[:limit].strip()
+    return cr.strip_markers(value)[:limit].strip()
 
 
 def normalise(text: str) -> str:
@@ -218,8 +211,9 @@ def normalise(text: str) -> str:
 
 
 def quote_in(quote: str, text: str) -> bool:
-    q = normalise(quote)
-    return len(q) >= MIN_QUOTE_CHARS and q in normalise(text)
+    # both sides cleaned the same way: the saved quote has no marker fragments, a guideline may have them
+    q = normalise(cr.strip_markers(quote))
+    return len(q) >= MIN_QUOTE_CHARS and q in normalise(cr.strip_markers(text))
 
 
 def _slug(value: str) -> str:
@@ -240,7 +234,7 @@ def _clean_row(raw, texts: dict[str, str], taken: set[str]) -> tuple[dict | None
     for key in ("min", "max", "item_chars_max"):
         candidate[key] = _number(candidate[key])
     for key in ("title", "group"):
-        candidate[key] = clean_text(candidate[key], 10_000)
+        candidate[key] = clean_text(candidate[key], cr.LINE_MAX)
     candidate["kind"] = str(candidate["kind"] or ("check" if candidate["check"] else "advice")).strip().casefold()
     candidate["check"] = str(candidate["check"] or "").strip()
     if isinstance(candidate["section"], list):

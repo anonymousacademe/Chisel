@@ -13,6 +13,7 @@ atomically, and a file that cannot be read gives no rows plus a plain warning (n
 from __future__ import annotations
 
 import json
+import math
 import re
 import tomllib
 
@@ -28,6 +29,9 @@ PATTERN_MAX = 60
 LINE_MAX = 160
 SOURCE_MAX = 200
 QUOTE_MAX = 240
+FILE_MAX_BYTES = 1_000_000
+UNREADABLE = ("requirements.toml has rows or text Chisel cannot read, so it will not overwrite it. "
+              "Fix or remove the unreadable part in the file, then try again.")
 OBJECTS = ("fig", "tbl", "eq")
 # the check kinds a custom row may use: everything requirements.py implements except "ai-declaration"
 ALLOWED_CHECKS = tuple(k for k in journals.CHECK_KINDS if k != "ai-declaration")
@@ -42,6 +46,29 @@ def _line(value, limit: int = 1_000_000) -> str:
     return " ".join(_CONTROL.sub(" ", str(value if value is not None else "")).split())[:limit].strip()
 
 
+def strip_markers(value) -> str:
+    """*value* without control characters and marker fragments (comments, expand marks, links), whitespace
+    kept as one line; the one cleaning used for saved rows, parsed rows and quote matching."""
+    text = _CONTROL.sub(" ", str(value if value is not None else ""))
+    while True:                     # a fragment made by removing another must not survive either
+        before = text
+        for frag in ("<!--", "-->", "{{", "}}", "[[", "]]"):
+            text = text.replace(frag, "")
+        if text == before:
+            break
+    return " ".join(text.split())
+
+
+def _text(raw: dict, key: str, label: str, limit: int = 1_000_000) -> str:
+    """The cleaned text of raw[key]: it must be a string (or missing)."""
+    value = raw.get(key)
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise ValueError(f'The requirement "{label}": {key} must be text.')
+    return strip_markers(value)[:limit].strip()
+
+
 def _label(row) -> str:
     if isinstance(row, dict):
         return _line(row.get("title") or row.get("id"), 60) or "(untitled)"
@@ -49,7 +76,7 @@ def _label(row) -> str:
 
 
 def _int(value, name: str, lo: int, hi: int, label: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or int(value) != value:
+    if isinstance(value, bool) or not isinstance(value, (int, float))             or (isinstance(value, float) and not math.isfinite(value)) or int(value) != value:
         raise ValueError(f'The requirement "{label}" needs a whole number for {name}.')
     value = int(value)
     if not lo <= value <= hi:
@@ -66,12 +93,12 @@ def validate_row(raw) -> dict:
     if not journals.is_plain_id(rid):
         raise ValueError(f'The requirement "{label}" needs an id of lowercase letters, digits, - or _ '
                          "(up to 64 characters).")
-    title = _line(raw.get("title"))
+    title = _text(raw, "title", label)
     if not title:
         raise ValueError(f'The requirement "{label}" needs a title.')
     if len(title) > LINE_MAX:
         raise ValueError(f'The requirement "{label}": the title is longer than {LINE_MAX} characters.')
-    group = _line(raw.get("group")) or DEFAULT_GROUP
+    group = _text(raw, "group", label) or DEFAULT_GROUP
     if len(group) > LINE_MAX:
         raise ValueError(f'The requirement "{label}": the group is longer than {LINE_MAX} characters.')
     kind = str(raw.get("kind") or "").strip()
@@ -95,7 +122,9 @@ def validate_row(raw) -> dict:
             section = [section]
         if not isinstance(section, (list, tuple)):
             raise ValueError(f'The requirement "{label}": section must be a list of title words.')
-        pats = [p for p in (_line(p) for p in section) if p]
+        if not all(isinstance(p, str) for p in section):
+            raise ValueError(f'The requirement "{label}": section must be a list of title words.')
+        pats = [p for p in (strip_markers(p) for p in section) if p]
         if len(pats) > MAX_PATTERNS:
             raise ValueError(f'The requirement "{label}" has more than {MAX_PATTERNS} section patterns.')
         if any(len(p) > PATTERN_MAX for p in pats):
@@ -128,12 +157,12 @@ def validate_row(raw) -> dict:
             if obj not in OBJECTS:
                 raise ValueError(f'The requirement "{label}": object must be fig, tbl or eq.')
             out["object"] = obj
-    source = _line(raw.get("source"))
+    source = _text(raw, "source", label)
     if len(source) > SOURCE_MAX:
         raise ValueError(f'The requirement "{label}": the source name is too long.')
     if source:
         out["source"] = source
-    quote = _line(raw.get("quote"))
+    quote = _text(raw, "quote", label)
     if quote:
         out["quote"] = quote[:QUOTE_MAX].strip()
     for value in out.values():              # a lone surrogate cannot be written as UTF-8
@@ -175,6 +204,8 @@ def load_report(project) -> tuple[list[dict], str]:
     try:
         if not path.is_file():
             return [], ""
+        if path.stat().st_size > FILE_MAX_BYTES:
+            return [], f"{FILE_NAME} is larger than 1 MB, so it was not read and your own requirements are not checked."
         data = tomllib.loads(path.read_bytes().decode("utf-8"))
     except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError, ValueError, RecursionError):
         return [], f"{FILE_NAME} could not be read, so your own requirements are not checked. Fix or delete the file."
@@ -185,7 +216,7 @@ def load_report(project) -> tuple[list[dict], str]:
     for raw in raw_rows:
         try:
             row = validate_row(raw)
-        except ValueError:
+        except (ValueError, OverflowError, TypeError):
             skipped += 1
             continue
         if row["id"] in seen or len(rows) >= MAX_ROWS:
@@ -229,6 +260,7 @@ def save_custom(project, rows) -> list[dict]:
     from ..project import write_atomic
     clean = validate_rows(rows)
     path = path_of(project)
+    guard_writable(project)
     if not clean:
         try:
             path.unlink(missing_ok=True)
@@ -242,7 +274,15 @@ def save_custom(project, rows) -> list[dict]:
     return clean
 
 
+def guard_writable(project) -> None:
+    """Refuse (``ValueError``) when the file exists and Chisel cannot read all of it: saving replaces the
+    file, which would delete what Chisel could not read."""
+    if path_of(project).exists() and load_report(project)[1]:
+        raise ValueError(UNREADABLE)
+
+
 def remove(project, row_id: str) -> list[dict]:
+    guard_writable(project)
     rows = load_custom(project)
     kept = [r for r in rows if r["id"] != str(row_id)]
     if len(kept) == len(rows):

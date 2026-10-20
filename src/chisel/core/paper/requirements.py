@@ -303,7 +303,10 @@ def evaluate(project) -> list[dict]:
         taken.add(req.id)
         out.append(_evaluate_one(req, ctx))
     if warning:
-        out.append({"id": "custom-file", "group": custom_requirements.DEFAULT_GROUP,
+        file_id = "custom-file"
+        while file_id in taken:
+            file_id = "custom-" + file_id
+        out.append({"id": file_id, "group": custom_requirements.DEFAULT_GROUP,
                     "title": custom_requirements.FILE_NAME, "kind": "check", "status": "warn",
                     "message": warning})
     return out
