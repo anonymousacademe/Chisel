@@ -86,7 +86,7 @@ from .commands import (
     SceneProvider,
 )
 from .continuityscreen import ContinuityScreen, JumpToContradiction, WaiveToggled
-from .dialogs import ConfirmScreen, EntityTypePrompt, NamePrompt
+from .dialogs import ConfirmScreen, EntityTypePrompt, NamePrompt, relabel_bindings
 from .editor import LinkedTextArea
 from .launch import LaunchScreen
 from .linkreview import AliasReviewScreen
@@ -526,6 +526,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
     def initialize_project(self, project: Project) -> None:
         """Load a project into the UI: index, entities, sidebar, first scene."""
         self.project = project
+        self._relabel_unit_bindings()
         self.index = Index(project.index_path)
         self.title = f"chisel v{__version__}"
         self.sub_title = project.title
@@ -1589,7 +1590,7 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
         try:
             entities, sent = plan_canon(scene_text, list(self.entities), Budget.for_model(model))
             updates = await self._ai_call(
-                "reading the scene for canon", propose_canon_updates, scene_text, entities,
+                f"reading the {self._unit_word} for canon", propose_canon_updates, scene_text, entities,
                 model) if entities else []
         except Cancelled:
             return
@@ -1936,10 +1937,20 @@ class ChiselApp(AiMixin, InspirationMixin, RenameMixin, StructureMixin, Snapshot
         """The manuscript's unit word (scene / chapter / section); "scene" with no project open."""
         return self.project.unit if self.project is not None else "scene"
 
+    def _relabel_unit_bindings(self) -> None:
+        """Show the project's unit word (scene / section) in the app's own bindings."""
+        word = self._unit_word
+        relabel_bindings(self, {
+            "new_scene": f"New {word}",
+            "previous_scene": f"Prev {word}",
+            "next_scene": f"Next {word}",
+        })
+
     def toggle_unit(self) -> None:
         default, other = unit_choices(self.project.mode)
         unit = other if self.project.unit == default else default
         self.project.update_manuscript_settings(unit=unit)
+        self._relabel_unit_bindings()
         self.refresh_sidebar()
         self.notify(f"Labels now say '{unit}'", timeout=2)
 
