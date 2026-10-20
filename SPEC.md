@@ -670,6 +670,69 @@ scene is **Fountain** inside the usual `.md` file, with Chisel's own syntax winn
 - **Not yet:** speaker-aware continuity (facts per speaker), side-by-side dual dialogue, `(CONT'D)` / `(MORE)`, form-specific layouts (stage,
   audio), scene numbering and revisions, FDX, terminal-editor styling.
 
+### Research mode ✅ (papers and proposals; `core/paper/`, `core/zotero/`, `core/sources.py`, `core/objects.py`; plan: docs/dev/plan-research-mode.md)
+For papers and proposals. `project.toml` `[project] mode = "research"`, chosen when the project is created (Story, Script or
+Research) and not changed later. Research projects relabel the binder (Sections, Sources, Concepts and methods, Parked
+sections), default the display unit to `section`, and hide POV, place, story time and relationships without deleting
+them. The desktop launch screen and the terminal new-project prompt offer the choice.
+- **Paper kind and journal profile.** `[research] kind` is `manuscript` or `proposal`, chosen at creation and changeable
+  in Project settings. A target journal names a profile: `ems` (Environmental Modelling & Software) is built in, with a
+  generic manuscript and a generic proposal. Profiles are package TOML (`core/paper/journals/`), our own restatement of
+  the journal's Guide for Authors (its text is not in the repository); a profile carries the starter outline, the
+  requirements rows and the citation style (`harvard` for EMS, `apa` for the generic ones). A new project starts from the
+  profile's outline as ordinary editable sections (front matter part, article sections, declarations); the `Start here`
+  note is parked.
+- **Zotero sources** (`core/zotero/`). Read-only and pull only. Backends: the Zotero web API (key in the keyring), the
+  local API on this computer, a Better BibTeX auto-export file, and the source notes already in the project as a last
+  fallback; one failing backend falls through to the next. Sync runs only on a click, optionally over ticked collections
+  (remembered in `project.toml`), and first shows a plan of new, changed, missing and key-mismatch rows; the author ticks
+  rows to apply, and apply refuses a file changed since the preview. Chisel never writes to Zotero; a source removed from
+  Zotero is kept and marked `missing`; citation keys are case-sensitive and a sync never renames one silently.
+- **Source notes** (`core/sources.py`). A source is an entity of kind `source` in `entities/sources/`, named from its key.
+  Frontmatter keeps the item's full CSL JSON and derived title/authors/year; the body has a readable Zotero block (title,
+  authors, venue/year/DOI, Abstract, Notes, Highlights with page and comment) between `<!-- zotero:begin -->` and
+  `<!-- zotero:end -->`, then `## My notes`. A sync replaces only the marked block; it never touches the author's text.
+  Existing notes upgrade on the next sync.
+- **Citations** (`core/links.py` `find_citations`, `core/paper/citefmt.py`). `[[@key]]` is a citation with pandoc
+  semantics: locators (`[[see @smith2024, p. 12; @lee2023]]`), several keys, `[[-@key]]` to suppress the author, and
+  `[[+@key]]` for a narrative citation; plain `[@key]` is also accepted. The link parser ignores them. The editor shows
+  the formatted text ("(Smith et al., 2024)") and reveals the raw key when the cursor enters it; a key with no source
+  note is marked as unresolved. The display is an APA-like approximation; export uses the CSL style.
+- **Journal requirements** (`core/paper/requirements.py`, `core/paper/journals.py`). The profile's checks are evaluated
+  in Python against the book in reading order: abstract length, keyword and highlight counts and lengths, required
+  sections present and non-empty, figure and table captions and citations, citations that resolve, DOIs, and an AI-use
+  declaration when AI words were accepted. Advice rows are reminders; an empty section is never "ok". The result is a
+  report and never blocks an export.
+- **Guidelines** (`core/paper/guidelines.py`). A journal's or funder's instructions live as plain files in `guidelines/`
+  (Markdown, text, Word `.docx`, or PDF with the optional `pypdf` extra). Extracted text is a rebuildable cache in
+  `.chisel/guidelines/`. The Guidelines dialog lists and reads them; no AI feature reads them today.
+- **Figures, tables and equations** (`core/objects.py`). Files under `figures/`, `tables/` and `equations/`: a `.md`
+  sidecar with YAML (caption, file, width, alt for a figure; caption for a table; caption for an equation) and the body
+  (notes, a Markdown pipe table, or LaTeX). The label is the file-name stem (`fig-flow-model` is `fig:flow-model`). A
+  line `![[fig:flow-model]]` places the object; `[[fig:flow-model]]` references it. Numbers are assigned in reading
+  order, never stored, with plain, per-section and supplementary schemes. Figure images are PNG or JPG, up to 10 MB,
+  checked from the bytes. The object Trash kind carries the sidecar and its image or CSV. These are backend files and
+  numbering only: the editor screens are planned.
+- **Generated figures and tables** (`core/figscripts.py`, `core/tablefmt.py`). A figure can come from the author's Python
+  script (matplotlib in the chosen interpreter) and `data/` files. Run happens only on a click, only after the author
+  confirms that exact script hash; the trust record lives in the per-user state folder, never in the project, and any
+  change asks again. Output is checked as an image and replaced atomically; a changed script or data marks the figure
+  stale, and the provenance is recorded. A table can be built from a CSV plus a formatting spec (no code); its body is
+  generated, read-only and marked.
+- **Export** (`core/export/research.py`). Research assembly writes sections with their numbers, citations, figures,
+  tables, equations and a bibliography from the stored CSL JSON, and converts to Word, LaTeX or PDF through pandoc with
+  a CSL style (a Word reference document is optional). Unresolved citations and references block an export unless the
+  author overrides. This is backend only: no export screen calls it yet.
+- **Principles.** Sources, figures, tables, equations and guidelines are plain files in the project; AI suggests and
+  never edits. Nothing from guidelines, sources, pictures or data reaches an AI unless the author chooses it (a source
+  attached to a chat or chosen as the "About:" subject, or the data columns the author ticks for a plot-code proposal).
+  Sources are otherwise excluded from canon, relevance and the alias finder; guidelines are not read by any AI feature.
+
+**Planned** (docs/dev/plan-research-waves-d-f.md): the outline assistant (a scope statement plus guidelines or the
+standard structure, reviewed item by item); AI-suggested requirements from the guideline documents, confirmed into
+`requirements.toml`; and the figure, table and equation screens (binder group, insert and editors, and the block widgets
+that show them in the editor), followed by the per-object "let the assistant use this" tick.
+
 ### Read aloud ✅ (desktop only; `core/reader.py`, `gui/src/reader/`; plan: docs/dev/plan-read-aloud.md)
 Hear the open document with the window's own speech service. **Python decides what is read; the editor plays it.**
 - **The reading model** (`core/reader.py`, pure): `plan(text, mode, entities, options)` -> ordered utterances

@@ -24,6 +24,27 @@ All notable changes to Chisel are listed here, newest first. The format follows
   title bar now ignores the right button.
 
 ### Added
+- **Research mode.** Start a project and choose *Research* for a paper or a proposal: the binder says Sections, Sources,
+  Concepts and methods and Parked sections, and POV, place, story time and relationships are hidden. The mode is fixed
+  when the project is created. A research project is a manuscript or a proposal; choose a target journal (Environmental
+  Modelling & Software is built in, plus a generic manuscript and a generic proposal) and the project starts from that
+  profile's outline, with the kind and journal changeable in Project settings.
+- **Sources from Zotero.** Connect the local Zotero API, the web API (the key is kept in your system keychain) or a
+  Better BibTeX export file, and sync on a click: Chisel shows new, changed and missing sources, you tick the rows to
+  apply, and it never writes to Zotero. Each source becomes a note with its citation key, metadata, abstract, Zotero
+  notes and highlights in a marked block, and your own notes below it; a source removed from Zotero is kept and marked
+  missing, and ticked collections are remembered so the next sync finds new papers.
+- **Citations.** Write `[[@key]]`, `[[+@key]]` for "Smith et al. (2024)", or several keys and page locators in one
+  citation (`[[see @smith2024, p. 12; @lee2023]]`); plain `[@key]` works too. The editor shows the citation as
+  "(Smith et al., 2024)" and shows the key again when the cursor is inside it; a key with no source note is marked.
+- **Journal requirements.** The Requirements dialog checks the paper against the chosen journal profile: abstract
+  length, keywords and highlights, required sections that are present and not empty, figure and table captions and
+  citations, resolved citations, DOIs, and an AI-use declaration when AI words were accepted. The checks are advice and
+  never block export.
+- **Guidelines.** Keep a journal's or funder's instructions in the project's `guidelines/` folder (Markdown, text, Word,
+  or a PDF with the optional `pypdf` extra) and read them in the Guidelines dialog. No AI feature reads them.
+- **Sections renumber after a delete.** Deleting a section (or a scene) or a part in any mode now closes the gap, so the
+  remaining items keep a contiguous order.
 - **Brainstorm about a passage (desktop).** Select some text, right-click and choose *Brainstorm about this…*: the
   passage waits on a chip in the Assistant, you can add a direction ("what is she hiding?") or just press Enter, and
   the AI gives 3-5 ideas about that passage. It still knows the story (project, the note you are in, the story
