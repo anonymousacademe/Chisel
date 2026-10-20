@@ -1,7 +1,7 @@
 // Spans come from Python (chisel.core.spans) in UTF-16 offsets. This file
 // only maps them to editor decorations; it never decides what a mention is.
 
-export type SpanKind = "mention" | "link" | "unresolved" | "pending" | "expand" | "script" | "citation";
+export type SpanKind = "mention" | "link" | "unresolved" | "pending" | "expand" | "script" | "citation" | "placement" | "objref";
 
 export interface Span {
   kind: SpanKind;
@@ -25,6 +25,40 @@ export interface Span {
   title?: string;
   /** citation: the in-text form Python formats ("(Wang et al., 2026)"); the bare key when unresolved. */
   display?: string;
+  /** placement / objref (research projects; core.objects numbering): fig | tbl | eq, and the key "fig:label". */
+  objectKind?: ObjectKind;
+  key?: string;
+}
+
+export type ObjectKind = "fig" | "tbl" | "eq";
+
+const PLACEMENT_RAW = /^[ \t]*!\[\[(fig|tbl|eq):[^\][\n]+\]\][ \t]*$/;
+const OBJREF_RAW = /^\[\[(fig|tbl|eq):[^\][\n]+\]\]$/;
+
+/**
+ * The line a placement span is drawn over, or null: the span must still be shaped like `![[fig:label]]` and
+ * be the whole line (spans are mapped through edits until the next bridge answer). Whether the selection
+ * touches the line is the caller's decision (it decides raw-or-replaced).
+ */
+export function placementLine(s: Span, text: string): { from: number; to: number } | null {
+  if (s.kind !== "placement" || s.start < 0 || s.end > text.length || s.start >= s.end) return null;
+  const from = text.lastIndexOf("\n", s.start - 1) + 1;
+  if (text.slice(from, s.start).trim() !== "") return null;
+  const nl = text.indexOf("\n", s.start);
+  const to = nl < 0 ? text.length : nl;
+  return PLACEMENT_RAW.test(text.slice(from, to)) ? { from, to } : null;
+}
+
+/** Whether a reference is drawn as its display text ("Figure 2"): like citeReplaced (reveal on touch, no line / soft break, stale guard). */
+export function objrefReplaced(
+  s: Span, selections: readonly { from: number; to: number }[], text: string, softBreaks: ReadonlySet<number>,
+): boolean {
+  if (s.kind !== "objref" || !s.display) return false;
+  if (s.start < 0 || s.end > text.length || s.start >= s.end) return false;
+  if (selections.some((r) => r.from <= s.end && r.to >= s.start)) return false;
+  if (!OBJREF_RAW.test(text.slice(s.start, s.end))) return false;
+  for (let p = s.start; p < s.end; p++) if (softBreaks.has(p)) return false;
+  return true;
 }
 
 /**
@@ -120,6 +154,13 @@ export function specsFor(spans: Span[], head: number, docLength: number): Spec[]
           from: s.start, to: s.end, type: "mark",
           cls: s.status === "resolved" ? "lw-cite lw-cite--resolved" : "lw-cite lw-cite--unresolved",
           attrs: { "data-keys": (s.keys ?? []).join(" ") },
+        });
+        break;
+      case "objref":
+        out.push({
+          from: s.start, to: s.end, type: "mark",
+          cls: s.status === "resolved" ? "lw-objref lw-objref--resolved" : "lw-objref lw-objref--unresolved",
+          attrs: { "data-object": s.key ?? "" },
         });
         break;
       case "expand":

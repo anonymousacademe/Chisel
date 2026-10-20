@@ -11,6 +11,7 @@ import type {
   DownloadStatus, EndpointCost, EngineId, KokoroStatus, OpenRouterModel, ReadOptions, ReadPlan, SpeechInfo, SpeechPrefs,
   VoiceInfo,
 } from "../reader/types";
+import type { ObjectInfo } from "../editor/objects";
 import type { CustomRequirement, RequirementsProposal, OutlineApplied,OutlineCurrent, OutlineItem, OutlineProposal, OutlineStandard, GuidelineFile, GuidelineText, JournalProfile, RequirementsReport, ResearchKind, ResearchSettings, SourceCardInfo, SourceHit, SourceRow, SyncApplied, SyncPlan, SyncScope, ZoteroCollection, ZoteroSettings, ZoteroStatus } from "../data/research";
 import type { BuiltTable, FigureRunStatus, FigureTrustInfo, ObjectKind, ObjectPatch, ObjectRefs, ObjectRender, ObjectRow, TableAlign, TableData, TrustState } from "../data/research";
 import { call } from "./transport";
@@ -125,6 +126,9 @@ export const api = {
   zoteroSyncApply: (ticked: string[], token: string) => call<SyncApplied>("zotero_sync_apply", ticked, token),
   listSources: () => call<{ sources: SourceRow[] }>("list_sources"),
   searchSources: (query: string, limit = 30) => call<{ sources: SourceHit[] }>("search_sources", query, limit),
+  /** Editor widgets (figures, tables, equations): one entry per id; a bad id is an entry with `error`. */
+  objectRender: (ids: string[], images = true) => call<{ objects: ObjectInfo[] }>("object_render", ids, images),
+  objectImage: (label: string) => call<{ label: string; dataUrl: string }>("object_image", label),
   sourceCard: (id: string) => call<SourceCardInfo>("source_card", id),
   zoteroItemCollections: (id: string) => call<{ collections: string[] }>("zotero_item_collections", id),
   openInZotero: (id: string) => call("open_in_zotero", id),

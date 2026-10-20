@@ -274,6 +274,8 @@ equations/eq-mass-balance.md    # YAML: caption (optional); body = LaTeX
 
 ### 7.3 WYSIWYG in the desktop editor
 
+Decision (wave F fix round): a block placement is NOT atomic. The cursor touching the line reveals the raw line with the rendered block above it, and Backspace edits the text like any line (no confirm). Images load lazily (object_render with images=false, then object_image per placed figure, cached by key and mtime).
+
 Figures, tables and equations are shown as they will look, not as source text. This follows the editor's
 existing approach (one CodeMirror `StateField` holds block widgets; Python computes spans, TypeScript only
 draws).

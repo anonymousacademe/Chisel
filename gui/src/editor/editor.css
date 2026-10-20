@@ -115,3 +115,34 @@
 .lw-cm .lw-cite--unresolved { color: var(--lw-warning); }
 /* the formatted in-text citation reads like ordinary prose; the missing treatment stays */
 .lw-cm .lw-cite--shown.lw-cite--resolved { color: inherit; border-bottom: none; }
+
+/* figures, tables and equations (research projects). Block widgets: padding only, never a vertical margin, and
+   display: flow-root so CodeMirror measures the whole box. */
+.lw-cm .lw-object { display: flow-root; position: relative; padding: 10px 0 10px; text-align: center; font-family: var(--lw-font-prose); }
+.lw-cm .lw-object--above { opacity: 0.9; border-bottom: 1px dashed var(--lw-border-strong); }
+.lw-cm .lw-object__figure { display: flow-root; margin: 0; padding: 0; }
+.lw-cm .lw-object__img { display: inline-block; max-width: 100%; height: auto; }
+.lw-cm .lw-object__caption { padding-top: 6px; font-size: 0.9em; color: var(--lw-text-muted); text-align: center; }
+.lw-cm .lw-object__caption--top { padding-top: 0; padding-bottom: 6px; }
+.lw-cm .lw-object__tablewrap { display: flow-root; overflow-x: auto; }
+.lw-cm .lw-object__table { border-collapse: collapse; margin: 0 auto; font-size: 0.9em; }
+.lw-cm .lw-object__table th, .lw-cm .lw-object__table td { padding: 3px 10px; text-align: left; }
+.lw-cm .lw-object__table thead th { border-top: 1.5px solid var(--lw-text); border-bottom: 1px solid var(--lw-text); font-weight: 600; }
+.lw-cm .lw-object__table tbody tr:last-child td { border-bottom: 1.5px solid var(--lw-text); }
+.lw-cm .lw-object__eqrow { display: flex; align-items: center; }
+.lw-cm .lw-object__eq { flex: 1 1 auto; overflow-x: auto; min-height: 1.6em; }
+.lw-cm .lw-object__eq--error { font-family: var(--lw-font-mono); font-size: 0.9em; color: var(--lw-warning); }
+.lw-cm .lw-object__eqno { flex: 0 0 auto; padding-left: 12px; color: var(--lw-text-muted); }
+.lw-cm .lw-object__placeholder { box-sizing: border-box; display: flex; align-items: center; justify-content: center; color: var(--lw-text-faint); background: var(--lw-bg-surface); border-radius: var(--lw-radius-md); font-size: 0.85em; }
+.lw-cm .lw-object__placeholder--fig { width: min(100%, 480px); aspect-ratio: 16 / 9; margin: 0 auto; }
+.lw-cm .lw-object__placeholder--tbl { height: 2em; }
+.lw-cm .lw-object__placeholder--eq { height: 1.6em; }
+.lw-cm .lw-object__notice { padding: 8px 12px; color: var(--lw-text-faint); font-style: italic; border: 1px dashed var(--lw-border-strong); border-radius: var(--lw-radius-md); }
+.lw-cm .lw-object__edit { position: absolute; top: 8px; right: 0; padding: 1px 8px; font: 12px var(--lw-font-ui); color: var(--lw-text-muted); background: var(--lw-bg-raised); border: 1px solid var(--lw-border-strong); border-radius: var(--lw-radius-md); cursor: pointer; opacity: 0; }
+.lw-cm .lw-object:hover .lw-object__edit, .lw-cm .lw-object__edit:focus-visible { opacity: 1; }
+.lw-cm .lw-placement-raw { font-family: var(--lw-font-mono); font-size: 0.9em; color: var(--lw-text-muted); }
+/* references: "Figure 2" reads like the citations do */
+.lw-cm .lw-objref { cursor: pointer; border-bottom: 1px dotted currentColor; }
+.lw-cm .lw-objref--resolved { color: var(--lw-accent-text); }
+.lw-cm .lw-objref--unresolved { color: var(--lw-warning); }
+.lw-cm .lw-objref--shown.lw-objref--resolved { border-bottom: none; }
