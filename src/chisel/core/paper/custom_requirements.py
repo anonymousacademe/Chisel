@@ -209,10 +209,23 @@ def load_report(project) -> tuple[list[dict], str]:
         data = tomllib.loads(path.read_bytes().decode("utf-8"))
     except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError, ValueError, RecursionError):
         return [], f"{FILE_NAME} could not be read, so your own requirements are not checked. Fix or delete the file."
-    raw_rows = data.get("requirement") if isinstance(data, dict) else None
+    if not isinstance(data, dict):
+        return [], f"{FILE_NAME} could not be read, so your own requirements are not checked. Fix or delete the file."
+    # A file Chisel did not write the way it reads (a typo such as [[requirment]], a single [requirement] table,
+    # other top-level parts) is NOT empty: saving would replace it and lose that text, so it is reported and
+    # every write refuses (guard_writable).
+    odd = sorted(k for k in data if k != "requirement")
+    raw_rows = data.get("requirement")
+    if "requirement" in data and not isinstance(raw_rows, list):
+        return [], (f"{FILE_NAME} has a requirement part Chisel cannot read (it should be a list of [[requirement]] "
+                    f"tables), so your own requirements are not checked and the file will not be overwritten. "
+                    f"Fix or remove it in the file.")
     if not isinstance(raw_rows, list):
+        if odd:
+            return [], (f"{FILE_NAME} has parts Chisel does not use ({', '.join(odd)[:80]}), so it will not be "
+                        f"overwritten. Fix or remove them in the file.")
         return [], ""
-    rows, seen, skipped = [], set(), 0
+    rows, seen, skipped, lossy = [], set(), 0, 0
     for raw in raw_rows:
         try:
             row = validate_row(raw)
@@ -222,13 +235,22 @@ def load_report(project) -> tuple[list[dict], str]:
         if row["id"] in seen or len(rows) >= MAX_ROWS:
             skipped += 1
             continue
+        # keys Chisel does not keep, or a quote it would cut: a save would silently change this row
+        if (isinstance(raw, dict) and (set(raw) - set(KEYS) or len(str(raw.get("quote", ""))) > QUOTE_MAX)):
+            lossy += 1
         seen.add(row["id"])
         rows.append(row)
-    warning = ""
+    notes = []
     if skipped:
-        warning = (f"{skipped} of the requirements in {FILE_NAME} could not be used and "
-                   f"{'was' if skipped == 1 else 'were'} skipped.")
-    return rows, warning
+        notes.append(f"{skipped} of the requirements in {FILE_NAME} could not be used and "
+                     f"{'was' if skipped == 1 else 'were'} skipped.")
+    if lossy:
+        notes.append(f"{lossy} requirement{' has' if lossy == 1 else 's have'} parts Chisel does not keep (extra keys "
+                     f"or a very long quote), so the file will not be overwritten. Fix or remove them in the file.")
+    if odd:
+        notes.append(f"{FILE_NAME} also has parts Chisel does not use ({', '.join(odd)[:80]}), so it will not be "
+                     f"overwritten. Fix or remove them in the file.")
+    return rows, " ".join(notes)
 
 
 def load_custom(project) -> list[dict]:

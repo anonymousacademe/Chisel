@@ -735,3 +735,42 @@ def test_suggested_id_avoids_profile_ids(tmp_path, monkeypatch):
     out = api.requirements_suggest("", ["rules.md"])
     assert out["ok"], out
     assert out["items"][0]["id"] != profile_id
+
+
+GOOD_ROW = '[[requirement]]\nid = "abstract-short"\ntitle = "Abstract is short"\nkind = "check"\ncheck = "section-words-max"\nsection = ["abstract"]\nmax = 150\n'
+
+
+@pytest.mark.parametrize("text", [
+    "[[requirment]]\nid = \"typo\"\ntitle = \"Typo in the table name\"\n",         # a typo: the rows would be lost
+    "[requirement]\nid = \"one\"\ntitle = \"A single table, not a list\"\n",      # an easy hand-editing mistake
+    "requirement = 5\n",
+    "[other]\nnote = \"keep me\"\n",
+    GOOD_ROW + "\n[extra]\nnote = \"keep me\"\n",                                  # a good row plus text Chisel does not keep
+    GOOD_ROW + 'note = "keep me"\n',                                              # an unknown key inside a row
+    GOOD_ROW + 'quote = "' + "x" * 300 + '"\n',                                   # a quote a save would cut
+])
+def test_a_file_chisel_would_change_on_save_is_never_overwritten(tmp_path, text):
+    p = make(tmp_path)
+    path = p.root / "requirements.toml"
+    path.write_text(text, encoding="utf-8", newline="\n")
+    before = path.read_bytes()
+    rows, warning = cr.load_report(p)
+    assert warning, "the file has parts a save would lose: it must be reported"
+    new_row = {"id": "mine", "title": "Mine", "kind": "advice", "group": "Your requirements"}
+    with pytest.raises(ValueError):
+        cr.save_custom(p, rows + [new_row])
+    with pytest.raises(ValueError):
+        cr.remove(p, "mine")
+    assert path.read_bytes() == before
+
+
+def test_a_clean_file_and_an_empty_file_still_save(tmp_path):
+    p = make(tmp_path)
+    path = p.root / "requirements.toml"
+    path.write_text("", encoding="utf-8", newline="\n")           # empty: nothing to lose
+    new_row = {"id": "mine", "title": "Mine", "kind": "advice", "group": "Your requirements"}
+    cr.save_custom(p, [new_row])
+    rows, warning = cr.load_report(p)
+    assert warning == "" and [r["id"] for r in rows] == ["mine"]
+    cr.save_custom(p, rows + [{"id": "second", "title": "Second", "kind": "advice", "group": "Your requirements"}])
+    assert [r["id"] for r in cr.load_report(p)[0]] == ["mine", "second"]
