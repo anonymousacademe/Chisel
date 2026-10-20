@@ -7,7 +7,7 @@ import {
 import type { GuidelineFile, OutlineApplied, OutlineCurrent, OutlineIgnored, OutlineItem, OutlineProposal } from "../../data/research";
 import type { SentReport as Report } from "../../data/types";
 import { useElapsed, secs } from "../aiRun";
-import { Modal } from "../Dialogs";
+import { ConfirmDialog, Modal } from "../Dialogs";
 import { SentReport } from "../SentReport";
 
 type Notify = (text: string, tone?: "info" | "error") => void;
@@ -66,6 +66,8 @@ export function OutlineAssistantDialog({ notify, onClose, requireAi, flushSave, 
   const [heading, setHeading] = useState("");
   const [ticked, setTicked] = useState<Set<string>>(new Set());
   const [applying, setApplying] = useState(false);
+  const [appliedEdit, setAppliedEdit] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
   const [result, setResult] = useState<OutlineApplied | null>(null);
   const jobRef = useRef<AiJob<OutlineProposal & { ok: true }> | null>(null);
 
@@ -109,10 +111,12 @@ export function OutlineAssistantDialog({ notify, onClose, requireAi, flushSave, 
       else notify(e instanceof Error ? e.message : String(e), "error");
     } finally { jobRef.current = null; setRunning(false); void refresh(); }
   };
+  const unsaved = scope !== savedScope;
+  /** Closing never throws scope edits away silently. */
+  const requestClose = () => { if (unsaved) setConfirmClose(true); else onClose(); };
   const stop = () => { void jobRef.current?.cancel(); };
 
   const standard = async () => {
-    if (!(await saveScope())) return;
     const [s, cur] = await Promise.all([api.outlineStandard(), api.outlineCurrent()]);
     if (!s.ok) return notify(s.error, "error");
     if (!cur.ok) return notify(cur.error, "error");
@@ -129,6 +133,7 @@ export function OutlineAssistantDialog({ notify, onClose, requireAi, flushSave, 
       if (!(await flushSave())) return notify("Could not save the current document first.", "error");
       const r = await api.outlineApply(chosen);
       if (!r.ok) return notify(r.error, "error");
+      setAppliedEdit(chosen.some((i) => i.action === "rename" || i.action === "move") && r.changed.length > 0);
       setResult(r); setPhase("done");
       await onApplied(r.remap ?? {});
     } finally { setApplying(false); }
@@ -143,7 +148,7 @@ export function OutlineAssistantDialog({ notify, onClose, requireAi, flushSave, 
   const titleOf = (id: string) => items.find((i) => i.id === id)?.title ?? id;
 
   return (
-    <Modal title="Outline assistant" wide onClose={onClose}>
+    <Modal title="Outline assistant" wide onClose={requestClose}>
       <div className="lw-settings">
         {phase === "form" && (
           <>
@@ -152,7 +157,7 @@ export function OutlineAssistantDialog({ notify, onClose, requireAi, flushSave, 
                 <textarea className="lw-launch__input" rows={6} value={scope} onChange={(e) => setScope(e.target.value)} aria-label="What is this paper about?"
                   placeholder="A paragraph on the question, the method, the data and the expected contribution." />
               </label>
-              <p className="lw-dialog__message lw-faint">A paragraph on the question, the method, the data and the expected contribution. It is saved with the project and sent to the AI only when you press Suggest.</p>
+              <p className="lw-dialog__message lw-faint">Saved with the project when you press Suggest or Save. Sent to the AI only when you press Suggest; the standard structure never sends it.</p>
               <div className="lw-row lw-gap-8">
                 <button className="lw-btn" disabled={scope === savedScope} onClick={() => void saveScope().then((ok) => { if (ok) notify("Saved."); })}>Save</button>
               </div>
@@ -197,9 +202,9 @@ export function OutlineAssistantDialog({ notify, onClose, requireAi, flushSave, 
             <div className="lw-review">
               {shown.map((i) => isActionable(i) ? (
                 <label key={i.id} className="lw-review__row">
-                  <input type="checkbox" checked={ticked.has(i.id)} onChange={() => toggle(i.id)} aria-label={describeItem(i)} />
+                  <input type="checkbox" checked={ticked.has(i.id)} onChange={() => toggle(i.id)} aria-label={describeItem(i, outline?.sections)} />
                   <span className="lw-review__text">
-                    <span className="lw-review__target"><strong>{ACTION_LABEL[i.action]}</strong> {describeItem(i)}</span>
+                    <span className="lw-review__target"><strong>{ACTION_LABEL[i.action]}</strong> {describeItem(i, outline?.sections)}</span>
                     {i.purpose && i.action === "add" && <span className="lw-review__context">Purpose: {i.purpose}</span>}
                     {i.why && <span className="lw-review__context">{i.why}</span>}
                   </span>
@@ -230,7 +235,7 @@ export function OutlineAssistantDialog({ notify, onClose, requireAi, flushSave, 
         {phase === "done" && result && (
           <section role="status" aria-label="Summary">
             <p className="lw-dialog__message">
-              {result.changed.length} changed, {result.created.length} created, {result.skipped.length} skipped. Each renamed or moved section was saved as a snapshot first.
+              {result.changed.length} changed, {result.created.length} created, {result.skipped.length} skipped.{appliedEdit ? ' Each renamed or moved section was saved as a snapshot first.' : ''}
             </p>
             {result.skipped.length > 0 && (
               <ul>{result.skipped.map((s) => <li key={s.id}>{titleOf(s.id)}: {s.reason}</li>)}</ul>
@@ -243,8 +248,12 @@ export function OutlineAssistantDialog({ notify, onClose, requireAi, flushSave, 
         {phase === "review" && (
           <button className="lw-btn lw-btn--primary" disabled={chosen.length === 0 || applying} onClick={() => void apply()}>{changeCount(chosen.length)}</button>
         )}
-        <button className={phase === "done" ? "lw-btn lw-btn--primary" : "lw-btn"} onClick={onClose}>{phase === "done" ? "Close" : "Cancel"}</button>
+        <button className={phase === "done" ? "lw-btn lw-btn--primary" : "lw-btn"} onClick={requestClose}>{phase === "done" ? "Close" : "Cancel"}</button>
       </div>
+      {confirmClose && (
+        <ConfirmDialog title="Discard unsaved changes" confirm="Discard" message="The description of the paper has changes that are not saved. Close without saving them?"
+          onConfirm={onClose} onClose={() => setConfirmClose(false)} />
+      )}
     </Modal>
   );
 }

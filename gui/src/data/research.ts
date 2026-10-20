@@ -1,3 +1,5 @@
+import type { SentReport } from "./types";
+
 // Research-mode shapes that cross the bridge (docs/dev/research-mode-contracts.md). Placeholders registered
 // by P0: P7 fills in the JSON each bridge method returns, and P8a / P8b read only these types.
 
@@ -111,8 +113,6 @@ export function citationCard(span: { status?: string; keys?: string[]; label?: s
 
 /** Plain-words fallback when the paper's Zotero collections cannot be read. */
 export const COLLECTIONS_FALLBACK = "Zotero's collections could not be read. Is Zotero running?";
-
-import type { SentReport } from "./types";
 
 // -- Journal profiles, requirements and guidelines (project settings, Journal requirements, Guidelines) ----
 

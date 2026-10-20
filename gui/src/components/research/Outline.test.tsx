@@ -100,6 +100,7 @@ describe("OutlineAssistantDialog", () => {
     expect(h.onApplied).toHaveBeenCalledWith({ m: "m2" });
     expect(host.textContent).toContain("1 changed, 1 created, 1 skipped");
     expect(host.textContent).toContain("Gone.");
+    expect(host.textContent).toContain("saved as a snapshot first");
   });
 
   it("Stop cancels the job and applies nothing", async () => {
@@ -132,5 +133,52 @@ describe("OutlineAssistantDialog", () => {
     await act(async () => { createRoot(host).render(<OutlineAssistantDialog {...h} />); });
     await click(button("Suggest an outline"));
     expect(m.aiStart).not.toHaveBeenCalled();
+  });
+
+  it("Use the standard structure does not save the scope; Save and Suggest do", async () => {
+    m.outlineStandard.mockResolvedValue({ ok: true, name: "EMS", items: [{ id: "s1", action: "add", title: "Conclusions", part: "", after: "m", purpose: "End." }] });
+    const { host } = await mount();
+    await act(async () => { setValue(host.ownerDocument.querySelector("textarea")!, "Edited."); });
+    expect(host.textContent).toContain("Saved with the project when you press Suggest or Save");
+    await click(button("Use the standard structure"));
+    await until(() => !!button("Apply 1 change"));
+    expect(m.outlineSetScope).not.toHaveBeenCalled();
+    await click(button("Back"));
+    await click(button("Suggest an outline"));
+    await until(() => !!button("Apply 2 changes"));
+    expect(m.outlineSetScope).toHaveBeenCalledWith("Edited.");
+  });
+
+  it("asks before closing with unsaved scope edits", async () => {
+    const { host, h } = await mount();
+    await click(button("Cancel"));
+    expect(h.onClose).toHaveBeenCalledTimes(1);   // nothing edited: closes at once
+    await act(async () => { setValue(host.ownerDocument.querySelector("textarea")!, "Edited."); });
+    await click(button("Cancel"));
+    expect(h.onClose).toHaveBeenCalledTimes(1);
+    expect(document.body.textContent).toContain("Close without saving them?");
+    await click([...document.body.querySelectorAll("button")].filter((b) => b.textContent === "Cancel").pop()!);   // keep editing
+    expect(h.onClose).toHaveBeenCalledTimes(1);
+    await click(button("Cancel"));
+    await click(button("Discard"));
+    expect(h.onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it("says what each change does, with real titles and destinations", async () => {
+    const { host } = await mount();
+    await click(button("Suggest an outline"));
+    await until(() => !!button("Apply 2 changes"));
+    expect(host.textContent).toContain("Add “Study area” to the top level, after “Introduction”.");
+  });
+
+  it("mentions snapshots only when something was renamed or moved", async () => {
+    m.outlineApply.mockResolvedValue({ ok: true, changed: [], remap: {}, skipped: [], created: ["n"] });
+    const { host } = await mount();
+    await click(button("Suggest an outline"));
+    await until(() => !!button("Apply 2 changes"));
+    await click(boxes()[1]);   // untick the rename: only the add is applied
+    await click(button("Apply 1 change"));
+    expect(host.textContent).toContain("0 changed, 1 created");
+    expect(host.textContent).not.toContain("snapshot");
   });
 });

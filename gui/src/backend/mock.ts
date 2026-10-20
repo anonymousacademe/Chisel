@@ -129,7 +129,7 @@ function mockResult(kind: string, args: Record<string, unknown>): Record<string,
     case "continuity": return { issues: [], waived: 0, cost: 0.002, sent: sampleSent("continuity") };
     case "canon": return { updates: [], cost: 0.002, sent: sampleSent("canon") };
     case "aliases": return { suggestions: [], cost: 0.002, sent: sampleSent("aliases") };
-    case "outline": return { items: mockOutlineItems(), cost: 0.002, model: "mock", sent: sampleSent("outline") };
+    case "outline": return { items: mockOutlineItems(), cost: 0.002, model: "mock", sent: sampleSent("outline"), ignored: MOCK_OUTLINE_IGNORED };
     case "style": return { markdown: "# Style guide\n\nShort, concrete sentences.", replacing: false, samples: 3, cost: 0.004 };
     case "describe_scene": return { prompt: "A rain-lit kitchen at 3 a.m., a terminal glowing behind smoked glass.", model: "mock", cost: 0.001 };
     case "image": case "image_regenerate": return { images: [], cost: 0.03 };
@@ -216,6 +216,7 @@ const mockOutline = [
   id: `manuscript/${String(i + 1).padStart(2, "0")}-${slugName}.md`, title, part: "", partTitle: "", frontMatter: i === 0, position: i + 1,
   words: 120 * (i + 1), purpose: "",
 }));
+const MOCK_OUTLINE_IGNORED = [{ title: "Appendix B", reason: "That section does not exist in the outline." }];
 const mockOutlineItems = () => {
   const intro = mockOutline.find((s) => s.title === "Introduction");
   const results = mockOutline.find((s) => s.title === "Results");
@@ -228,17 +229,34 @@ const mockOutlineItems = () => {
     { id: "o5", action: "keep", title: "Introduction", section: intro?.id ?? "", why: "Already fits." },
   ];
 };
-function mockOutlineApply(items: { id: string; action: string; title: string; section?: string; newTitle?: string; after?: string; purpose?: string }[]) {
+function mockOutlineApply(items: { id: string; action: string; title: string; section?: string; newTitle?: string; part?: string; after?: string; purpose?: string }[]) {
   const changed: string[] = [], created: string[] = [], skipped: { id: string; reason: string }[] = [], remap: Record<string, string> = {};
+  type Row = (typeof mockOutline)[number];
+  const place = (row: Row, part: string, after: string | undefined) => {
+    row.partTitle = part; row.part = part ? `part-${slug(part)}` : "";
+    const anchor = after ? mockOutline.findIndex((s) => s.id === after) : -1;
+    if (anchor >= 0) mockOutline.splice(anchor + 1, 0, row);
+    else if (after === "") { const first = mockOutline.findIndex((s) => s.partTitle === part); mockOutline.splice(first >= 0 ? first : mockOutline.length, 0, row); }
+    else mockOutline.push(row);
+  };
+  const renumber = () => mockOutline.forEach((s, n) => { s.position = n + 1; });
   for (const i of items) {
     const at = mockOutline.findIndex((s) => s.id === i.section);
     if (i.action === "add") {
       const id = `manuscript/${String(mockOutline.length + 1).padStart(2, "0")}-${slug(i.title)}.md`;
-      mockOutline.push({ id, title: i.title, part: "", partTitle: "", frontMatter: false, position: mockOutline.length + 1, words: 0, purpose: i.purpose ?? "" });
+      place({ id, title: i.title, part: "", partTitle: "", frontMatter: false, position: 0, words: 0, purpose: i.purpose ?? "" }, i.part ?? "", i.after);
       created.push(id);
     } else if (at < 0) skipped.push({ id: i.id, reason: "That section no longer exists." });
     else if (i.action === "rename") { mockOutline[at].title = i.newTitle ?? mockOutline[at].title; changed.push(mockOutline[at].id); }
-    else if (i.action === "move") changed.push(mockOutline[at].id);
+    else if (i.action === "move") {
+      const [row] = mockOutline.splice(at, 1);
+      const old = row.id;
+      place(row, i.part ?? "", i.after);
+      renumber();
+      row.id = `manuscript/${String(row.position).padStart(2, "0")}-${slug(row.title)}.md`;
+      remap[old] = row.id; changed.push(row.id);
+    }
+    renumber();
   }
   return { ok: true, changed, remap, skipped, created };
 }
@@ -288,7 +306,7 @@ export function mockCall(method: string, args: unknown[]): object {
         .map((title, n) => ({ id: `s${n + 1}`, action: "add", title, part: "", after: mockOutline[mockOutline.length - 1].id, purpose: `The ${title.toLowerCase()} of the paper.`, why: "Part of the standard structure." }));
       return { ok: true, name: "Environmental Modelling & Software", items };
     }
-    case "outline_suggest": return { ok: true, items: mockOutlineItems(), sent: sampleSent("outline"), cost: 0.002, model: "mock" };
+    case "outline_suggest": return { ok: true, items: mockOutlineItems(), sent: sampleSent("outline"), cost: 0.002, model: "mock", ignored: MOCK_OUTLINE_IGNORED };
     case "outline_apply": return mockOutlineApply(args[0] as Parameters<typeof mockOutlineApply>[0]);
     case "guidelines_remove": { const i = mockGuidelines.findIndex((g) => g.name === args[0]); if (i >= 0) mockGuidelines.splice(i, 1); return { ok: true }; }
     case "zotero_collections": return { ok: true, collections: [

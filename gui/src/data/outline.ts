@@ -13,15 +13,25 @@ export const tickedItems = (items: OutlineItem[], ticked: Set<string>) => items.
 
 export const ACTION_LABEL: Record<OutlineAction, string> = { add: "Add", rename: "Rename", move: "Move", keep: "Keep", advice: "Advice" };
 
-const where = (part: string | undefined) => (part ? `in “${part}”` : "at the top level");
+const q = (t: string) => `“${t}”`;
 
-/** One line saying what ticking this item will change. */
-export function describeItem(i: OutlineItem): string {
+/** Where an item puts a section: its part (a part TITLE, "" = top level) and its anchor (`after` is a SECTION id). */
+function destination(i: OutlineItem, sections: OutlineSection[]): string {
+  const part = i.part ? `Part ${q(i.part)}` : "the top level";
+  const anchor = i.after ? sections.find((s) => s.id === i.after) : undefined;
+  if (anchor) return `to ${part}, after ${q(anchor.title)}`;
+  if (i.after === "") return `to the start of ${part}`;
+  return `to the end of ${part}`;
+}
+
+/** One line saying what ticking this item will change. Titles are the sections' real current ones (looked up by section id). */
+export function describeItem(i: OutlineItem, sections: OutlineSection[] = []): string {
+  const current = (i.section ? sections.find((s) => s.id === i.section)?.title : undefined) ?? i.title;
   switch (i.action) {
-    case "add": return `Add a new section “${i.title}” ${where(i.part)}.`;
-    case "rename": return `Rename “${i.title}” to “${i.newTitle ?? ""}”.`;
-    case "move": return `Move “${i.title}” ${where(i.part)}.`;
-    case "keep": return `Keep “${i.title}” as it is.`;
+    case "add": return `Add ${q(i.title)} ${destination(i, sections)}.`;
+    case "rename": return `Rename ${q(current)} to ${q(i.newTitle ?? "")}.`;
+    case "move": return `Move ${q(current)} ${destination(i, sections)}.`;
+    case "keep": return `Keep ${q(current)} as it is.`;
     default: return i.title;
   }
 }
@@ -32,12 +42,16 @@ export interface PreviewGroup { part: string; rows: PreviewRow[] }
 
 const rowOf = (s: OutlineSection): PreviewRow => ({ key: s.id, title: s.title, part: s.partTitle, state: "same", words: s.words });
 
+/** `part` is a part TITLE (rows carry titles; section.part is an id and is never compared), `after` a section id. */
 function insertAt(rows: PreviewRow[], row: PreviewRow, part: string, after: string | undefined) {
   row.part = part;
   const at = after ? rows.findIndex((r) => r.key === after) : -1;
   if (at >= 0) { rows.splice(at + 1, 0, row); return; }
-  const first = rows.findIndex((r) => r.part === part);   // "" or an unknown anchor: first in the part, or the end when it is empty
-  if (after === "" && first >= 0) rows.splice(first, 0, row); else rows.push(row);
+  const first = rows.findIndex((r) => r.part === part);
+  if (after === "" && first >= 0) { rows.splice(first, 0, row); return; }   // the start of the part
+  let last = -1;                                                           // no anchor or an unknown one: the end of the part
+  rows.forEach((r, n) => { if (r.part === part) last = n; });
+  if (last >= 0) rows.splice(last + 1, 0, row); else rows.push(row);
 }
 
 /** The outline as the ticked items would leave it, in order. Items whose section is missing are skipped, as Python skips them. */

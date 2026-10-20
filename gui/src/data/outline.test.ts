@@ -25,10 +25,22 @@ describe("defaultTicked", () => {
 });
 
 describe("describeItem", () => {
-  it("says what changes", () => {
-    expect(describeItem(ITEMS[0])).toBe("Add a new section “Study area” at the top level.");
-    expect(describeItem(ITEMS[1])).toBe("Rename “Methods” to “Materials and methods”.");
-    expect(describeItem({ ...ITEMS[2], part: "Part One" })).toBe("Move “Discussion” in “Part One”.");
+  it("says what changes, with real titles and destinations", () => {
+    expect(describeItem(ITEMS[0], SECTIONS)).toBe("Add “Study area” to the top level, after “Introduction”.");
+    expect(describeItem(ITEMS[1], SECTIONS)).toBe("Rename “Methods” to “Materials and methods”.");
+    expect(describeItem(ITEMS[2], SECTIONS)).toBe("Move “Discussion” to the top level, after “Results”.");
+  });
+  it("names the part and the start of a part", () => {
+    const move: OutlineItem = { id: "m", action: "move", title: "x", section: "d", part: "Article", after: "r" };
+    expect(describeItem(move, SECTIONS)).toBe("Move “Discussion” to Part “Article”, after “Results”.");
+    expect(describeItem({ ...move, after: "" }, SECTIONS)).toBe("Move “Discussion” to the start of Part “Article”.");
+    expect(describeItem({ ...move, after: undefined }, SECTIONS)).toBe("Move “Discussion” to the end of Part “Article”.");
+    const add: OutlineItem = { id: "a", action: "add", title: "Limitations", part: "Article", after: "d" };
+    expect(describeItem(add, SECTIONS)).toBe("Add “Limitations” to Part “Article”, after “Discussion”.");
+  });
+  it("uses the section's real current title, not the AI's", () => {
+    const rename: OutlineItem = { id: "r", action: "rename", title: "Method section (AI's name)", section: "m", newTitle: "Materials" };
+    expect(describeItem(rename, SECTIONS)).toBe("Rename “Methods” to “Materials”.");
   });
 });
 
@@ -45,12 +57,24 @@ describe("previewOutline", () => {
     expect(rows.find((r) => r.title === "Study area")?.state).toBe("new");
     expect(rows.find((r) => r.title === "Materials and methods")?.state).toBe("renamed");
   });
-  it("moves a section to the first place of a part and creates the part group", () => {
-    const withPart = [sec("a", "Abstract"), sec("x", "Intro", "Part One"), sec("y", "Methods", "Part One"), sec("z", "Results", "Part Two")];
+  // Part ids ("p-1") differ from titles ("Part One"): an item's part is a TITLE and must match partTitle, never the id.
+  const withPart = [sec("a", "Abstract"), sec("x", "Intro", "Part One"), sec("y", "Methods", "Part One"), sec("z", "Results", "Part Two")];
+  it("moves a section to the first place of a part by its title and drops the emptied group", () => {
     const move: OutlineItem = { id: "m", action: "move", title: "Results", section: "z", part: "Part One", after: "" };
     const p = previewOutline(withPart, [move]);
     expect(p.after.find((g) => g.part === "Part One")!.rows.map((r) => r.title)).toEqual(["Results", "Intro", "Methods"]);
     expect(p.after.find((g) => g.part === "Part Two")).toBeUndefined();
+  });
+  it("does not confuse a part id with a part title", () => {
+    const byId: OutlineItem = { id: "m", action: "move", title: "Results", section: "z", part: "p-Part One", after: "" };
+    const p = previewOutline(withPart, [byId]);
+    expect(p.after.find((g) => g.part === "Part One")!.rows.map((r) => r.title)).toEqual(["Intro", "Methods"]);
+  });
+  it("adds to the end of a part when there is no anchor, and after an anchor otherwise", () => {
+    const end: OutlineItem = { id: "e", action: "add", title: "Extra", part: "Part One" };
+    expect(previewOutline(withPart, [end]).after.find((g) => g.part === "Part One")!.rows.map((r) => r.title)).toEqual(["Intro", "Methods", "Extra"]);
+    const mid: OutlineItem = { id: "f", action: "add", title: "Mid", part: "Part One", after: "x" };
+    expect(previewOutline(withPart, [mid]).after.find((g) => g.part === "Part One")!.rows.map((r) => r.title)).toEqual(["Intro", "Mid", "Methods"]);
   });
   it("skips an item whose section is gone", () => {
     expect(titles([{ id: "x", action: "rename", title: "Gone", section: "nope", newTitle: "Other" }])).toEqual(SECTIONS.map((s) => s.title));
