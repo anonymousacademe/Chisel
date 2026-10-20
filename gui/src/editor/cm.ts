@@ -11,7 +11,8 @@ import { autocompletion, type CompletionContext, type CompletionResult } from "@
 import { completionSpot, elementOfLine, upperNames, type ScriptNames } from "./script";
 import { formatSpecs } from "./format";
 import { citeCompletion } from "../data/research";
-import { citeReplaced, frontmatterRange, sourceMarkers, misspellingAt, sceneFrontmatter, misspellSpecs, scriptLineSpecs, softBreaks, specsFor, titleLine, type Misspelling, type Span } from "./spans";
+import { invalidateObjects, objectDataField, objectFetcher, ObjectBlockWidget, ObjectRefWidget, openObjectFacet, setObjectData, type ObjectInfo } from "./objects";
+import { citeReplaced, objrefReplaced, placementLine, frontmatterRange, sourceMarkers, misspellingAt, sceneFrontmatter, misspellSpecs, scriptLineSpecs, softBreaks, specsFor, titleLine, type Misspelling, type Span } from "./spans";
 
 export const setSpans = StateEffect.define<Span[]>();
 export const setSpelling = StateEffect.define<Misspelling[]>();
@@ -182,9 +183,11 @@ export function build(state: EditorState): Built {
 
   // span decorations (mentions, links, drafts, expand markers)
   const citeMarks: Range<Decoration>[] = []; // citations: a widget or this mark, decided once the soft breaks are known
+  const objMarks: Range<Decoration>[] = []; // object references: a widget or this mark
   for (const sp of specsFor(state.field(spansField), head, doc.length)) {
     if (sp.from === sp.to) continue;
     if (sp.cls?.startsWith("lw-cite")) citeMarks.push(Decoration.mark({ class: sp.cls, attributes: sp.attrs }).range(sp.from, sp.to));
+    else if (sp.cls?.startsWith("lw-objref")) objMarks.push(Decoration.mark({ class: sp.cls, attributes: sp.attrs }).range(sp.from, sp.to));
     else if (sp.type === "hide") { ranges.push(hide.range(sp.from, sp.to)); atomic.push(hide.range(sp.from, sp.to)); }
     else ranges.push(Decoration.mark({ class: sp.cls, attributes: sp.attrs }).range(sp.from, sp.to));
   }
@@ -270,9 +273,43 @@ export function build(state: EditorState): Built {
     for (let n = 1; n <= last; n++) ranges.push(Decoration.line({ class: "lw-frontmatter" }).range(doc.line(n).from));
   }
 
+  // figures, tables and equations (research projects only: Python sends no object spans elsewhere). A placement
+  // line is replaced by its block unless the selection touches it; then the raw line stays editable and the
+  // rendered block sits just above it.
+  const tree = ensureSyntaxTree(state, doc.length, 40);
+  const objectsOn = kind !== "dictionary" && kind !== "style";
+  const objectData = state.field(objectDataField, false);
+  const inCode = (pos: number) => {
+    if (!tree) return false;
+    for (let n: ReturnType<typeof tree.resolveInner> | null = tree.resolveInner(pos, 1); n; n = n.parent) {
+      if (n.name === "InlineCode" || n.name === "FencedCode" || n.name === "CodeBlock") return true;
+    }
+    return false;
+  };
+  const placeEdges = new Set<number>();    // a placement line never joins its neighbours as a soft break
+  if (objectsOn) {
+    const placed = new Set<number>();
+    for (const x of state.field(spansField)) {
+      if (x.kind !== "placement" || !x.key || !x.objectKind) continue;
+      const line = placementLine(x, text);
+      if (!line || placed.has(line.from) || inCode(line.from)) continue;
+      placed.add(line.from);
+      placeEdges.add(line.to); placeEdges.add(line.from - 1);
+      const info = objectData?.map.get(x.key)?.info;
+      const resolved = x.status === "resolved";
+      const touched = state.selection.ranges.some((r) => r.from <= line.to && r.to >= line.from);
+      if (touched) {
+        ranges.push(Decoration.widget({ widget: new ObjectBlockWidget(x.key, x.objectKind, x.display ?? x.key, resolved, info, true), block: true, side: -1 }).range(line.from));
+        ranges.push(Decoration.line({ class: "lw-placement-raw" }).range(line.from));
+      } else {
+        ranges.push(Decoration.replace({ widget: new ObjectBlockWidget(x.key, x.objectKind, x.display ?? x.key, resolved, info, false), block: true }).range(line.from, line.to));
+      }
+    }
+  }
+
   // hard-wrapped source lines flow as one paragraph (display only)
   const softBreakSet = new Set<number>((state.facet(reflowFacet) && !plain ? softBreaks(text, fm) : [])
-    .filter((p) => !markerHides.some((h) => p >= h.from - 1 && p < h.to)));
+    .filter((p) => !markerHides.some((h) => p >= h.from - 1 && p < h.to) && !placeEdges.has(p)));
   for (const pos of softBreakSet) {
     ranges.push(SPACE.range(pos, pos + 1));
     atomic.push(SPACE.range(pos, pos + 1));
@@ -291,6 +328,19 @@ export function build(state: EditorState): Built {
     }
   }
   for (const m of citeMarks) if (!replaced.has(m.from)) ranges.push(m);
+
+  // references to figures, tables and equations: "Figure 2" as a link-like word, the raw [[fig:x]] when touched
+  const objReplaced = new Set<number>();
+  if (objectsOn) {
+    for (const x of state.field(spansField)) {
+      if (x.kind !== "objref" || !x.key || inCode(x.start)) continue;
+      if (objrefReplaced(x, state.selection.ranges, text, softBreakSet)) {
+        objReplaced.add(x.start);
+        ranges.push(Decoration.replace({ widget: new ObjectRefWidget(x.key, x.display ?? x.key, x.status ?? "unresolved") }).range(x.start, x.end));
+      }
+    }
+    for (const m of objMarks) if (!objReplaced.has(m.from) && !inCode(m.from)) ranges.push(m);
+  }
 
   // read aloud: the passage being spoken
   const reading = state.field(readingField);
@@ -320,7 +370,6 @@ export function build(state: EditorState): Built {
   }
 
   // Markdown structure: headings, emphasis, quotes, inline code
-  const tree = ensureSyntaxTree(state, doc.length, 40);
   if (tree) {
     tree.iterate({
       enter(node) {
@@ -358,7 +407,7 @@ export const decoField = StateField.define<Built>({
   update(value, tr) {
     const facetChanged = tr.startState.facet(metaFacet) !== tr.state.facet(metaFacet)
       || tr.startState.facet(reflowFacet) !== tr.state.facet(reflowFacet);
-    if (tr.docChanged || tr.selection || facetChanged || tr.effects.some((e) => e.is(setSpans) || e.is(setSpelling) || e.is(setComments) || e.is(setReading))) return build(tr.state);
+    if (tr.docChanged || tr.selection || facetChanged || tr.effects.some((e) => e.is(setSpans) || e.is(setSpelling) || e.is(setComments) || e.is(setReading) || e.is(setObjectData) || e.is(invalidateObjects))) return build(tr.state);
     return value;
   },
   provide: (f) => [
@@ -414,7 +463,7 @@ export const sourceGuard: Extension[] = [
 ];
 
 /** The fields the decorations read, without the DOM-bound parts of editorExtensions (for tests). */
-export const decorationCore: Extension[] = [spansField, spellingField, commentsField, readingField, decoField, sourceGuard];
+export const decorationCore: Extension[] = [spansField, spellingField, commentsField, readingField, objectDataField, decoField, sourceGuard];
 
 export interface CursorInfo {
   line: number; col: number; head: number; from: number; to: number;
@@ -478,6 +527,10 @@ export interface Hooks {
   getNames?(): ScriptNames;
   /** Research projects: sources for the [[@ completion list (absent = not a research project). */
   searchSources?(query: string): Promise<{ key: string; display: string; title: string }[]>;
+  /** Research projects: object_render for these keys ("fig:label"); absent = the widgets stay sized placeholders. */
+  renderObjects?(keys: string[]): Promise<ObjectInfo[]>;
+  /** The Edit affordance of a block, or Ctrl-click on a reference: open the object's dialog (key "fig:label"). */
+  onOpenObject?(key: string): void;
 }
 
 /** Tab / Shift-Tab in a script scene: the current line becomes the next (previous) element. */
@@ -554,8 +607,11 @@ export function editorExtensions(kind: string, meta: string, reflow: boolean, ho
     spellingField,
     commentsField,
     readingField,
+    objectDataField,
     decoField,
     sourceGuard,
+    openObjectFacet.of((key) => hooks.onOpenObject?.(key)),
+    ...(hooks.renderObjects ? [objectFetcher(hooks.renderObjects, (s) => s.field(spansField))] : []),
     keymap.of([
       ...(screenplay ? [
         { key: "Tab", run: (view: EditorView) => cycleLine(view, hooks, false), preventDefault: true },
@@ -656,6 +712,12 @@ export function editorExtensions(kind: string, meta: string, reflow: boolean, ho
       mousedown: (e, view) => {
         if (!(e.ctrlKey || e.metaKey)) return false;
         const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
+        const ref = pos === null ? undefined : view.state.field(spansField).find((s) => s.kind === "objref" && s.key && pos >= s.start && pos <= s.end);
+        if (ref?.key && hooks.onOpenObject) {
+          e.preventDefault();
+          hooks.onOpenObject(ref.key);
+          return true;
+        }
         const span = pos === null ? undefined : spanAt(view.state, pos);
         if (!span) return false;
         e.preventDefault();

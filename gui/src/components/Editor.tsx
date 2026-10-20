@@ -56,6 +56,8 @@ export function Editor(props: {
   onReload: () => void; onKeepMine: () => void; onMakeNote: () => void;
   getCard: (span: Span) => Promise<Card | null>; onOpenEntity: (span: Span) => void;
   onResolveDraft: (index: number, accept: boolean) => void;
+  /** Research: figure / table / equation widgets (bump to refetch; open the object's dialog). */
+  objectsVersion?: number; onOpenObject?: (key: string) => void;
   spellVersion: number; onSpellCount: (count: number | null) => void; onSpell: (t: SpellTarget) => void; onContextMenu: (info: ContextInfo) => void;
   onAddPhrase: () => void;
   /** Comment on the selected passage; the host opens the dialog. */
@@ -159,7 +161,7 @@ export function Editor(props: {
                 <EditorPane key={`${doc.id}:${props.docRev}`} ref={editorRef} docId={doc.id} kind={doc.kind} entityType={doc.entityType}
                   initialText={doc.text} meta={meta} reflow={props.reflow && !props.script} script={props.script} research={props.research} names={props.names} spansVersion={props.spansVersion}
                   spellVersion={props.spellVersion} onSpellCount={props.onSpellCount} onSpell={props.onSpell} onContextMenu={props.onContextMenu}
-                  onComments={props.onComments}
+                  onComments={props.onComments} objectsVersion={props.objectsVersion} onOpenObject={props.onOpenObject}
                   onChange={props.onChange} onCursor={props.onCursor} onBlur={props.onBlur} onSaveNow={props.onSaveNow}
                   getCard={props.getCard} onOpenEntity={props.onOpenEntity} onResolveDraft={props.onResolveDraft} extraKeys={props.extraKeys} />
               </article>

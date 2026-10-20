@@ -4,6 +4,7 @@ import { EditorView } from "@codemirror/view";
 import { redo, redoDepth, selectAll, undo, undoDepth } from "@codemirror/commands";
 import { api } from "../backend/api";
 import { setComments, setReading, metaCompartment, metaFacet, reflowCompartment, reflowFacet, setSpans, setSpelling, spansField, spellingField, editorExtensions, sourceStart, type Card, type ContextInfo, type CursorInfo, type SpellTarget } from "../editor/cm";
+import { invalidateObjects, type ObjectInfo } from "../editor/objects";
 import { replaceRange, toggleWrap } from "../editor/commands";
 import { nextMisspelling, type Span } from "../editor/spans";
 import type { ScriptNames } from "../editor/script";
@@ -75,6 +76,12 @@ interface Props {
   onSpellCount(count: number | null): void;
   onSpell(target: SpellTarget): void;
   onContextMenu?(info: ContextInfo): void;
+  /** Research projects: bump when the workspace's figures / tables / equations changed, so the widgets refetch. */
+  objectsVersion?: number;
+  /** The Edit affordance of an object block, or Ctrl-click on a reference: open its dialog ("fig:label"). No-op by default. */
+  onOpenObject?(key: string): void;
+  /** Fetch widget data (default: the object_render bridge call, research projects only). */
+  renderObjects?(keys: string[]): Promise<ObjectInfo[]>;
   /** Comments with positions, refetched after edits (scenes only; null otherwise). */
   onComments(rows: CommentRow[] | null): void;
   extraKeys?: { key: string; run: () => boolean }[];
@@ -267,6 +274,12 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
           searchSources: hooks.current.research
             ? (q) => api.searchSources(q, 12).then((r) => (r.ok ? r.sources : []))
             : undefined,
+          onOpenObject: (key) => hooks.current.onOpenObject?.(key),
+          renderObjects: hooks.current.research || hooks.current.renderObjects
+            ? (keys) => (hooks.current.renderObjects
+              ? hooks.current.renderObjects(keys)
+              : api.objectRender(keys).then((r) => (r.ok ? r.objects : [])))
+            : undefined,
           // keys are fixed at mount; their handlers always come from the latest render
           extraKeys: hooks.current.extraKeys?.map((k) => ({
             key: k.key, run: () => hooks.current.extraKeys?.find((x) => x.key === k.key)?.run() ?? false,
@@ -311,6 +324,13 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
       if (r.ok && view.current && view.current.state.doc.toString() === text) view.current.dispatch({ effects: setSpans.of(r.spans) });
     });
   }, [props.spansVersion]);
+
+  // figures, tables and equations changed elsewhere: their widgets refetch (the old picture stays until the new one arrives)
+  const firstObjects = useRef(true);
+  useEffect(() => {
+    if (firstObjects.current) { firstObjects.current = false; return; }
+    view.current?.dispatch({ effects: invalidateObjects.of(null) });
+  }, [props.objectsVersion]);
 
   return <div className="lw-cm" ref={host} />;
 });
