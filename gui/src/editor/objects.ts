@@ -17,7 +17,11 @@ export interface ObjectInfo {
   status?: string;
   width?: number | null;
   alt?: string;
+  /** undefined = not loaded yet (object_render with images=false), null = the file is missing or unreadable. */
   imageUrl?: string | null;
+  /** the file's version (ns, as a string) and the image's [width, height] in pixels, null when unreadable. */
+  mtime?: string;
+  pixels?: [number, number] | null;
   cells?: string[][] | null;
   align?: string[] | null;
   latex?: string;
@@ -34,7 +38,7 @@ export interface ObjectInfo {
 export function renderMath(latex: string, display = true): { html: string } | { error: string } {
   try {
     const html = katex.renderToString(latex, {
-      displayMode: display, throwOnError: false, trust: false, strict: "ignore", maxExpand: 500, output: "html",
+      displayMode: display, throwOnError: false, trust: false, strict: "ignore", maxExpand: 500, maxSize: 20, output: "html",
     });
     // throwOnError false draws a parse error as a coloured span: show the plain source instead
     if (html.includes("katex-error")) return { error: latex };
@@ -49,10 +53,17 @@ export function renderMath(latex: string, display = true): { html: string } | { 
 export interface ObjectEntry { info: ObjectInfo; stale: boolean }
 export interface ObjectData { gen: number; map: ReadonlyMap<string, ObjectEntry> }
 
-/** Fresh answers from the bridge: {gen} the generation the request was made in. */
+/** Fresh metadata from the bridge: {gen} the generation the request was made in. */
 export const setObjectData = StateEffect.define<{ gen: number; infos: ObjectInfo[] }>();
+/** One figure's image arrived (url) or is known to be unreadable (null), for the file version `mtime`. */
+export const setObjectImage = StateEffect.define<{ key: string; mtime: string; url: string | null }>();
 /** The workspace's objects changed (caption, image, numbering ...): every cached entry is stale until refetched. */
 export const invalidateObjects = StateEffect.define<null>();
+
+/** Everything shown except the image itself (cheap: no data URL in it). */
+function metaSig(i: ObjectInfo): string {
+  return JSON.stringify({ ...i, imageUrl: undefined });
+}
 
 export const objectDataField = StateField.define<ObjectData>({
   create: () => ({ gen: 0, map: new Map() }),
@@ -66,7 +77,23 @@ export const objectDataField = StateField.define<ObjectData>({
       } else if (e.is(setObjectData)) {
         if (e.value.gen !== out.gen) continue;        // an answer to a question asked before the last invalidation
         const map = new Map(out.map);
-        for (const info of e.value.infos) map.set(info.id, { info, stale: false });
+        for (const fresh of e.value.infos) {
+          const old = map.get(fresh.id)?.info;
+          let info = fresh;
+          if (old && !old.error && !fresh.error) {
+            // the same file version keeps its image (no refetch); unchanged content keeps the same object (no redraw)
+            const sameFile = (old.mtime ?? "") === (fresh.mtime ?? "") && fresh.imageUrl === undefined;
+            if (sameFile && typeof old.imageUrl === "string") info = { ...fresh, imageUrl: old.imageUrl };
+            if (metaSig(old) === metaSig(info) && old.imageUrl === info.imageUrl) info = old;
+          }
+          map.set(fresh.id, { info, stale: false });
+        }
+        out = { gen: out.gen, map };
+      } else if (e.is(setObjectImage)) {
+        const hit = out.map.get(e.value.key);
+        if (!hit || hit.info.error || (hit.info.mtime ?? "") !== e.value.mtime) continue;
+        const map = new Map(out.map);
+        map.set(e.value.key, { info: { ...hit.info, imageUrl: e.value.url }, stale: hit.stale });
         out = { gen: out.gen, map };
       }
     }
@@ -86,50 +113,105 @@ export function objectKeys(spans: readonly Span[]): string[] {
   return [...out];
 }
 
+const BATCH = 200;          // the bridge refuses more ids than this per call
+const MAX_IMAGES = 4;       // concurrent object_image calls
+const BACKOFF_MS = 1000;
+
 /**
- * Fetches object_render data for keys that are not cached or are stale, in one batch per tick. An answer is
- * applied only for keys still in the document and only if no invalidation happened since the request.
+ * Fetches object metadata (no images) for keys that are not cached or are stale, batched per tick, and then the
+ * images of the figures that are placed in the document, one call each, at most four at a time, once per
+ * (key, mtime). A key that got no answer is not asked again until an invalidation, or until the set of keys
+ * changed and a backoff has passed. An answer is applied only for keys still in the document and only if no
+ * invalidation happened since the request.
  */
 export function objectFetcher(
   renderObjects: (keys: string[]) => Promise<ObjectInfo[]>,
   spansOf: (state: EditorState) => readonly Span[],
+  fetchImage?: (label: string) => Promise<string | null>,
 ): Extension {
   return ViewPlugin.fromClass(class {
     inflight = new Map<string, number>();   // key -> generation it was requested in
+    failed = new Map<string, { gen: number; sig: string; at: number; n: number }>();
+    imgInflight = new Set<string>();        // "key|mtime"
     scheduled = false;
     destroyed = false;
     readonly view: EditorView;
     constructor(view: EditorView) { this.view = view; this.schedule(); }
     update(u: ViewUpdate) {
       const spansChanged = u.state !== u.startState && spansOf(u.state) !== spansOf(u.startState);
-      if (spansChanged || u.transactions.some((t) => t.effects.some((e) => e.is(invalidateObjects)))) this.schedule();
+      const answered = u.transactions.some((t) => t.effects.some((e) => e.is(setObjectData)));
+      if (spansChanged || answered || u.transactions.some((t) => t.effects.some((e) => e.is(invalidateObjects)))) this.schedule();
     }
     schedule() {
       if (this.scheduled || this.destroyed) return;
       this.scheduled = true;
-      void Promise.resolve().then(() => { this.scheduled = false; this.fetch(); });
+      void Promise.resolve().then(() => { this.scheduled = false; this.fetch(); this.pump(); });
     }
     fetch() {
       if (this.destroyed) return;
       const state = this.view.state;
       const data = state.field(objectDataField);
-      const want = objectKeys(spansOf(state)).filter((k) => {
+      const keys = objectKeys(spansOf(state));
+      const sig = [...keys].sort().join("\n");
+      const now = Date.now();
+      const want = keys.filter((k) => {
         const hit = data.map.get(k);
         if (hit && !hit.stale) return false;
-        return this.inflight.get(k) !== data.gen;
+        if (this.inflight.get(k) === data.gen) return false;
+        const f = this.failed.get(k);
+        if (f && f.gen === data.gen && (f.sig === sig || now - f.at < BACKOFF_MS * 2 ** Math.min(f.n, 5))) return false;
+        return true;
       });
       if (!want.length) return;
       const gen = data.gen;
       for (const k of want) this.inflight.set(k, gen);
-      renderObjects(want).then((infos) => {
-        for (const k of want) if (this.inflight.get(k) === gen) this.inflight.delete(k);
+      for (let i = 0; i < want.length; i += BATCH) this.request(want.slice(i, i + BATCH), gen, sig);
+    }
+    request(chunk: string[], gen: number, sig: string) {
+      const done = (answered: Set<string>) => {
+        for (const k of chunk) {
+          if (this.inflight.get(k) === gen) this.inflight.delete(k);
+          if (answered.has(k)) { this.failed.delete(k); continue; }
+          const n = (this.failed.get(k)?.n ?? 0) + 1;
+          this.failed.set(k, { gen, sig, at: Date.now(), n });
+        }
+      };
+      let p: Promise<ObjectInfo[]>;
+      try { p = renderObjects(chunk); } catch { done(new Set()); return; }
+      p.then((infos) => {
+        done(new Set(infos.map((i) => i.id)));
         if (this.destroyed) return;
         const live = new Set(objectKeys(spansOf(this.view.state)));
         const keep = infos.filter((i) => live.has(i.id));
         if (keep.length) this.view.dispatch({ effects: setObjectData.of({ gen, infos: keep }) });
-      }, () => {
-        for (const k of want) if (this.inflight.get(k) === gen) this.inflight.delete(k);
-      });
+      }, () => done(new Set()));
+    }
+    /** Starts image requests for placed figures that have metadata but no image yet (never more than MAX_IMAGES). */
+    pump() {
+      if (this.destroyed || !fetchImage) return;
+      const state = this.view.state;
+      const map = state.field(objectDataField).map;
+      for (const s of spansOf(state)) {
+        if (this.imgInflight.size >= MAX_IMAGES) return;
+        if (s.kind !== "placement" || s.objectKind !== "fig" || !s.key) continue;
+        const info = map.get(s.key)?.info;
+        if (!info || info.error || info.imageUrl !== undefined) continue;
+        const key = s.key;
+        const mtime = info.mtime ?? "";
+        const id = `${key}|${mtime}`;
+        if (this.imgInflight.has(id)) continue;
+        this.imgInflight.add(id);
+        const finish = (url: string | null) => {
+          this.imgInflight.delete(id);
+          if (!this.destroyed) {
+            this.view.dispatch({ effects: setObjectImage.of({ key, mtime, url }) });
+            this.pump();
+          }
+        };
+        let p: Promise<string | null>;
+        try { p = fetchImage(key.replace(/^fig:/, "")); } catch { finish(null); continue; }
+        p.then((url) => finish(typeof url === "string" && url ? url : null), () => finish(null));
+      }
     }
     destroy() { this.destroyed = true; }
   });
@@ -159,6 +241,22 @@ function caption(display: string, text: string | undefined, cls: string): HTMLEl
   return c;
 }
 
+const infoIds = new WeakMap<ObjectInfo, number>();
+let nextInfoId = 1;
+/** A small identity for a cache entry (0 = none). */
+function infoId(info: ObjectInfo | undefined): number {
+  if (!info) return 0;
+  let id = infoIds.get(info);
+  if (!id) { id = nextInfoId++; infoIds.set(info, id); }
+  return id;
+}
+
+/** [w, h] when the entry carries usable pixel dimensions. */
+function pixelsOf(info: ObjectInfo): [number, number] | null {
+  const p = info.pixels;
+  return p && p.length === 2 && p[0] > 0 && p[1] > 0 && Number.isFinite(p[0]) && Number.isFinite(p[1]) ? [p[0], p[1]] : null;
+}
+
 /** The rendered figure / table / equation of a placement (a block), or the notice for a missing one. */
 export class ObjectBlockWidget extends WidgetType {
   readonly sig: string;
@@ -171,8 +269,9 @@ export class ObjectBlockWidget extends WidgetType {
   constructor(key: string, kind: ObjectKind, display: string, resolved: boolean, info: ObjectInfo | undefined, above: boolean) {
     super();
     this.key = key; this.kind = kind; this.display = display; this.resolved = resolved; this.info = info; this.above = above;
-    // what the DOM shows: equal content = the DOM is reused while the author types elsewhere
-    this.sig = JSON.stringify([key, kind, display, resolved, above, info ?? null]);
+    // what the DOM shows, by identity: the cache hands out the same info object until something shown changes,
+    // so eq() never looks at (or serialises) image data
+    this.sig = `${key}|${kind}|${display}|${resolved}|${above}|${infoId(info)}`;
   }
   eq(o: ObjectBlockWidget) { return o.sig === this.sig; }
   get estimatedHeight() { return this.kind === "fig" ? 270 : this.kind === "tbl" ? 60 : 50; }
@@ -219,11 +318,26 @@ export class ObjectBlockWidget extends WidgetType {
 
   private figure(box: HTMLElement, info: ObjectInfo, view?: EditorView) {
     const fig = el("figure", "lw-object__figure");
-    if (info.imageUrl) {
+    const px = pixelsOf(info);
+    const sized = info.width && info.width > 0 ? `${Math.min(info.width, 20) * PX_PER_INCH}px` : null;
+    if (info.imageUrl === undefined) {
+      // the image is on its way: hold its final box (same ratio and width) so nothing jumps on arrival
+      const ph = el("div", "lw-object__placeholder lw-object__placeholder--fig", this.display);
+      if (px) {
+        ph.style.aspectRatio = `${px[0]} / ${px[1]}`;
+        ph.style.width = sized ?? `min(100%, ${px[0]}px)`;
+      }
+      fig.append(ph);
+    } else if (info.imageUrl) {
       const img = el("img", "lw-object__img");
       img.alt = info.alt || info.caption || info.label || "";
       img.draggable = false;
-      if (info.width && info.width > 0) img.style.width = `${Math.min(info.width, 20) * PX_PER_INCH}px`;
+      if (px) {
+        img.setAttribute("width", String(px[0]));
+        img.setAttribute("height", String(px[1]));
+        img.style.aspectRatio = `${px[0]} / ${px[1]}`;
+      }
+      if (sized) img.style.width = sized;
       img.addEventListener("load", () => view?.requestMeasure());
       img.src = info.imageUrl;
       fig.append(img);

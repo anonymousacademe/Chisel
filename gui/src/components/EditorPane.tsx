@@ -278,8 +278,9 @@ export const EditorPane = forwardRef<EditorHandle, Props>(function EditorPane(pr
           renderObjects: hooks.current.research || hooks.current.renderObjects
             ? (keys) => (hooks.current.renderObjects
               ? hooks.current.renderObjects(keys)
-              : api.objectRender(keys).then((r) => (r.ok ? r.objects : [])))
+              : api.objectRender(keys, false).then((r) => (r.ok ? r.objects : [])))
             : undefined,
+          fetchObjectImage: (label) => api.objectImage(label).then((r) => (r.ok ? r.dataUrl : null)),
           // keys are fixed at mount; their handlers always come from the latest render
           extraKeys: hooks.current.extraKeys?.map((k) => ({
             key: k.key, run: () => hooks.current.extraKeys?.find((x) => x.key === k.key)?.run() ?? false,

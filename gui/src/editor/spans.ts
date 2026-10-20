@@ -32,7 +32,7 @@ export interface Span {
 
 export type ObjectKind = "fig" | "tbl" | "eq";
 
-const PLACEMENT_RAW = /^!\[\[(fig|tbl|eq):[^\][\n]+\]\][ \t]*$/;
+const PLACEMENT_RAW = /^[ \t]*!\[\[(fig|tbl|eq):[^\][\n]+\]\][ \t]*$/;
 const OBJREF_RAW = /^\[\[(fig|tbl|eq):[^\][\n]+\]\]$/;
 
 /**
@@ -43,7 +43,7 @@ const OBJREF_RAW = /^\[\[(fig|tbl|eq):[^\][\n]+\]\]$/;
 export function placementLine(s: Span, text: string): { from: number; to: number } | null {
   if (s.kind !== "placement" || s.start < 0 || s.end > text.length || s.start >= s.end) return null;
   const from = text.lastIndexOf("\n", s.start - 1) + 1;
-  if (from !== s.start) return null;
+  if (text.slice(from, s.start).trim() !== "") return null;
   const nl = text.indexOf("\n", s.start);
   const to = nl < 0 ? text.length : nl;
   return PLACEMENT_RAW.test(text.slice(from, to)) ? { from, to } : null;

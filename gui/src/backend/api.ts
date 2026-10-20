@@ -126,7 +126,8 @@ export const api = {
   listSources: () => call<{ sources: SourceRow[] }>("list_sources"),
   searchSources: (query: string, limit = 30) => call<{ sources: SourceHit[] }>("search_sources", query, limit),
   /** Editor widgets (figures, tables, equations): one entry per id; a bad id is an entry with `error`. */
-  objectRender: (ids: string[]) => call<{ objects: ObjectInfo[] }>("object_render", ids),
+  objectRender: (ids: string[], images = true) => call<{ objects: ObjectInfo[] }>("object_render", ids, images),
+  objectImage: (label: string) => call<{ label: string; dataUrl: string }>("object_image", label),
   sourceCard: (id: string) => call<SourceCardInfo>("source_card", id),
   zoteroItemCollections: (id: string) => call<{ collections: string[] }>("zotero_item_collections", id),
   openInZotero: (id: string) => call("open_in_zotero", id),

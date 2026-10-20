@@ -160,7 +160,9 @@ describe("placement blocks", () => {
 
   it("eq is true for identical content and false when anything shown changes", () => {
     const a = new ObjectBlockWidget("fig:a", "fig", "Figure 2", true, FIG, false);
-    expect(a.eq(new ObjectBlockWidget("fig:a", "fig", "Figure 2", true, { ...FIG }, false))).toBe(true);
+    expect(a.eq(new ObjectBlockWidget("fig:a", "fig", "Figure 2", true, FIG, false))).toBe(true);
+    // a rebuilt entry is a new identity (the cache keeps the same object while nothing shown changes)
+    expect(a.eq(new ObjectBlockWidget("fig:a", "fig", "Figure 2", true, { ...FIG }, false))).toBe(false);
     expect(a.eq(new ObjectBlockWidget("fig:a", "fig", "Figure 3", true, FIG, false))).toBe(false);
     expect(a.eq(new ObjectBlockWidget("fig:a", "fig", "Figure 2", true, { ...FIG, caption: "x" }, false))).toBe(false);
     expect(a.eq(new ObjectBlockWidget("fig:a", "fig", "Figure 2", true, undefined, false))).toBe(false);
@@ -263,10 +265,10 @@ afterEach(() => { mounted?.destroy(); mounted = null; vi.restoreAllMocks(); });
 
 const tick = () => new Promise<void>((r) => setTimeout(r, 0));
 
-function live(doc: string, render: (keys: string[]) => Promise<ObjectInfo[]>, spans = spansOf(doc)) {
+function live(doc: string, render: (keys: string[]) => Promise<ObjectInfo[]>, spans = spansOf(doc), fetchObjectImage?: (label: string) => Promise<string | null>) {
   const hooks = {
     getCard: async () => null, onOpenEntity: () => {}, onChange: () => {}, onCursor: () => {}, onBlur: () => {},
-    onSaveNow: () => {}, onResolveDraft: () => {}, renderObjects: render,
+    onSaveNow: () => {}, onResolveDraft: () => {}, renderObjects: render, fetchObjectImage,
   };
   const view = new EditorView({
     parent: document.body,
@@ -358,5 +360,118 @@ describe("object cache", () => {
     await tick();
     expect(view.dom.querySelectorAll(".lw-object--pending").length).toBe(5);
     expect(spansField).toBeDefined();
+  });
+});
+
+describe("images, failures and layout", () => {
+  const META: ObjectInfo[] = [
+    ...["a", "d", "e"].map((l): ObjectInfo => ({ id: `fig:${l}`, kind: "fig", caption: l, mtime: "100", pixels: [800, 400] })),
+    TBL, EQ,
+  ];
+  const meta = (keys: string[]) => META.filter((i) => keys.includes(i.id));
+
+  it("eq compares identity: 50 builds with 3 MB data URLs cost nothing per keystroke", () => {
+    const big = "data:image/png;base64," + "A".repeat(3 * 1024 * 1024);
+    const infos = ["a", "d", "e"].map((l): ObjectInfo => ({ id: `fig:${l}`, kind: "fig", imageUrl: big + l, mtime: "1" }));
+    const stringify = vi.spyOn(JSON, "stringify");
+    const t0 = performance.now();
+    let prev = infos.map((i) => new ObjectBlockWidget(i.id, "fig", "Fig. 1", true, i, false));
+    for (let n = 0; n < 50; n++) {
+      const next = infos.map((i) => new ObjectBlockWidget(i.id, "fig", "Fig. 1", true, i, false));
+      next.forEach((w, i) => expect(w.eq(prev[i])).toBe(true));
+      prev = next;
+    }
+    expect(performance.now() - t0).toBeLessThan(200);
+    expect(stringify).not.toHaveBeenCalled();     // nothing serialised the images
+  });
+
+  it("a key that never gets an answer is not asked again while typing", async () => {
+    const render = vi.fn(async (): Promise<ObjectInfo[]> => { throw new Error("bridge down"); });
+    const view = live(DOC5, render);
+    await tick(); await tick();
+    expect(render).toHaveBeenCalledTimes(1);
+    for (let i = 0; i < 5; i++) view.dispatch({ changes: { from: 0, insert: "x" }, selection: { anchor: i + 1 } });
+    await tick(); await tick();
+    expect(render).toHaveBeenCalledTimes(1);
+    view.dispatch({ effects: invalidateObjects.of(null) });     // a new generation retries
+    await tick(); await tick();
+    expect(render).toHaveBeenCalledTimes(2);
+  });
+
+  it("a batch over 200 keys is split, and an unanswered key is not re-requested", async () => {
+    const doc = Array.from({ length: 250 }, (_, i) => `![[eq:k${i}]]`).join("\n\n") + "\n";
+    const render = vi.fn(async (keys: string[]) => keys.filter((k) => k !== "eq:k7").map((k): ObjectInfo => ({ id: k, kind: "eq", latex: "x" })));
+    const view = live(doc, render);
+    await tick(); await tick();
+    expect(render.mock.calls.map((c) => c[0].length).sort((a, b) => a - b)).toEqual([50, 200]);
+    view.dispatch({ changes: { from: 0, insert: "y" }, selection: { anchor: 1 } });
+    await tick(); await tick();
+    expect(render).toHaveBeenCalledTimes(2);
+  });
+
+  it("fetches each placed figure's image once per (key, mtime), at most 4 at a time", async () => {
+    const doc = Array.from({ length: 7 }, (_, i) => `![[fig:f${i}]]`).join("\n\n") + "\n";
+    const infos = Array.from({ length: 7 }, (_, i): ObjectInfo => ({ id: `fig:f${i}`, kind: "fig", mtime: "5", pixels: [10, 10] }));
+    const render = vi.fn(async (keys: string[]) => infos.filter((i) => keys.includes(i.id)).map((i) => ({ ...i })));
+    let active = 0, peak = 0;
+    const waiting: (() => void)[] = [];
+    const fetchImage = vi.fn((label: string) => new Promise<string | null>((res) => {
+      active++; peak = Math.max(peak, active);
+      waiting.push(() => { active--; res(`data:image/png;base64,${label}`); });
+    }));
+    const view = live(doc, render, spansOf(doc), fetchImage);
+    await tick(); await tick();
+    expect(fetchImage).toHaveBeenCalledTimes(4);
+    while (waiting.length) { waiting.shift()!(); await tick(); await tick(); }
+    expect(fetchImage).toHaveBeenCalledTimes(7);
+    expect(peak).toBe(4);
+    expect(view.state.field(objectDataField).map.get("fig:f3")?.info.imageUrl).toBe("data:image/png;base64,f3");
+    // an invalidation with the same mtime refetches metadata but never the images
+    view.dispatch({ effects: invalidateObjects.of(null) });
+    await tick(); await tick(); await tick();
+    expect(render.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(fetchImage).toHaveBeenCalledTimes(7);
+    expect(view.state.field(objectDataField).map.get("fig:f3")?.info.imageUrl).toBe("data:image/png;base64,f3");
+  });
+
+  it("a figure that is only referenced (not placed) never fetches its image", async () => {
+    const doc = "See [[fig:a]] here.\n";
+    const fetchImage = vi.fn(async () => "data:image/png;base64,Z");
+    live(doc, async (k) => meta(k), spansOf(doc), fetchImage);
+    await tick(); await tick();
+    expect(fetchImage).not.toHaveBeenCalled();
+  });
+
+  it("a changed mtime fetches the new image; an unreadable image becomes a settled notice", async () => {
+    const doc = "![[fig:a]]\n";
+    let m = "1";
+    const render = vi.fn(async (k: string[]) => meta(k).map((i) => ({ ...i, mtime: m })));
+    const fetchImage = vi.fn(async () => (m === "1" ? "data:image/png;base64,ONE" : null));
+    const view = live(doc, render, spansOf(doc), fetchImage);
+    await tick(); await tick(); await tick();
+    expect(fetchImage).toHaveBeenCalledTimes(1);
+    m = "2";
+    view.dispatch({ effects: invalidateObjects.of(null) });
+    await tick(); await tick(); await tick(); await tick();
+    expect(fetchImage).toHaveBeenCalledTimes(2);
+    expect(view.state.field(objectDataField).map.get("fig:a")?.info.imageUrl).toBeNull();
+  });
+
+  it("pixels give the placeholder and the image the same aspect ratio before the image loads", () => {
+    const pending: ObjectInfo = { id: "fig:a", kind: "fig", mtime: "1", pixels: [800, 400] };
+    const ph = new ObjectBlockWidget("fig:a", "fig", "Fig. 1", true, pending, false).toDOM().querySelector<HTMLElement>(".lw-object__placeholder")!;
+    expect(ph.style.aspectRatio.replace(/\s/g, "")).toBe("800/400");
+    const img = new ObjectBlockWidget("fig:a", "fig", "Fig. 1", true, { ...pending, imageUrl: "data:image/png;base64,AAAA" }, false).toDOM().querySelector("img")!;
+    expect(img.getAttribute("width")).toBe("800");
+    expect(img.getAttribute("height")).toBe("400");
+    expect(img.style.aspectRatio.replace(/\s/g, "")).toBe("800/400");
+    const noPx = new ObjectBlockWidget("fig:a", "fig", "Fig. 1", true, { id: "fig:a", kind: "fig", imageUrl: "data:image/png;base64,AAAA", pixels: null }, false).toDOM().querySelector("img")!;
+    expect(noPx.hasAttribute("width")).toBe(false);
+  });
+
+  it("a placement line with leading spaces is still a placement", () => {
+    const sp: Span = { kind: "placement", start: 2, end: 12, key: "fig:a", objectKind: "fig", display: "Fig. 1", status: "resolved" };
+    expect(placementLine(sp, "  ![[fig:a]]\n")).toEqual({ from: 0, to: 12 });
+    expect(placementLine(sp, "x ![[fig:a]]\n")).toBeNull();
   });
 });

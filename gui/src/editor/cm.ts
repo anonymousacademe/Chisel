@@ -529,6 +529,8 @@ export interface Hooks {
   searchSources?(query: string): Promise<{ key: string; display: string; title: string }[]>;
   /** Research projects: object_render for these keys ("fig:label"); absent = the widgets stay sized placeholders. */
   renderObjects?(keys: string[]): Promise<ObjectInfo[]>;
+  /** A figure's image as a data URL (object_image), fetched lazily one at a time; null = unreadable. */
+  fetchObjectImage?(label: string): Promise<string | null>;
   /** The Edit affordance of a block, or Ctrl-click on a reference: open the object's dialog (key "fig:label"). */
   onOpenObject?(key: string): void;
 }
@@ -611,7 +613,7 @@ export function editorExtensions(kind: string, meta: string, reflow: boolean, ho
     decoField,
     sourceGuard,
     openObjectFacet.of((key) => hooks.onOpenObject?.(key)),
-    ...(hooks.renderObjects ? [objectFetcher(hooks.renderObjects, (s) => s.field(spansField))] : []),
+    ...(hooks.renderObjects ? [objectFetcher(hooks.renderObjects, (s) => s.field(spansField), hooks.fetchObjectImage)] : []),
     keymap.of([
       ...(screenplay ? [
         { key: "Tab", run: (view: EditorView) => cycleLine(view, hooks, false), preventDefault: true },
