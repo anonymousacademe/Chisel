@@ -365,6 +365,7 @@ def object_groups(project: Project) -> list[dict]:
     """Research projects: the Figures / Tables / Equations binder groups, each only while it has objects. A node's
     title is "Figure 2: caption" (the number from ``objects.numbering``; "Figure: caption" while never placed)."""
     from ..core import objects
+    from ..core.spans import object_display
     from .research_objects_api import _status
     try:
         found = objects.list_objects(project)
@@ -379,10 +380,7 @@ def object_groups(project: Project) -> list[dict]:
                 continue
             key = f"{kind}:{o.label}"
             num = numbers.get(key)
-            if kind == "eq":
-                head = f"Equation ({num.display})" if num else "Equation"
-            else:
-                head = f"{word} {num.display}" if num else word
+            head = object_display(kind, num.display, long=True) if num else word
             children.append({"id": key, "title": f"{head}: {o.caption or o.label}", "kind": "object",
                              "meta": _status(project, o)})
         if children:

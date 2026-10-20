@@ -735,6 +735,8 @@ class Structure:
         while any((folder / f"{stem}.{e}").exists() for e in ("md",) + OBJECT_COMPANIONS):
             n += 1
             stem = f"{orig.stem}-{n}"
+        if stem != orig.stem:
+            self._retarget_figure_file(item.path, orig.stem, stem)
         for ext in OBJECT_COMPANIONS:
             companion = item.path.with_name(f"{item.path.name}.{ext}")
             if companion.is_file():
@@ -743,6 +745,36 @@ class Structure:
         fsutil.replace(item.path, final)
         self._tidy_trash()
         return final
+
+    def _retarget_figure_file(self, note: Path, old: str, new: str) -> None:
+        """A figure restored under a new stem: its ``file:`` key named the old image (now another figure's), so
+        point it at the renamed image, or drop it when there is no image companion."""
+        try:
+            text = note.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return
+        nl = "\r\n" if "\r\n" in text else "\n"
+        lines = text.split(nl)
+        if not lines or lines[0].strip() != "---":
+            return
+        for i in range(1, len(lines)):
+            if lines[i].strip() == "---":
+                return
+            if lines[i].startswith("file:"):
+                value = lines[i][5:].strip().strip("\"'")
+                if value.rsplit("/", 1)[-1].rsplit(".", 1)[0] != old:
+                    return
+                ext = value.rsplit(".", 1)[-1]
+                if note.with_name(f"{note.name}.{ext}").is_file():
+                    folder = value.rsplit("/", 1)[0] + "/" if "/" in value else ""
+                    lines[i] = f"file: {folder}{new}.{ext}"
+                else:
+                    del lines[i]
+                try:
+                    note.write_text(nl.join(lines), encoding="utf-8", newline="")
+                except OSError:
+                    pass
+                return
 
     def _restore_inspiration(self, item: TrashItem) -> Path:
         """Picture and sidecar back into ``inspiration/`` (a free name if one was

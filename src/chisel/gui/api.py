@@ -378,7 +378,7 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
             return None
         from ..core import objects
         keys = {f"{o.kind}:{o.label}" for o in objects.list_objects(project)}
-        return keys, {k: n.display for k, n in objects.numbering(project).items()}
+        return keys, {k: n.display for k, n in objects.numbering_cached(project).items()}
 
     @bridge
     def link_spans(self, doc_id: str, text: str) -> dict:
@@ -784,7 +784,7 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
         "relationships": "suggest_relationships", "voice": "check_voice",
         "style": "learn_style", "image": "generate_inspiration", "describe_scene": "describe_scene",
         "image_regenerate": "regenerate_inspiration", "outline": "outline_suggest",
-        "requirements": "requirements_suggest",
+        "requirements": "requirements_suggest", "latex": "suggest_latex",
     }
 
     @bridge

@@ -203,6 +203,39 @@ def sniff_image(data: bytes) -> str | None:
     return None
 
 
+def image_size(data: bytes) -> tuple[int, int] | None:
+    """(width, height) in pixels from a PNG (IHDR) or JPEG (SOF marker) header; None when unreadable."""
+    try:
+        if data[:8] == b"\x89PNG\r\n\x1a\n":
+            if data[12:16] != b"IHDR" or len(data) < 24:
+                return None
+            w, h = int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
+            return (w, h) if w and h else None
+        if data[:3] == b"\xff\xd8\xff":
+            i, n = 2, len(data)
+            while i + 4 <= n:
+                if data[i] != 0xFF:
+                    i += 1
+                    continue
+                marker = data[i + 1]
+                if marker == 0xFF:
+                    i += 1
+                    continue
+                if marker in (0x01, 0xD8) or 0xD0 <= marker <= 0xD7:
+                    i += 2
+                    continue
+                size = int.from_bytes(data[i + 2:i + 4], "big")
+                if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
+                    if i + 9 > n:
+                        return None
+                    h, w = int.from_bytes(data[i + 5:i + 7], "big"), int.from_bytes(data[i + 7:i + 9], "big")
+                    return (w, h) if w and h else None
+                i += 2 + size
+    except (IndexError, ValueError):
+        pass
+    return None
+
+
 def write_atomic(path: Path, data: bytes) -> None:
     """Write *data* beside *path* through a fresh, randomly named temp file (``mkstemp``: created exclusively, so a
     planted symlink at a guessable name is never followed), then replace. OSError when *path* is a symlink."""
@@ -226,9 +259,8 @@ def _write(path: Path, text: str) -> None:
 def create_figure(project, src_bytes: bytes, label: str, caption: str) -> RefObject:
     """Add ``figures/fig-<label>.<png|jpg>`` and its ``.md``. ValueError for a bad label, a label in use, an
     image that is not PNG or JPG (decided from the bytes) or one over 10 MB."""
-    label = (label or "").strip()
-    if not _LABEL_RE.match(label):
-        raise ValueError("a figure label uses letters, digits, hyphens and underscores")
+    label = _check_label(label, "figure")
+    caption = clean_line(caption)
     if not isinstance(src_bytes, (bytes, bytearray)) or not src_bytes:
         raise ValueError("the image is empty")
     if len(src_bytes) > MAX_IMAGE_BYTES:
@@ -238,13 +270,13 @@ def create_figure(project, src_bytes: bytes, label: str, caption: str) -> RefObj
         raise ValueError("the image must be a PNG or JPG file")
     stem = f"fig-{label}"
     folder = _folder(project, "fig")
-    if (folder / f"{stem}.md").exists() or _find_image(project, stem) is not None:
+    if _taken(project, "fig", label):
         raise ValueError(f"a figure labelled {label} already exists")
     folder.mkdir(parents=True, exist_ok=True)
     image = folder / f"{stem}.{ext}"
     md = folder / f"{stem}.md"
     write_atomic(image, bytes(src_bytes))
-    head = yaml.safe_dump({"caption": caption or "", "file": _rel(project, image)},
+    head = yaml.safe_dump({"caption": caption, "file": _rel(project, image)},
                           sort_keys=False, allow_unicode=True, width=10_000, default_flow_style=False)
     try:
         _write(md, f"---\n{head}---\n")
@@ -320,7 +352,6 @@ def numbering(project, scheme: str | None = None) -> Numbering:
     seen: dict[str, Num] = {}
     seq: dict[str, int] = {k: 0 for k in KINDS}
     in_part: dict[tuple[int, str], int] = {}
-    mode = project.mode
     for scene in project.list_scenes():
         try:
             text = scene.read_text(encoding="utf-8")
@@ -330,7 +361,7 @@ def numbering(project, scheme: str | None = None) -> Numbering:
         parent = scene.resolve().parent
         if parent in parts:
             section = parts.index(parent) + 1
-        for p in find_placements(_prose_for_scan(text, mode)):
+        for p in find_placements(scan_text(project, text)):
             key = f"{p.kind}:{p.label}"
             if key in seen:
                 continue
@@ -346,11 +377,34 @@ def numbering(project, scheme: str | None = None) -> Numbering:
     return seen
 
 
+def numbering_cached(project, scheme: str | None = None) -> Numbering:
+    """``numbering`` cached on the project, keyed by the book's file names and mtimes (and the scheme): a
+    typing-time caller (the editor's span request) does not re-read every section. Numbers follow the SAVED
+    files, so a placement typed in the open buffer is numbered after the next autosave."""
+    stamp = [_scheme(project, scheme), [str(p) for p in project.list_parts()]]
+    for scene in project.list_scenes():
+        try:
+            stamp.append((str(scene), scene.stat().st_mtime_ns, scene.stat().st_size))
+        except OSError:
+            stamp.append((str(scene), 0))
+    key = repr(stamp)
+    hit = getattr(project, "_numbering_cache", None)
+    if hit is not None and hit[0] == key:
+        return hit[1]
+    result = numbering(project, scheme)
+    try:
+        project._numbering_cache = (key, result)
+    except AttributeError:
+        pass
+    return result
+
+
 # -- creating and editing tables and equations (F0) ------------------------------------------
 
 
-MAX_TABLE_ROWS = 60
-MAX_TABLE_COLS = 20
+MAX_TABLE_ROWS = 200
+MAX_TABLE_COLS = 30
+MAX_LABEL_CHARS = 80
 MAX_CELL_CHARS = 2000
 MAX_LATEX_CHARS = 10_000
 MAX_CAPTION_CHARS = 1000
@@ -367,7 +421,7 @@ def _strip_markers(text: str, *, join_braces: bool = False) -> str:
         before = text
         for frag in ("<!--", "-->"):
             text = text.replace(frag, "")
-        if join_braces:
+        if join_braces:        # a literal {{ would be a draft/expand marker in the note; TeX reads { { the same
             text = text.replace("{{", "{ {").replace("}}", "} }")
         else:
             text = text.replace("{{", "").replace("}}", "")
@@ -397,7 +451,30 @@ def _check_label(label: str, what: str) -> str:
     label = (label or "").strip()
     if not _LABEL_RE.match(label):
         raise ValueError(f"a {what} label uses letters, digits, hyphens and underscores")
+    if len(label) > MAX_LABEL_CHARS:
+        raise ValueError(f"a {what} label is limited to {MAX_LABEL_CHARS} characters")
     return label
+
+
+def check_table_limits(rows: int, cols: int, cells=()) -> None:
+    """The one set of table limits (create and save): ValueError in plain words."""
+    if rows > MAX_TABLE_ROWS:
+        raise ValueError(f"a table is limited to {MAX_TABLE_ROWS} rows")
+    if cols > MAX_TABLE_COLS:
+        raise ValueError(f"a table is limited to {MAX_TABLE_COLS} columns")
+    if any(len(str(c)) > MAX_CELL_CHARS for r in cells for c in r):
+        raise ValueError(f"a table cell is limited to {MAX_CELL_CHARS:,} characters")
+
+
+def _taken(project, kind: str, label: str) -> bool:
+    """A note, or a stray companion file (image, CSV) of the same stem, already exists."""
+    folder = _folder(project, kind)
+    stem = f"{KINDS[kind][1]}{label}"
+    for ext in ("md",) + IMAGE_EXTS + ("csv",):
+        p = folder / f"{stem}.{ext}"
+        if p.exists() or p.is_symlink():
+            return True
+    return False
 
 
 def _head(meta: dict) -> str:
@@ -408,10 +485,10 @@ def _head(meta: dict) -> str:
 def _new_note(project, kind: str, label: str, meta: dict, body: str) -> RefObject:
     folder = _folder(project, kind)
     md = folder / f"{KINDS[kind][1]}{label}.md"
-    if md.exists() or md.is_symlink():
+    if _taken(project, kind, label):
         raise ValueError(f"a {KIND_WORDS[kind]} labelled {label} already exists")
     folder.mkdir(parents=True, exist_ok=True)
-    _write(md, _head(meta) + body)
+    _write(md, (_head(meta) if meta else "") + body)     # no empty "---\n{}\n---" block
     obj = _object(project, kind, md)
     assert obj is not None
     return obj
@@ -419,24 +496,19 @@ def _new_note(project, kind: str, label: str, meta: dict, body: str) -> RefObjec
 
 def create_table(project, label: str, caption: str, cells, align) -> RefObject:
     """Add ``tables/tbl-<label>.md`` with a canonical pipe table (``tables.to_pipe``). ValueError for a bad
-    label, a label in use, more than 60 rows or 20 columns, a cell over 2000 characters or a bad alignment."""
+    label, a label in use, more than 200 rows or 30 columns, a cell over 2000 characters or a bad alignment."""
     from . import tables
     label = _check_label(label, "table")
     if not isinstance(cells, (list, tuple)) or not cells or not all(isinstance(r, (list, tuple)) for r in cells):
         raise ValueError("a table needs a header row and at least one column")
-    if len(cells) > MAX_TABLE_ROWS:
-        raise ValueError(f"a table is limited to {MAX_TABLE_ROWS} rows")
     width = max(len(r) for r in cells)
     align = [str(a) for a in align] if align else ["default"] * len(cells[0])
     if not align or width == 0:
         raise ValueError("a table needs a header row and at least one column")
     if width > len(align):
         raise ValueError("a row has more cells than the table has columns")
-    if len(align) > MAX_TABLE_COLS:
-        raise ValueError(f"a table is limited to {MAX_TABLE_COLS} columns")
     rows = [[str(c if c is not None else "") for c in r] for r in cells]
-    if any(len(c) > MAX_CELL_CHARS for r in rows for c in r):
-        raise ValueError(f"a table cell is limited to {MAX_CELL_CHARS:,} characters")
+    check_table_limits(len(rows), len(align), rows)
     text = tables.to_pipe(tables.Table(rows, align))       # validates the alignments
     return _new_note(project, "tbl", label, {"caption": clean_line(caption)}, text + "\n")
 

@@ -34,8 +34,6 @@ from ._research_common import require_research
 log = logging.getLogger("chisel")
 
 MAX_RENDER_IDS = 200
-MAX_TABLE_ROWS = 5000
-MAX_TABLE_COLS = 100
 IMAGE_CACHE_ENTRIES = 24
 JOB_RETENTION_SECONDS = 300
 _DATA_URL = re.compile(r"^data:([\w.+-]+/[\w.+-]+)?(;[\w=.+-]+)*;base64,", re.IGNORECASE)
@@ -241,9 +239,10 @@ class ResearchObjectsMixin:
             return {"numbers": {k: {"seq": n.seq, "display": n.display} for k, n in numbers.items()}}
 
     @bridge
-    def object_render(self, ids: list) -> dict:
-        """Batch for the editor widgets. One entry per id (same order): kind, number, caption, status and, by
-        kind, ``imageUrl`` (figure), ``cells`` / ``align`` (table), ``latex`` (equation). A bad id gets an
+    def object_render(self, ids: list, images: bool = True) -> dict:
+        """Batch for the editor widgets. One entry per id (same order): kind, number, caption, status, ``mtime``
+        (ns, as a string) and, by kind, ``imageUrl`` (figure; omitted with ``images=False``, fetch one with
+        ``object_image``) and ``pixels`` ([w, h] from the header, null if unreadable), ``cells`` / ``align`` (table), ``latex`` (equation). A bad id gets an
         ``error`` entry; it never fails the batch."""
         if not isinstance(ids, (list, tuple)):
             raise ValueError("ids must be a list")
@@ -256,12 +255,12 @@ class ResearchObjectsMixin:
             out = []
             for ident in ids:
                 try:
-                    out.append(self._render_one(project, str(ident), numbers))
+                    out.append(self._render_one(project, str(ident), numbers, images))
                 except (ValueError, OSError, LookupError) as exc:
                     out.append({"id": str(ident), "error": str(exc)})
             return {"objects": out}
 
-    def _render_one(self, project, ident: str, numbers) -> dict:
+    def _render_one(self, project, ident: str, numbers, images: bool = True) -> dict:
         obj = _find_object(project, ident)
         key = _key(obj)
         num = numbers.get(key)
@@ -269,11 +268,17 @@ class ResearchObjectsMixin:
                  "number": num.display if num else None, "seq": num.seq if num else None,
                  "status": _status(project, obj), "source": obj.source, "path": obj.path}
         if obj.kind == "fig":
-            entry.update(width=obj.width, alt=obj.alt, imageUrl=None)
+            entry.update(width=obj.width, alt=obj.alt, pixels=None, mtime=_mtime(project.root / obj.path))
             try:
-                entry["imageUrl"] = self._figure_data_url(project, obj.label)
+                path = objects._figure_file(project, obj.label)
+                with open(path, "rb") as fh:
+                    size = objects.image_size(fh.read(262144))
+                entry["pixels"] = list(size) if size else None
+                if images:
+                    entry["imageUrl"] = self._figure_data_url(project, obj.label)
             except FileNotFoundError:
-                pass
+                if images:
+                    entry["imageUrl"] = None
         elif obj.kind == "tbl":
             _head, body, mtime = _read_note(project, obj)
             entry.update(cells=None, align=None, mtime=mtime, generated=obj.source == "data")
@@ -283,8 +288,8 @@ class ResearchObjectsMixin:
             except ValueError:
                 pass
         else:
-            _head, body, _mtime_ = _read_note(project, obj)
-            entry["latex"] = body.strip()
+            _head, body, mtime = _read_note(project, obj)
+            entry.update(latex=body.strip(), mtime=mtime)
         return entry
 
     @bridge
@@ -315,8 +320,8 @@ class ResearchObjectsMixin:
         if (not isinstance(cells, list) or not cells or not all(isinstance(r, list) for r in cells)
                 or not isinstance(align, list) or not align):
             raise ValueError("a table needs a header row and at least one column")
-        if len(cells) > MAX_TABLE_ROWS or len(align) > MAX_TABLE_COLS:
-            raise ValueError("that table is too large")
+        objects.check_table_limits(len(cells), max(len(align), max(len(r) for r in cells)),
+                                   [[str(c) for c in r] for r in cells])
         table = tables.Table([[str(c) for c in r] for r in cells], [str(a) for a in align])
         text = tables.to_pipe(table)         # validates the alignments
         with self._lock:

@@ -52,10 +52,10 @@ def test_create_table_defaults_align_and_pads_rows(rp):
 
 def test_create_table_caps_and_errors(rp):
     api, project = rp
-    assert not api.create_table("t", "c", [["a"]] * 61, ["default"])["ok"]
-    assert not api.create_table("t", "c", [["a"] * 21], ["default"] * 21)["ok"]
+    assert not api.create_table("t", "c", [["a"]] * 201, ["default"])["ok"]
+    assert not api.create_table("t", "c", [["a"] * 31], ["default"] * 31)["ok"]
     assert not api.create_table("t", "c", [["x" * 2001]], ["default"])["ok"]
-    assert api.create_table("t", "c", [["x" * 2000]] * 60, ["default"])["ok"]
+    assert api.create_table("t", "c", [["x" * 2000]] * 200, ["default"])["ok"]
     assert not api.create_table("t2", "c", [["a", "b"]], ["default"])["ok"]       # more cells than columns
     assert not api.create_table("t2", "c", [["a"]], ["wide"])["ok"]               # bad alignment
     assert not api.create_table("t2", "c", [], ["default"])["ok"]
@@ -262,8 +262,8 @@ def test_spans_resolved_unresolved_and_utf16(rp):
     write_scene(project, text)
     got = [s for s in spans(api, text) if s["kind"] in ("placement", "objref")]
     assert [(s["kind"], s["key"], s["status"], s["display"]) for s in got] == [
-        ("objref", "fig:f", "resolved", "Figure 1"), ("objref", "fig:zz", "unresolved", "fig:zz"),
-        ("placement", "eq:e", "resolved", "Equation (1)"), ("placement", "fig:f", "resolved", "Figure 1")]
+        ("objref", "fig:f", "resolved", "Fig. 1"), ("objref", "fig:zz", "unresolved", "fig:zz"),
+        ("placement", "eq:e", "resolved", "Eq. (1)"), ("placement", "fig:f", "resolved", "Fig. 1")]
     first = got[0]
     assert first["objectKind"] == "fig" and first["label"] == "f"
     assert text.encode("utf-16-le")[first["start"] * 2:first["end"] * 2].decode("utf-16-le") == "[[fig:f]]"
@@ -279,12 +279,12 @@ def test_spans_ignore_code_midline_and_unplaced_numbering(rp):
     got = [s for s in spans(api, text) if s["kind"] in ("placement", "objref")]
     assert [(s["kind"], s["start"] > 0) for s in got] == [("placement", True)]
     # mid-line "![[eq:e]]" is not a placement (and is not a reference either: the ! belongs to the link)
-    assert got[0]["display"] == "Equation (1)"
+    assert got[0]["display"] == "Eq. (1)"
     # an object nobody places yet shows a question mark
     api.create_equation("lonely", "y")
     t2 = "see [[eq:lonely]]\n"
     write_scene(project, t2)
-    assert [s["display"] for s in spans(api, t2) if s["kind"] == "objref"] == ["Equation (?)"]
+    assert [s["display"] for s in spans(api, t2) if s["kind"] == "objref"] == ["Eq. (?)"]
 
 
 def test_spans_three_numbering_schemes(rp, monkeypatch):
@@ -305,8 +305,8 @@ def test_spans_three_numbering_schemes(rp, monkeypatch):
         keys = {"fig:a", "fig:b"}
         nums = {k: n.display for k, n in objects.numbering(project).items()}
         out[scheme] = [s["display"] for s in compute_spans(text, [], object_info=(keys, nums))]
-    assert out == {"plain": ["Figure 1", "Figure 2"], "per-section": ["Figure 1.1", "Figure 2.1"],
-                   "supplementary": ["Figure S1", "Figure S2"]}
+    assert out == {"plain": ["Fig. 1", "Fig. 2"], "per-section": ["Fig. 1.1", "Fig. 2.1"],
+                   "supplementary": ["Fig. S1", "Fig. S2"]}
 
 
 def test_spans_unchanged_without_object_info_and_for_story(tmp_path):
@@ -320,3 +320,106 @@ def test_spans_unchanged_without_object_info_and_for_story(tmp_path):
         assert not [s for s in got if s["kind"] in ("placement", "objref")]
     assert compute_spans("Keith [[Keith]]", [], object_info=None) == compute_spans("Keith [[Keith]]", [])
     assert to_utf16("x", []) == []
+
+
+# -- review round: numbering ignores code, clean caption, limits, collisions, pixels, display ------------------
+
+
+def _png(w, h):
+    import struct
+    import zlib
+
+    def chunk(t, d):
+        c = struct.pack(">I", len(d)) + t + d
+        return c + struct.pack(">I", zlib.crc32(t + d) & 0xFFFFFFFF)
+    raw = b"".join(b"\x00" + b"\xff" * (3 * w) for _ in range(h))
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+
+
+def _jpg(w, h):
+    import struct
+    app0 = b"\xff\xe0" + struct.pack(">H", 16) + b"JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
+    sof = b"\xff\xc0" + struct.pack(">HBHHB", 11, 8, h, w, 1) + b"\x01\x11\x00"
+    return b"\xff\xd8" + app0 + sof + b"\xff\xd9"
+
+
+def test_numbering_ignores_fenced_placement(rp):
+    api, project = rp
+    objects.create_figure(project, PNG, "a", "A")
+    objects.create_figure(project, PNG, "b", "B")
+    write_scene(project, "```\n![[fig:a]]\n```\n\n![[fig:b]]\n")
+    nums = objects.numbering(project)
+    assert "fig:a" not in nums and nums["fig:b"].display == "1"
+    assert objects.references(project, "fig", "a")["placements"] == []
+
+
+def test_insert_figure_cleans_caption_and_label_limits(rp):
+    api, project = rp
+    from tests.test_gui_research_objects import url
+    api.insert_figure(url(PNG), "c", "cap <!-- x --> {{y}}\nline2")
+    cap = objects.list_objects(project)[0].caption
+    assert "<!--" not in cap and "{{" not in cap and "\n" not in cap
+    for r in (api.insert_figure(url(PNG), "x" * 300, ""), api.create_equation("x" * 300, "y"),
+              api.create_table("x" * 300, "", [["a"]], ["default"])):
+        assert not r["ok"] and "80 characters" in r["error"] and "Errno" not in r["error"]
+    assert api.create_equation("x" * 80, "y")["ok"]
+
+
+def test_stray_companion_is_refused_and_equation_without_caption_has_no_front_matter(rp):
+    api, project = rp
+    (project.root / "tables").mkdir(exist_ok=True)
+    stray = project.root / "tables" / "tbl-z.csv"
+    stray.write_text("a,b\n", encoding="utf-8", newline="\n")
+    r = api.create_table("z", "", [["a"]], ["default"])
+    assert not r["ok"] and "already exists" in r["error"]
+    (project.root / "figures").mkdir(exist_ok=True)
+    (project.root / "figures" / "fig-s.jpg").write_bytes(PNG)
+    with pytest.raises(ValueError, match="already exists"):
+        objects.create_figure(project, PNG, "s", "")
+    api.create_equation("plain", "x+y")
+    assert (project.root / "equations" / "eq-plain.md").read_text(encoding="utf-8") == "x+y\n"
+
+
+def test_table_limits_are_one_set(rp):
+    api, project = rp
+    api.create_table("t", "c", [["a", "b"], ["1", "2"]], ["default", "default"])
+    t = api.read_table("tbl:t")
+    for cells, align in (([["a"]] * 201, ["default"]), ([["a"] * 31], ["default"] * 31), ([["x" * 2001]], ["default"])):
+        r = api.save_table("tbl:t", cells, align, t["mtime"])
+        assert not r["ok"]
+    assert api.save_table("tbl:t", [["x" * 2000]] * 200, ["default"], t["mtime"])["ok"]
+
+
+def test_restored_figure_under_new_name_points_at_its_own_image(rp):
+    api, project = rp
+    objects.create_figure(project, PNG, "b", "old")
+    project.trash_object("figures/fig-b.md")
+    objects.create_figure(project, PNG, "b", "new")
+    item = project.list_trash()[0]
+    final = project.restore_scene(item.name)
+    assert final.name == "fig-b-2.md"
+    text = final.read_text(encoding="utf-8")
+    assert "fig-b-2.png" in text and "figures/fig-b.png" not in text
+
+
+def test_object_render_images_false_mtime_and_pixels(rp):
+    api, project = rp
+    objects.create_figure(project, _png(3, 2), "p", "P")
+    objects.create_figure(project, _jpg(7, 5), "j", "J")
+    objects.create_figure(project, PNG, "g", "G")
+    api.create_equation("e", "x")
+    r = api.object_render(["fig:p", "fig:j", "fig:g", "eq:e"], images=False)["objects"]
+    assert all("imageUrl" not in e for e in r)
+    assert r[0]["pixels"] == [3, 2] and r[1]["pixels"] == [7, 5] and r[2]["pixels"] is None
+    assert all(isinstance(e["mtime"], str) and e["mtime"].isdigit() for e in r)
+    assert api.object_render(["fig:p"])["objects"][0]["imageUrl"].startswith("data:image/png")
+    assert objects.image_size(b"\xff\xd8\xff garbage") is None and objects.image_size(b"") is None
+
+
+def test_display_short_forms_and_latex_job():
+    from chisel.core.spans import object_display
+    assert [object_display("fig", "2"), object_display("tbl", "1"), object_display("eq", "3"),
+            object_display("fig", None), object_display("tbl", None), object_display("eq", None)] == [
+        "Fig. 2", "Table 1", "Eq. (3)", "Fig. ?", "Table ?", "Eq. (?)"]
+    assert Api.AI_JOBS["latex"] == "suggest_latex"
