@@ -11,11 +11,11 @@ import type {
   DownloadStatus, EndpointCost, EngineId, KokoroStatus, OpenRouterModel, ReadOptions, ReadPlan, SpeechInfo, SpeechPrefs,
   VoiceInfo,
 } from "../reader/types";
-import type { OutlineApplied, OutlineCurrent, OutlineItem, OutlineProposal, OutlineStandard, GuidelineFile, GuidelineText, JournalProfile, RequirementsReport, ResearchKind, ResearchSettings, SourceCardInfo, SourceHit, SourceRow, SyncApplied, SyncPlan, SyncScope, ZoteroCollection, ZoteroSettings, ZoteroStatus } from "../data/research";
+import type { CustomRequirement, RequirementsProposal, OutlineApplied,OutlineCurrent, OutlineItem, OutlineProposal, OutlineStandard, GuidelineFile, GuidelineText, JournalProfile, RequirementsReport, ResearchKind, ResearchSettings, SourceCardInfo, SourceHit, SourceRow, SyncApplied, SyncPlan, SyncScope, ZoteroCollection, ZoteroSettings, ZoteroStatus } from "../data/research";
 import { call } from "./transport";
 
 /** AI job kinds (the AI job contract): the first four stream text, the rest answer once. */
-export type AiKind = "ask" | "research" | "brainstorm" | "generate" | "continuity" | "voice" | "canon" | "aliases" | "relationships" | "outline" | "style" | "image" | "image_regenerate" | "describe_scene";
+export type AiKind = "ask" | "research" | "brainstorm" | "generate" | "continuity" | "voice" | "canon" | "aliases" | "relationships" | "outline" | "requirements" | "style" | "image" | "image_regenerate" | "describe_scene";
 export const STREAMING_KINDS: readonly AiKind[] = ["ask", "research", "brainstorm", "generate"];
 export type AiState = "running" | "done" | "cancelled" | "error";
 export interface AiPoll {
@@ -145,6 +145,11 @@ export const api = {
   outlineStandard: () => call<OutlineStandard>("outline_standard"),
   outlineSuggest: (instruction: string, guidelines: string[]) => call<OutlineProposal>("outline_suggest", instruction, guidelines),
   outlineApply: (items: OutlineItem[]) => call<OutlineApplied>("outline_apply", items),
+  // Custom requirements (requirements.toml). requirements_suggest runs as an AI job (aiStart kind "requirements") and never changes a file.
+  requirementsCustom: () => call<{ rows: CustomRequirement[]; warning?: string }>("requirements_custom"),
+  requirementsSave: (rows: CustomRequirement[]) => call<{ rows: CustomRequirement[] }>("requirements_save", rows),
+  requirementsRemove: (id: string) => call<{ rows: CustomRequirement[] }>("requirements_remove", id),
+  requirementsSuggest: (instruction: string, guidelines: string[]) => call<RequirementsProposal>("requirements_suggest", instruction, guidelines),
   // Notebook notes (notebook/; "research" internally): plain Markdown, never indexed
   newResearchNote: (title: string, template = "") => call<{ id: string }>("new_research_note", title, template),
   /** Copies the selected passage into notebook/clippings.md (the scene is not changed). */

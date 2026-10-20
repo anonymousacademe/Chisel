@@ -223,7 +223,7 @@ export function AppDialogs(p: AppDialogsProps) {
       )}
       {dialog?.kind === "project-settings" && <ProjectSettingsDialog notify={notify} onSaved={onProjectSettingsSaved} onClose={() => setDialog(null)} />}
       {dialog?.kind === "requirements" && <RequirementsDialog notify={notify} onClose={() => setDialog(null)} />}
-      {dialog?.kind === "guidelines" && <GuidelinesDialog notify={notify} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "guidelines" && <GuidelinesDialog notify={notify} requireAi={requireAi} refresh={refresh} onClose={() => setDialog(null)} />}
       {dialog?.kind === "outline-assistant" && (
         <OutlineAssistantDialog notify={notify} requireAi={requireAi} flushSave={flushSave} refresh={refresh} onClose={() => setDialog(null)}
           onApplied={async (remap) => { await refresh(); if (doc) await openDoc(follow(doc.id, remap), { force: true, keepMode: true }); }} />

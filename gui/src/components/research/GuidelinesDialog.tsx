@@ -4,11 +4,15 @@ import { api } from "../../backend/api";
 import { fileSize, type GuidelineFile, type GuidelineText } from "../../data/research";
 import { ConfirmDialog, Modal } from "../Dialogs";
 import { Icon } from "../primitives";
+import { RequirementsSuggestDialog } from "./RequirementsSuggestDialog";
 
 type Notify = (text: string, tone?: "info" | "error") => void;
 
 /** Guideline files of a research project (journal guide, call for proposals): add, paste, view, remove. */
-export function GuidelinesDialog({ onClose, notify }: { onClose: () => void; notify: Notify }) {
+export function GuidelinesDialog({ onClose, notify, requireAi = () => true, refresh = async () => {} }: {
+  onClose: () => void; notify: Notify; requireAi?: () => boolean; refresh?: () => Promise<unknown>;
+}) {
+  const [suggesting, setSuggesting] = useState(false);
   const [files, setFiles] = useState<GuidelineFile[]>([]);
   const [pasting, setPasting] = useState(false);
   const [title, setTitle] = useState("");
@@ -79,6 +83,7 @@ export function GuidelinesDialog({ onClose, notify }: { onClose: () => void; not
           <div className="lw-row lw-gap-8">
             <button className="lw-btn" onClick={() => void add()}><Icon icon={FilePlus} size={14} stroke={1.8} /> Add files</button>
             <button className="lw-btn" onClick={() => setPasting((p) => !p)}><Icon icon={ClipboardPaste} size={14} stroke={1.8} /> Paste text</button>
+            <button className="lw-btn" disabled={files.length === 0} onClick={() => setSuggesting(true)}>Suggest requirements from guidelines...</button>
           </div>
         </section>
         {pasting && (
@@ -103,6 +108,7 @@ export function GuidelinesDialog({ onClose, notify }: { onClose: () => void; not
       </div>
       <div className="lw-dialog__buttons"><button className="lw-btn lw-btn--primary" onClick={onClose}>Close</button></div>
     </Modal>
+    {suggesting && <RequirementsSuggestDialog notify={notify} requireAi={requireAi} refresh={refresh} onClose={() => setSuggesting(false)} />}
     {removing && (
       <ConfirmDialog title="Remove guideline file" confirm="Remove"
         message={<>Remove {removing} from this project? Your paper is not changed.</>}
