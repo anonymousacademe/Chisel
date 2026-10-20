@@ -2,8 +2,9 @@
 // file checks. Numbers, validation and every file write stay in Python.
 import type { ObjectKind, TableAlign } from "./research";
 
-/** The size hints shown beside the table grid (Python's own caps are larger and are the real limit). */
-export const GRID_HINT = { rows: 200, cols: 20 };
+/** The table limits: the same numbers as core.objects (MAX_TABLE_ROWS / COLS / CELL_CHARS), used by create_table and save_table. */
+export const GRID_LIMITS = { rows: 200, cols: 30, cell: 2000 };
+export const GRID_HINT = GRID_LIMITS;
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 export const ALIGNS: TableAlign[] = ["default", "left", "center", "right"];
 
@@ -22,24 +23,27 @@ const lineAt = (text: string, start: number) => {
   return text.slice(start, end < 0 ? text.length : end);
 };
 
-/** What to type at [from, to) so the placement sits on its OWN line: a blank line before and after when the
- *  cursor is mid-text or touches a neighbouring line. Pure; the caller replaces [from, to) with `insert`. */
+/** Where and what to type so the placement sits on its OWN line, AFTER the line holding the selection's end.
+ *  Never replaces or splits text: the returned edit is always a pure insertion (from === to) at a line end, so a
+ *  selected sentence survives byte for byte. Blank lines are added as needed. Pure. */
 export function placementEdit(text: string, from: number, to: number, id: string): { from: number; to: number; insert: string } {
   const line = placementText(id);
-  const lineStart = text.lastIndexOf("\n", from - 1) + 1;
-  let lineEnd = text.indexOf("\n", to);
+  let end = Math.max(from, to);
+  if (end > Math.min(from, to) && text[end - 1] === "\n") end -= 1; // a selection that ends after a newline ends on the line before it
+  end = Math.max(0, Math.min(end, text.length));
+  const lineStart = text.lastIndexOf("\n", end - 1) + 1;
+  let lineEnd = text.indexOf("\n", end);
   if (lineEnd < 0) lineEnd = text.length;
-  const before = text.slice(lineStart, from);
-  const after = text.slice(to, lineEnd);
+  const blank = text.slice(lineStart, lineEnd).trim() === "";
   let prevBlank = true;
   if (lineStart > 0) {
     const prevStart = text.lastIndexOf("\n", lineStart - 2) + 1;
     prevBlank = text.slice(prevStart, lineStart - 1).trim() === "";
   }
   const nextBlank = lineEnd >= text.length || lineAt(text, lineEnd + 1).trim() === "";
-  const prefix = before.trim() !== "" ? "\n\n" : prevBlank ? "" : "\n";
-  const suffix = after.trim() !== "" ? "\n\n" : nextBlank ? "" : "\n";
-  return { from, to, insert: `${prefix}${line}${suffix}` };
+  const prefix = !blank ? "\n\n" : prevBlank ? "" : "\n";
+  const suffix = lineEnd >= text.length || nextBlank ? "" : "\n";
+  return { from: lineEnd, to: lineEnd, insert: `${prefix}${line}${suffix}` };
 }
 
 /** The slice of the editor handle the insert flows use. */
@@ -99,10 +103,11 @@ export function pasteGrid(g: Grid, r: number, c: number, rows: string[][]): Grid
   return { cells, align };
 }
 
-/** Which size hints the grid exceeds (Python refuses far more; these are advice). */
+/** Which table limits the grid exceeds (Python refuses the same ones). */
 export const gridHints = (g: Grid): string[] => [
-  ...(g.cells.length > GRID_HINT.rows ? [`More than ${GRID_HINT.rows} rows is hard to read in a paper.`] : []),
-  ...(g.align.length > GRID_HINT.cols ? [`More than ${GRID_HINT.cols} columns will not fit a page.`] : []),
+  ...(g.cells.length > GRID_LIMITS.rows ? [`A table is limited to ${GRID_LIMITS.rows} rows.`] : []),
+  ...(g.align.length > GRID_LIMITS.cols ? [`A table is limited to ${GRID_LIMITS.cols} columns.`] : []),
+  ...(g.cells.some((r) => r.some((c) => c.length > GRID_LIMITS.cell)) ? [`A cell is limited to ${GRID_LIMITS.cell} characters.`] : []),
 ];
 export const gridIsBlank = (g: Grid) => g.cells.every((r) => r.every((c) => c.trim() === ""));
 

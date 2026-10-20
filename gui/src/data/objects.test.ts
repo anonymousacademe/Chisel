@@ -17,7 +17,7 @@ describe("placementEdit: the placement sits on its own line", () => {
     expect(placementText("tbl:x")).toBe("![[tbl:x]]");
   });
   it("mid-text puts blank lines on both sides", () => {
-    expect(apply("Before after.", 7, 7)).toBe("Before \n\n![[fig:a]]\n\nafter.");
+    expect(apply("Before after.", 7, 7)).toBe("Before after.\n\n![[fig:a]]");
   });
   it("at the end of a paragraph keeps the following blank line", () => {
     const t = "One.\n\nTwo.";
@@ -26,14 +26,21 @@ describe("placementEdit: the placement sits on its own line", () => {
   it("on the blank line between paragraphs keeps one blank line each side", () => {
     expect(apply("One.\n\nTwo.", 5, 5)).toBe("One.\n\n![[fig:a]]\n\nTwo.");
   });
-  it("directly under a text line gets a blank line first", () => {
+  it("on the last text line of a block, goes after it with a blank line first", () => {
     const t = "One.\nTwo.";
     const out = apply(t, 5, 5);
     expect(out.split("\n").filter((l) => l.trim() === "![[fig:a]]").length).toBe(1);
-    expect(out.startsWith("One.\n\n![[fig:a]]")).toBe(true);
+    expect(out === "One.\nTwo.\n\n![[fig:a]]").toBe(true);
   });
-  it("replaces a selection", () => {
-    expect(apply("Say TODO here", 4, 8)).toBe("Say \n\n![[fig:a]]\n\n here");
+  it("never replaces a selection: the sentence survives byte for byte", () => {
+    const t = "Intro.\n\nThe selected sentence stays. More text here.\n\nEnd.";
+    const from = t.indexOf("The selected"), to = t.indexOf(" More");
+    const out = apply(t, from, to, "tbl:x");
+    expect(out).toBe("Intro.\n\nThe selected sentence stays. More text here.\n\n![[tbl:x]]\n\nEnd.");
+    expect(out).toContain(t.slice(from, to));
+    const e = placementEdit(t, from, to, "tbl:x");
+    expect(e.from).toBe(e.to);
+    expect(apply("Say TODO here", 4, 8)).toBe("Say TODO here\n\n![[fig:a]]");
   });
   it("every result has the placement alone between blank lines or document edges", () => {
     for (const [t, at] of [["a", 1], ["a\nb", 1], ["a\n\nb", 2], ["\n", 0], ["a\n", 2], ["x y", 2]] as [string, number][]) {
@@ -105,7 +112,10 @@ describe("the table grid", () => {
   });
   it("hints name the size caps", () => {
     expect(gridHints(blankGrid(3, 3))).toEqual([]);
-    expect(gridHints(blankGrid(201, 21))).toHaveLength(2);
+    expect(gridHints(blankGrid(201, 31))).toHaveLength(2);
+    expect(gridHints(blankGrid(200, 30))).toEqual([]);
+    const big = blankGrid(3, 3); big.cells[1][1] = "x".repeat(2001);
+    expect(gridHints(big)).toHaveLength(1);
   });
 });
 

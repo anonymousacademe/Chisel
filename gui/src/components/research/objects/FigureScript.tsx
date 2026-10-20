@@ -7,8 +7,10 @@ type Notify = (text: string, tone?: "info" | "error") => void;
 /** The script of a generated figure: shown in full with its hash, path and interpreter. A click on "Trust this script
  *  version" confirms exactly the hash shown; Run is possible only when that version is trusted, and only from its click.
  *  A changed script is untrusted again. */
-export function FigureScript({ id, notify, onRan, pollMs = 400 }: {
+export function FigureScript({ id, notify, onRan, onRunning, pollMs = 400 }: {
   id: string; notify: Notify;
+  /** The id of the job while a run is active, null otherwise (the card asks before closing during a run). */
+  onRunning?: (job: string | null) => void;
   /** The run finished and the picture was rewritten. */
   onRan: () => void;
   pollMs?: number;
@@ -17,15 +19,30 @@ export function FigureScript({ id, notify, onRan, pollMs = 400 }: {
   const [job, setJob] = useState<string | null>(null);
   const [run, setRun] = useState<FigureRunStatus | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const live = useRef(true);
-  useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
+  const jobRef = useRef<string | null>(null);
+  jobRef.current = job;
+  useEffect(() => { onRunning?.(job); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [job]);
+  // Unmounting (the card closed) stops a run that is still going: it must never be left running with no way to stop it.
+  useEffect(() => {
+    live.current = true;
+    return () => { live.current = false; if (jobRef.current) void api.figureRunCancel(jobRef.current); };
+  }, []);
 
   const load = async () => {
     const r = await api.figureTrustInfo(id);
     if (!live.current) return;
-    if (r.ok) setInfo(r); else notify(r.error, "error");
+    if (r.ok) { setInfo(r); setLoadError(""); } else { setLoadError(r.error); notify(r.error, "error"); }
   };
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [id]);
+  // A script can change on disk while the card is open: look again whenever the window regains focus.
+  useEffect(() => {
+    const again = () => { if (!jobRef.current) void load(); };
+    window.addEventListener("focus", again);
+    return () => window.removeEventListener("focus", again);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   // poll a running job until it finishes
   useEffect(() => {
@@ -56,13 +73,13 @@ export function FigureScript({ id, notify, onRan, pollMs = 400 }: {
   const start = async () => {
     if (!info || info.trust !== "trusted" || job) return;
     const r = await api.figureRunStart(id);
-    if (!r.ok) return notify(r.error, "error");
+    if (!r.ok) { notify(r.error, "error"); void load(); return; }   // the refusal may mean the script changed: show its trust again
     setRun({ job: r.job, figure: id, state: "running" });
     setJob(r.job);
   };
   const stop = async () => { if (job) await api.figureRunCancel(job); };
 
-  if (!info) return <p className="lw-faint">Reading the script…</p>;
+  if (!info) return loadError ? <p className="lw-eq__error" role="alert">{loadError}</p> : <p className="lw-faint">Reading the script…</p>;
   const running = run?.state === "running";
   return (
     <section className="lw-obj__script" aria-label="Figure script">
@@ -70,7 +87,7 @@ export function FigureScript({ id, notify, onRan, pollMs = 400 }: {
       <dl className="lw-obj__facts">
         <dt>Path</dt><dd className="lw-mono">{info.path}</dd>
         <dt>SHA-256</dt><dd className="lw-mono lw-obj__sha" data-testid="script-sha">{info.sha}</dd>
-        <dt>Interpreter</dt><dd className="lw-mono">{info.interpreter ?? "No Python interpreter found"}</dd>
+        <dt>Interpreter</dt><dd className="lw-mono">{info.interpreter ?? "No Python interpreter found. Set one in the project settings to run scripts."}</dd>
         {info.data.length > 0 && <><dt>Data files</dt><dd className="lw-mono">{info.data.join(", ")}</dd></>}
       </dl>
       <pre className="lw-obj__code lw-mono" aria-label="Script text" tabIndex={0}>{info.script}</pre>

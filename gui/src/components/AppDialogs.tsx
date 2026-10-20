@@ -238,7 +238,7 @@ export function AppDialogs(p: AppDialogsProps) {
       {dialog?.kind === "cite" && <CiteDialog notify={notify} onInsert={insertCitation} onSync={() => setDialog({ kind: "zotero-sync" })} onClose={() => setDialog(null)} />}
       {dialog?.kind === "insert-figure" && <InsertFigureDialog notify={notify} onCreated={placeObject} onClose={() => setDialog(null)} />}
       {dialog?.kind === "insert-table" && <InsertTableDialog notify={notify} onCreated={placeObject} onClose={() => setDialog(null)} />}
-      {dialog?.kind === "insert-equation" && <InsertEquationDialog notify={notify} onCreated={placeObject} requireAi={requireAi} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "insert-equation" && <InsertEquationDialog notify={notify} onCreated={placeObject} requireAi={requireAi} refresh={refresh} onClose={() => setDialog(null)} />}
       {dialog?.kind === "object" && <ObjectDialog id={dialog.id} notify={notify} onChanged={objectsChanged} onClose={() => setDialog(null)} />}
       {dialog?.kind === "zotero-sync" &&<SyncReviewDialog notify={notify} onApplied={() => void refresh()} onClose={() => setDialog(null)} />}
       {dialog?.kind === "export" && <ExportDialog unit={unit} notify={notify} onClose={() => setDialog(null)} />}

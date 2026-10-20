@@ -10,7 +10,7 @@ export function renderLatex(latex: string, display = true): Rendered {
   if (!latex.trim()) return { ok: true, html: "" };
   try {
     const html = katex.renderToString(latex, {
-      displayMode: display, throwOnError: true, trust: false, strict: "ignore", maxExpand: 1000, maxSize: 50, output: "html",
+      displayMode: display, throwOnError: true, trust: false, strict: "ignore", maxExpand: 1000, maxSize: 50, output: "htmlAndMathml",
     });
     return { ok: true, html };
   } catch (e) {
@@ -24,7 +24,7 @@ export function KatexView({ latex, display = true, label = "Equation preview" }:
   const r = renderLatex(latex, display);
   if (!r.ok) {
     return (
-      <div className="lw-eq__preview is-error" role="img" aria-label={label}>
+      <div className="lw-eq__preview is-error" aria-label={label}>
         <p className="lw-eq__error" role="alert">This LaTeX does not parse: {r.error}</p>
       </div>
     );

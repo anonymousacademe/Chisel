@@ -132,6 +132,7 @@ function mockResult(kind: string, args: Record<string, unknown>): Record<string,
     case "canon": return { updates: [], cost: 0.002, sent: sampleSent("canon") };
     case "aliases": return { suggestions: [], cost: 0.002, sent: sampleSent("aliases") };
     case "outline": return { items: mockOutlineItems(), cost: 0.002, model: "mock", sent: sampleSent("outline"), dropped: MOCK_OUTLINE_IGNORED };
+    case "latex": return { text: "\\mu = \\mu_{max}\\frac{S}{K_s + S + S^2/K_i}", model: "mock", cost: 0.0004, sent: sampleSent("latex") };
     case "requirements": return mockRequirementsProposal((args.guidelines as string[]) ?? []);
     case "style": return { markdown: "# Style guide\n\nShort, concrete sentences.", replacing: false, samples: 3, cost: 0.004 };
     case "describe_scene": return { prompt: "A rain-lit kitchen at 3 a.m., a terminal glowing behind smoked glass.", model: "mock", cost: 0.001 };

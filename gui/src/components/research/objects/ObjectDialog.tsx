@@ -35,6 +35,10 @@ export function ObjectDialog({ id, notify, onClose, onChanged, pollMs }: {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [tableError, setTableError] = useState("");
+  const [refsFailed, setRefsFailed] = useState(false);
+  const [runJob, setRunJob] = useState<string | null>(null);
+  const [confirmClose, setConfirmClose] = useState(false);
 
   const load = useCallback(async () => {
     const r = await api.objectRender([id]);
@@ -44,21 +48,25 @@ export function ObjectDialog({ id, notify, onClose, onChanged, pollMs }: {
     setCaption(o.caption); setAlt(o.alt ?? ""); setWidth(o.width ? String(o.width) : ""); setLatex(o.latex ?? "");
     if (o.kind === "tbl") {
       const t = await api.readTable(id);
-      if (t.ok) { setGrid({ cells: t.cells, align: t.align as TableAlign[] }); setMtime(t.mtime); setConflict(false); setDirtyGrid(false); }
+      if (t.ok) { setGrid({ cells: t.cells, align: t.align as TableAlign[] }); setMtime(t.mtime); setConflict(false); setDirtyGrid(false); setTableError(""); }
+      else setTableError(t.error);
     }
   }, [id]);
   useEffect(() => { void load(); }, [load]);
-  useEffect(() => { void api.objectReferences(id).then((r) => { if (r.ok) setRefs(r); }); }, [id]);
+  useEffect(() => { void api.objectReferences(id).then((r) => { if (r.ok) setRefs(r); else setRefsFailed(true); }); }, [id]);
+
+  /** Closing while a script runs asks first: yes stops it (the script card cancels on unmount), no keeps the card open. */
+  const requestClose = () => { if (runJob) setConfirmClose(true); else onClose(); };
 
   if (error) {
     return (
-      <Modal title="Object" onClose={onClose}>
+      <Modal title="Object" onClose={requestClose}>
         <p className="lw-eq__error" role="alert">{error}</p>
         <div className="lw-dialog__buttons"><button className="lw-btn" onClick={onClose}>Close</button></div>
       </Modal>
     );
   }
-  if (!obj) return <Modal title="Object" onClose={onClose}><p className="lw-faint">Loading…</p></Modal>;
+  if (!obj) return <Modal title="Object" onClose={requestClose}><p className="lw-faint">Loading…</p></Modal>;
 
   const name = obj.number ?? `${OBJECT_NAMES[obj.kind]} (not placed yet)`;
   const widthNum = width.trim() === "" ? null : Number(width);
@@ -80,7 +88,17 @@ export function ObjectDialog({ id, notify, onClose, onChanged, pollMs }: {
     if (!r.ok) return notify(r.error, "error");
     notify("Saved.");
     onChanged();
-    void load();
+    await refreshDetails();
+  };
+  /** After a details save: update the details fields and the base mtime only. A grid with unsaved edits is kept as it is,
+   *  and the new mtime keeps the next Save table from reporting a conflict the caption write itself caused. */
+  const refreshDetails = async () => {
+    const r = await api.objectRender([id], false);
+    const o = r.ok ? r.objects[0] : undefined;
+    if (!r.ok || !o || o.error) return;
+    setObj((prev) => ({ ...o, imageUrl: prev?.imageUrl }));
+    setCaption(o.caption); setAlt(o.alt ?? ""); setWidth(o.width ? String(o.width) : ""); setLatex(o.latex ?? "");
+    if (o.kind === "tbl" && o.mtime) setMtime(o.mtime);
   };
   const saveGrid = async () => {
     if (!grid || busy) return;
@@ -119,7 +137,7 @@ export function ObjectDialog({ id, notify, onClose, onChanged, pollMs }: {
 
   return (
     <>
-      <Modal title={name} wide onClose={onClose}>
+      <Modal title={name} wide onClose={requestClose}>
         <p className="lw-faint lw-obj__meta">
           <span className="lw-mono">{id}</span> · {STATUS_WORDS[obj.status] ?? obj.status}
           {obj.source !== "static" && <> · {obj.kind === "fig" ? "Made by a script" : "Built from data"}</>}
@@ -131,9 +149,11 @@ export function ObjectDialog({ id, notify, onClose, onChanged, pollMs }: {
             : <p className="lw-faint">{obj.source === "script" ? "No picture yet: run the script below." : "The picture file is missing."}</p>
         )}
         {obj.kind === "eq" && <KatexView latex={latex} />}
+        {obj.kind === "tbl" && !grid && tableError && <p className="lw-eq__error" role="alert">{tableError}</p>}
         {obj.kind === "tbl" && grid && (
           <>
             <TableGridEditor grid={grid} readOnly={generatedTable} onChange={(g) => { setGrid(g); setDirtyGrid(true); }} />
+            {tableError && <p className="lw-eq__error" role="alert">{tableError}</p>}
             {conflict && (
               <p role="alert" className="lw-eq__error">
                 This table changed on disk since you opened it. <button className="lw-link" onClick={() => void load()}>Reload it</button> before saving (your edits here will be lost).
@@ -164,7 +184,7 @@ export function ObjectDialog({ id, notify, onClose, onChanged, pollMs }: {
         )}
         <div className="lw-row"><button className="lw-btn" disabled={!detailsChanged || busy || widthBad || (obj.kind === "eq" && !latex.trim())} onClick={() => void saveDetails()}>Save details</button></div>
 
-        {obj.kind === "fig" && obj.source === "script" && <FigureScript id={id} notify={notify} pollMs={pollMs} onRan={() => { onChanged(); void load(); }} />}
+        {obj.kind === "fig" && obj.source === "script" && <FigureScript id={id} notify={notify} pollMs={pollMs} onRunning={setRunJob} onRan={() => { onChanged(); void load(); }} />}
 
         {generatedTable && (
           <section aria-label="Rebuild from the data">
@@ -186,7 +206,8 @@ export function ObjectDialog({ id, notify, onClose, onChanged, pollMs }: {
 
         <section aria-label="Where it is used">
           <h3>Where it is used</h3>
-          {!refs && <p className="lw-faint">Looking…</p>}
+          {!refs && !refsFailed && <p className="lw-faint">Looking…</p>}
+          {refsFailed && <p className="lw-eq__error" role="alert">Chisel could not check where it is used.</p>}
           {refs && (
             <>
               <p className="lw-faint">{usedIn(refs.placements.length)}</p>
@@ -199,13 +220,18 @@ export function ObjectDialog({ id, notify, onClose, onChanged, pollMs }: {
         </section>
 
         <div className="lw-dialog__buttons lw-dialog__buttons--split">
-          <button className="lw-btn lw-btn--danger" onClick={() => setConfirmDelete(true)}>Delete…</button>
-          <button className="lw-btn" onClick={onClose}>Close</button>
+          <button className="lw-btn lw-btn--danger" disabled={!refs && !refsFailed} onClick={() => setConfirmDelete(true)}>Delete…</button>
+          <button className="lw-btn" onClick={requestClose}>Close</button>
         </div>
       </Modal>
+      {confirmClose && (
+        <ConfirmDialog title="Stop the run?" confirm="Stop the run"
+          message="The script is still running. Closing this card stops it, and the old picture stays as it is."
+          onConfirm={() => { setConfirmClose(false); onClose(); }} onClose={() => setConfirmClose(false)} />
+      )}
       {confirmDelete && (
         <ConfirmDialog title={`Delete ${name}`} confirm="Move to Trash"
-          message={<>{name} goes to the Trash; you can restore it from there. {count === 0 ? "No section places it." : `${count} section${count === 1 ? " places" : "s place"} it: those lines will show as unresolved until it is restored.`}</>}
+          message={<>{name} goes to the Trash; you can restore it from there. {refsFailed ? "Chisel could not check which sections place it." : count === 0 ? "No section places it." : `${count} section${count === 1 ? " places" : "s place"} it: those lines will show as unresolved until it is restored.`}</>}
           onConfirm={() => void del()} onClose={() => setConfirmDelete(false)} />
       )}
     </>

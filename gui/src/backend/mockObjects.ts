@@ -63,14 +63,15 @@ export function mockObjectsCall(method: string, args: unknown[]): object | undef
     case "list_objects": return { ok: true, objects: items.map(row) };
     case "object_numbers": return { ok: true, numbers: Object.fromEntries(items.map((o) => [o.id, row(o).number])) };
     case "object_render": {
+      const withImages = args[1] !== false;
       const out = (args[0] as string[]).map((id) => {
         const o = find(id);
         if (!o) return { id, error: `no such object: ${id}` };
         const r = row(o);
         return {
-          id: o.id, kind: o.kind, label: o.label, caption: o.caption, number: r.number?.display ?? null, seq: r.number?.seq ?? null, status: o.status, source: o.source, path: o.path,
-          ...(o.kind === "fig" ? { imageUrl: o.status === "missing" ? null : PIXEL, width: o.width, alt: o.alt } : {}),
-          ...(o.kind === "tbl" ? { cells: o.cells, align: o.tAlign, mtime: o.mtime, generated: o.source === "data" } : {}),
+          id: o.id, kind: o.kind, label: o.label, caption: o.caption, number: r.number?.display ?? null, seq: r.number?.seq ?? null, status: o.status, source: o.source, path: o.path, mtime: o.mtime ?? "1760000000000000000",
+          ...(o.kind === "fig" ? { ...(withImages ? { imageUrl: o.status === "missing" ? null : PIXEL } : {}), pixels: o.status === "missing" ? null : [1, 1], width: o.width, alt: o.alt } : {}),
+          ...(o.kind === "tbl" ? { cells: o.cells, align: o.tAlign, generated: o.source === "data" } : {}),
           ...(o.kind === "eq" ? { latex: o.latex } : {}),
         };
       });
@@ -95,6 +96,7 @@ export function mockObjectsCall(method: string, args: unknown[]): object | undef
       if (alt !== null && alt !== undefined && o.kind === "fig") o.alt = alt;
       if (width !== null && width !== undefined) o.width = width;
       if (latex !== null && latex !== undefined && o.kind === "eq") o.latex = latex;
+      if (o.kind === "tbl" && o.mtime) o.mtime = String(Number(o.mtime) + 1);   // the caption lives in the file: its mtime moves
       return { ok: true, object: row(o) };
     }
     case "trash_object": {

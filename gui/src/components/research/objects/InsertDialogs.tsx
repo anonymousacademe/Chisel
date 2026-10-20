@@ -1,5 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../../../backend/api";
+import { runAiJob, AiCancelled, type AiJob } from "../../../backend/aijobs";
+import type { SentReport as Report } from "../../../data/types";
+import { secs, useElapsed } from "../../aiRun";
+import { SentReport } from "../../SentReport";
 import { blankGrid, figureFileProblem, fileStem, gridIsBlank, type Grid } from "../../../data/objects";
 import { Modal } from "../../Dialogs";
 import { KatexView } from "./KatexView";
@@ -104,13 +108,24 @@ export function InsertTableDialog({ notify, onClose, onCreated }: InsertProps) {
 
 /** Insert an equation: LaTeX with a live preview. "Suggest LaTeX with AI" sends only the description typed in its box
  *  and shows the answer apart; it enters the equation only when the author clicks "Use this". */
-export function InsertEquationDialog({ notify, onClose, onCreated, requireAi }: InsertProps & { requireAi?: () => boolean }) {
+function Asking({ startedAt, reported }: { startedAt: number; reported?: number }) {
+  const s = useElapsed(startedAt, reported);
+  return <span><span className="lw-spinner" aria-hidden="true" /> Suggesting LaTeX… {secs(s)}</span>;
+}
+
+export function InsertEquationDialog({ notify, onClose, onCreated, requireAi, refresh }: InsertProps & { requireAi?: () => boolean; refresh?: () => Promise<unknown> | void }) {
   const [latex, setLatex] = useState("");
   const [caption, setCaption] = useState("");
   const [busy, setBusy] = useState(false);
   const [desc, setDesc] = useState("");
   const [asking, setAsking] = useState(false);
   const [proposal, setProposal] = useState<string | null>(null);
+  const [sent, setSent] = useState<Report | null>(null);
+  const [cost, setCost] = useState<number | null>(null);
+  const [startedAt, setStartedAt] = useState(0);
+  const [elapsedSeen, setElapsedSeen] = useState<number | undefined>();
+  const jobRef = useRef<AiJob<{ ok: true; text: string; sent?: Report; cost?: number | null }> | null>(null);
+  useEffect(() => () => { void jobRef.current?.cancel(); }, []);   // closing the dialog stops a running request
   const { label, setLabel } = useSuggestedLabel("eq", caption.trim());
   const create = async () => {
     if (!latex.trim() || !label.trim() || busy) return;
@@ -123,12 +138,19 @@ export function InsertEquationDialog({ notify, onClose, onCreated, requireAi }: 
   const ask = async () => {
     if (!desc.trim() || asking) return;
     if (requireAi && !requireAi()) return;
-    setAsking(true);
-    const r = await api.suggestLatex(desc.trim());
-    setAsking(false);
-    if (!r.ok) return notify(r.error, "error");
-    setProposal(r.text);
+    setAsking(true); setStartedAt(Date.now()); setElapsedSeen(undefined); setProposal(null);
+    const job = runAiJob<{ ok: true; text: string; sent?: Report; cost?: number | null }>("latex", { description: desc.trim() },
+      { label: "Suggesting LaTeX…", onElapsed: setElapsedSeen });
+    jobRef.current = job;
+    try {
+      const r = await job.promise;
+      setProposal(r.text); setSent(r.sent ?? null); setCost(typeof r.cost === "number" ? r.cost : null);
+    } catch (e) {
+      if (e instanceof AiCancelled) notify("Stopped. Nothing was changed.");
+      else notify(e instanceof Error ? e.message : String(e), "error");
+    } finally { jobRef.current = null; setAsking(false); void refresh?.(); }
   };
+  const stop = () => { void jobRef.current?.cancel(); };
   return (
     <Modal title="Insert an equation" wide onClose={onClose}>
       <label className="lw-dialog__label">LaTeX
@@ -146,13 +168,18 @@ export function InsertEquationDialog({ notify, onClose, onCreated, requireAi }: 
             placeholder="Monod growth rate with a substrate inhibition term" />
         </label>
         <div className="lw-row lw-gap-8">
-          <button className="lw-btn" disabled={!desc.trim() || asking} onClick={() => void ask()}>{asking ? "Asking…" : "Suggest LaTeX with AI"}</button>
+          {asking
+            ? <button className="lw-btn" onClick={stop}>Stop</button>
+            : <button className="lw-btn" disabled={!desc.trim()} onClick={() => void ask()}>Suggest LaTeX with AI</button>}
           <span className="lw-faint lw-grid__hint">Only this description is sent. Nothing changes until you click Use this.</span>
         </div>
+        {asking && <p className="lw-dialog__message" role="status"><Asking startedAt={startedAt} reported={elapsedSeen} /></p>}
         {proposal !== null && (
           <div className="lw-obj__proposal" aria-label="Suggested LaTeX">
             <pre className="lw-mono">{proposal}</pre>
             <KatexView latex={proposal} label="Suggestion preview" />
+            {cost !== null && <p className="lw-faint lw-grid__hint">Cost: ${cost.toFixed(4)}</p>}
+            <SentReport report={sent} />
             <div className="lw-row lw-gap-8">
               <button className="lw-btn lw-btn--primary" onClick={() => { setLatex(proposal); setProposal(null); }}>Use this</button>
               <button className="lw-btn" onClick={() => setProposal(null)}>Discard</button>

@@ -147,7 +147,7 @@ describe("equation preview", () => {
     for (const bad of ["\\frac{a", "\\notacommand{x}", "{", "\\href{javascript:alert(1)}{x}", "\\includegraphics{x}", "$$"]) {
       const r = renderLatex(bad);
       if (!r.ok) expect(r.error).not.toBe("");
-      else expect(r.html).not.toMatch(/<a |javascript:/);
+      else expect(r.html).not.toMatch(/<a |href=/);
     }
     const host = await mount(<KatexView latex={"\\frac{a"} />);
     expect(host.querySelector('[role="alert"]')!.textContent).toMatch(/does not parse/);
@@ -194,7 +194,7 @@ describe("insert flows: the bridge first, then the placement on its own line", (
     expect(btn("Insert table")!.disabled).toBe(true);
   });
 
-  it("equation: the label can be edited and the placement is on its own line mid-text", async () => {
+  it("equation: the label can be edited and the placement is on its own line after the cursor line", async () => {
     const spy = vi.spyOn(api, "createEquation");
     const { ed, log } = editor("Growth is modelled by  as shown.", 22);
     const onCreated = created(ed);
@@ -204,7 +204,7 @@ describe("insert flows: the bridge first, then the placement on its own line", (
     await click(btn("Insert equation"));
     await until(() => onCreated.mock.calls.length > 0);
     expect(spy).toHaveBeenCalledWith("line", "y = ax + b", "");
-    expect(log.text).toBe("Growth is modelled by \n\n![[eq:line]]\n\n as shown.");
+    expect(log.text).toBe("Growth is modelled by  as shown.\n\n![[eq:line]]");
   });
 
   it("an error from the bridge is shown and nothing is placed", async () => {
@@ -233,21 +233,38 @@ describe("insert flows: the bridge first, then the placement on its own line", (
     expect(findInMock("eq:solo")).toBe(true);
   });
 
-  it("AI suggestion: shown apart, enters the equation only on Use this", async () => {
-    const spy = vi.spyOn(api, "suggestLatex");
+  it("AI suggestion: an AI job, shown apart with the sent report and cost, enters the equation only on Use this", async () => {
+    const spy = vi.spyOn(api, "aiStart");
     await mount(<InsertEquationDialog notify={notify} onClose={() => {}} onCreated={() => {}} />);
     await type(field("Describe the equation"), "Monod with inhibition");
     await click(btn("Suggest LaTeX with AI"));
-    await until(() => q('[aria-label="Suggested LaTeX"]'));
-    expect(spy).toHaveBeenCalledWith("Monod with inhibition");
+    expect(btn("Stop")).toBeTruthy();
+    expect(q('[role="status"]')!.textContent).toMatch(/Suggesting LaTeX/);
+    await until(() => q('[aria-label="Suggested LaTeX"]'), 600);
+    expect(spy).toHaveBeenCalledWith("latex", { description: "Monod with inhibition" });
+    expect(q('[aria-label="Suggested LaTeX"]')!.textContent).toContain("What was sent");
+    expect(q('[aria-label="Suggested LaTeX"]')!.textContent).toMatch(/Cost: \$0\.0004/);
     expect(field("LaTeX")!.value).toBe("");
     await click(btn("Use this"));
     expect(field("LaTeX")!.value).toContain("K_i");
     expect(q('[aria-label="Suggested LaTeX"]')).toBeNull();
   });
 
+  it("AI suggestion: Stop cancels the job and nothing is proposed", async () => {
+    const cancel = vi.spyOn(api, "aiCancel");
+    await mount(<InsertEquationDialog notify={notify} onClose={() => {}} onCreated={() => {}} />);
+    await type(field("Describe the equation"), "anything");
+    await click(btn("Suggest LaTeX with AI"));
+    await until(() => btn("Stop"));
+    await click(btn("Stop"));
+    await until(() => cancel.mock.calls.length > 0);
+    await until(() => btn("Suggest LaTeX with AI"), 200);
+    expect(q('[aria-label="Suggested LaTeX"]')).toBeNull();
+    expect(notify).toHaveBeenCalledWith("Stopped. Nothing was changed.");
+  });
+
   it("AI suggestion honours the AI key check", async () => {
-    const spy = vi.spyOn(api, "suggestLatex");
+    const spy = vi.spyOn(api, "aiStart");
     await mount(<InsertEquationDialog notify={notify} onClose={() => {}} onCreated={() => {}} requireAi={() => false} />);
     await type(field("Describe the equation"), "anything");
     await click(btn("Suggest LaTeX with AI"));
@@ -332,6 +349,23 @@ describe("ObjectDialog", () => {
     await until(() => !q('[role="alert"]'));
   });
 
+  it("Save details keeps unsaved grid edits and does not cause a false conflict on the next Save table", async () => {
+    const save = vi.spyOn(api, "saveTable");
+    await open("tbl:site-summary");
+    await until(() => q('[aria-label="Row 1, column 2"]'));
+    await type(q('[aria-label="Row 1, column 2"]') as HTMLInputElement, "1300");
+    await type(field("Caption"), "A new caption");
+    await click(btn("Save details"));
+    await until(() => notify.mock.calls.some((c) => c[0] === "Saved."));
+    await flush(20);
+    expect((q('[aria-label="Row 1, column 2"]') as HTMLInputElement).value).toBe("1300");
+    expect(btn("Save table")!.disabled).toBe(false);
+    await click(btn("Save table"));
+    await until(() => save.mock.calls.length > 0);
+    await until(() => notify.mock.calls.some((c) => /table saved/i.test(String(c[0]))));
+    expect(q('[role="alert"]')).toBeNull();
+  });
+
   it("a generated table is read-only and is rebuilt only through preview then apply", async () => {
     const applySpy = vi.spyOn(api, "applyTable");
     await open("tbl:kpi-table");
@@ -387,6 +421,56 @@ describe("ObjectDialog", () => {
       await click(btn("Stop"));
       expect(cancel).toHaveBeenCalledTimes(1);
       await until(() => q('[aria-label="Figure script"]')!.textContent!.includes("Stopped."), 100);
+    });
+
+    it("closing while a script runs asks first: no keeps the card, yes stops the run", async () => {
+      const cancel = vi.spyOn(api, "figureRunCancel"), closed = vi.fn();
+      await open(id, { pollMs: 400, onClose: closed });
+      await until(() => btn("Trust this script version"));
+      await click(btn("Trust this script version"));
+      await until(() => !btn("Trust this script version"));
+      await click(btn("Run the script"));
+      await until(() => btn("Stop"));
+      await click([...document.body.querySelectorAll("button")].find((b) => b.textContent === "Close"));
+      expect(q('[aria-label="Stop the run?"]')).toBeTruthy();
+      expect(closed).not.toHaveBeenCalled();
+      await click([...q('[aria-label="Stop the run?"]')!.querySelectorAll("button")].find((b) => b.textContent === "Cancel"));
+      expect(closed).not.toHaveBeenCalled();
+      expect(cancel).not.toHaveBeenCalled();
+      await click([...document.body.querySelectorAll("button")].find((b) => b.textContent === "Close"));
+      await click(btn("Stop the run"));
+      expect(closed).toHaveBeenCalledTimes(1);
+      // the parent unmounts the card on close: the run is cancelled through figure_run_cancel
+      await act(async () => { roots.forEach((r) => r.unmount()); }); roots = [];
+      expect(cancel).toHaveBeenCalledTimes(1);
+    });
+
+    it("the card re-reads the trust state on focus and after a refused run", async () => {
+      const info = vi.spyOn(api, "figureTrustInfo");
+      await open(id);
+      await until(() => btn("Trust this script version"));
+      await click(btn("Trust this script version"));
+      await until(() => !btn("Trust this script version"));
+      expect(btn("Run the script")!.disabled).toBe(false);
+      // the script changes on disk
+      info.mockResolvedValue({ ok: true, id, script: "print(2)", sha: "new", path: "figures/scripts/x.py", interpreter: "/usr/bin/python3", data: [], trust: "changed" });
+      await act(async () => { window.dispatchEvent(new Event("focus")); });
+      await until(() => btn("Trust this script version"));
+      expect(btn("Run the script")!.disabled).toBe(true);
+    });
+
+    it("a refused Run reloads the script's trust", async () => {
+      const info = vi.spyOn(api, "figureTrustInfo");
+      await open(id);
+      await until(() => btn("Trust this script version"));
+      await click(btn("Trust this script version"));
+      await until(() => !btn("Trust this script version"));
+      const calls = info.mock.calls.length;
+      vi.spyOn(api, "figureRunStart").mockResolvedValue({ ok: false, error: "the script changed" });
+      info.mockResolvedValue({ ok: true, id, script: "print(2)", sha: "new", path: "figures/scripts/x.py", interpreter: "/usr/bin/python3", data: [], trust: "changed" });
+      await click(btn("Run the script"));
+      await until(() => info.mock.calls.length > calls && btn("Trust this script version"));
+      expect(btn("Run the script")!.disabled).toBe(true);
     });
 
     it("a failed run shows the plain message and the stderr tail", async () => {

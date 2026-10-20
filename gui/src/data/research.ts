@@ -213,6 +213,9 @@ export interface ObjectRender {
   id: string; kind: ObjectKind; label: string; caption: string; number: string | null; seq: number | null;
   status: ObjectStatus; source: "static" | "script" | "data"; path: string;
   imageUrl?: string | null; width?: number | null; alt?: string;
+  /** The file's mtime in nanoseconds, as a string (every entry). */
+  /** Figures: [width, height] in pixels from the file header; null when unreadable. */
+  pixels?: [number, number] | null;
   cells?: string[][] | null; align?: string[] | null; mtime?: string; generated?: boolean;
   latex?: string; error?: string;
 }

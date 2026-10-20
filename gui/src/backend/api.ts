@@ -16,7 +16,7 @@ import type { BuiltTable, FigureRunStatus, FigureTrustInfo, ObjectKind, ObjectPa
 import { call } from "./transport";
 
 /** AI job kinds (the AI job contract): the first four stream text, the rest answer once. */
-export type AiKind = "ask" | "research" | "brainstorm" | "generate" | "continuity" | "voice" | "canon" | "aliases" | "relationships" | "outline" | "requirements" | "style" | "image" | "image_regenerate" | "describe_scene";
+export type AiKind = "ask" | "research" | "brainstorm" | "generate" | "continuity" | "voice" | "canon" | "aliases" | "relationships" | "outline" | "latex" | "requirements" | "style" | "image" | "image_regenerate" | "describe_scene";
 export const STREAMING_KINDS: readonly AiKind[] = ["ask", "research", "brainstorm", "generate"];
 export type AiState = "running" | "done" | "cancelled" | "error";
 export interface AiPoll {
@@ -154,7 +154,7 @@ export const api = {
   // Figures, tables and equations (research projects; figures/ tables/ equations/). Python numbers and writes them.
   listObjects: () => call<{ objects: ObjectRow[] }>("list_objects"),
   objectNumbers: () => call<{ numbers: Record<string, { seq: number; display: string }> }>("object_numbers"),
-  objectRender: (ids: string[]) => call<{ objects: ObjectRender[] }>("object_render", ids),
+  objectRender: (ids: string[], images = true) => call<{ objects: ObjectRender[] }>("object_render", ids, images),
   objectSuggestLabel: (kind: ObjectKind, caption: string) => call<{ label: string }>("object_suggest_label", kind, caption),
   objectReferences: (id: string) => call<ObjectRefs>("object_references", id),
   updateObject: (id: string, patch: ObjectPatch) =>
@@ -176,6 +176,7 @@ export const api = {
   figureRunStatus: (job: string) => call<FigureRunStatus>("figure_run_status", job),
   figureRunCancel: (job: string) => call<{ job: string; state: string }>("figure_run_cancel", job),
   /** Text only: the author's typed description goes out, nothing else. The reply is a proposal, never inserted. */
+  // suggest_latex runs as an AI job (aiStart kind "latex"); the direct call is the same method run synchronously.
   suggestLatex: (description: string) => call<{ text: string; model: string; cost: number | null; sent?: unknown }>("suggest_latex", description),
   // Notebook notes (notebook/; "research" internally): plain Markdown, never indexed
   newResearchNote: (title: string, template = "") => call<{ id: string }>("new_research_note", title, template),
