@@ -129,6 +129,7 @@ function mockResult(kind: string, args: Record<string, unknown>): Record<string,
     case "continuity": return { issues: [], waived: 0, cost: 0.002, sent: sampleSent("continuity") };
     case "canon": return { updates: [], cost: 0.002, sent: sampleSent("canon") };
     case "aliases": return { suggestions: [], cost: 0.002, sent: sampleSent("aliases") };
+    case "outline": return { items: mockOutlineItems(), cost: 0.002, model: "mock", sent: sampleSent("outline"), ignored: MOCK_OUTLINE_IGNORED };
     case "style": return { markdown: "# Style guide\n\nShort, concrete sentences.", replacing: false, samples: 3, cost: 0.004 };
     case "describe_scene": return { prompt: "A rain-lit kitchen at 3 a.m., a terminal glowing behind smoked glass.", model: "mock", cost: 0.001 };
     case "image": case "image_regenerate": return { images: [], cost: 0.03 };
@@ -207,6 +208,59 @@ const mockGuidelines = [
   { name: "scanned-call.pdf", type: "pdf", size: 904100, chars: 0, extracted: false, message: "No text could be read from this PDF. It may be a scan." },
 ];
 
+// -- Outline assistant (wave D): the contract of outline_* with a small in-memory manuscript.
+let mockScope = "";
+const mockOutline = [
+  ["abstract", "Abstract"], ["introduction", "Introduction"], ["methods", "Methods"], ["results", "Results"], ["discussion", "Discussion"],
+].map(([slugName, title], i) => ({
+  id: `manuscript/${String(i + 1).padStart(2, "0")}-${slugName}.md`, title, part: "", partTitle: "", frontMatter: i === 0, position: i + 1,
+  words: 120 * (i + 1), purpose: "",
+}));
+const MOCK_OUTLINE_IGNORED = [{ title: "Appendix B", reason: "That section does not exist in the outline." }];
+const mockOutlineItems = () => {
+  const intro = mockOutline.find((s) => s.title === "Introduction");
+  const results = mockOutline.find((s) => s.title === "Results");
+  const discussion = mockOutline.find((s) => s.title === "Discussion");
+  return [
+    { id: "o1", action: "add", title: "Study area and data", part: "", after: intro?.id ?? "", purpose: "Describe the catchment and the data sets used.", why: "The scope names a data set the outline never introduces." },
+    { id: "o2", action: "rename", title: "Methods", section: mockOutline.find((s) => s.title === "Methods")?.id ?? "", newTitle: "Materials and methods", why: "The target journal uses this heading." },
+    { id: "o3", action: "move", title: "Discussion", section: discussion?.id ?? "", part: "", after: results?.id ?? "", why: "Discussion follows Results." },
+    { id: "o4", action: "advice", title: "Consider a short limitations paragraph", why: "Reviewers for this journal usually ask for one." },
+    { id: "o5", action: "keep", title: "Introduction", section: intro?.id ?? "", why: "Already fits." },
+  ];
+};
+function mockOutlineApply(items: { id: string; action: string; title: string; section?: string; newTitle?: string; part?: string; after?: string; purpose?: string }[]) {
+  const changed: string[] = [], created: string[] = [], skipped: { id: string; reason: string }[] = [], remap: Record<string, string> = {};
+  type Row = (typeof mockOutline)[number];
+  const place = (row: Row, part: string, after: string | undefined) => {
+    row.partTitle = part; row.part = part ? `part-${slug(part)}` : "";
+    const anchor = after ? mockOutline.findIndex((s) => s.id === after) : -1;
+    if (anchor >= 0) mockOutline.splice(anchor + 1, 0, row);
+    else if (after === "") { const first = mockOutline.findIndex((s) => s.partTitle === part); mockOutline.splice(first >= 0 ? first : mockOutline.length, 0, row); }
+    else mockOutline.push(row);
+  };
+  const renumber = () => mockOutline.forEach((s, n) => { s.position = n + 1; });
+  for (const i of items) {
+    const at = mockOutline.findIndex((s) => s.id === i.section);
+    if (i.action === "add") {
+      const id = `manuscript/${String(mockOutline.length + 1).padStart(2, "0")}-${slug(i.title)}.md`;
+      place({ id, title: i.title, part: "", partTitle: "", frontMatter: false, position: 0, words: 0, purpose: i.purpose ?? "" }, i.part ?? "", i.after);
+      created.push(id);
+    } else if (at < 0) skipped.push({ id: i.id, reason: "That section no longer exists." });
+    else if (i.action === "rename") { mockOutline[at].title = i.newTitle ?? mockOutline[at].title; changed.push(mockOutline[at].id); }
+    else if (i.action === "move") {
+      const [row] = mockOutline.splice(at, 1);
+      const old = row.id;
+      place(row, i.part ?? "", i.after);
+      renumber();
+      row.id = `manuscript/${String(row.position).padStart(2, "0")}-${slug(row.title)}.md`;
+      remap[old] = row.id; changed.push(row.id);
+    }
+    renumber();
+  }
+  return { ok: true, changed, remap, skipped, created };
+}
+
 /** URLs passed to open_external in the mock (read by tests). */
 export const openedUrls: string[] = [];
 
@@ -243,6 +297,17 @@ export function mockCall(method: string, args: unknown[]): object {
       return { ok: true, name };
     }
     case "guidelines_read": return { ok: true, name: String(args[0]), text: "Sample guideline text.", truncated: false, chars: 22 };
+    case "outline_get_scope": return { ok: true, text: mockScope };
+    case "outline_set_scope": mockScope = String(args[0] ?? ""); return { ok: true };
+    case "outline_current": return { ok: true, kind: mockResearch.kind, journal: mockResearch.journal, journalName: mockSettings().journalName, sections: mockOutline.map((s) => ({ ...s })) };
+    case "outline_standard": {
+      const have = new Set(mockOutline.map((s) => s.title.toLowerCase()));
+      const items = ["Abstract", "Introduction", "Methods", "Results", "Discussion", "Conclusions"].filter((t) => !have.has(t.toLowerCase()))
+        .map((title, n) => ({ id: `s${n + 1}`, action: "add", title, part: "", after: mockOutline[mockOutline.length - 1].id, purpose: `The ${title.toLowerCase()} of the paper.`, why: "Part of the standard structure." }));
+      return { ok: true, name: "Environmental Modelling & Software", items };
+    }
+    case "outline_suggest": return { ok: true, items: mockOutlineItems(), sent: sampleSent("outline"), cost: 0.002, model: "mock", ignored: MOCK_OUTLINE_IGNORED };
+    case "outline_apply": return mockOutlineApply(args[0] as Parameters<typeof mockOutlineApply>[0]);
     case "guidelines_remove": { const i = mockGuidelines.findIndex((g) => g.name === args[0]); if (i >= 0) mockGuidelines.splice(i, 1); return { ok: true }; }
     case "zotero_collections": return { ok: true, collections: [
       { key: "AB12CD34", path: "AI and Computing / WRRI - AI and Process Modeling", items: 42, parent: null },

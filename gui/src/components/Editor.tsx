@@ -31,6 +31,8 @@ export function Editor(props: {
   script?: boolean;
   /** Research mode: [[@ offers the synced sources. */
   research?: boolean;
+  /** Research mode: opens the outline assistant (a button above the Outline view). */
+  onOutlineAssistant?: () => void;
   /** Script mode: names offered by the completion list (characters after a blank line, places after INT.). */
   names?: ScriptNames;
   doc: DocumentPayload | null; scenes: SceneSummary[]; parts: PartSummary[]; unit: Unit; parked: string; words: number; mentions: SceneMention[]; reflow: boolean;
@@ -169,6 +171,11 @@ export function Editor(props: {
           <Corkboard groups={groups} filter={props.filter} activeId={doc?.id ?? null} unit={props.unit} onOpen={props.onOpen} onMove={props.onMoveRequest} />
         )}
 
+        {props.mode === "outline" && props.onOutlineAssistant && (
+          <div className="lw-row lw-gap-8" style={{ padding: "8px 16px 0" }}>
+            <button className="lw-btn" onClick={props.onOutlineAssistant}>Outline assistant…</button>
+          </div>
+        )}
         {props.mode === "outline" && (
           <Outline groups={groups} filter={props.filter} activeId={doc?.id ?? null} unit={props.unit} onOpen={props.onOpen} onMove={props.onMoveRequest} />
         )}
