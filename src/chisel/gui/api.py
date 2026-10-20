@@ -37,6 +37,7 @@ from ..ai.continuity import check_scene, plan_canon, plan_check, propose_canon_u
 from ..ai import images as image_ai
 from ..ai.images import generate as generate_images, suggest_prompt as suggest_image_prompt
 from ..ai.links import alias_form, plan_aliases, suggest_links
+from ..ai.requirements import suggest_requirements  # noqa: F401  (the requirements mixin looks it up at call time; mockai patches it)
 from ..ai.outline import suggest_outline  # noqa: F401  (the outline mixin looks it up at call time; mockai patches it)
 from ..ai.relationships import (
     Suggestion as RelationshipSuggestion,
@@ -772,6 +773,7 @@ class Api(SpellingMixin, EntitiesMixin, StructureMixin, VersionsMixin, ExportMix
         "relationships": "suggest_relationships", "voice": "check_voice",
         "style": "learn_style", "image": "generate_inspiration", "describe_scene": "describe_scene",
         "image_regenerate": "regenerate_inspiration", "outline": "outline_suggest",
+        "requirements": "requirements_suggest",
     }
 
     @bridge

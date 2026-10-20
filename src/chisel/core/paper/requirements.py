@@ -11,13 +11,14 @@ A profile pattern matches a section when it is a case-insensitive substring of t
 
 from __future__ import annotations
 
+import dataclasses
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
 from .. import drafts, links, objects, scenemeta
 from ..entities import resolve_key, source_key
-from . import journals
+from . import custom_requirements, journals
 
 _BULLET_RE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+(.*\S)\s*$")
 _COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
@@ -264,24 +265,45 @@ def _objects(req: journals.Requirement, ctx: _Context) -> tuple[str, str]:
                                                        else "are cited in the text.")
 
 
+def _evaluate_one(req: journals.Requirement, ctx: _Context, group: str | None = None) -> dict:
+    if req.kind == "advice":
+        status, message = "advice", ""
+    else:
+        try:
+            status, message = _check(req, ctx)
+        except Exception:           # a broken row must not blank the list
+            status, message = "na", "This requirement could not be checked."
+    return {"id": req.id, "group": group if group is not None else req.group, "title": req.title,
+            "kind": req.kind, "status": status, "message": message}
+
+
 def evaluate(project) -> list[dict]:
-    """Result rows ``{id, group, title, kind, status, message}`` of the project's profile, in profile order.
-    ``[]`` for a project that is not research or has no matching profile."""
+    """Result rows ``{id, group, title, kind, status, message}``: the project's profile rows in profile order,
+    then the author's own rows from requirements.toml (``custom_requirements``; an id that clashes with a
+    profile row gets the prefix "custom-"). ``[]`` for a project that is not research, or that has neither a
+    matching profile nor own rows."""
     if getattr(project, "mode", "story") != "research":
         return []
     profile = project.research_profile()
-    if profile is None:
+    custom, warning = custom_requirements.load_report(project)
+    if profile is None and not custom and not warning:
         return []
     ctx = _Context(project)
     out = []
-    for req in profile.requirements:
-        if req.kind == "advice":
-            status, message = "advice", ""
-        else:
-            try:
-                status, message = _check(req, ctx)
-            except Exception:           # a broken row must not blank the list
-                status, message = "na", "This requirement could not be checked."
-        out.append({"id": req.id, "group": req.group, "title": req.title, "kind": req.kind,
-                    "status": status, "message": message})
+    if profile is not None:
+        out = [_evaluate_one(req, ctx) for req in profile.requirements]
+    taken = {r["id"] for r in out}
+    for row in custom:
+        req = custom_requirements.as_requirement(row)
+        if req.id in taken:
+            new_id = "custom-" + req.id
+            while new_id in taken:
+                new_id = "custom-" + new_id
+            req = dataclasses.replace(req, id=new_id)
+        taken.add(req.id)
+        out.append(_evaluate_one(req, ctx))
+    if warning:
+        out.append({"id": "custom-file", "group": custom_requirements.DEFAULT_GROUP,
+                    "title": custom_requirements.FILE_NAME, "kind": "check", "status": "warn",
+                    "message": warning})
     return out
