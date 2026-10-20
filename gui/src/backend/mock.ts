@@ -212,6 +212,9 @@ const mockGuidelines = [
 
 // -- Custom requirements (wave E): the contract of requirements_* with an in-memory requirements.toml.
 let mockCustom: CustomRequirement[] = [];
+/** Test hook: when set, requirements_custom returns it as `warning` (Python does that when the file has unreadable rows). */
+export const mockCustomControl = { warning: "" };
+const PLAIN_ID = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const MOCK_CHECKS = ["section-present", "section-words-max", "section-no-citations", "list-count", "last-section",
   "objects-captioned", "objects-referenced", "citations-resolved", "sources-doi"];
 /** Python's rules, roughly: a plain message naming the row, or "" when every row is fine. */
@@ -221,7 +224,7 @@ function validateCustom(rows: unknown): string {
   const seen = new Set<string>();
   for (const raw of rows as Partial<CustomRequirement>[]) {
     const name = `"${raw.title || raw.id || "a requirement"}"`;
-    if (!raw.id || seen.has(raw.id)) return `${name}: the id is missing or used twice.`;
+    if (!raw.id || typeof raw.id !== "string" || !PLAIN_ID.test(raw.id) || seen.has(raw.id)) return `${name}: the id is missing, not plain or used twice.`;
     seen.add(raw.id);
     if (!raw.title || raw.title.length > 160 || raw.title.includes("\n")) return `${name}: the title must be one line of 1 to 160 characters.`;
     if (raw.kind === "advice") continue;
@@ -349,7 +352,7 @@ export function mockCall(method: string, args: unknown[]): object {
           { id: "software-availability", title: "Software availability", status: "advice", message: "State where the software can be obtained, with its version." },
         ] },
       ].concat(mockCustomGroups()) };
-    case "requirements_custom": return { ok: true, rows: structuredClone(mockCustom) };
+    case "requirements_custom": return { ok: true, rows: structuredClone(mockCustom), ...(mockCustomControl.warning ? { warning: mockCustomControl.warning } : {}) };
     case "requirements_save": {
       const bad = validateCustom(args[0]);
       if (bad) return { ok: false, error: bad };
@@ -357,6 +360,7 @@ export function mockCall(method: string, args: unknown[]): object {
       return { ok: true, rows: structuredClone(mockCustom) };
     }
     case "requirements_remove": {
+      if (!mockCustom.some((r) => r.id === args[0])) return { ok: false, error: "There is no such requirement." };
       mockCustom = mockCustom.filter((r) => r.id !== args[0]);
       return { ok: true, rows: structuredClone(mockCustom) };
     }

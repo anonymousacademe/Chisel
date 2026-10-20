@@ -146,7 +146,7 @@ export const api = {
   outlineSuggest: (instruction: string, guidelines: string[]) => call<OutlineProposal>("outline_suggest", instruction, guidelines),
   outlineApply: (items: OutlineItem[]) => call<OutlineApplied>("outline_apply", items),
   // Custom requirements (requirements.toml). requirements_suggest runs as an AI job (aiStart kind "requirements") and never changes a file.
-  requirementsCustom: () => call<{ rows: CustomRequirement[] }>("requirements_custom"),
+  requirementsCustom: () => call<{ rows: CustomRequirement[]; warning?: string }>("requirements_custom"),
   requirementsSave: (rows: CustomRequirement[]) => call<{ rows: CustomRequirement[] }>("requirements_save", rows),
   requirementsRemove: (id: string) => call<{ rows: CustomRequirement[] }>("requirements_remove", id),
   requirementsSuggest: (instruction: string, guidelines: string[]) => call<RequirementsProposal>("requirements_suggest", instruction, guidelines),

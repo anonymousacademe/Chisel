@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../backend/api";
-import { CHECK_CHOICES, CHECK_PARAMS, DEFAULT_GROUP, OBJECT_WORD, cleanRow, describeCheck, uniqueId, type ParamName } from "../../data/requirementsCustom";
+import { CHECK_CHOICES, CHECK_PARAMS, DEFAULT_GROUP, OBJECT_WORD, UNREADABLE_BLOCK, cleanRow, describeCheck, isWholeText, uniqueId, type ParamName } from "../../data/requirementsCustom";
 import type { CustomCheck, CustomRequirement, CustomSeverity, ObjectKind } from "../../data/research";
 import { ConfirmDialog } from "../Dialogs";
 
@@ -22,26 +22,38 @@ export function ManageRequirements({ notify, onChanged }: { notify: Notify; onCh
   const [severity, setSeverity] = useState<CustomSeverity>("warn");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [warning, setWarning] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const blocked = warning !== "";
 
-  const load = useCallback(async () => {
-    try {
-      const r = await api.requirementsCustom();
-      if (r?.ok) setRows(r.rows);
-    } catch { /* the list is optional: the checklist above still works */ }
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      let message = "";
+      try {
+        const r = await api.requirementsCustom();
+        if (!live) return;
+        if (r?.ok) { setRows(r.rows); setWarning(r.warning ?? ""); } else message = r?.error || "Your requirements could not be read.";
+      } catch (e) {
+        message = e instanceof Error && e.message ? e.message : "Your requirements could not be read.";
+      }
+      if (live) setLoadError(message);
+    })();
+    return () => { live = false; };
   }, []);
-  useEffect(() => { void load(); }, [load]);
 
   const params: ParamName[] = choice === "advice" ? [] : CHECK_PARAMS[choice];
 
   const remove = async (row: CustomRequirement) => {
     setRemoving(null);
+    if (blocked) return;
     const r = await api.requirementsRemove(row.id);
     if (!r.ok) return notify(r.error, "error");
     setRows(r.rows); notify(`Removed ${row.title}.`); onChanged();
   };
 
   const add = async () => {
-    if (busy) return;
+    if (busy || blocked) return;
     setBusy(true); setError("");
     try {
       const row: CustomRequirement = {
@@ -56,7 +68,10 @@ export function ManageRequirements({ notify, onChanged }: { notify: Notify; onCh
           if (params.includes(key) && nums[key].trim() !== "") row[key] = Number(nums[key]);
         }
       }
-      const r = await api.requirementsSave([...rows, cleanRow(row)]);
+      const cur = await api.requirementsCustom();
+      if (!cur.ok) return setError(cur.error);
+      if (cur.warning) { setWarning(cur.warning); return; }
+      const r = await api.requirementsSave([...cur.rows, cleanRow(row)]);
       if (!r.ok) return setError(r.error);
       setRows(r.rows); setTitle(""); setSection(""); setNums({ min: "", max: "", item_chars_max: "" });
       notify(`Added ${row.title.trim()}.`); onChanged();
@@ -69,6 +84,8 @@ export function ManageRequirements({ notify, onChanged }: { notify: Notify; onCh
   return (
     <section className="lw-settings__section" aria-label="My requirements">
       <h3>Manage my requirements...</h3>
+      {loadError && <p className="lw-dialog__message" role="alert">{loadError}</p>}
+      {blocked && <p className="lw-dialog__message" role="alert">{warning} {UNREADABLE_BLOCK}</p>}
       {rows.length === 0 && <p className="lw-dialog__message lw-faint">You have not added any requirements.</p>}
       <ul className="lw-dialog__message" aria-label="My requirements list" style={{ listStyle: "none", padding: 0 }}>
         {rows.map((r) => (
@@ -77,12 +94,12 @@ export function ManageRequirements({ notify, onChanged }: { notify: Notify; onCh
               <strong>{r.title}</strong> <span className="lw-faint">{describeCheck(r)}{r.source ? `, from ${r.source}` : ""}</span>
               {r.quote && <div className="lw-faint">“{r.quote}”</div>}
             </span>
-            <button className="lw-btn" aria-label={`Remove ${r.title}`} onClick={() => setRemoving(r)}>Remove</button>
+            <button className="lw-btn" aria-label={`Remove ${r.title}`} disabled={blocked} onClick={() => setRemoving(r)}>Remove</button>
           </li>
         ))}
       </ul>
-      {!open && <div className="lw-row lw-gap-8"><button className="lw-btn" onClick={() => setOpen(true)}>Add a requirement</button></div>}
-      {open && (
+      {!open && <div className="lw-row lw-gap-8"><button className="lw-btn" disabled={blocked} onClick={() => setOpen(true)}>Add a requirement</button></div>}
+      {open && !blocked && (
         <div className="lw-settings__section" role="group" aria-label="Add a requirement">
           <label className="lw-dialog__label">Title
             <input className="lw-launch__input" value={title} aria-label="Requirement title" onChange={(e) => setTitle(e.target.value)} placeholder="Abstract length" />
@@ -107,7 +124,7 @@ export function ManageRequirements({ notify, onChanged }: { notify: Notify; onCh
           {(["min", "max", "item_chars_max"] as const).filter((k) => params.includes(k)).map((k) => (
             <label key={k} className="lw-dialog__label">{NUMBER_LABEL[k]}
               <input type="number" min={0} className="lw-launch__input" value={nums[k]} aria-label={NUMBER_LABEL[k]}
-                onChange={(e) => setNums((n) => ({ ...n, [k]: e.target.value }))} />
+                onChange={(e) => { if (isWholeText(e.target.value.trim())) setNums((n) => ({ ...n, [k]: e.target.value.trim() })); }} />
             </label>
           ))}
           {choice !== "advice" && (

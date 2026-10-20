@@ -121,6 +121,47 @@ describe("RequirementsSuggestDialog", () => {
     expect(button("Add 1 requirement")).toBeTruthy();
   });
 
+  it("whole numbers only, with hints; a bad ticked row disables Add", async () => {
+    await toReview();
+    await act(async () => { setValue(field("At most for abs"), "-5"); });
+    expect((field("At most for abs")).value).toBe("150");
+    await act(async () => { setValue(field("At most for abs"), "1.5"); });
+    expect((field("At most for abs")).value).toBe("150");
+    await act(async () => { setValue(field("At most for abs"), ""); });
+    expect(document.body.textContent).toContain("Use a whole number from 0 to 100000");
+    expect(document.body.textContent).toContain("limit not set");
+    expect(document.body.textContent).not.toContain("at most 0 words");
+    expect(button("Add 1 requirement").disabled).toBe(true);
+    await act(async () => { setValue(field("At most for abs"), "100"); setValue(field("Title of abs"), ""); });
+    expect(document.body.textContent).toContain("A title is needed (up to 160 characters)");
+    expect(button("Add 1 requirement").disabled).toBe(true);
+    await act(async () => { setValue(field("Title of abs"), "x".repeat(161)); });
+    expect(button("Add 1 requirement").disabled).toBe(true);
+    await act(async () => { setValue(field("Title of abs"), "Abstract"); });
+    expect(button("Add 1 requirement").disabled).toBe(false);
+    await click(boxes()[1]);
+    await act(async () => { setValue(field("At least for hl"), "9"); });
+    expect(document.body.textContent).toContain("Minimum is larger than maximum");
+    expect(button("Add 2 requirements").disabled).toBe(true);
+  });
+
+  it("an unreadable requirements.toml (warning) blocks Add and says why", async () => {
+    m.requirementsCustom.mockResolvedValue({ ok: true, rows: EXISTING, warning: "2 rows could not be read." });
+    await toReview();
+    expect(document.body.textContent).toContain("2 rows could not be read.");
+    expect(document.body.textContent).toContain("requirements.toml has rows Chisel cannot read. Fix or remove them in the file");
+    expect(button("Add 1 requirement").disabled).toBe(true);
+    await click(button("Add 1 requirement"));
+    expect(m.requirementsSave).not.toHaveBeenCalled();
+  });
+
+  it("a quote with no source shows no empty parentheses", async () => {
+    m.aiPoll.mockResolvedValue({ ok: true, state: "done", text: "", length: 0, elapsed: 1, cost: 0, result: { items: [{ ...ITEMS[0], source: "" }], sent: SENT, cost: 0, model: "x", dropped: [{ id: "t", title: "", reason: "r" }] } });
+    await toReview();
+    expect(document.body.textContent).toContain("“At most 150 words.”");
+    expect(document.body.textContent).not.toContain("()");
+  });
+
   it("Stop cancels the job and saves nothing", async () => {
     m.aiPoll.mockResolvedValue({ ok: true, state: "running", text: "", length: 0, elapsed: 2, cost: null });
     const props = suggestProps();
@@ -194,5 +235,25 @@ describe("Manage my requirements", () => {
     await act(async () => { setValue(field("Requirement title"), "Abstract length"); setValue(field("Section title"), "abstract"); setValue(field("At most"), "5"); });
     await click(button("Add requirement"));
     expect(document.body.querySelector('[role="alert"]')!.textContent).toContain("a word limit is needed");
+  });
+  it("a warning disables Remove and Add and no save is made", async () => {
+    m.requirementsCustom.mockResolvedValue({ ok: true, rows: EXISTING, warning: "1 row could not be read." });
+    const host = await open();
+    await until(() => host.textContent!.includes("1 row could not be read."));
+    expect(host.textContent).toContain("then reopen this window.");
+    expect(button("Remove").disabled).toBe(true);
+    expect(button("Add a requirement").disabled).toBe(true);
+    await click(button("Remove"));
+    await click(button("Add a requirement"));
+    expect(document.body.querySelector('[aria-label="Requirement title"]')).toBeNull();
+    expect(m.requirementsRemove).not.toHaveBeenCalled();
+    expect(m.requirementsSave).not.toHaveBeenCalled();
+  });
+
+  it("shows an error line when the list cannot be read", async () => {
+    m.requirementsCustom.mockResolvedValue({ ok: false, error: "Could not read requirements.toml." });
+    const host = await open();
+    await until(() => host.textContent!.includes("Could not read requirements.toml."));
+    expect(document.body.querySelector('[role="alert"]')!.textContent).toContain("Could not read requirements.toml.");
   });
 });

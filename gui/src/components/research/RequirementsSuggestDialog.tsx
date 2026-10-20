@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../backend/api";
 import { runAiJob, AiCancelled, type AiJob } from "../../backend/aijobs";
-import { CHECK_PARAMS, addCount, defaultTickedRequirements, describeCheck, rowsToSave } from "../../data/requirementsCustom";
+import { CHECK_PARAMS, UNREADABLE_BLOCK, addCount, defaultTickedRequirements, describeCheck, isWholeText, rowProblems, rowsToSave } from "../../data/requirementsCustom";
 import type { GuidelineFile, RequirementDropped, RequirementsProposal, SuggestedRequirement } from "../../data/research";
 import type { SentReport as Report } from "../../data/types";
 import { useElapsed, secs } from "../aiRun";
@@ -42,6 +42,7 @@ export function RequirementsSuggestDialog({ notify, onClose, requireAi, refresh,
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [added, setAdded] = useState(0);
+  const [warning, setWarning] = useState("");
   const jobRef = useRef<AiJob<RequirementsProposal & { ok: true }> | null>(null);
 
   useEffect(() => {
@@ -50,6 +51,10 @@ export function RequirementsSuggestDialog({ notify, onClose, requireAi, refresh,
       const g = await api.guidelinesList();
       if (!live) return;
       if (g.ok) setFiles(g.files); else notify(g.error, "error");
+      try {
+        const c = await api.requirementsCustom();
+        if (live && c?.ok) setWarning(c.warning ?? "");
+      } catch { /* the save re-reads the file anyway */ }
     })();
     return () => { live = false; void jobRef.current?.cancel(); };   // closing the dialog stops a running request
   }, [notify]);
@@ -74,19 +79,22 @@ export function RequirementsSuggestDialog({ notify, onClose, requireAi, refresh,
   const edit = (id: string, patch: Partial<SuggestedRequirement>) =>
     setItems((all) => all.map((i) => (i.id === id ? { ...i, ...patch } : i)));
   const setNumber = (id: string, key: "min" | "max" | "item_chars_max", text: string) => {
-    const n = text.trim() === "" ? undefined : Number(text);
-    edit(id, { [key]: n === undefined || !Number.isFinite(n) ? undefined : n });
+    if (!isWholeText(text.trim())) return;   // whole numbers only: other keystrokes are ignored
+    edit(id, { [key]: text.trim() === "" ? undefined : Number(text) });
   };
   const toggle = (id: string) => setTicked((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const togglePick = (name: string) => setPicked((s) => { const n = new Set(s); if (n.has(name)) n.delete(name); else n.add(name); return n; });
 
   const chosen = items.filter((i) => ticked.has(i.id));
+  const badRow = chosen.some((i) => Object.keys(rowProblems(i)).length > 0);
+  const blocked = warning !== "";
   const add = async () => {
-    if (chosen.length === 0 || saving) return;
+    if (chosen.length === 0 || saving || badRow || blocked) return;
     setSaving(true); setError("");
     try {
       const cur = await api.requirementsCustom();
       if (!cur.ok) { setError(cur.error); return notify(cur.error, "error"); }
+      if (cur.warning) { setWarning(cur.warning); return; }
       const r = await api.requirementsSave(rowsToSave(cur.rows, items, ticked));
       if (!r.ok) { setError(r.error); return notify(r.error, "error"); }
       setAdded(chosen.length); setPhase("done");
@@ -133,15 +141,18 @@ export function RequirementsSuggestDialog({ notify, onClose, requireAi, refresh,
         {phase === "review" && (
           <>
             <h3>Suggested requirements</h3>
+            {blocked && <p className="lw-dialog__message" role="alert">{warning} {UNREADABLE_BLOCK}</p>}
             {items.length === 0 && <p className="lw-dialog__message">The AI found no rule the app can check in the ticked guidelines.</p>}
             <div className="lw-review">
               {items.map((i) => {
                 const params = i.kind === "check" && i.check ? CHECK_PARAMS[i.check] : [];
+                const bad = rowProblems(i);
                 return (
                   <div key={i.id} className="lw-review__row" data-verified={i.verified ? "yes" : "no"}>
                     <input type="checkbox" checked={ticked.has(i.id)} onChange={() => toggle(i.id)} aria-label={`Add ${i.title}`} />
                     <span className="lw-review__text">
                       <input className="lw-launch__input" value={i.title} aria-label={`Title of ${i.id}`} onChange={(e) => edit(i.id, { title: e.target.value })} />
+                      {bad.title && <span className="lw-review__context" role="alert">{bad.title}</span>}
                       <span className="lw-review__target"><strong>{describeCheck(i)}</strong></span>
                       {NUMBERS.some(([key]) => params.includes(key)) && (
                         <span className="lw-row lw-gap-8">
@@ -153,7 +164,10 @@ export function RequirementsSuggestDialog({ notify, onClose, requireAi, refresh,
                           ))}
                         </span>
                       )}
-                      {i.quote && <span className="lw-review__context">“{i.quote}” <span className="lw-faint">({i.source})</span></span>}
+                      {(["min", "max", "item_chars_max", "order"] as const).filter((k) => bad[k]).map((k) => (
+                        <span key={k} className="lw-review__context" role="alert">{bad[k]}</span>
+                      ))}
+                      {i.quote && <span className="lw-review__context">“{i.quote}”{i.source ? <>{" "}<span className="lw-faint">({i.source})</span></> : null}</span>}
                       {i.why && <span className="lw-review__context">{i.why}</span>}
                       {!i.verified && <span className="lw-review__context" role="alert">Could not find this quote in the guideline: check it before adding.</span>}
                     </span>
@@ -181,7 +195,7 @@ export function RequirementsSuggestDialog({ notify, onClose, requireAi, refresh,
       <div className="lw-dialog__buttons">
         {phase === "review" && <button className="lw-btn" onClick={() => setPhase("form")}>Back</button>}
         {phase === "review" && (
-          <button className="lw-btn lw-btn--primary" disabled={chosen.length === 0 || saving} onClick={() => void add()}>{addCount(chosen.length)}</button>
+          <button className="lw-btn lw-btn--primary" disabled={chosen.length === 0 || saving || badRow || blocked} onClick={() => void add()}>{addCount(chosen.length)}</button>
         )}
         <button className={phase === "done" ? "lw-btn lw-btn--primary" : "lw-btn"} onClick={onClose}>{phase === "done" ? "Close" : "Cancel"}</button>
       </div>

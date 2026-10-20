@@ -44,10 +44,11 @@ export function describeCheck(r: CustomRequirement): string {
   const obj = OBJECT_WORD[r.object ?? "fig"] ?? "figure";
   switch (r.check) {
     case "section-present": return `${sec}: must be present`;
-    case "section-words-max": return `${sec}: at most ${plural(r.max ?? 0, "word")}`;
+    case "section-words-max": return r.max === undefined ? `${sec}: limit not set` : `${sec}: at most ${plural(r.max, "word")}`;
     case "section-no-citations": return `${sec}: no citations`;
     case "list-count": {
       const lo = r.min ?? 0, hi = r.max;
+      if (r.min === undefined && hi === undefined) return `${sec}: limit not set`;
       const n = hi === undefined ? `at least ${plural(lo, "item")}` : lo > 0 ? `${lo} to ${plural(hi, "item")}` : `at most ${plural(hi, "item")}`;
       return `${sec}: ${n}` + (r.item_chars_max !== undefined ? `, each at most ${plural(r.item_chars_max, "character")}` : "");
     }
@@ -96,3 +97,34 @@ export function rowsToSave(existing: CustomRequirement[], items: SuggestedRequir
 export const defaultTickedRequirements = (items: SuggestedRequirement[]) => new Set(items.filter((i) => i.verified).map((i) => i.id));
 
 export const addCount = (n: number) => `Add ${n} requirement${n === 1 ? "" : "s"}`;
+
+/** Shown (and every change disabled) while requirements.toml has rows Chisel cannot read. */
+export const UNREADABLE_BLOCK = "requirements.toml has rows Chisel cannot read. Fix or remove them in the file (it is in your project folder), then reopen this window.";
+
+export const WHOLE_NUMBER_HINT = "Use a whole number from 0 to 100000";
+export const TITLE_HINT = "A title is needed (up to 160 characters)";
+export const ORDER_HINT = "Minimum is larger than maximum";
+
+/** Digits only: what a number box may hold while typing (empty clears it). */
+export const isWholeText = (text: string) => text === "" || /^\d+$/.test(text);
+
+export type NumberKey = "min" | "max" | "item_chars_max";
+export type RowProblems = Partial<Record<NumberKey | "title" | "order", string>>;
+
+/** Client-side hints for a row's fields; Python stays the authority. Empty object = nothing to point out. */
+export function rowProblems(r: CustomRequirement | SuggestedRequirement): RowProblems {
+  const out: RowProblems = {};
+  if (r.title.trim() === "" || r.title.length > 160) out.title = TITLE_HINT;
+  if (r.kind !== "check" || !r.check) return out;
+  const params = CHECK_PARAMS[r.check];
+  for (const key of ["min", "max"] as const) {
+    const v = r[key];
+    if (!params.includes(key)) continue;
+    if (v === undefined) { if (key === "max" && r.check === "section-words-max") out.max = WHOLE_NUMBER_HINT; continue; }
+    if (!Number.isInteger(v) || v < 0 || v > 100000) out[key] = WHOLE_NUMBER_HINT;
+  }
+  const c = r.item_chars_max;
+  if (params.includes("item_chars_max") && c !== undefined && (!Number.isInteger(c) || c < 1 || c > 10000)) out.item_chars_max = "Use a whole number from 1 to 10000";
+  if (!out.min && !out.max && params.includes("min") && params.includes("max") && r.min !== undefined && r.max !== undefined && r.min > r.max) out.order = ORDER_HINT;
+  return out;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mockCall } from "./mock";
+import { mockCall, mockCustomControl } from "./mock";
 
 describe("mock requirements_* contract", () => {
   it("suggest returns an unverified item and a dropped one, and changes nothing", () => {
@@ -17,5 +17,16 @@ describe("mock requirements_* contract", () => {
     expect(bad.error).toContain("Abstract");
     expect((mockCall("requirements_custom", []) as { rows: unknown[] }).rows).toHaveLength(1);
     expect((mockCall("requirements_remove", ["a"]) as { rows: unknown[] }).rows).toEqual([]);
+  });
+  it("matches Python: unknown remove fails, ids must be plain, a warning can be simulated", () => {
+    const r = mockCall("requirements_remove", ["nope"]) as { ok: boolean; error: string };
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe("There is no such requirement.");
+    const row = { id: "../x", group: "Your requirements", title: "T", kind: "advice", severity: "info" };
+    expect((mockCall("requirements_save", [[row]]) as { ok: boolean }).ok).toBe(false);
+    expect(mockCall("requirements_custom", [])).not.toHaveProperty("warning");
+    mockCustomControl.warning = "1 row could not be read.";
+    try { expect((mockCall("requirements_custom", []) as { warning: string }).warning).toBe("1 row could not be read."); }
+    finally { mockCustomControl.warning = ""; }
   });
 });
