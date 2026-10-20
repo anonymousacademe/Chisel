@@ -8,6 +8,7 @@ so the status bar has something to show. Never used by the real app.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import time
 import struct
@@ -292,6 +293,25 @@ def install(api_module) -> None:
                        "ax.set_xlabel('x')\nax.set_ylabel('y')\n"
                        "fig.savefig(sys.argv[-1])\n", None, cancel)
 
+    def suggest_outline(context, model, client=None, cancel=None, on_delta=None):
+        _pause(1.5)
+        _spend("outline")
+        ids = re.findall(r"^- (\S+\.md) \| ([^|\n]+?) \|", context, re.MULTILINE)
+        items = []
+        if ids:
+            first_id, first_title = ids[0]
+            items.append({"id": "1", "action": "rename", "title": first_title.strip(), "section": first_id,
+                          "newTitle": first_title.strip() + " and aims",
+                          "why": "The title can say what the section is for."})
+        if "limitations" not in context.casefold().split("current outline")[-1]:
+            items.append({"id": "2", "action": "add", "title": "Limitations", "part": "", "after": "",
+                          "purpose": "State what the study cannot show.",
+                          "why": "Reviewers expect the limits to be stated before the conclusion."})
+        items.append({"id": "3", "action": "advice", "title": "Keep the scope tight",
+                      "why": "Each section should serve the question in the scope statement."})
+        return _stream(json.dumps({"items": items}, indent=1), on_delta, cancel)
+
+    api_module.suggest_outline = suggest_outline
     api_module.generate_images = generate_images
     api_module.suggest_image_prompt = suggest_image_prompt
     api_module.suggest_latex = suggest_latex

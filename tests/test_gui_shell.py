@@ -97,10 +97,10 @@ def test_mock_ai_matches_the_real_call_signatures(tmp_path, monkeypatch):
 
     names = ("suggest_links", "suggest_relationships", "check_scene", "voice_check", "propose_canon_updates",
              "learn_style", "generate_text", "ask_writer", "research_writer", "brainstorm_writer",
-             "generate_images", "suggest_image_prompt")
+             "generate_images", "suggest_image_prompt", "suggest_outline")
     real = {n: getattr(api_module, n) for n in names}
     for name in names + ("get_api_key", "_set_api_key", "_clear_api_key", "_list_models",
-                         "generate_images", "suggest_image_prompt"):
+                         "generate_images", "suggest_image_prompt", "suggest_outline"):
         monkeypatch.setattr(api_module, name, getattr(api_module, name))   # undone after the test
     mockai.install(api_module)
     for name in names:   # the canned call takes every argument the real one requires
