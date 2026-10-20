@@ -4,7 +4,7 @@ import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { markdown } from "@codemirror/lang-markdown";
 import { decoField, decorationCore, kindFacet, setSpans, spansField, editorExtensions } from "./cm";
-import { invalidateObjects, objectDataField, ObjectBlockWidget, ObjectRefWidget, renderMath, setObjectData, type ObjectInfo } from "./objects";
+import { invalidateObjects, objectDataField, ObjectBlockWidget, ObjectRefWidget, renderMath, setObjectData, setObjectImage, type ObjectInfo } from "./objects";
 import { objrefReplaced, placementLine, specsFor, type Span } from "./spans";
 
 const NAMES = { fig: "Figure", tbl: "Table", eq: "Equation" } as const;
@@ -473,5 +473,19 @@ describe("images, failures and layout", () => {
     const sp: Span = { kind: "placement", start: 2, end: 12, key: "fig:a", objectKind: "fig", display: "Fig. 1", status: "resolved" };
     expect(placementLine(sp, "  ![[fig:a]]\n")).toEqual({ from: 0, to: 12 });
     expect(placementLine(sp, "x ![[fig:a]]\n")).toBeNull();
+  });
+});
+
+describe("an image arriving", () => {
+  it("redraws the decorations by itself: no keystroke or cursor move is needed to show it", () => {
+    const noImage: ObjectInfo = { ...FIG, imageUrl: undefined, mtime: "1" };
+    let s = make(DOC5, spansOf(DOC5), 0, "scene", [noImage]);      // the cursor is far from every placement
+    const before = s.field(decoField);
+    const first = blocks(s).find((b) => (b.w as ObjectBlockWidget).key === "fig:a")!.w as ObjectBlockWidget;
+    expect(first.info?.imageUrl).toBeUndefined();
+    s = s.update({ effects: setObjectImage.of({ key: "fig:a", mtime: "1", url: "data:image/png;base64,AAAA" }) }).state;
+    expect(s.field(decoField)).not.toBe(before);
+    const after = blocks(s).find((b) => (b.w as ObjectBlockWidget).key === "fig:a")!.w as ObjectBlockWidget;
+    expect(after.info?.imageUrl).toBe("data:image/png;base64,AAAA");
   });
 });

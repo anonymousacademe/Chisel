@@ -11,7 +11,7 @@ import { autocompletion, type CompletionContext, type CompletionResult } from "@
 import { completionSpot, elementOfLine, upperNames, type ScriptNames } from "./script";
 import { formatSpecs } from "./format";
 import { citeCompletion } from "../data/research";
-import { invalidateObjects, objectDataField, objectFetcher, ObjectBlockWidget, ObjectRefWidget, openObjectFacet, setObjectData, type ObjectInfo } from "./objects";
+import { invalidateObjects, objectDataField, objectFetcher, ObjectBlockWidget, ObjectRefWidget, openObjectFacet, setObjectData, setObjectImage, type ObjectInfo } from "./objects";
 import { citeReplaced, objrefReplaced, placementLine, frontmatterRange, sourceMarkers, misspellingAt, sceneFrontmatter, misspellSpecs, scriptLineSpecs, softBreaks, specsFor, titleLine, type Misspelling, type Span } from "./spans";
 
 export const setSpans = StateEffect.define<Span[]>();
@@ -407,7 +407,7 @@ export const decoField = StateField.define<Built>({
   update(value, tr) {
     const facetChanged = tr.startState.facet(metaFacet) !== tr.state.facet(metaFacet)
       || tr.startState.facet(reflowFacet) !== tr.state.facet(reflowFacet);
-    if (tr.docChanged || tr.selection || facetChanged || tr.effects.some((e) => e.is(setSpans) || e.is(setSpelling) || e.is(setComments) || e.is(setReading) || e.is(setObjectData) || e.is(invalidateObjects))) return build(tr.state);
+    if (tr.docChanged || tr.selection || facetChanged || tr.effects.some((e) => e.is(setSpans) || e.is(setSpelling) || e.is(setComments) || e.is(setReading) || e.is(setObjectData) || e.is(setObjectImage) || e.is(invalidateObjects))) return build(tr.state);
     return value;
   },
   provide: (f) => [

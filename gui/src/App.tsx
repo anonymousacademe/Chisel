@@ -77,6 +77,7 @@ export default function App() {
   const [doc, setDoc] = useState<DocumentPayload | null>(null);
   const [docRev, setDocRev] = useState(0);
   const [spansVersion, setSpansVersion] = useState(0);
+  const [objectsVersion, setObjectsVersion] = useState(0);   // bumped when figures, tables or equations change: the editor refetches what it shows
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [rail, setRail] = useState<RailView>("binder");
   const [assistantOpen, setAssistantOpen] = useState(true);
@@ -670,7 +671,7 @@ export default function App() {
     if (placed) setSpansVersion((v) => v + 1);
     notify(placed ? `Inserted ${id} here.` : `Created ${id}. Open a section and place it with ![[${id}]] (or insert it again from the editor's right-click menu).`);
   };
-  const objectsChanged = () => { void refresh(); setSpansVersion((v) => v + 1); };
+  const objectsChanged = () => { void refresh(); setSpansVersion((v) => v + 1); setObjectsVersion((v) => v + 1); };
   const openContextMenu = (info: ContextInfo) => {
     const ed = editorRef.current;
     const denied = (key: string) => (ok: boolean) => { if (!ok) notify(`The clipboard is not available here: use Ctrl ${key}.`); };
@@ -821,7 +822,7 @@ export default function App() {
           sessionWords={ws.status.sessionWords} sessionMinutes={ws.status.sessionMinutes}
           onEditDetails={() => setDialog({ kind: "details" })} onMoveRequest={(plan) => setDialog({ kind: "move", plan })}
           mode={mode} onMode={setMode} focus={focus} onFocus={() => setFocus((f) => !f)} onOpen={(id) => void openDoc(id)}
-          editorRef={editorRef} docRev={docRev} spansVersion={spansVersion} cursor={cursor} saveState={saveState}
+          editorRef={editorRef} docRev={docRev} spansVersion={spansVersion} objectsVersion={objectsVersion} onOpenObject={(key) => setDialog({ kind: "object", id: key })} cursor={cursor} saveState={saveState}
           onChange={(t) => { saver.edit(t); pingTyping(); reader.noteEdited(); }} onCursor={onCursor}
           readerBar={<ReaderBar reader={reader} />} readerActive={reader.state.open} canRead={!!doc && READABLE.includes(doc.kind)} onReadAloud={() => void (reader.state.open ? reader.close() : reader.open())} onBlur={() => void saver.flush()}
           onSaveNow={() => void saveNow()} onReload={() => void reloadFromDisk()} onKeepMine={() => void keepMine()}
