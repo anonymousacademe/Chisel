@@ -317,7 +317,7 @@ def safe_project_path(project, rel: str) -> Path:
     if not isinstance(rel, str) or not rel.strip():
         raise ValueError("empty path")
     p = Path(rel)
-    if p.is_absolute() or p.drive or rel.startswith(("/", "\\")) or ".." in p.parts or ".." in rel.replace("\\", "/").split("/"):
+    if p.is_absolute() or p.drive or rel.startswith(("/", "\\")) or re.match(r"[A-Za-z]:", rel) or ".." in p.parts or ".." in rel.replace("\\", "/").split("/"):
         raise ValueError("a project path must stay inside the project")
     full = (project.root / p).resolve()
     if not full.is_relative_to(project.root.resolve()):
