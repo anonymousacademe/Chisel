@@ -727,3 +727,6 @@ button.lw-picklist__row:hover { border-color: var(--lw-accent); background: var(
 .lw-source-card__meta { font-size: 11px; user-select: text; }
 .lw-source-card__cite { user-select: text; }
 .lw-source-card__cols { margin: 0; padding-left: 16px; font-size: 12px; user-select: text; }
+.lw-review__left { font-size: 11px; color: var(--lw-text-muted); border: 1px solid var(--lw-warning); border-radius: var(--lw-radius-sm); padding: 6px 8px; }
+.lw-review__left summary { cursor: pointer; color: var(--lw-warning); }
+.lw-review__left ul { margin: 0; padding: 6px 0 0 16px; display: flex; flex-direction: column; gap: 4px; line-height: 1.45; user-select: text; }

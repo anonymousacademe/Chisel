@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import type { AliasSuggestion, CanonProposal, RelationshipSuggestion, SentReport as Report } from "../data/types";
+import { canonLeftOutLine, canonLeftOutTitle, canonTolerantNote, pickedFacts, quoteOf, type CanonLeftOut } from "../data/canon";
 import { Modal } from "./Dialogs";
 import { SentReport } from "./SentReport";
 
@@ -77,15 +78,13 @@ export function RelationshipsReviewDialog({ name, items, sent, onApply, onClose 
 }
 
 /** Story-bible updates: per-fact review. Facts are only ever appended to a note's canon section. */
-export function CanonReviewDialog({ proposals, sent, onApply, onClose }: {
-  proposals: CanonProposal[]; sent?: Report | null; onApply: (picked: { entity: string; facts: string[] }[]) => void; onClose: () => void;
+export function CanonReviewDialog({ proposals, sent, dropped = [], tolerant = 0, onApply, onClose }: {
+  proposals: CanonProposal[]; sent?: Report | null; dropped?: CanonLeftOut[]; tolerant?: number; onApply: (picked: { entity: string; facts: string[] }[]) => void; onClose: () => void;
 }) {
   const [on, setOn] = useState<Set<string>>(new Set());
   const key = (e: string, f: string) => `${e}\u0000${f}`;
   const toggle = (k: string) => setOn((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
-  const picked = proposals
-    .map((p) => ({ entity: p.entity, facts: p.facts.filter((f) => on.has(key(p.entity, f))) }))
-    .filter((p) => p.facts.length);
+  const picked = pickedFacts(proposals, on, key);
   const total = picked.reduce((n, p) => n + p.facts.length, 0);
   return (
     <Modal title="Update the story bible" wide onClose={onClose}>
@@ -96,17 +95,27 @@ export function CanonReviewDialog({ proposals, sent, onApply, onClose }: {
         {proposals.map((p) => (
           <div key={p.entity} className="lw-review__group">
             <strong>{p.entity}</strong>
-            {p.evidence && <span className="lw-review__context">{p.evidence}</span>}
-            {p.facts.map((f) => (
+            {!p.quotes?.length && p.evidence && <span className="lw-review__context">{p.evidence}</span>}
+            {p.facts.map((f, i) => (
               <label key={f} className="lw-review__row">
                 <input type="checkbox" checked={on.has(key(p.entity, f))} onChange={() => toggle(key(p.entity, f))} />
-                <span className="lw-review__text">{f}</span>
+                <span className="lw-review__text">
+                  {f}
+                  {quoteOf(p, i) && <span className="lw-review__context">From your scene: “{quoteOf(p, i)}”</span>}
+                </span>
               </label>
             ))}
             {p.existing && <details><summary className="lw-faint">Existing canon</summary><p className="lw-review__existing">{p.existing}</p></details>}
           </div>
         ))}
       </div>
+      {dropped.length > 0 && (
+        <details className="lw-review__left">
+          <summary>{canonLeftOutTitle(dropped)}</summary>
+          <ul>{dropped.map((d, i) => <li key={i}>{canonLeftOutLine(d)}</li>)}</ul>
+        </details>
+      )}
+      {canonTolerantNote(tolerant) && <p className="lw-review__context">{canonTolerantNote(tolerant)}</p>}
       <SentReport report={sent} />
       <Footer confirm={total ? `Add ${total} fact${total === 1 ? "" : "s"}` : "Add facts"} disabled={total === 0}
         onConfirm={() => onApply(picked)} onClose={onClose}

@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from tests.canonfake import proposal_of
 from chisel.ai.continuity import CanonUpdate
 from chisel.ai.links import Suggestion
 from chisel.ai.relationships import Suggestion as RelSuggestion
@@ -93,8 +94,8 @@ def test_check_continuity_waive_and_restore(tmp_path, monkeypatch):
 
 def test_propose_and_apply_canon_adds_only(tmp_path, monkeypatch):
     api, root = open_api(tmp_path)
-    monkeypatch.setattr(api_module, "propose_canon_updates", lambda t, e, m: [
-        CanonUpdate("Mara Vale", ("Has a scar on her left hand", "Drinks tea"), "she rubbed the scar", "")])
+    monkeypatch.setattr(api_module, "propose_canon", proposal_of(lambda t, e, m: [
+        CanonUpdate("Mara Vale", ("Has a scar on her left hand", "Drinks tea"), "she rubbed the scar", "")]))
     r = api.propose_canon(SCENE)
     assert r["updates"][0]["facts"] == ["Has a scar on her left hand", "Drinks tea"]
     note = root / "entities/characters/mara-vale.md"

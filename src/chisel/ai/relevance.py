@@ -59,6 +59,28 @@ def rank(scene_text: str, entities: list[Entity]) -> list[Ranked]:
     return ranked
 
 
+def by_mentions(scene_text: str, entities: list[Entity]) -> list[tuple[Ranked, int]]:
+    """The entities the scene names, most mentioned first, each with its count: how many times its name or an alias occurs in
+    the prose, plus one when the scene details (POV, place) name it. Every entity named at least once is in the list. Ties
+    keep ``rank``'s order (named in the prose before details only, then position in the scene)."""
+    entities = [e for e in entities if not e.is_source]
+    names = [n for e in entities for n in e.names]
+    prose, overall = {}, {}
+    for text, counts in ((scenemeta.blank(scene_text), prose),
+                         (scenemeta.blank(scene_text, keep=scenemeta.MENTION_FIELDS), overall)):
+        for link in find_all_links(text, names):
+            e = resolve(link.target, entities)
+            if e is not None:
+                counts[id(e)] = counts.get(id(e), 0) + 1
+    out = []
+    for r in rank(scene_text, entities):
+        if r.tier == TIER_REST:
+            continue
+        p = prose.get(id(r.entity), 0)
+        out.append((r, p + (1 if overall.get(id(r.entity), 0) > p else 0)))
+    return sorted(out, key=lambda t: (-t[1], t[0].priority))
+
+
 def in_scene(ranked: list[Ranked]) -> list[Ranked]:
     """The tier 0 and 1 entities in the order they appear in the scene (details first)."""
     return sorted((r for r in ranked if r.tier < TIER_REST), key=lambda r: r.order)

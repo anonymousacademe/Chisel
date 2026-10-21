@@ -105,6 +105,24 @@ def _marked_scene(scene_text: str, cursor_offset: int,
     return drafts.strip_pending(text, originals)
 
 
+STORY_PRIORITY = 2          # after the style guide (0) and the entity notes (1); with the author's own prose
+STORY_PROJECT_PRIORITY = 1  # in a whole-project context the story is worth more than the scene titles (2)
+
+
+def story_section(story, priority: int = STORY_PRIORITY, group_cap: int | None = None) -> Section | None:
+    """"Story so far" for a chat, Brainstorm or description: the stored summaries of the scenes before the
+    open one (*story*, ``core.summaries.StorySoFar``), droppable, the oldest first when the budget is tight
+    (and named in the report). None when there is nothing to say, so a project without summaries is unchanged."""
+    if story is None or not story.blocks:
+        return None
+    head = ("STORY SO FAR (summaries of the earlier part of the book, " + story.sentence.lower() + "):\n")
+    if story.missing:
+        head += f"(no summary yet for: {', '.join(story.missing)})\n"
+    n = len(story.blocks)
+    return Section("Story so far", priority=priority, droppable=True, head=head, group_cap=group_cap,
+                   items=tuple(Item(b.name, b.text, "", n - 1 - i) for i, b in enumerate(story.blocks)))
+
+
 def build_context_sections(
     scene_text: str,
     cursor_offset: int,
@@ -114,6 +132,7 @@ def build_context_sections(
     span: tuple[int, int] | None = None,
     originals: dict[str, str] | None = None,
     voice_samples: list[tuple[str, str]] | None = None,
+    story=None,
 ) -> list[Section]:
     """The parts of a draft / chat context (see ``build_context``), for ``budget.fit``:
     the scene window and its details are always kept; the style guide, the entity notes
@@ -148,6 +167,9 @@ def build_context_sections(
             items=tuple(Item(title or f"passage {i}", para, priority=i)
                         for i, (title, para) in enumerate(voice_samples, 1)),
             head="THE AUTHOR'S OWN PROSE (match this voice; do not reuse its content):\n"))
+
+    if (section := story_section(story)) is not None:
+        sections.append(section)
 
     details = scenemeta.header(scene_text)
     if details:
@@ -369,13 +391,16 @@ def build_project_context_sections(
     entities: list[Entity],
     canon_by_name: dict[str, str],
     style_md: str | None,
+    story=None,
 ) -> list[Section]:
-    """The parts of a project-wide context, all droppable: style guide, scene titles
-    in order, entity notes (in the project's order)."""
+    """The parts of a project-wide context, all droppable: style guide, the story so far (when the
+    project has summaries), scene titles in order, entity notes (in the project's order)."""
     sections: list[Section] = []
     if style_md and style_md.strip():
         sections.append(Section("Style guide", "STYLE GUIDE:\n" + style_md.strip(),
                                 priority=0, droppable=True))
+    if (section := story_section(story, STORY_PROJECT_PRIORITY)) is not None:
+        sections.append(section)
     if scene_titles:
         sections.append(Section(
             "Scene titles", priority=2, droppable=True, head="SCENES (in order):\n", sep="\n",

@@ -18,7 +18,7 @@ from ..core import voice as dialogue
 from ..core.continuity import Contradiction, SEVERITIES
 from ..core.entities import Entity
 from .budget import Budget, Item, Section, SentReport, fit, preflight, render
-from .client import openrouter_extra_body
+from .client import utility_extra_body
 from .usage import record_response
 
 KINDS = ("vocabulary", "register", "rhythm", "verbal_habit", "out_of_character")
@@ -103,7 +103,8 @@ def plan_voice(scene_text: str, scene_path, project, entities: list[Entity],
               if name in refs and dialogue.reference_lines(refs[name]) >= dialogue.MIN_REFERENCE_LINES}
     skipped = tuple((name, dialogue.reference_lines(refs.get(name, []))) for name in spoken if name not in judged)
     if not judged:
-        return VoicePlan("", (), skipped, SentReport("voice", (), 0, budget.window_tokens, budget.output_reserve, False))
+        return VoicePlan("", (), skipped, SentReport("voice", (), 0, budget.window_tokens, budget.output_reserve, False,
+                                                    reasoning=budget.reasoning))
 
     by_lines = sorted(judged, key=lambda n: (-dialogue.line_count(spoken[n]), n))
     rank = {name: i for i, name in enumerate(by_lines)}
@@ -227,7 +228,7 @@ def check_voice(scene_text: str, plan: VoicePlan, entities: list[Entity], model:
         ],
         response_format={"type": "json_schema",
                          "json_schema": {"name": "voice_findings", "strict": True, "schema": VOICE_SCHEMA}},
-        extra_body=openrouter_extra_body({"provider": {"require_parameters": True}}, model=model),
+        extra_body=utility_extra_body({"provider": {"require_parameters": True}}, model=model),
     )
     record_response(response, model, "voice")
     raw = response.choices[0].message.content or ""

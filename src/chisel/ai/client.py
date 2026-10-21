@@ -45,10 +45,10 @@ MODEL_DEFAULTS = {
 
 
 def resolve_model(kind: str, project_meta: dict | None = None) -> str:
-    """The model for *kind* (fast | strong | writing | image).
+    """The model for *kind* (fast | strong | writing | image | summary).
 
     Precedence: project.toml [ai] <kind>_model > global settings
-    <kind>_model > built-in default.
+    <kind>_model > built-in default. ``summary`` has no default of its own: it is the writing model.
     """
     from ..core import settings as user_settings
 
@@ -56,7 +56,10 @@ def resolve_model(kind: str, project_meta: dict | None = None) -> str:
     raw = ((project_meta or {}).get("ai") or {}).get(key)
     if raw:
         return str(raw)
-    return user_settings.get(key) or MODEL_DEFAULTS[kind]
+    configured = user_settings.get(key)
+    if configured:
+        return configured
+    return resolve_model("writing", project_meta) if kind == "summary" else MODEL_DEFAULTS[kind]
 
 
 def usage_extra_body(extra: dict | None = None) -> dict:
@@ -67,15 +70,84 @@ def usage_extra_body(extra: dict | None = None) -> dict:
     return body
 
 
-def openrouter_extra_body(extra: dict | None = None, model: str | None = None) -> dict:
+# Reasoning for the utility calls (SPEC "Thinking for utility calls"): some cheap models think for minutes
+# before a 100-word answer. ``default`` sends nothing (today's request); ``low`` / ``off`` ask OpenRouter.
+SETTING_REASONING = "reasoning"
+REASONING_VALUES = ("default", "low", "off")
+UTILITY_FEATURES = frozenset({"aliases", "continuity", "canon", "relationships", "voice", "summary",
+                              "part summary", "style"})
+_REASONING_BODIES = {"low": {"reasoning": {"effort": "low"}}, "off": {"reasoning": {"enabled": False}}}
+_meta_source = None
+
+
+def resolve_reasoning(project_meta: dict | None = None) -> str:
+    """default | low | off. Precedence: project.toml [ai] reasoning > user settings > default; an
+    unknown value falls through to the next level (finally ``default``)."""
+    from ..core import settings as user_settings
+
+    for raw in (((project_meta or {}).get("ai") or {}).get(SETTING_REASONING),
+                user_settings.get(SETTING_REASONING)):
+        value = str(raw or "").strip().lower()
+        if value in REASONING_VALUES:
+            return value
+    return "default"
+
+
+def reasoning_extra_body(setting: str | None) -> dict:
+    """The request field for a reasoning *setting*: ``{}`` for default or anything unknown."""
+    return {k: dict(v) for k, v in _REASONING_BODIES.get(str(setting or "").strip().lower(), {}).items()}
+
+
+def set_meta_source(getter) -> None:
+    """Register a callable returning the open project's meta (or None), so utility calls can read the
+    project's [ai] reasoning without every call site carrying the project."""
+    global _meta_source
+    _meta_source = getter
+
+
+def active_reasoning(model: str | None = None) -> str:
+    """The reasoning setting a utility call to *model* runs with: always ``default`` for a local model."""
+    if model is not None and is_local(model):
+        return "default"
+    try:
+        meta = _meta_source() if _meta_source is not None else None
+    except Exception:
+        meta = None
+    return resolve_reasoning(meta)
+
+
+def reasoning_note(model: str | None = None) -> str:
+    """"reasoning off" / "reasoning low" when a utility call to *model* runs so, else ""."""
+    setting = active_reasoning(model)
+    return "" if setting == "default" else f"reasoning {setting}"
+
+
+def openrouter_extra_body(extra: dict | None = None, model: str | None = None,
+                          reasoning: str | None = None) -> dict:
     """extra_body for a chat call to *model*.
 
     OpenRouter-only fields (the usage/cost ask, ``provider.require_parameters``)
     are skipped for local models: what unknown request fields a given local
-    server tolerates varies, and local calls cost nothing to report."""
+    server tolerates varies, and local calls cost nothing to report.
+    *reasoning* (``low`` | ``off``; utility calls only, see ``utility_extra_body``) adds the reasoning
+    field and drops ``provider.require_parameters``, which is never sent together with it."""
     if model is not None and is_local(model):
         return {}
-    return usage_extra_body(extra)
+    body = usage_extra_body(extra)
+    extra_reasoning = reasoning_extra_body(reasoning)
+    if extra_reasoning:
+        provider = {k: v for k, v in (body.get("provider") or {}).items() if k != "require_parameters"}
+        body.pop("provider", None)
+        if provider:
+            body["provider"] = provider
+        body.update(extra_reasoning)
+    return body
+
+
+def utility_extra_body(extra: dict | None = None, model: str | None = None) -> dict:
+    """``openrouter_extra_body`` for a utility call (alias finder, continuity, canon, summaries,
+    relationships, voice, style): adds the author's reasoning setting."""
+    return openrouter_extra_body(extra, model=model, reasoning=active_reasoning(model))
 
 
 def is_local(model: str | None) -> bool:
@@ -326,6 +398,7 @@ def list_local_models(base_url: str | None = None,
 # the real window without a network call; ai.budget never fetches anything itself.
 
 CONTEXT_FILE = "model-context.json"
+PRICING_FILE = "model-pricing.json"
 
 
 def remember_context_lengths(models) -> None:
@@ -334,6 +407,7 @@ def remember_context_lengths(models) -> None:
 
     lengths = {m.id: int(m.context_length) for m in models
                if isinstance(m.context_length, (int, float)) and m.context_length > 0}
+    _remember_pricing(models)
     if not lengths:
         return
     try:
@@ -347,6 +421,62 @@ def remember_context_lengths(models) -> None:
         (folder / CONTEXT_FILE).write_text(json.dumps(merged), encoding="utf-8", newline="\n")
     except OSError:
         pass
+
+
+def _remember_pricing(models) -> None:
+    """Keep ``{id: [prompt USD per million, completion USD per million]}`` of *models* beside the context lengths."""
+    from ..core.recents import default_state_dir
+
+    prices = {m.id: [m.prompt_per_m, m.completion_per_m] for m in models
+              if m.prompt_per_m is not None and m.completion_per_m is not None}
+    if not prices:
+        return
+    try:
+        folder = default_state_dir()
+        folder.mkdir(parents=True, exist_ok=True)
+        try:
+            old = json.loads((folder / PRICING_FILE).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            old = {}
+        merged = {**(old if isinstance(old, dict) else {}), **prices}
+        (folder / PRICING_FILE).write_text(json.dumps(merged), encoding="utf-8", newline="\n")
+    except OSError:
+        pass
+
+
+def cached_pricing(model_id: str) -> tuple[float, float] | None:
+    """(prompt, completion) USD per million tokens of *model_id* from a catalogue fetched earlier, or None
+    when unknown. A ``local:`` model costs nothing: (0.0, 0.0). Never touches the network."""
+    if is_local(model_id):
+        return 0.0, 0.0
+    for m in (_models_payload or {}).get("data") or []:
+        if isinstance(m, dict) and m.get("id") == model_id:
+            pricing = m.get("pricing") or {}
+            prompt, completion = _per_million(pricing.get("prompt")), _per_million(pricing.get("completion"))
+            if prompt is not None and completion is not None:
+                return prompt, completion
+    from ..core.recents import default_state_dir
+
+    try:
+        data = json.loads((default_state_dir() / PRICING_FILE).read_text(encoding="utf-8"))
+        row = data.get(model_id) if isinstance(data, dict) else None
+        return (float(row[0]), float(row[1])) if isinstance(row, list) and len(row) == 2 else None
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def cached_is_reasoning(model_id: str) -> bool | None:
+    """Does the catalogue (this session's) list ``reasoning`` among *model_id*'s supported parameters? True / False, or
+    None when the model is not in the catalogue we have (never fetched, or a local model). No network."""
+    if is_local(model_id):
+        return None
+    for m in (_models_payload or {}).get("data") or []:
+        if isinstance(m, dict) and m.get("id") == model_id:
+            params = m.get("supported_parameters")
+            if not isinstance(params, list):
+                return None
+            return "reasoning" in params or "include_reasoning" in params
+    return None
 
 
 def cached_context_length(model_id: str) -> int | None:

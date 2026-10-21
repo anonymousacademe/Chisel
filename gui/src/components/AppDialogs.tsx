@@ -173,7 +173,7 @@ export function AppDialogs(p: AppDialogsProps) {
           <div className="lw-dialog__buttons"><button className="lw-btn lw-btn--primary" onClick={() => setDialog(null)}>Close</button></div>
         </Modal>
       )}
-      {dialog?.kind === "canon" && <CanonReviewDialog proposals={dialog.items} sent={dialog.sent} onApply={(p) => void applyCanon(p)} onClose={() => setDialog(null)} />}
+      {dialog?.kind === "canon" && <CanonReviewDialog proposals={dialog.items} sent={dialog.sent} dropped={dialog.dropped} tolerant={dialog.tolerant} onApply={(p) => void applyCanon(p)} onClose={() => setDialog(null)} />}
       {dialog?.kind === "style" && <StyleReviewDialog markdown={dialog.markdown} replacing={dialog.replacing} onSave={(t) => void saveStyle(t)} onClose={() => setDialog(null)} />}
       {dialog?.kind === "settings" && <SettingsDialog initial={dialog.info} onClose={() => setDialog(null)} onSaved={settingsSaved} notify={notify} />}
       {dialog?.kind === "rename" && doc && (

@@ -1,0 +1,587 @@
+{
+ "large": {
+  "canon": {
+   "entities": [
+    [
+     "Mara Vale",
+     "## Canon (auto)\n\n- Mara Vale fact one.\n- Mara Vale fact two. word word word word word\n"
+    ],
+    [
+     "Elias Vale",
+     "## Canon (auto)\n\n- Elias Vale fact one.\n- Elias Vale fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n"
+    ],
+    [
+     "Lower Meridian",
+     "## Canon (auto)\n\n- Lower Meridian fact one.\n- Lower Meridian fact two. word word word word word\n"
+    ],
+    [
+     "Dr. Okafor",
+     "## Canon (auto)\n\n- Dr. Okafor fact one.\n- Dr. Okafor fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n"
+    ]
+   ],
+   "messages": [
+    {
+     "content": "You propose ADDITIONS to entity notes based on a new scene.\n\nYou are given each entity's existing canon and the scene text. List only facts the scene establishes about an\nentity that its existing canon does not already hold.\n\nLook for stable details first: ages; appearance (eyes, hair, build, usual clothing); numbers and amounts;\ndurations and dates; possessions, with colour or material; places (where someone lives, which floor);\nrelationships and occupations; habits. Record an event only when it changes or reveals a stable detail.\n\nRules:\n- facts: one item per fact, about ONE entity, one detail each. \"fact\" states the value itself, in the present\n  tense (\"is forty-five\", \"has black eyes\", \"wears a copper cross\").\n- \"quote\": ONE unbroken passage copied exactly as written from the scene: same punctuation, no ellipsis, no\n  joining of passages, no pronoun in place of a name. Short, but long enough to contain the value. A fact you\n  cannot quote is left out.\n- \"kind\": age, appearance, number, duration, possession, place, relationship, occupation, habit or other.\n- Never restate, reword, merge or \"correct\" existing canon; you cannot remove or change it, only add.\n- Only what the scene states or strongly implies. No speculation or headcanon.\n- If the scene establishes nothing new about an entity, omit that entity.\n",
+     "role": "system"
+    },
+    {
+     "content": "ENTITIES:\n- Mara Vale (character) — aliases: Mara\n  existing canon:\n- Mara Vale fact one.\n- Mara Vale fact two. word word word word word\n- Elias Vale (character) — aliases: Elias\n  existing canon:\n- Elias Vale fact one.\n- Elias Vale fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n- Lower Meridian (place)\n  existing canon:\n- Lower Meridian fact one.\n- Lower Meridian fact two. word word word word word\n- Dr. Okafor (character)\n  existing canon:\n- Dr. Okafor fact one.\n- Dr. Okafor fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n\nSCENE DETAILS (the author's plan for this scene - not prose; e.g. the POV character can only know what they could have learned):\n- POV: Mara Vale\n- Place: Lower Meridian\n\nSCENE:\n# Arrival\n\nMara stepped off the tram into Lower Meridian. Elias was waiting under the clock, and Dr. Okafor had not come.\n",
+     "role": "user"
+    }
+   ],
+   "report": {
+    "attached": [],
+    "estTokens": 825,
+    "feature": "canon",
+    "overBudget": false,
+    "reserve": 4000,
+    "sections": [
+     {
+      "chars": 1943,
+      "estTokens": 486,
+      "itemsDropped": [],
+      "itemsSent": 1,
+      "itemsTotal": 1,
+      "name": "Instructions and question",
+      "omitted": false,
+      "truncated": []
+     },
+     {
+      "chars": 1053,
+      "estTokens": 264,
+      "itemsDropped": [
+       "Extra 4",
+       "Extra 5",
+       "Extra 6",
+       "Extra 7",
+       "Extra 8",
+       "Extra 9",
+       "Extra 10",
+       "Extra 11",
+       "Extra 12",
+       "Extra 13",
+       "Extra 14",
+       "Extra 15",
+       "Extra 16",
+       "Extra 17",
+       "Extra 18",
+       "Extra 19",
+       "Extra 20",
+       "Extra 21",
+       "Extra 22",
+       "Extra 23",
+       "Extra 24",
+       "Extra 25",
+       "Extra 26",
+       "Extra 27",
+       "Extra 28",
+       "Extra 29",
+       "Extra 30",
+       "Extra 31",
+       "Extra 32",
+       "Extra 33",
+       "Extra 34",
+       "Extra 35",
+       "Extra 36",
+       "Extra 37",
+       "Extra 38",
+       "Extra 39",
+       "Extra 40",
+       "Extra 41",
+       "Extra 42",
+       "Extra 43",
+       "Extra 44",
+       "Extra 45",
+       "Extra 46",
+       "Extra 47",
+       "Extra 48",
+       "Extra 49"
+      ],
+      "itemsSent": 4,
+      "itemsTotal": 50,
+      "name": "Entity notes",
+      "omitted": false,
+      "truncated": []
+     },
+     {
+      "chars": 169,
+      "estTokens": 43,
+      "itemsDropped": [],
+      "itemsSent": 1,
+      "itemsTotal": 1,
+      "name": "Scene details",
+      "omitted": false,
+      "truncated": []
+     },
+     {
+      "chars": 129,
+      "estTokens": 33,
+      "itemsDropped": [],
+      "itemsSent": 1,
+      "itemsTotal": 1,
+      "name": "Scene",
+      "omitted": false,
+      "truncated": []
+     }
+    ],
+    "trimmed": true,
+    "window": 32000
+   }
+  },
+  "check": {
+   "canon": {
+    "Dr. Okafor": "- Dr. Okafor fact one.\n- Dr. Okafor fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word",
+    "Elias Vale": "- Elias Vale fact one.\n- Elias Vale fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word",
+    "Lower Meridian": "- Lower Meridian fact one.\n- Lower Meridian fact two. word word word word word",
+    "Mara Vale": "- Mara Vale fact one.\n- Mara Vale fact two. word word word word word"
+   },
+   "entities": [
+    "Mara Vale",
+    "Elias Vale",
+    "Lower Meridian",
+    "Dr. Okafor"
+   ],
+   "messages": [
+    {
+     "content": "You identify continuity contradictions in fiction manuscripts. Given:\n1. Entity canon — attributes established in prior scenes for each entity\n2. The current scene text\n\nFind contradictions where the current scene violates established canon:\n- Physical attributes that changed (eye color, height, injuries)\n- Timeline impossibilities (travel time, event order)\n- Character knowing things they shouldn't yet\n- Objects being in the wrong place or custody\n- Characters acting as present/absent inconsistently\n- Name spelling drift across scenes\n\nFor every contradiction, the \"evidence\" field MUST contain the EXACT text\nfrom the scene that conflicts with canon — quote it verbatim so the author\ncan locate it. Do not paraphrase or summarize the evidence.\n\nBe precise. Do not flag intentional ambiguity, stylistic variation, or\nunreliable narrator effects as contradictions.\n",
+     "role": "system"
+    },
+    {
+     "content": "ENTITY CANON:\n### Mara Vale\n- Mara Vale fact one.\n- Mara Vale fact two. word word word word word\n\n### Elias Vale\n- Elias Vale fact one.\n- Elias Vale fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n\n### Lower Meridian\n- Lower Meridian fact one.\n- Lower Meridian fact two. word word word word word\n\n### Dr. Okafor\n- Dr. Okafor fact one.\n- Dr. Okafor fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n\nSCENE DETAILS (the author's plan for this scene - not prose; e.g. the POV character can only know what they could have learned):\n- POV: Mara Vale\n- Place: Lower Meridian\n\nSCENE:\n# Arrival\n\nMara stepped off the tram into Lower Meridian. Elias was waiting under the clock, and Dr. Okafor had not come.\n",
+     "role": "user"
+    }
+   ],
+   "report": {
+    "attached": [],
+    "estTokens": 682,
+    "feature": "continuity",
+    "overBudget": false,
+    "reserve": 4000,
+    "sections": [
+     {
+      "chars": 1504,
+      "estTokens": 376,
+      "itemsDropped": [],
+      "itemsSent": 1,
+      "itemsTotal": 1,
+      "name": "Instructions and question",
+      "omitted": false,
+      "truncated": []
+     },
+     {
+      "chars": 919,
+      "estTokens": 230,
+      "itemsDropped": [
+       "Extra 4",
+       "Extra 5",
+       "Extra 6",
+       "Extra 7",
+       "Extra 8",
+       "Extra 9",
+       "Extra 10",
+       "Extra 11",
+       "Extra 12",
+       "Extra 13",
+       "Extra 14",
+       "Extra 15",
+       "Extra 16",
+       "Extra 17",
+       "Extra 18",
+       "Extra 19",
+       "Extra 20",
+       "Extra 21",
+       "Extra 22",
+       "Extra 23",
+       "Extra 24",
+       "Extra 25",
+       "Extra 26",
+       "Extra 27",
+       "Extra 28",
+       "Extra 29",
+       "Extra 30",
+       "Extra 31",
+       "Extra 32",
+       "Extra 33",
+       "Extra 34",
+       "Extra 35",
+       "Extra 36",
+       "Extra 37",
+       "Extra 38",
+       "Extra 39",
+       "Extra 40",
+       "Extra 41",
+       "Extra 42",
+       "Extra 43",
+       "Extra 44",
+       "Extra 45",
+       "Extra 46",
+       "Extra 47",
+       "Extra 48",
+       "Extra 49"
+      ],
+      "itemsSent": 4,
+      "itemsTotal": 50,
+      "name": "Entity canon",
+      "omitted": false,
+      "truncated": []
+     },
+     {
+      "chars": 169,
+      "estTokens": 43,
+      "itemsDropped": [],
+      "itemsSent": 1,
+      "itemsTotal": 1,
+      "name": "Scene details",
+      "omitted": false,
+      "truncated": []
+     },
+     {
+      "chars": 129,
+      "estTokens": 33,
+      "itemsDropped": [],
+      "itemsSent": 1,
+      "itemsTotal": 1,
+      "name": "Scene",
+      "omitted": false,
+      "truncated": []
+     }
+    ],
+    "trimmed": true,
+    "window": 32000
+   }
+  }
+ },
+ "small": {
+  "canon": {
+   "entities": [
+    [
+     "Mara Vale",
+     "## Canon (auto)\n\n- Mara Vale fact one.\n- Mara Vale fact two. word word word word word\n"
+    ],
+    [
+     "Elias Vale",
+     "## Canon (auto)\n\n- Elias Vale fact one.\n- Elias Vale fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n"
+    ],
+    [
+     "Lower Meridian",
+     "## Canon (auto)\n\n- Lower Meridian fact one.\n- Lower Meridian fact two. word word word word word\n"
+    ],
+    [
+     "Dr. Okafor",
+     "## Canon (auto)\n\n- Dr. Okafor fact one.\n- Dr. Okafor fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n"
+    ]
+   ],
+   "messages": [
+    {
+     "content": "You propose ADDITIONS to entity notes based on a new scene.\n\nYou are given each entity's existing canon and the scene text. List only facts the scene establishes about an\nentity that its existing canon does not already hold.\n\nLook for stable details first: ages; appearance (eyes, hair, build, usual clothing); numbers and amounts;\ndurations and dates; possessions, with colour or material; places (where someone lives, which floor);\nrelationships and occupations; habits. Record an event only when it changes or reveals a stable detail.\n\nRules:\n- facts: one item per fact, about ONE entity, one detail each. \"fact\" states the value itself, in the present\n  tense (\"is forty-five\", \"has black eyes\", \"wears a copper cross\").\n- \"quote\": ONE unbroken passage copied exactly as written from the scene: same punctuation, no ellipsis, no\n  joining of passages, no pronoun in place of a name. Short, but long enough to contain the value. A fact you\n  cannot quote is left out.\n- \"kind\": age, appearance, number, duration, possession, place, relationship, occupation, habit or other.\n- Never restate, reword, merge or \"correct\" existing canon; you cannot remove or change it, only add.\n- Only what the scene states or strongly implies. No speculation or headcanon.\n- If the scene establishes nothing new about an entity, omit that entity.\n",
+     "role": "system"
+    },
+    {
+     "content": "ENTITIES:\n- Mara Vale (character) — aliases: Mara\n  existing canon:\n- Mara Vale fact one.\n- Mara Vale fact two. word word word word word\n- Elias Vale (character) — aliases: Elias\n  existing canon:\n- Elias Vale fact one.\n- Elias Vale fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n- Lower Meridian (place)\n  existing canon:\n- Lower Meridian fact one.\n- Lower Meridian fact two. word word word word word\n- Dr. Okafor (character)\n  existing canon:\n- Dr. Okafor fact one.\n- Dr. Okafor fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n\nSCENE DETAILS (the author's plan for this scene - not prose; e.g. the POV character can only know what they could have learned):\n- POV: Mara Vale\n- Place: Lower Meridian\n\nSCENE:\n# Arrival\n\nMara stepped off the tram into Lower Meridian. Elias was waiting under the clock, and Dr. Okafor had not come.\n",
+     "role": "user"
+    }
+   ],
+   "report": {
+    "attached": [],
+    "estTokens": 825,
+    "feature": "canon",
+    "overBudget": false,
+    "reserve": 4000,
+    "sections": [
+     {
+      "chars": 1943,
+      "estTokens": 486,
+      "itemsDropped": [],
+      "itemsSent": 1,
+      "itemsTotal": 1,
+      "name": "Instructions and question",
+      "omitted": false,
+      "truncated": []
+     },
+     {
+      "chars": 1053,
+      "estTokens": 264,
+      "itemsDropped": [],
+      "itemsSent": 4,
+      "itemsTotal": 4,
+      "name": "Entity notes",
+      "omitted": false,
+      "truncated": []
+     },
+     {
+      "chars": 169,
+      "estTokens": 43,
+      "itemsDropped": [],
+      "itemsSent": 1,
+      "itemsTotal": 1,
+      "name": "Scene details",
+      "omitted": false,
+      "truncated": []
+     },
+     {
+      "chars": 129,
+      "estTokens": 33,
+      "itemsDropped": [],
+      "itemsSent": 1,
+      "itemsTotal": 1,
+      "name": "Scene",
+      "omitted": false,
+      "truncated": []
+     }
+    ],
+    "trimmed": false,
+    "window": 32000
+   }
+  },
+  "check": {
+   "canon": {
+    "Dr. Okafor": "- Dr. Okafor fact one.\n- Dr. Okafor fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word",
+    "Elias Vale": "- Elias Vale fact one.\n- Elias Vale fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word",
+    "Lower Meridian": "- Lower Meridian fact one.\n- Lower Meridian fact two. word word word word word",
+    "Mara Vale": "- Mara Vale fact one.\n- Mara Vale fact two. word word word word word"
+   },
+   "entities": [
+    "Mara Vale",
+    "Elias Vale",
+    "Lower Meridian",
+    "Dr. Okafor"
+   ],
+   "messages": [
+    {
+     "content": "You identify continuity contradictions in fiction manuscripts. Given:\n1. Entity canon — attributes established in prior scenes for each entity\n2. The current scene text\n\nFind contradictions where the current scene violates established canon:\n- Physical attributes that changed (eye color, height, injuries)\n- Timeline impossibilities (travel time, event order)\n- Character knowing things they shouldn't yet\n- Objects being in the wrong place or custody\n- Characters acting as present/absent inconsistently\n- Name spelling drift across scenes\n\nFor every contradiction, the \"evidence\" field MUST contain the EXACT text\nfrom the scene that conflicts with canon — quote it verbatim so the author\ncan locate it. Do not paraphrase or summarize the evidence.\n\nBe precise. Do not flag intentional ambiguity, stylistic variation, or\nunreliable narrator effects as contradictions.\n",
+     "role": "system"
+    },
+    {
+     "content": "ENTITY CANON:\n### Mara Vale\n- Mara Vale fact one.\n- Mara Vale fact two. word word word word word\n\n### Elias Vale\n- Elias Vale fact one.\n- Elias Vale fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n\n### Lower Meridian\n- Lower Meridian fact one.\n- Lower Meridian fact two. word word word word word\n\n### Dr. Okafor\n- Dr. Okafor fact one.\n- Dr. Okafor fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n\nSCENE DETAILS (the author's plan for this scene - not prose; e.g. the POV character can only know what they could have learned):\n- POV: Mara Vale\n- Place: Lower Meridian\n\nSCENE:\n# Arrival\n\nMara stepped off the tram into Lower Meridian. Elias was waiting under the clock, and Dr. Okafor had not come.\n",
+     "role": "user"
+    }
+   ],
+   "report": {
+    "attached": [],
+    "estTokens": 682,
+    "feature": "continuity",
+    "overBudget": false,
+    "reserve": 4000,
+    "sections": [
+     {
+      "chars": 1504,
+      "estTokens": 376,
+      "itemsDropped": [],
+      "itemsSent": 1,
+      "itemsTotal": 1,
+      "name": "Instructions and question",
+      "omitted": false,
+      "truncated": []
+     },
+     {
+      "chars": 919,
+      "estTokens": 230,
+      "itemsDropped": [],
+      "itemsSent": 4,
+      "itemsTotal": 4,
+      "name": "Entity canon",
+      "omitted": false,
+      "truncated": []
+     },
+     {
+      "chars": 169,
+      "estTokens": 43,
+      "itemsDropped": [],
+      "itemsSent": 1,
+      "itemsTotal": 1,
+      "name": "Scene details",
+      "omitted": false,
+      "truncated": []
+     },
+     {
+      "chars": 129,
+      "estTokens": 33,
+      "itemsDropped": [],
+      "itemsSent": 1,
+      "itemsTotal": 1,
+      "name": "Scene",
+      "omitted": false,
+      "truncated": []
+     }
+    ],
+    "trimmed": false,
+    "window": 32000
+   }
+  }
+ },
+ "tight": {
+  "canon": {
+   "entities": [
+    [
+     "Mara Vale",
+     "## Canon (auto)\n\n- Mara Vale fact one.\n- Mara Vale fact two. word word word word word\n"
+    ],
+    [
+     "Elias Vale",
+     "## Canon (auto)\n\n…\nrd word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n"
+    ],
+    [
+     "Lower Meridian",
+     "## Canon (auto)\n\n- Lower Meridian fact one.\n- Lower Meridian fact two. word word word word word\n"
+    ]
+   ],
+   "messages": [
+    {
+     "content": "You propose ADDITIONS to entity notes based on a new scene.\n\nYou are given each entity's existing canon and the scene text. List only facts the scene establishes about an\nentity that its existing canon does not already hold.\n\nLook for stable details first: ages; appearance (eyes, hair, build, usual clothing); numbers and amounts;\ndurations and dates; possessions, with colour or material; places (where someone lives, which floor);\nrelationships and occupations; habits. Record an event only when it changes or reveals a stable detail.\n\nRules:\n- facts: one item per fact, about ONE entity, one detail each. \"fact\" states the value itself, in the present\n  tense (\"is forty-five\", \"has black eyes\", \"wears a copper cross\").\n- \"quote\": ONE unbroken passage copied exactly as written from the scene: same punctuation, no ellipsis, no\n  joining of passages, no pronoun in place of a name. Short, but long enough to contain the value. A fact you\n  cannot quote is left out.\n- \"kind\": age, appearance, number, duration, possession, place, relationship, occupation, habit or other.\n- Never restate, reword, merge or \"correct\" existing canon; you cannot remove or change it, only add.\n- Only what the scene states or strongly implies. No speculation or headcanon.\n- If the scene establishes nothing new about an entity, omit that entity.\n",
+     "role": "system"
+    },
+    {
+     "content": "ENTITIES:\n- Mara Vale (character) — aliases: Mara\n  existing canon:\n- Mara Vale fact one.\n- Mara Vale fact two. word word word word word\n- Elias Vale (character) — aliases: Elias\n  existing canon:\n…\nrd word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n- Lower Meridian (place)\n  existing canon:\n- Lower Meridian fact one.\n- Lower Meridian fact two. word word word word word\n\nSCENE DETAILS (the author's plan for this scene - not prose; e.g. the POV character can only know what they could have learned):\n- POV: Mara Vale\n- Place: Lower Meridian\n\nSCENE:\n# Arrival\n\nMara stepped off the tram into Lower Meridian. Elias was waiting under the clock, and Dr. Okafor had not come.\n",
+     "role": "user"
+    }
+   ],
+   "report": {
+    "attached": [],
+    "estTokens": 700,
+    "feature": "canon",
+    "overBudget": false,
+    "reserve": 4000,
+    "sections": [
+     {
+      "chars": 1943,
+      "estTokens": 486,
+      "itemsDropped": [],
+      "itemsSent": 1,
+      "itemsTotal": 1,
+      "name": "Instructions and question",
+      "omitted": false,
+      "truncated": []
+     },
+     {
+      "chars": 553,
+      "estTokens": 139,
+      "itemsDropped": [
+       "Dr. Okafor",
+       "Extra 4",
+       "Extra 5",
+       "Extra 6",
+       "Extra 7",
+       "Extra 8",
+       "Extra 9",
+       "Extra 10",
+       "Extra 11"
+      ],
+      "itemsSent": 3,
+      "itemsTotal": 12,
+      "name": "Entity notes",
+      "omitted": false,
+      "truncated": [
+       "Elias Vale"
+      ]
+     },
+     {
+      "chars": 169,
+      "estTokens": 43,
+      "itemsDropped": [],
+      "itemsSent": 1,
+      "itemsTotal": 1,
+      "name": "Scene details",
+      "omitted": false,
+      "truncated": []
+     },
+     {
+      "chars": 129,
+      "estTokens": 33,
+      "itemsDropped": [],
+      "itemsSent": 1,
+      "itemsTotal": 1,
+      "name": "Scene",
+      "omitted": false,
+      "truncated": []
+     }
+    ],
+    "trimmed": true,
+    "window": 4700
+   }
+  },
+  "check": {
+   "canon": {
+    "Dr. Okafor": "- Dr. Okafor fact one.\n- Dr. Okafor fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word",
+    "Elias Vale": "- Elias Vale fact one.\n- Elias Vale fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word",
+    "Lower Meridian": "- Lower Meridian fact one.\n- Lower Meridian fact two. word word word word word",
+    "Mara Vale": "- Mara Vale fact one.\n- Mara Vale fact two. word word word word word"
+   },
+   "entities": [
+    "Mara Vale",
+    "Elias Vale",
+    "Lower Meridian",
+    "Dr. Okafor"
+   ],
+   "messages": [
+    {
+     "content": "You identify continuity contradictions in fiction manuscripts. Given:\n1. Entity canon — attributes established in prior scenes for each entity\n2. The current scene text\n\nFind contradictions where the current scene violates established canon:\n- Physical attributes that changed (eye color, height, injuries)\n- Timeline impossibilities (travel time, event order)\n- Character knowing things they shouldn't yet\n- Objects being in the wrong place or custody\n- Characters acting as present/absent inconsistently\n- Name spelling drift across scenes\n\nFor every contradiction, the \"evidence\" field MUST contain the EXACT text\nfrom the scene that conflicts with canon — quote it verbatim so the author\ncan locate it. Do not paraphrase or summarize the evidence.\n\nBe precise. Do not flag intentional ambiguity, stylistic variation, or\nunreliable narrator effects as contradictions.\n",
+     "role": "system"
+    },
+    {
+     "content": "ENTITY CANON:\n### Mara Vale\n- Mara Vale fact one.\n- Mara Vale fact two. word word word word word\n\n### Elias Vale\n- Elias Vale fact one.\n- Elias Vale fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n\n### Lower Meridian\n- Lower Meridian fact one.\n- Lower Meridian fact two. word word word word word\n\n### Dr. Okafor\n- Dr. Okafor fact one.\n- Dr. Okafor fact two. word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n\nSCENE DETAILS (the author's plan for this scene - not prose; e.g. the POV character can only know what they could have learned):\n- POV: Mara Vale\n- Place: Lower Meridian\n\nSCENE:\n# Arrival\n\nMara stepped off the tram into Lower Meridian. Elias was waiting under the clock, and Dr. Okafor had not come.\n",
+     "role": "user"
+    }
+   ],
+   "report": {
+    "attached": [],
+    "estTokens": 682,
+    "feature": "continuity",
+    "overBudget": false,
+    "reserve": 4000,
+    "sections": [
+     {
+      "chars": 1504,
+      "estTokens": 376,
+      "itemsDropped": [],
+      "itemsSent": 1,
+      "itemsTotal": 1,
+      "name": "Instructions and question",
+      "omitted": false,
+      "truncated": []
+     },
+     {
+      "chars": 919,
+      "estTokens": 230,
+      "itemsDropped": [
+       "Extra 4",
+       "Extra 5",
+       "Extra 6",
+       "Extra 7",
+       "Extra 8",
+       "Extra 9",
+       "Extra 10",
+       "Extra 11"
+      ],
+      "itemsSent": 4,
+      "itemsTotal": 12,
+      "name": "Entity canon",
+      "omitted": false,
+      "truncated": []
+     },
+     {
+      "chars": 169,
+      "estTokens": 43,
+      "itemsDropped": [],
+      "itemsSent": 1,
+      "itemsTotal": 1,
+      "name": "Scene details",
+      "omitted": false,
+      "truncated": []
+     },
+     {
+      "chars": 129,
+      "estTokens": 33,
+      "itemsDropped": [],
+      "itemsSent": 1,
+      "itemsTotal": 1,
+      "name": "Scene",
+      "omitted": false,
+      "truncated": []
+     }
+    ],
+    "trimmed": true,
+    "window": 4700
+   }
+  }
+ }
+}

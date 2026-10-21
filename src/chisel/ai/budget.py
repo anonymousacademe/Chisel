@@ -26,6 +26,8 @@ import re
 from dataclasses import dataclass, field, replace
 from typing import Iterable, Mapping
 
+from .client import UTILITY_FEATURES
+
 CHARS_PER_TOKEN = 4          # the estimate: ~4 characters of English prose per token
 # Window assumed when the model's real context length is unknown (the catalogue the
 # model picker fetched is not cached, or the model is not in it). Deliberately
@@ -104,6 +106,7 @@ def window_for(model_id: str, catalogue=None, settings: Mapping | None = None) -
 class Budget:
     window_tokens: int
     output_reserve: int = DEFAULT_RESERVE
+    reasoning: str = ""     # "reasoning off" / "reasoning low" for a utility call, else ""
 
     @property
     def available(self) -> int:
@@ -113,7 +116,9 @@ class Budget:
     @classmethod
     def for_model(cls, model_id: str, catalogue=None, settings: Mapping | None = None,
                   reserve: int = DEFAULT_RESERVE) -> "Budget":
-        return cls(window_for(model_id, catalogue, settings), reserve)
+        from .client import reasoning_note
+
+        return cls(window_for(model_id, catalogue, settings), reserve, reasoning_note(model_id))
 
     @classmethod
     def unbounded(cls) -> "Budget":
@@ -147,6 +152,25 @@ def trim(text: str, limit: int) -> str:
     return text[:cut].rstrip() + "…"
 
 
+def trim_tail(text: str, limit: int) -> str:
+    """*text* cut to at most *limit* characters keeping the END: whole lines from the last one backwards, marked
+    with an ellipsis line first (for text that grows by appending, where the newest lines matter most). One very
+    long last line is cut hard."""
+    if limit <= 0:
+        return ""
+    if len(text) <= limit:
+        return text
+    room = limit - 2                        # "…" and a line break
+    if room <= 0:
+        return text[-limit:]
+    tail = text[-room:]
+    if text[-room - 1] != "\n":             # the window starts inside a line: drop that piece
+        cut = tail.find("\n")
+        if cut >= 0:
+            tail = tail[cut + 1:]
+    return "…\n" + tail if tail.strip() else text[-limit:]
+
+
 # -- sections -----------------------------------------------------------------------
 
 
@@ -162,6 +186,7 @@ class Item:
     cap: int | None = None
     lead: str = ""      # printed before a non-empty body
     empty: str = ""     # printed after the head when there is no body
+    keep: str = "start"  # which end survives a cap or a budget trim: "start", or "end" (the newest lines)
 
     def render(self, body: str | None = None) -> str:
         body = self.body if body is None else body
@@ -237,6 +262,7 @@ class SentReport:
     reserve: int
     over_budget: bool = False
     attached: tuple[dict, ...] = ()
+    reasoning: str = ""     # said when a utility call ran with reasoning off or low
 
     @property
     def dropped(self) -> tuple[str, ...]:
@@ -251,10 +277,13 @@ class SentReport:
         return bool(self.dropped or self.truncated or self.over_budget)
 
     def to_dict(self) -> dict:
-        return {"feature": self.feature, "estTokens": self.est_tokens, "window": self.window,
-                "reserve": self.reserve, "overBudget": self.over_budget, "trimmed": self.trimmed,
-                "sections": [s.to_dict() for s in self.sections],
-                "attached": [dict(a) for a in self.attached]}
+        out = {"feature": self.feature, "estTokens": self.est_tokens, "window": self.window,
+               "reserve": self.reserve, "overBudget": self.over_budget, "trimmed": self.trimmed,
+               "sections": [s.to_dict() for s in self.sections],
+               "attached": [dict(a) for a in self.attached]}
+        if self.reasoning:
+            out["reasoning"] = self.reasoning
+        return out
 
     def summary(self) -> str:
         """One line for a status bar: 'sent ~3.2k tokens of 200k; 2 dropped'."""
@@ -263,6 +292,8 @@ class SentReport:
             text += f"; {len(self.dropped)} dropped"
         if self.truncated:
             text += f"; {len(self.truncated)} trimmed"
+        if self.reasoning:
+            text += f"; {self.reasoning}"
         return text
 
 
@@ -352,7 +383,7 @@ class _Slot:
                 continue
             body = it.body
             if it.cap is not None and len(body) > it.cap:
-                body = trim(body, it.cap)
+                body = (trim_tail if it.keep == "end" else trim)(body, it.cap)
                 self.truncated.add(i)
             self.bodies[i] = body
         if sec.group_cap is not None:
@@ -412,7 +443,7 @@ class _Slot:
         space = left - (len(item.render("x")) - 1)
         if not body or space < MIN_ITEM_CHARS:
             return False
-        cut = trim(body, space)
+        cut = (trim_tail if item.keep == "end" else trim)(body, space)
         if cut == body:
             return False
         self.bodies[i] = cut
@@ -471,7 +502,8 @@ def fit(sections: Iterable[Section], budget: Budget, feature: str = "") -> tuple
         if row is not None:
             reports.append(row)
     report = SentReport(feature, tuple(reports), -(-used // CHARS_PER_TOKEN), budget.window_tokens,
-                        budget.output_reserve, over)
+                        budget.output_reserve, over,
+                        reasoning=budget.reasoning if feature in UTILITY_FEATURES else "")
     return fitted, report
 
 

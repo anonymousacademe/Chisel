@@ -17,7 +17,7 @@ import { Markdown } from "./Markdown";
 import { StopButton } from "./AiProgress";
 import { stopOnEsc, useElapsed, secs, type AiRunView } from "./aiRun";
 
-export type AssistantTab = "assistant" | "context" | "notes" | "inspiration";
+export type AssistantTab = "assistant" | "context" | "notes" | "inspiration" | "summary";
 import { ASK_NOTEBOOK_HINT } from "../data/notebook";
 export type QuickAction = "brainstorm" | "rewrite" | "continuity" | "voice" | "research";
 type Tab = AssistantTab;
@@ -82,6 +82,10 @@ export function Assistant(props: {
   notesTop?: React.ReactNode;
   /** The Inspiration tab. Kept mounted (hidden) so a half-written description survives a tab switch. */
   inspiration?: React.ReactNode;
+  /** The Summary tab (the open scene's summary card); the tab is left out when there is none. */
+  summary?: React.ReactNode;
+  /** "Story so far included" when the last answer was sent the earlier scenes' summaries, else null. */
+  storyChip?: string | null;
   style: StyleStatus | null; onLearnStyle: () => void; onOpenStyle: () => void;
 }) {
   const { tab, onTab: setTab } = props;
@@ -125,6 +129,12 @@ export function Assistant(props: {
           <IconButton icon={PanelRightClose} label="Close panel" onClick={props.onClose} />
         </div>
       </div>
+      {props.storyChip && (
+        <div className="lw-about">
+          <span className="lw-chip lw-chip--about" title="The last answer was sent the summaries of the earlier scenes (the story so far). See “What was sent” under it.">
+            <span className="lw-chip__text">{props.storyChip}</span></span>
+        </div>
+      )}
       {(props.subject || props.onRestoreSubject) && (
         <div className="lw-about">
           {props.subject ? (
@@ -141,7 +151,7 @@ export function Assistant(props: {
       )}
       <div className="lw-divider" />
       <div className="lw-tabs" role="tablist">
-        {(["assistant", "context", "notes", "inspiration"] as Tab[]).map((t) => (
+        {(["assistant", "context", "notes", "inspiration", ...(props.summary ? ["summary"] : [])] as Tab[]).map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} className={`lw-tab${tab === t ? " is-active" : ""}`} onClick={() => setTab(t)}>
             {t[0].toUpperCase() + t.slice(1)}
           </button>
@@ -261,6 +271,7 @@ export function Assistant(props: {
         )}
         {tab === "notes" && props.notesExtra}
         <div hidden={tab !== "inspiration"}>{props.inspiration}</div>
+        {tab === "summary" && props.summary}
       </div>
 
       <div className="lw-composer-region">

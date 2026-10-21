@@ -3,6 +3,7 @@ import { api } from "../backend/api";
 import type { AliasSuggestion, CanonProposal, DocumentPayload, GenerateResult, Issue, RelationshipSuggestion, SceneMention, SentReport as SentInfo, VoiceCheckInfo, Workspace } from "../data/types";
 import { voiceNotice } from "../data/script";
 import type { Dialog } from "../data/dialog";
+import type { CanonLeftOut } from "../data/canon";
 import type { AiKind } from "../backend/api";
 import { anchorDraft } from "../editor/drafts";
 import { cost } from "../data/appLogic";
@@ -122,10 +123,10 @@ export function useAiActions(d: Deps) {
   const updateBible = async () => {
     const d = docRef.current;
     if (!d || d.kind !== "scene") return notify(unitText("Open a scene first.", unit));
-    const r = await aiCall<{ updates: CanonProposal[]; cost: number | null; sent: SentInfo }>(unitText("Reading the scene for new canon…", unit), "reading for canon", "canon", { doc_id: d.id, text: liveText() });
+    const r = await aiCall<{ updates: CanonProposal[]; dropped?: CanonLeftOut[]; tolerant?: number; left_out?: string; cost: number | null; sent: SentInfo }>(unitText("Reading the scene for new canon…", unit), "reading for canon", "canon", { doc_id: d.id, text: liveText() });
     if (!r) return;
-    if (!r.updates.length) return notify(unitText("No new canon found in this scene", unit) + cost(r.cost) + (isTrimmed(r.sent) ? `; ${sentSummary(r.sent)}` : ""), "info", { label: "What was sent", run: () => setDialog({ kind: "sent", report: r.sent }) });
-    setDialog({ kind: "canon", items: r.updates, sent: r.sent });
+    if (!r.updates.length) return notify(unitText("No new canon found in this scene", unit) + (r.left_out ? `; ${r.left_out.replace(/\.$/, "")}` : "") + cost(r.cost) + (isTrimmed(r.sent) ? `; ${sentSummary(r.sent)}` : ""), "info", { label: "What was sent", run: () => setDialog({ kind: "sent", report: r.sent }) });
+    setDialog({ kind: "canon", items: r.updates, sent: r.sent, dropped: r.dropped, tolerant: r.tolerant });
   };
   const applyCanon = async (picked: { entity: string; facts: string[] }[]) => {
     setDialog(null);
