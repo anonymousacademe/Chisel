@@ -4,10 +4,10 @@
 
 # Chisel
 
-A fiction-writing app for your desktop and your terminal. Your novel is a folder
-of plain Markdown files; characters and places are notes that link both ways; and
-AI helps you keep the story consistent, but it only ever **suggests** — it never
-changes your prose unless you accept the change.
+A writing app for your desktop and your terminal, for **stories, scripts and research
+papers**. Your project is a folder of plain Markdown files; characters, places and
+sources are notes that link both ways; and AI helps you keep the work consistent, but
+it only ever **suggests** — it never changes your writing unless you accept the change.
 
 ![Chisel: binder, live-preview editor and assistant panel](docs/screenshots/chisel.png)
 
@@ -17,7 +17,7 @@ or both.
 
 ## Why
 
-- **Your novel is just files.** A project is a folder of Markdown. It is
+- **Your work is just files.** A project is a folder of Markdown. It is
   greppable, works with git, and opens in Obsidian or any editor. There is no
   database to lose and no lock-in.
 - **A living story bible.** Characters and places have free-text notes with
@@ -28,13 +28,38 @@ or both.
   reject. Nothing is applied behind your back, and unaccepted AI text is never
   treated as canon.
 - **Optional AI, bring your own key.** Without a key everything but the AI
-  features works, offline.
+  features works, offline. Use OpenRouter, or a model on your own computer
+  (Ollama or any OpenAI-compatible server) so nothing leaves your machine.
+- **Honest about long work.** The AI sees the scene you are working on, the notes of the
+  characters and places in it and, for a long book, short stored summaries. It does not
+  read your whole manuscript, and Chisel says what it sent with every request. Tests on
+  book-length novels showed that continuity checking still misses slips and raises false
+  alarms on a long book, so treat it as a second pair of eyes, not a proofreader
+  ([the test report](docs/dev/long-project-test/README.md)).
+
+## Three kinds of project
+
+You choose when you create a project; the mode is fixed afterwards.
+
+| | For | What changes |
+|---|---|---|
+| **Story** | Novels and short fiction | Scenes and parts, characters, places and relationships, optional story time. |
+| **Script** | Screenplays, TV, stage and audio | A story whose scenes are Fountain: drawn as a screenplay, page estimate, Fountain and screenplay-PDF export, a dialogue-voice check. |
+| **Research** | Papers and proposals | Sections and sources, citations, a target journal, figures, tables and equations, a requirements check. |
 
 ## Features
 
 **Writing**
 - Script mode for screenplays, TV, stage and audio scripts: Fountain scenes drawn as a screenplay, a page
   estimate, Fountain import and export, a screenplay PDF.
+- Research mode for papers and proposals: sources synced from Zotero (local API, web API or a Better BibTeX
+  file; Chisel never writes to Zotero), `[[@key]]` citations shown as "(Smith et al., 2024)", figures, tables and
+  equations, a journal profile that starts your outline and checks the paper against its requirements, and a
+  folder of the journal's or funder's guidelines to read alongside.
+- Read aloud (desktop): a reading strip that speaks the text from the cursor, with the passage highlighted.
+  Scripts are read by speaker, a story's quoted speech gets its own voice, and research text drops citations.
+  Use your system's voices, natural voices that run offline on your computer (Kokoro, optional download), or a
+  speech service you choose. Nothing is spoken until you press play.
 - Markdown editor with autosave, word counts, writer/focus mode and an offline
   spell check (spelling only; your characters' names are never flagged; personal
   and project dictionaries are plain text files).
@@ -58,13 +83,21 @@ or both.
 - Optional git sync that runs only when you click: commit, push (never forced,
   asks first) and init. Without git installed, nothing shows.
 
-**AI, always review-gated** (OpenRouter today; local models are planned)
+**AI, always review-gated** (OpenRouter or a local model)
 - *Alias finder*: finds other ways your prose refers to known characters ("the
   old smith") and offers them as aliases.
-- *Continuity check* and *story-bible updates*: flags contradictions with canon.
+- *Continuity check* and *story-bible updates*: flags contradictions with canon. Proposed notes come with a
+  quote for each fact, checked against your scene; a fact whose quote is not in the text is left out and listed.
+- *Scene summaries* for long books: a short summary of each scene kept in `.summaries/`, written by the AI only
+  when you ask, shown to you before anything is saved, and checked against your text. Chisel tells you when a
+  project has grown past what the AI can see.
+- *Relationships*: a character note can declare relationships, and the assistant can propose more for you to tick.
+- *Dialogue voices* (scripts): flags lines that do not sound like the character elsewhere in the script.
 - *Style guide*: learns your voice from your own prose into an editable
   `style.md`; then draft at the cursor, expand a `{{expand: note}}` marker or
   rewrite a selection. Results are pending drafts you accept or reject.
+- A **Stop** button for any AI request, and a **reasoning** setting that makes the cheap utility calls faster
+  and cheaper on models that think for a long time.
 - *Assistant chat* with attachments (scenes, notes, notebook notes, your comments),
   *Ask my notebook* questions answered from your own notes, *Brainstorm*, and
   *Inspiration images* for reference while you write. The assistant knows which
@@ -75,8 +108,8 @@ or both.
 
 **Export**
 - A typeset PDF book, a double-spaced manuscript-review PDF with line numbers, a
-  plain proof PDF, Markdown, and DOCX / EPUB / LaTeX through pandoc. Files go to
-  `exports/` and are never overwritten.
+  plain proof PDF, Markdown, and DOCX / EPUB / LaTeX through pandoc. Scripts export
+  Fountain and a screenplay PDF. Files go to `exports/` and are never overwritten.
 
 ## Install
 
@@ -192,7 +225,10 @@ the `OPENROUTER_API_KEY` environment variable, or enter the key in the app
 stored in your operating system's keyring, never in a project file.
 
 Models are chosen per role in Settings (type a slug, or pick from the live catalogue),
-or per project in `project.toml`, where the project wins:
+or per project in `project.toml`, where the project wins. A slug starting with `local:`
+(for example `local:llama3.1`) runs on your own server (default: Ollama at
+`http://127.0.0.1:11434/v1`), costs nothing and sends nothing anywhere; picture generation
+is OpenRouter-only for now.
 
 | Role | Used for | Default |
 |---|---|---|
@@ -296,9 +332,11 @@ When you are happy with Chisel, you can delete the old `lorewrite` folders and, 
 
 Chisel is pre-1.0: formats and
 screens can still change. Your files are plain Markdown, so you are never locked in. The name changed
-from LoreWriter to Chisel (see "Upgrading from LoreWriter" above). Next on the
-roadmap (see [SPEC.md](SPEC.md)): talking as a character,
-per-scene summaries and a timeline view.
+from LoreWriter to Chisel (see "Upgrading from LoreWriter" above). Story, script and research modes,
+read aloud, local models and scene summaries are in the code on `main`; the latest release is
+listed on the [Releases page](https://github.com/anonymousacademe/Chisel/releases), and
+[CHANGELOG.md](CHANGELOG.md) shows what is not in it yet. Next on the roadmap (see [SPEC.md](SPEC.md)):
+talking as a character and a timeline view.
 
 ## Documentation
 
